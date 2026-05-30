@@ -1,22 +1,46 @@
-import { useLocation } from 'react-router-dom'
-import { Menu, Bell, Sun, Moon, Search, ChevronRight } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
+import { useState, useRef, useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { Menu, Bell, Sun, Moon, Search, ChevronRight, LogOut, User, Settings, ChevronDown } from 'lucide-react'
+import { useApp }  from '../../context/AppContext'
+import { useAuth, ROLE_LABELS, ROLE_COLORS } from '../../context/AuthContext'
 import Avatar from '../ui/Avatar'
 
 const PAGE_TITLES = {
-  '/':          { label: 'Dashboard',  sub: 'Overview for May 2026'   },
-  '/invoices':  { label: 'Invoices',   sub: 'Trip bills & pay slips'  },
-  '/customers': { label: 'Customers',  sub: 'All booking clients'     },
-  '/expenses':  { label: 'Expenses',   sub: 'Operating costs tracker' },
-  '/drivers':   { label: 'Drivers',    sub: 'Fleet driver management' },
-  '/vehicles':  { label: 'Vehicles',   sub: 'Fleet vehicle records'   },
-  '/settings':  { label: 'Settings',   sub: 'App & business config'   },
+  '/':             { label: 'Dashboard',  sub: 'Overview for May 2026'        },
+  '/invoices':     { label: 'Invoices',   sub: 'Trip bills & pay slips'       },
+  '/customers':    { label: 'Customers',  sub: 'All booking clients'          },
+  '/expenses':     { label: 'Expenses',   sub: 'Operating costs tracker'      },
+  '/drivers':      { label: 'Drivers',    sub: 'Fleet driver management'      },
+  '/vehicles':     { label: 'Vehicles',   sub: 'Fleet vehicle records'        },
+  '/settings':     { label: 'Settings',   sub: 'App & business config'        },
+  '/my-trips':     { label: 'My Trips',   sub: 'Your assigned trips'          },
 }
 
 export default function Topbar() {
   const { darkMode, setDarkMode, setSidebarOpen } = useApp()
+  const { user, logout } = useAuth()
   const location = useLocation()
-  const info = PAGE_TITLES[location.pathname] || PAGE_TITLES['/']
+  const navigate = useNavigate()
+  const info     = PAGE_TITLES[location.pathname] || PAGE_TITLES['/']
+  const roleColors = user ? ROLE_COLORS[user.role] : null
+
+  const [dropOpen, setDropOpen] = useState(false)
+  const dropRef = useRef(null)
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (dropRef.current && !dropRef.current.contains(e.target)) setDropOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const handleLogout = () => {
+    setDropOpen(false)
+    logout()
+    navigate('/login', { replace: true })
+  }
 
   return (
     <header className="glass-topbar h-[60px] flex items-center px-4 gap-3 flex-shrink-0 sticky top-0 z-30">
@@ -51,51 +75,101 @@ export default function Topbar() {
       {/* Right controls */}
       <div className="flex items-center gap-2 flex-shrink-0">
 
-        {/* Search bar */}
-        <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl
-                        border border-slate-200 dark:border-navy-700
-                        bg-slate-50/80 dark:bg-navy-800/60 w-48">
+        {/* Search */}
+        <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-slate-50/80 dark:bg-navy-800/60 w-44">
           <Search size={14} className="text-slate-400 dark:text-slate-500 flex-shrink-0" />
           <input
             type="text"
             placeholder="Search…"
-            className="bg-transparent text-sm text-slate-700 dark:text-slate-200
-                       placeholder-slate-400 dark:placeholder-slate-500
-                       outline-none w-full font-body"
+            className="bg-transparent text-sm text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 outline-none w-full font-body"
           />
         </div>
 
-        {/* Dark mode toggle */}
+        {/* Dark mode */}
         <button
           onClick={() => setDarkMode(!darkMode)}
-          className="w-9 h-9 rounded-xl border border-slate-200 dark:border-navy-700
-                     bg-white/60 dark:bg-navy-800/60 flex items-center justify-center
-                     text-slate-500 dark:text-slate-400 hover:text-navy-900 dark:hover:text-white
-                     hover:bg-slate-100 dark:hover:bg-navy-700 transition-all"
+          className="w-9 h-9 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-navy-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-navy-700 transition-all"
           title={darkMode ? 'Light mode' : 'Dark mode'}
         >
-          {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+          {darkMode
+            ? <Sun size={16} />
+            : <Moon size={16} />}
         </button>
 
         {/* Notifications */}
-        <button
-          className="relative w-9 h-9 rounded-xl border border-slate-200 dark:border-navy-700
-                     bg-white/60 dark:bg-navy-800/60 flex items-center justify-center
-                     text-slate-500 dark:text-slate-400 hover:text-navy-900 dark:hover:text-white
-                     hover:bg-slate-100 dark:hover:bg-navy-700 transition-all"
-        >
+        <button className="relative w-9 h-9 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-navy-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-navy-700 transition-all">
           <Bell size={16} />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 border-2 border-white dark:border-navy-800" />
         </button>
 
-        {/* Avatar */}
-        <div className="flex items-center gap-2.5 pl-1">
-          <Avatar name="Admin User" size={34} />
-          <div className="hidden sm:block">
-            <p className="text-xs font-bold text-slate-700 dark:text-slate-200 leading-tight">Admin</p>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-none">Owner</p>
+        {/* User dropdown */}
+        {user && (
+          <div className="relative" ref={dropRef}>
+            <button
+              onClick={() => setDropOpen(v => !v)}
+              className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl hover:bg-slate-100 dark:hover:bg-navy-800 transition-colors"
+            >
+              <Avatar name={user.name} size={30} />
+              <div className="hidden sm:block text-left">
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-200 leading-tight">{user.name}</p>
+                <p className={`text-[10px] font-semibold leading-none ${roleColors?.text}`}>{ROLE_LABELS[user.role]}</p>
+              </div>
+              <ChevronDown size={13} className={`text-slate-400 transition-transform ${dropOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {/* Dropdown menu */}
+            {dropOpen && (
+              <div className="absolute right-0 top-full mt-2 w-56 glass-card rounded-2xl shadow-2xl border border-slate-200 dark:border-navy-700 overflow-hidden z-50 animate-fade-up">
+                {/* User info header */}
+                <div className="px-4 py-3 border-b border-slate-100 dark:border-navy-700 bg-slate-50/80 dark:bg-navy-800/50">
+                  <div className="flex items-center gap-2.5">
+                    <Avatar name={user.name} size={34} />
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{user.name}</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{user.email}</p>
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${roleColors?.bg} ${roleColors?.text}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${roleColors?.dot}`} />
+                      {ROLE_LABELS[user.role]}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Menu items */}
+                <div className="p-1.5">
+                  {user.role !== 'driver' && (
+                    <button
+                      onClick={() => { setDropOpen(false); navigate('/settings') }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-800 transition-colors text-left"
+                    >
+                      <Settings size={15} className="text-slate-400" />
+                      Settings
+                    </button>
+                  )}
+                  <button
+                    onClick={() => { setDropOpen(false); navigate(user.role === 'driver' ? '/my-trips' : '/') }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-800 transition-colors text-left"
+                  >
+                    <User size={15} className="text-slate-400" />
+                    My Profile
+                  </button>
+                </div>
+
+                <div className="p-1.5 border-t border-slate-100 dark:border-navy-700">
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left font-semibold"
+                  >
+                    <LogOut size={15} />
+                    Sign out
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </div>
     </header>
   )
