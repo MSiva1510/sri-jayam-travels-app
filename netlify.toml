@@ -1,0 +1,15 @@
+# ── Sri Jayam Travels — Netlify Configuration ──────────────────
+# SPA redirect: every path serves index.html so React Router handles routing.
+# Without this, hard-refreshing /login or /driver returns Netlify's 404.
+
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"

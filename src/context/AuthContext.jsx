@@ -5,86 +5,45 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 // ─────────────────────────────────────────────────────────────
 export const MOCK_USERS = [
   {
-    id: 1,
-    name: 'Arjun Sharma',
-    email: 'admin@srijayamtravels.in',
-    username: 'admin',
-    password: 'admin123',
-    role: 'admin',
-    avatar: null,
-    phone: '+91 94423 37470',
-    joined: 'Jan 2022',
-    lastLogin: null,
+    id: 1, name: 'Arjun Sharma',
+    email: 'admin@srijayamtravels.in', username: 'admin', password: 'admin123',
+    role: 'admin', phone: '+91 94423 37470', joined: 'Jan 2022',
   },
   {
-    id: 2,
-    name: 'Kavitha Rajan',
-    email: 'manager@srijayamtravels.in',
-    username: 'manager',
-    password: 'manager123',
-    role: 'manager',
-    avatar: null,
-    phone: '+91 98765 43210',
-    joined: 'Mar 2022',
-    lastLogin: null,
+    id: 2, name: 'Kavitha Rajan',
+    email: 'manager@srijayamtravels.in', username: 'manager', password: 'manager123',
+    role: 'manager', phone: '+91 98765 43210', joined: 'Mar 2022',
   },
   {
-    id: 3,
-    name: 'Ramanan',
-    email: 'ramanan@srijayamtravels.in',
-    username: 'ramanan',
-    password: 'driver123',
-    role: 'driver',
-    avatar: null,
-    phone: '8754914315',
-    vehicle: 'PY01CY1255',
-    vehicleType: '4+1 Sedan',
-    joined: 'Jan 2022',
-    lastLogin: null,
+    id: 3, name: 'Ramanan',
+    email: 'ramanan@srijayamtravels.in', username: 'ramanan', password: 'driver123',
+    role: 'driver', phone: '8754914315', vehicle: 'PY01CY1255', vehicleType: '4+1 Sedan', joined: 'Jan 2022',
   },
   {
-    id: 4,
-    name: 'Babu',
-    email: 'babu@srijayamtravels.in',
-    username: 'babu',
-    password: 'driver123',
-    role: 'driver',
-    avatar: null,
-    phone: '9894403206',
-    vehicle: 'PY01DF1255',
-    vehicleType: '4+1 Sedan',
-    joined: 'Mar 2021',
-    lastLogin: null,
+    id: 4, name: 'Babu',
+    email: 'babu@srijayamtravels.in', username: 'babu', password: 'driver123',
+    role: 'driver', phone: '9894403206', vehicle: 'PY01DF1255', vehicleType: '4+1 Sedan', joined: 'Mar 2021',
   },
   {
-    id: 5,
-    name: 'Rajasekharan',
-    email: 'raja@srijayamtravels.in',
-    username: 'rajasekharan',
-    password: 'driver123',
-    role: 'driver',
-    avatar: null,
-    phone: '6383401383',
-    vehicle: 'PY01VF1255',
-    vehicleType: '7+1 SUV',
-    joined: 'Sep 2022',
-    lastLogin: null,
+    id: 5, name: 'Rajasekharan',
+    email: 'raja@srijayamtravels.in', username: 'rajasekharan', password: 'driver123',
+    role: 'driver', phone: '6383401383', vehicle: 'PY01VF1255', vehicleType: '7+1 SUV', joined: 'Sep 2022',
   },
 ]
 
 // ─────────────────────────────────────────────────────────────
-//  Role → allowed routes map
+//  Role → allowed route prefixes
 // ─────────────────────────────────────────────────────────────
 export const ROLE_ROUTES = {
-  admin: ['/', '/invoices', '/customers', '/expenses', '/drivers', '/vehicles', '/settings'],
-  manager: ['/', '/invoices', '/customers', '/expenses', '/drivers', '/vehicles'],
-  driver: ['/driver', '/assigned-trips', '/ride-history', '/driver-profile'],
+  admin:   ['/', '/invoices', '/customers', '/expenses', '/drivers', '/vehicles', '/settings', '/trips', '/create-trip'],
+  manager: ['/', '/invoices', '/customers', '/expenses', '/drivers', '/vehicles', '/trips', '/create-trip'],
+  driver:  ['/driver', '/assigned-trips', '/ride-history', '/driver-profile'],
 }
 
 export const ROLE_LABELS = {
-  admin: 'Administrator',
+  admin:   'Administrator',
   manager: 'Manager',
-  driver: 'Driver',
+  driver:  'Driver',
 }
 
 export const ROLE_COLORS = {
@@ -94,32 +53,34 @@ export const ROLE_COLORS = {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Session helpers  (sessionStorage — clears on tab close)
+//  Storage helpers
 // ─────────────────────────────────────────────────────────────
 const SESSION_KEY = 'sjt_auth_session'
 
-function loadSession() {
+function readStorage() {
+  // Try sessionStorage first (same-tab persistence), then localStorage (remember-me)
   try {
-    const raw = sessionStorage.getItem(SESSION_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw)
-    // strip password before returning
-    const { password: _p, ...safe } = parsed
-    return safe
-  } catch {
-    return null
-  }
-}
-
-function saveSession(user) {
-  try {
-    const { password: _p, ...safe } = user
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(safe))
+    const ss = sessionStorage.getItem(SESSION_KEY)
+    if (ss) return JSON.parse(ss)
   } catch {}
+  try {
+    const ls = localStorage.getItem(SESSION_KEY)
+    if (ls) return JSON.parse(ls)
+  } catch {}
+  return null
 }
 
-function clearSession() {
+function writeSession(user) {
+  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(user)) } catch {}
+}
+
+function writePersistent(user) {
+  try { localStorage.setItem(SESSION_KEY, JSON.stringify(user)) } catch {}
+}
+
+function clearAllStorage() {
   try { sessionStorage.removeItem(SESSION_KEY) } catch {}
+  try { localStorage.removeItem(SESSION_KEY)   } catch {}
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -128,26 +89,48 @@ function clearSession() {
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [user,        setUser]        = useState(() => loadSession())
-  const [loading,     setLoading]     = useState(false)
+  // `initialized` = true once we've attempted to restore session from storage.
+  // ProtectedRoute must NOT redirect until this is true.
+  const [initialized, setInitialized] = useState(false)
+  const [user,        setUser]        = useState(null)
+  const [authLoading, setAuthLoading] = useState(false)   // login spinner
   const [loginError,  setLoginError]  = useState('')
 
-  // ── Login ────────────────────────────────────────────────
+  // ── Restore session on mount (runs once, synchronously-ish) ──
+  useEffect(() => {
+    const stored = readStorage()
+    if (stored && stored.id && stored.role) {
+      // Cross-check against MOCK_USERS to ensure user still valid
+      const live = MOCK_USERS.find(u => u.id === stored.id)
+      if (live) {
+        const { password: _p, ...safe } = live
+        const restored = { ...safe, lastLogin: stored.lastLogin }
+        setUser(restored)
+        writeSession(restored)   // keep sessionStorage fresh
+      } else {
+        // User no longer in database — clear stale token
+        clearAllStorage()
+      }
+    }
+    setInitialized(true)   // always mark done, even if no session found
+  }, [])
+
+  // ── Login ─────────────────────────────────────────────────
   const login = useCallback(async ({ username, password, remember }) => {
-    setLoading(true)
+    setAuthLoading(true)
     setLoginError('')
 
-    // Simulate network delay
-    await new Promise(r => setTimeout(r, 800))
+    await new Promise(r => setTimeout(r, 700))   // simulate network
 
     const found = MOCK_USERS.find(
-      u => (u.username === username.trim().toLowerCase() || u.email === username.trim().toLowerCase())
-        && u.password === password
+      u => (u.username === username.trim().toLowerCase() ||
+            u.email    === username.trim().toLowerCase()) &&
+           u.password  === password
     )
 
     if (!found) {
       setLoginError('Invalid username or password. Please try again.')
-      setLoading(false)
+      setAuthLoading(false)
       return false
     }
 
@@ -155,53 +138,29 @@ export function AuthProvider({ children }) {
     const sessionUser = { ...safeUser, lastLogin: new Date().toISOString() }
 
     setUser(sessionUser)
-    saveSession(sessionUser)
+    writeSession(sessionUser)
+    if (remember) writePersistent(sessionUser)
 
-    // If remember-me, also persist to localStorage
-    if (remember) {
-      try { localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser)) } catch {}
-    }
-
-    setLoading(false)
+    setAuthLoading(false)
     return true
   }, [])
 
-  // ── Logout ───────────────────────────────────────────────
+  // ── Logout ────────────────────────────────────────────────
   const logout = useCallback(() => {
     setUser(null)
-    clearSession()
-    try { localStorage.removeItem(SESSION_KEY) } catch {}
+    clearAllStorage()
   }, [])
 
-  // ── Restore from localStorage on mount ──────────────────
-  useEffect(() => {
-    if (!user) {
-      try {
-        const raw = localStorage.getItem(SESSION_KEY)
-        if (raw) {
-          const parsed = JSON.parse(raw)
-          setUser(parsed)
-          saveSession(parsed)
-        }
-      } catch {}
-    }
-  }, [])
-
-  // ── Permission helpers ───────────────────────────────────
-  const can = useCallback((path) => {
-    if (!user) return false
-    return ROLE_ROUTES[user.role]?.includes(path) ?? false
-  }, [user])
-
+  // ── Helpers ───────────────────────────────────────────────
   const isAdmin   = user?.role === 'admin'
   const isManager = user?.role === 'manager'
   const isDriver  = user?.role === 'driver'
 
   return (
     <AuthContext.Provider value={{
-      user, loading, loginError, setLoginError,
+      user, initialized, authLoading, loginError, setLoginError,
       login, logout,
-      can, isAdmin, isManager, isDriver,
+      isAdmin, isManager, isDriver,
     }}>
       {children}
     </AuthContext.Provider>

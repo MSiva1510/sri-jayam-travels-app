@@ -3,7 +3,7 @@ import {
   LayoutDashboard, FileText, Users, Receipt,
   User, Car, Settings, ChevronLeft, ChevronRight,
   MapPin, Phone, Globe, LogOut, Navigation,
-  History, List,
+  History, List, Route,
 } from 'lucide-react'
 import { useApp }  from '../../context/AppContext'
 import { useAuth, ROLE_LABELS, ROLE_COLORS } from '../../context/AuthContext'
@@ -12,18 +12,19 @@ import Avatar      from '../ui/Avatar'
 
 // ── Nav definitions ──────────────────────────────────────────
 const NAV_ITEMS = [
-  // Admin + Manager pages
-  { to: '/',            label: 'Dashboard',     icon: LayoutDashboard, roles: ['admin', 'manager'] },
-  { to: '/invoices',    label: 'Invoices',       icon: FileText,        roles: ['admin', 'manager'] },
-  { to: '/customers',   label: 'Customers',      icon: Users,           roles: ['admin', 'manager'] },
-  { to: '/expenses',    label: 'Expenses',       icon: Receipt,         roles: ['admin', 'manager'] },
-  { to: '/drivers',     label: 'Drivers',        icon: User,            roles: ['admin', 'manager'] },
-  { to: '/vehicles',    label: 'Vehicles',       icon: Car,             roles: ['admin', 'manager'] },
-  // Driver pages
-  { to: '/driver',      label: 'Home',           icon: LayoutDashboard, roles: ['driver'] },
-  { to: '/assigned-trips', label: 'Trips Today', icon: List,            roles: ['driver'] },
-  { to: '/ride-history',   label: 'Ride History',icon: History,         roles: ['driver'] },
-  { to: '/driver-profile', label: 'My Profile',  icon: User,            roles: ['driver'] },
+  // Admin + Manager
+  { to: '/',               label: 'Dashboard',     icon: LayoutDashboard, roles: ['admin', 'manager'] },
+  { to: '/invoices',       label: 'Invoices',       icon: FileText,        roles: ['admin', 'manager'] },
+  { to: '/trips',          label: 'Trips',          icon: Route,           roles: ['admin', 'manager'] },
+  { to: '/customers',      label: 'Customers',      icon: Users,           roles: ['admin', 'manager'] },
+  { to: '/expenses',       label: 'Expenses',       icon: Receipt,         roles: ['admin', 'manager'] },
+  { to: '/drivers',        label: 'Drivers',        icon: User,            roles: ['admin', 'manager'] },
+  { to: '/vehicles',       label: 'Vehicles',       icon: Car,             roles: ['admin', 'manager'] },
+  // Driver
+  { to: '/driver',         label: 'Home',           icon: LayoutDashboard, roles: ['driver'] },
+  { to: '/assigned-trips', label: 'Trips Today',    icon: List,            roles: ['driver'] },
+  { to: '/ride-history',   label: 'Ride History',   icon: History,         roles: ['driver'] },
+  { to: '/driver-profile', label: 'My Profile',     icon: User,            roles: ['driver'] },
 ]
 
 const BOTTOM_ITEMS = [
@@ -58,15 +59,12 @@ function NavItem({ to, label, icon: Icon, collapsed }) {
 }
 
 function SidebarInner({ collapsed }) {
-  const { setCollapsed }   = useApp()
-  const { user, logout, isDriver } = useAuth()
-  const navigate           = useNavigate()
-  const roleColors         = user ? ROLE_COLORS[user.role] : null
+  const { setCollapsed }               = useApp()
+  const { user, logout, isDriver }     = useAuth()
+  const navigate                       = useNavigate()
+  const roleColors                     = user ? ROLE_COLORS[user.role] : null
 
-  const handleLogout = () => {
-    logout()
-    navigate('/login', { replace: true })
-  }
+  const handleLogout = () => { logout(); navigate('/login', { replace: true }) }
 
   const visibleNav    = NAV_ITEMS.filter(i => i.roles.includes(user?.role))
   const visibleBottom = BOTTOM_ITEMS.filter(i => i.roles.includes(user?.role))
@@ -80,7 +78,7 @@ function SidebarInner({ collapsed }) {
           <img
             src={BIZ.logo} alt="SJT"
             className="w-full h-full object-contain p-0.5"
-            onError={e => { e.target.style.display='none'; e.target.parentNode.innerHTML='<span class="text-white font-black text-xs">SJT</span>' }}
+            onError={e => { e.target.style.display = 'none'; e.target.parentNode.innerHTML = '<span class="text-white font-black text-xs">SJT</span>' }}
           />
         </div>
         {!collapsed && (
@@ -91,7 +89,7 @@ function SidebarInner({ collapsed }) {
         )}
       </div>
 
-      {/* Nav items */}
+      {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto no-scrollbar">
         {!collapsed && (
           <p className="text-white/25 text-[10px] font-bold uppercase tracking-widest px-3 mb-2">
@@ -116,7 +114,7 @@ function SidebarInner({ collapsed }) {
         )}
       </nav>
 
-      {/* Business info (non-driver, non-collapsed) */}
+      {/* Business info footer (non-driver) */}
       {!collapsed && !isDriver && (
         <div className="px-4 py-3 border-t border-white/10 flex-shrink-0">
           <div className="bg-white/6 rounded-xl p-3 space-y-1.5">
@@ -156,10 +154,8 @@ function SidebarInner({ collapsed }) {
                 <button
                   onClick={handleLogout}
                   className="flex items-center gap-1.5 text-white/40 hover:text-red-400 text-[11px] font-semibold transition-colors px-2 py-1 rounded-lg hover:bg-red-500/10"
-                  title="Sign out"
                 >
-                  <LogOut size={12} />
-                  <span>Sign out</span>
+                  <LogOut size={12} /><span>Sign out</span>
                 </button>
               </div>
             </div>
