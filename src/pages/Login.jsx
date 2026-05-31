@@ -49,7 +49,7 @@ export default function Login() {
   // If already logged in, redirect away
   useEffect(() => {
     if (user) {
-      const dest = user.role === 'driver' ? '/my-trips' : from
+      const dest = user.role === 'driver' ? '/driver' : from
       navigate(dest, { replace: true })
     }
   }, [user])
@@ -59,7 +59,7 @@ export default function Login() {
     const ok = await login({ username, password, remember })
     if (ok) {
       const u = MOCK_USERS.find(u => u.username === username.toLowerCase())
-      const dest = u?.role === 'driver' ? '/my-trips' : from === '/login' ? '/' : from
+      const dest = u?.role === 'driver' ? '/driver' : from === '/login' ? '/' : from
       navigate(dest, { replace: true })
     }
   }

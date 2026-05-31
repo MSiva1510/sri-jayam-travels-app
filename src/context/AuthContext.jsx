@@ -78,7 +78,7 @@ export const MOCK_USERS = [
 export const ROLE_ROUTES = {
   admin: ['/', '/invoices', '/customers', '/expenses', '/drivers', '/vehicles', '/settings'],
   manager: ['/', '/invoices', '/customers', '/expenses', '/drivers', '/vehicles'],
-  driver: ['/my-trips'],
+  driver: ['/driver', '/assigned-trips', '/ride-history', '/driver-profile'],
 }
 
 export const ROLE_LABELS = {

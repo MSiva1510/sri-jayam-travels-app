@@ -1,0 +1,236 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import {
+  ArrowLeft, Clock, MapPin, TrendingUp,
+  IndianRupee, Car, ChevronDown, ChevronUp,
+  CheckCircle, Navigation, Calendar,
+} from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
+import { getDriverHistory, TRIP_TYPES } from '../../data/driverData'
+
+const TYPE_COLORS = {
+  outstation: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+  airport:    'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  local:      'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',
+  pickup:     'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+  drop:       'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+  roundtrip:  'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+}
+
+export default function RideHistory() {
+  const { user }   = useAuth()
+  const navigate   = useNavigate()
+  const history    = getDriverHistory(user?.name)
+  const [expanded, setExpanded] = useState(null)
+  const [filter,   setFilter]   = useState('all')
+
+  const totalEarnings = history.reduce((s, t) => s + t.earnings, 0)
+  const totalKm       = history.reduce((s, t) => s + t.km, 0)
+  const totalFare     = history.reduce((s, t) => s + t.fare, 0)
+
+  const filtered = filter === 'all'
+    ? history
+    : history.filter(t => t.tripType === filter)
+
+  const tripTypes = [...new Set(history.map(t => t.tripType))]
+
+  return (
+    <div className="space-y-4 max-w-lg mx-auto animate-fade-up pb-6">
+
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => navigate('/driver')}
+          className="w-9 h-9 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors flex-shrink-0"
+        >
+          <ArrowLeft size={17} />
+        </button>
+        <div>
+          <h1 className="font-display font-black text-slate-800 dark:text-white text-xl">Ride History</h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{history.length} trips · May 2026</p>
+        </div>
+      </div>
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-3 gap-2.5">
+        {[
+          { label: 'Total Trips',    value: history.length,                              icon: Navigation,   color: 'from-navy-700 to-blue-600'    },
+          { label: 'Your Earnings',  value: `Rs. ${totalEarnings.toLocaleString('en-IN')}`, icon: IndianRupee,  color: 'from-emerald-600 to-teal-500' },
+          { label: 'KM Driven',      value: `${totalKm.toLocaleString()}`,               icon: Car,          color: 'from-violet-600 to-purple-500' },
+        ].map(s => (
+          <div key={s.label} className="glass-card rounded-2xl p-3.5 relative overflow-hidden">
+            <div className={`absolute -top-4 -right-4 w-14 h-14 rounded-full opacity-15 blur-xl bg-gradient-to-br ${s.color}`} />
+            <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${s.color} flex items-center justify-center mb-2 relative z-10`}>
+              <s.icon size={13} className="text-white" />
+            </div>
+            <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5 relative z-10">{s.label}</p>
+            <p className="text-sm font-display font-black text-slate-800 dark:text-white leading-tight relative z-10">{s.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Earnings bar */}
+      <div className="glass-card rounded-2xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Fare Collected</p>
+            <p className="font-display font-black text-slate-800 dark:text-white text-base">Rs. {totalFare.toLocaleString('en-IN')}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Your Share</p>
+            <p className="font-display font-black text-emerald-600 dark:text-emerald-400 text-base">Rs. {totalEarnings.toLocaleString('en-IN')}</p>
+          </div>
+        </div>
+        <div className="h-2 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-700"
+            style={{ width: `${Math.round((totalEarnings / totalFare) * 100)}%` }}
+          />
+        </div>
+        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5 text-right">
+          {Math.round((totalEarnings / totalFare) * 100)}% of fare is your pay
+        </p>
+      </div>
+
+      {/* Type filter */}
+      <div className="overflow-x-auto no-scrollbar">
+        <div className="flex gap-1.5 pb-1" style={{ minWidth: 'max-content' }}>
+          {['all', ...tripTypes].map(type => (
+            <button
+              key={type}
+              onClick={() => setFilter(type)}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+                filter === type
+                  ? 'bg-navy-900 dark:bg-blue-700 text-white shadow'
+                  : 'bg-slate-100 dark:bg-navy-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-navy-700'
+              }`}
+            >
+              {type === 'all' ? 'All Types' : TRIP_TYPES[type] || type}
+              <span className="ml-1.5 opacity-70">
+                {type === 'all' ? history.length : history.filter(t => t.tripType === type).length}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* History list */}
+      {filtered.length === 0 ? (
+        <div className="glass-card rounded-2xl p-10 text-center">
+          <Clock size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
+          <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">No history for this type</p>
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {filtered.map((trip, i) => {
+            const isOpen      = expanded === i
+            const typeLabel   = TRIP_TYPES[trip.tripType] || trip.tripType
+            const typeColor   = TYPE_COLORS[trip.tripType] || TYPE_COLORS.local
+
+            return (
+              <div
+                key={i}
+                className="glass-card rounded-2xl overflow-hidden hover:shadow-md transition-all duration-200"
+              >
+                {/* Row header */}
+                <div
+                  className="flex items-center gap-3 p-3.5 cursor-pointer select-none"
+                  onClick={() => setExpanded(isOpen ? null : i)}
+                >
+                  {/* Date badge */}
+                  <div className="w-11 h-11 rounded-xl bg-navy-900 dark:bg-navy-800 flex flex-col items-center justify-center flex-shrink-0">
+                    <span className="text-[8px] font-bold text-blue-400 uppercase leading-none">
+                      {trip.date.slice(3, 6)}
+                    </span>
+                    <span className="text-sm font-black text-white leading-tight">
+                      {trip.date.slice(0, 2)}
+                    </span>
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-slate-800 dark:text-white text-sm truncate">{trip.customer}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${typeColor}`}>
+                        {typeLabel}
+                      </span>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                        <Clock size={9} />{trip.duration}
+                      </span>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                        <Car size={9} />{trip.km} km
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-right flex-shrink-0 flex items-center gap-2">
+                    <div>
+                      <p className="text-sm font-black text-emerald-600 dark:text-emerald-400">
+                        Rs. {trip.earnings.toLocaleString('en-IN')}
+                      </p>
+                      <p className="text-[10px] text-slate-400">your pay</p>
+                    </div>
+                    {isOpen
+                      ? <ChevronUp size={14} className="text-slate-400 flex-shrink-0" />
+                      : <ChevronDown size={14} className="text-slate-400 flex-shrink-0" />
+                    }
+                  </div>
+                </div>
+
+                {/* Expanded detail */}
+                {isOpen && (
+                  <div className="border-t border-slate-100 dark:border-navy-700 p-3.5 pt-3 bg-slate-50/60 dark:bg-navy-800/30 space-y-3">
+
+                    {/* Route */}
+                    <div className="flex items-stretch gap-3 bg-white dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700">
+                      <div className="flex flex-col items-center gap-1 pt-0.5">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+                        <div className="flex-1 w-0.5 border-l border-dashed border-slate-300 dark:border-navy-600 min-h-[14px]" />
+                        <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
+                      </div>
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <div>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase">From</p>
+                          <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{trip.pickup}</p>
+                        </div>
+                        <div>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase">To</p>
+                          <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{trip.drop}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Stats grid */}
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { label: 'Trip Fare',    value: `Rs. ${trip.fare.toLocaleString('en-IN')}` },
+                        { label: 'Your Pay',     value: `Rs. ${trip.earnings.toLocaleString('en-IN')}`, hi: true },
+                        { label: 'Duration',     value: trip.duration },
+                        { label: 'Distance',     value: `${trip.km} km` },
+                        { label: 'Date',         value: trip.date },
+                        { label: 'Status',       value: trip.status === 'completed' ? '✓ Done' : trip.status },
+                      ].map(d => (
+                        <div key={d.label} className="bg-white dark:bg-navy-800/60 rounded-xl p-2.5 border border-slate-100 dark:border-navy-700">
+                          <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5">{d.label}</p>
+                          <p className={`text-xs font-bold leading-tight ${d.hi ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-200'}`}>
+                            {d.value}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Status indicator */}
+                    <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/15 rounded-xl px-3 py-2">
+                      <CheckCircle size={13} className="text-emerald-500 flex-shrink-0" />
+                      <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Trip completed successfully</p>
+                      <span className="ml-auto text-[10px] text-emerald-500 font-mono">{trip.tripId?.slice(-10)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
