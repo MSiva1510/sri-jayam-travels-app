@@ -19,6 +19,7 @@ const PAGE_TITLES = {
   '/assigned-trips':  { label: 'Assigned Trips',   sub: "Today's scheduled rides"        },
   '/ride-history':    { label: 'Ride History',     sub: 'Your past trips & earnings'     },
   '/driver-profile':  { label: 'My Profile',       sub: 'Account & performance'          },
+  '/live-location':   { label: 'Live Location',    sub: 'Real-time GPS tracking'          },
 }
 
 export default function Topbar() {
