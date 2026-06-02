@@ -3,28 +3,31 @@ import {
   LayoutDashboard, FileText, Users, Receipt,
   User, Car, Settings, ChevronLeft, ChevronRight,
   MapPin, Phone, Globe, LogOut, Navigation,
-  History, List, Route, Signal,
+  History, List, Route, Signal, CalendarCheck,
 } from 'lucide-react'
 import { useApp }  from '../../context/AppContext'
 import { useAuth, ROLE_LABELS, ROLE_COLORS } from '../../context/AuthContext'
 import { BIZ }     from '../../data/mockData'
 import Avatar      from '../ui/Avatar'
 
+// Fix 3: Nav items with granular role + permission guards
 const NAV_ITEMS = [
   // Admin + Manager
-  { to: '/',               label: 'Dashboard',      icon: LayoutDashboard, roles: ['admin','manager'] },
-  { to: '/invoices',       label: 'Invoices',        icon: FileText,        roles: ['admin','manager'] },
-  { to: '/trips',          label: 'Trips',           icon: Route,           roles: ['admin','manager'] },
-  { to: '/customers',      label: 'Customers',       icon: Users,           roles: ['admin','manager'] },
-  { to: '/expenses',       label: 'Expenses',        icon: Receipt,         roles: ['admin','manager'] },
-  { to: '/drivers',        label: 'Drivers',         icon: User,            roles: ['admin','manager'] },
-  { to: '/vehicles',       label: 'Vehicles',        icon: Car,             roles: ['admin','manager'] },
+  { to: '/',               label: 'Dashboard',    icon: LayoutDashboard, roles: ['admin','manager'] },
+  { to: '/invoices',       label: 'Invoices',      icon: FileText,        roles: ['admin'],           perm: 'invoices' },
+  { to: '/trips',          label: 'Trips',         icon: Route,           roles: ['admin','manager'], perm: 'trips'    },
+  { to: '/customers',      label: 'Customers',     icon: Users,           roles: ['admin','manager'], perm: 'customers'},
+  { to: '/expenses',       label: 'Expenses',      icon: Receipt,         roles: ['admin','manager'], perm: 'expenses' },
+  { to: '/drivers',        label: 'Drivers',       icon: User,            roles: ['admin','manager'], perm: 'drivers'  },
+  { to: '/vehicles',       label: 'Vehicles',      icon: Car,             roles: ['admin','manager'], perm: 'vehicles' },
+  { to: '/attendance',     label: 'Attendance',    icon: CalendarCheck,   roles: ['admin','manager'], perm: 'attendance'},
   // Driver
-  { to: '/driver',         label: 'Home',            icon: LayoutDashboard, roles: ['driver'] },
-  { to: '/assigned-trips', label: 'Trips Today',     icon: List,            roles: ['driver'] },
-  { to: '/live-location',  label: 'Live Location',   icon: Signal,          roles: ['driver'] },
-  { to: '/ride-history',   label: 'Ride History',    icon: History,         roles: ['driver'] },
-  { to: '/driver-profile', label: 'My Profile',      icon: User,            roles: ['driver'] },
+  { to: '/driver',         label: 'Home',          icon: LayoutDashboard, roles: ['driver'] },
+  { to: '/assigned-trips', label: 'Trips Today',   icon: List,            roles: ['driver'] },
+  { to: '/live-location',  label: 'Live Location', icon: Signal,          roles: ['driver'] },
+  { to: '/attendance',     label: 'Attendance',    icon: CalendarCheck,   roles: ['driver'] },
+  { to: '/ride-history',   label: 'Ride History',  icon: History,         roles: ['driver'] },
+  { to: '/driver-profile', label: 'My Profile',    icon: User,            roles: ['driver'] },
 ]
 
 const BOTTOM_ITEMS = [
@@ -50,12 +53,18 @@ function NavItem({ to, label, icon: Icon, collapsed }) {
 
 function SidebarInner({ collapsed }) {
   const { setCollapsed }           = useApp()
-  const { user, logout, isDriver } = useAuth()
+  const { user, logout, isDriver, can } = useAuth()
   const navigate                   = useNavigate()
   const roleColors                 = user ? ROLE_COLORS[user.role] : null
 
   const handleLogout = () => { logout(); navigate('/login', { replace: true }) }
-  const visibleNav    = NAV_ITEMS.filter(i => i.roles.includes(user?.role))
+
+  // Filter nav: role match + optional permission check
+  const visibleNav    = NAV_ITEMS.filter(i => {
+    if (!i.roles.includes(user?.role)) return false
+    if (i.perm) return can(i.perm)
+    return true
+  })
   const visibleBottom = BOTTOM_ITEMS.filter(i => i.roles.includes(user?.role))
 
   return (
@@ -82,7 +91,7 @@ function SidebarInner({ collapsed }) {
           </p>
         )}
         {visibleNav.map(item => (
-          <NavItem key={item.to} {...item} collapsed={collapsed} />
+          <NavItem key={item.to + item.label} {...item} collapsed={collapsed} />
         ))}
         {visibleBottom.length > 0 && (
           <>
@@ -138,7 +147,7 @@ function SidebarInner({ collapsed }) {
         </div>
       )}
 
-      {/* Desktop collapse toggle */}
+      {/* Collapse toggle */}
       <button onClick={() => setCollapsed(c => !c)}
         className="hidden lg:flex absolute -right-3 top-20 w-6 h-6 rounded-full bg-navy-800 border border-white/20 items-center justify-center text-white/70 hover:text-white hover:bg-navy-700 transition-all z-10 shadow-lg">
         {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
