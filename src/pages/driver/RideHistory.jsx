@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Clock, Car, ChevronDown, ChevronUp,
-  CheckCircle, Navigation, MapPin, Signal, WifiOff,
+  CheckCircle, Navigation, Signal, WifiOff, Zap,
+  Calendar, User, RotateCcw,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { getDriverHistory, TRIP_TYPES } from '../../data/driverData'
-import { loadGPSHistory, getAreaName } from '../../hooks/useGPS'
+import { loadGPSHistory } from '../../hooks/useGPS'
+import { loadRideHistory, RIDE_STATE_CFG, formatElapsed } from '../../hooks/useRideLifecycle'
 import LocationPinCard from '../../components/gps/LocationPinCard'
 
 const TYPE_COLORS = {
@@ -18,34 +20,89 @@ const TYPE_COLORS = {
   roundtrip:  'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
 }
 
-// Merge GPS history records into trip history by tripId
-function mergeGPSIntoHistory(trips, gpsHistory) {
-  return trips.map(trip => {
-    const gpsEntry = gpsHistory.find(g => g.tripId === trip.tripId || g.customer === trip.customer)
-    return gpsEntry ? { ...trip, gps: gpsEntry } : trip
-  })
+// Merge GPS + lifecycle data into trip history
+function buildMergedHistory(mockTrips, lifecycleHistory, gpsHistory) {
+  // Start with lifecycle history (real completed rides)
+  const lcItems = lifecycleHistory.map(lc => ({
+    source:       'lifecycle',
+    tripId:       lc.tripId,
+    customer:     lc.customer,
+    pickup:       lc.pickup  || '—',
+    drop:         lc.drop    || '—',
+    date:         lc.startDate || (lc.startedAt ? new Date(lc.startedAt).toLocaleDateString() : '—'),
+    startTime:    lc.startTime  || (lc.startedAt ? new Date(lc.startedAt).toLocaleTimeString() : '—'),
+    endTime:      lc.endTime    || (lc.endedAt   ? new Date(lc.endedAt).toLocaleTimeString()   : '—'),
+    duration:     lc.duration   || (lc.durationSecs ? formatElapsed(lc.durationSecs) : '—'),
+    rideState:    lc.rideState  || 'completed',
+    pauseCount:   lc.pauseCount || 0,
+    fare:         lc.fare || 0,
+    km:           lc.km   || 0,
+    vehicle:      lc.vehicle || '—',
+    driverId:     lc.driverId || '—',
+    events:       lc.events  || [],
+    gps:          gpsHistory.find(g => g.tripId === lc.tripId) || null,
+    earnings:     lc.fare ? Math.round(lc.fare * 0.12) : 0,
+    tripType:     lc.tripType || 'local',
+  }))
+
+  // Fallback: mock history for trips not in lifecycle
+  const lcIds = new Set(lcItems.map(i => i.tripId))
+  const mockItems = mockTrips
+    .filter(t => !lcIds.has(t.tripId))
+    .map(t => ({
+      source:    'mock',
+      tripId:    t.tripId,
+      customer:  t.customer,
+      pickup:    t.pickup,
+      drop:      t.drop,
+      date:      t.date,
+      startTime: '—',
+      endTime:   '—',
+      duration:  t.duration,
+      rideState: t.status === 'completed' ? 'completed' : t.status,
+      pauseCount:0,
+      fare:      t.fare,
+      km:        t.km,
+      vehicle:   '—',
+      driverId:  '—',
+      events:    [],
+      gps:       gpsHistory.find(g => g.tripId === t.tripId || g.customer === t.customer) || null,
+      earnings:  t.earnings,
+      tripType:  t.tripType || 'local',
+    }))
+
+  return [...lcItems, ...mockItems]
 }
 
 export default function RideHistory() {
-  const { user }     = useAuth()
-  const navigate     = useNavigate()
-  const rawHistory   = getDriverHistory(user?.name)
-  const gpsHistory   = loadGPSHistory()
-  const history      = mergeGPSIntoHistory(rawHistory, gpsHistory)
+  const { user }      = useAuth()
+  const navigate      = useNavigate()
 
-  const [expanded, setExpanded] = useState(null)
-  const [filter,   setFilter]   = useState('all')
-  const [showGPS,  setShowGPS]  = useState({})
+  const mockHistory      = getDriverHistory(user?.name)
+  const lifecycleHistory = loadRideHistory()
+  const gpsHistory       = loadGPSHistory()
+  const history          = buildMergedHistory(mockHistory, lifecycleHistory, gpsHistory)
 
-  const totalEarnings = history.reduce((s, t) => s + t.earnings, 0)
-  const totalKm       = history.reduce((s, t) => s + t.km, 0)
-  const totalFare     = history.reduce((s, t) => s + t.fare, 0)
-  const tripsWithGPS  = history.filter(t => t.gps).length
+  const [expanded,   setExpanded]   = useState(null)
+  const [filter,     setFilter]     = useState('all')
+  const [showGPS,    setShowGPS]    = useState({})
+  const [showEvents, setShowEvents] = useState({})
 
-  const filtered = filter === 'all' ? history : history.filter(t => t.tripType === filter)
+  const totalEarnings    = history.reduce((s, t) => s + (t.earnings || 0), 0)
+  const totalKm          = history.reduce((s, t) => s + (t.km || 0), 0)
+  const totalFare        = history.reduce((s, t) => s + (t.fare || 0), 0)
+  const tripsWithGPS     = history.filter(t => t.gps).length
+  const tripsWithLC      = history.filter(t => t.source === 'lifecycle').length
+  const totalPauses      = history.reduce((s, t) => s + (t.pauseCount || 0), 0)
+
+  const filtered = filter === 'all' ? history : history.filter(t =>
+    filter === 'gps' ? !!t.gps : filter === 'lifecycle' ? t.source === 'lifecycle' : t.rideState === filter
+  )
+
   const tripTypes = [...new Set(history.map(t => t.tripType))]
 
-  const toggleGPS = (i) => setShowGPS(prev => ({ ...prev, [i]: !prev[i] }))
+  const toggleGPS    = i => setShowGPS(p    => ({ ...p, [i]: !p[i]    }))
+  const toggleEvents = i => setShowEvents(p => ({ ...p, [i]: !p[i] }))
 
   return (
     <div className="space-y-4 max-w-lg mx-auto animate-fade-up pb-6">
@@ -65,10 +122,10 @@ export default function RideHistory() {
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-2.5">
         {[
-          { label: 'Total Trips',   value: history.length,                               icon: Navigation, color: 'from-navy-700 to-blue-600'    },
-          { label: 'Your Earnings', value: `Rs. ${totalEarnings.toLocaleString('en-IN')}`, icon: Car,        color: 'from-emerald-600 to-teal-500' },
-          { label: 'KM Driven',     value: totalKm.toLocaleString(),                     icon: Car,        color: 'from-violet-600 to-purple-500' },
-          { label: 'GPS Tracked',   value: tripsWithGPS,                                 icon: Signal,     color: 'from-blue-500 to-indigo-600'   },
+          { label: 'Total Trips',    value: history.length,                              icon: Navigation, color: 'from-navy-700 to-blue-600'    },
+          { label: 'Your Earnings',  value: `Rs. ${totalEarnings.toLocaleString('en-IN')}`, icon: Car,    color: 'from-emerald-600 to-teal-500' },
+          { label: 'KM Driven',      value: totalKm.toLocaleString(),                   icon: Car,        color: 'from-violet-600 to-purple-500' },
+          { label: 'GPS Tracked',    value: tripsWithGPS,                               icon: Signal,     color: 'from-blue-500 to-indigo-600'   },
         ].map(s => (
           <div key={s.label} className="glass-card rounded-2xl p-3.5 relative overflow-hidden">
             <div className={`absolute -top-4 -right-4 w-14 h-14 rounded-full opacity-15 blur-xl bg-gradient-to-br ${s.color}`} />
@@ -80,6 +137,25 @@ export default function RideHistory() {
           </div>
         ))}
       </div>
+
+      {/* Lifecycle stats strip */}
+      {tripsWithLC > 0 && (
+        <div className="glass-card rounded-2xl p-4">
+          <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Lifecycle Stats</p>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: 'Lifecycle Trips', value: tripsWithLC,  color: 'text-blue-600 dark:text-blue-400'       },
+              { label: 'Total Pauses',    value: totalPauses,  color: 'text-amber-600 dark:text-amber-400'     },
+              { label: 'GPS Recorded',    value: tripsWithGPS, color: 'text-emerald-600 dark:text-emerald-400' },
+            ].map(s => (
+              <div key={s.label} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-2.5 text-center">
+                <p className={`text-lg font-display font-black ${s.color}`}>{s.value}</p>
+                <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">{s.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Earnings bar */}
       <div className="glass-card rounded-2xl p-4">
@@ -95,37 +171,31 @@ export default function RideHistory() {
         </div>
         <div className="h-2 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden">
           <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full"
-            style={{ width: `${Math.round((totalEarnings / totalFare) * 100)}%`, transition: 'width .5s' }} />
+            style={{ width: `${totalFare ? Math.round((totalEarnings / totalFare) * 100) : 0}%`, transition: 'width .5s' }} />
         </div>
         <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5 text-right">
-          {Math.round((totalEarnings / totalFare) * 100)}% of fare is your pay
+          {totalFare ? Math.round((totalEarnings / totalFare) * 100) : 0}% of fare is your pay
         </p>
       </div>
 
-      {/* GPS trips notice */}
-      {tripsWithGPS > 0 && (
-        <div className="flex items-center gap-2.5 bg-blue-50 dark:bg-blue-900/15 border border-blue-200 dark:border-blue-800/30 rounded-xl px-3.5 py-2.5">
-          <Signal size={15} className="text-blue-600 dark:text-blue-400 flex-shrink-0" />
-          <p className="text-xs text-blue-700 dark:text-blue-400 font-medium">
-            {tripsWithGPS} trip{tripsWithGPS !== 1 ? 's' : ''} have GPS coordinates recorded. Tap a trip card to view location data.
-          </p>
-        </div>
-      )}
-
-      {/* Type filter pills */}
+      {/* Filter pills */}
       <div className="overflow-x-auto no-scrollbar">
         <div className="flex gap-1.5 pb-1" style={{ minWidth: 'max-content' }}>
-          {['all', ...tripTypes].map(type => (
-            <button key={type} onClick={() => setFilter(type)}
+          {[
+            { key: 'all',        label: 'All',       count: history.length },
+            { key: 'completed',  label: 'Completed', count: history.filter(t => t.rideState === 'completed').length },
+            { key: 'cancelled',  label: 'Cancelled', count: history.filter(t => t.rideState === 'cancelled').length },
+            { key: 'gps',        label: '📍 GPS',    count: tripsWithGPS },
+            { key: 'lifecycle',  label: '⚡ Tracked', count: tripsWithLC },
+          ].map(f => (
+            <button key={f.key} onClick={() => setFilter(f.key)}
               className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
-                filter === type
+                filter === f.key
                   ? 'bg-navy-900 dark:bg-blue-700 text-white shadow'
                   : 'bg-slate-100 dark:bg-navy-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-navy-700'
               }`}>
-              {type === 'all' ? 'All Types' : TRIP_TYPES[type] || type}
-              <span className="ml-1.5 opacity-70">
-                {type === 'all' ? history.length : history.filter(t => t.tripType === type).length}
-              </span>
+              {f.label}
+              <span className="ml-1.5 opacity-70">{f.count}</span>
             </button>
           ))}
         </div>
@@ -135,16 +205,19 @@ export default function RideHistory() {
       {filtered.length === 0 ? (
         <div className="glass-card rounded-2xl p-10 text-center">
           <Clock size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-          <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">No history for this type</p>
+          <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">No rides in this category</p>
         </div>
       ) : (
         <div className="space-y-2.5">
           {filtered.map((trip, i) => {
-            const isOpen     = expanded === i
-            const typeLabel  = TRIP_TYPES[trip.tripType] || trip.tripType
-            const typeColor  = TYPE_COLORS[trip.tripType] || TYPE_COLORS.local
-            const hasGPS     = !!trip.gps
-            const gpsVisible = showGPS[i]
+            const isOpen       = expanded === i
+            const typeLabel    = TRIP_TYPES[trip.tripType] || trip.tripType
+            const typeColor    = TYPE_COLORS[trip.tripType] || TYPE_COLORS.local
+            const hasGPS       = !!trip.gps
+            const hasLC        = trip.source === 'lifecycle'
+            const gpsVisible   = showGPS[i]
+            const eventsVisible = showEvents[i]
+            const stateCfg     = RIDE_STATE_CFG[trip.rideState] || RIDE_STATE_CFG.completed
 
             return (
               <div key={i} className="glass-card rounded-2xl overflow-hidden hover:shadow-md transition-all duration-200">
@@ -154,23 +227,36 @@ export default function RideHistory() {
                      onClick={() => setExpanded(isOpen ? null : i)}>
                   {/* Date badge */}
                   <div className="w-11 h-11 rounded-xl bg-navy-900 dark:bg-navy-800 flex flex-col items-center justify-center flex-shrink-0">
-                    <span className="text-[8px] font-bold text-blue-400 uppercase leading-none">{trip.date.slice(3, 6)}</span>
-                    <span className="text-sm font-black text-white leading-tight">{trip.date.slice(0, 2)}</span>
+                    <span className="text-[8px] font-bold text-blue-400 uppercase leading-none">
+                      {typeof trip.date === 'string' ? trip.date.slice(3, 6) : '—'}
+                    </span>
+                    <span className="text-sm font-black text-white leading-tight">
+                      {typeof trip.date === 'string' ? trip.date.slice(0, 2) : '?'}
+                    </span>
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-slate-800 dark:text-white text-sm truncate">{trip.customer}</p>
                     <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                       <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${typeColor}`}>{typeLabel}</span>
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                        <Clock size={9} />{trip.duration}
-                      </span>
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                        <Car size={9} />{trip.km} km
-                      </span>
+                      {trip.duration && trip.duration !== '—' && (
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                          <Clock size={9} />{trip.duration}
+                        </span>
+                      )}
+                      {trip.km > 0 && (
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                          <Car size={9} />{trip.km} km
+                        </span>
+                      )}
                       {hasGPS && (
                         <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 flex items-center gap-1">
                           <Signal size={8} /> GPS
+                        </span>
+                      )}
+                      {hasLC && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 flex items-center gap-1">
+                          <Zap size={8} /> Tracked
                         </span>
                       )}
                     </div>
@@ -179,12 +265,14 @@ export default function RideHistory() {
                   <div className="text-right flex-shrink-0 flex items-center gap-2">
                     <div>
                       <p className="text-sm font-black text-emerald-600 dark:text-emerald-400">
-                        Rs. {trip.earnings.toLocaleString('en-IN')}
+                        Rs. {(trip.earnings || 0).toLocaleString('en-IN')}
                       </p>
                       <p className="text-[10px] text-slate-400">your pay</p>
                     </div>
-                    {isOpen ? <ChevronUp size={14} className="text-slate-400 flex-shrink-0" />
-                             : <ChevronDown size={14} className="text-slate-400 flex-shrink-0" />}
+                    {isOpen
+                      ? <ChevronUp size={14} className="text-slate-400 flex-shrink-0" />
+                      : <ChevronDown size={14} className="text-slate-400 flex-shrink-0" />
+                    }
                   </div>
                 </div>
 
@@ -214,12 +302,12 @@ export default function RideHistory() {
                     {/* Stats grid */}
                     <div className="grid grid-cols-3 gap-2">
                       {[
-                        { label: 'Trip Fare',  value: `Rs. ${trip.fare.toLocaleString('en-IN')}` },
-                        { label: 'Your Pay',   value: `Rs. ${trip.earnings.toLocaleString('en-IN')}`, hi: true },
-                        { label: 'Duration',   value: trip.duration },
-                        { label: 'Distance',   value: `${trip.km} km` },
-                        { label: 'Date',       value: trip.date },
-                        { label: 'Status',     value: trip.status === 'completed' ? '✓ Done' : trip.status },
+                        { label: 'Fare',      value: `Rs. ${(trip.fare||0).toLocaleString('en-IN')}` },
+                        { label: 'Your Pay',  value: `Rs. ${(trip.earnings||0).toLocaleString('en-IN')}`, hi: true },
+                        { label: 'Duration',  value: trip.duration || '—' },
+                        { label: 'Distance',  value: trip.km ? `${trip.km} km` : '—' },
+                        { label: 'Start',     value: trip.startTime || '—' },
+                        { label: 'End',       value: trip.endTime   || '—' },
                       ].map(d => (
                         <div key={d.label} className="bg-white dark:bg-navy-800/60 rounded-xl p-2.5 border border-slate-100 dark:border-navy-700">
                           <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5">{d.label}</p>
@@ -228,12 +316,76 @@ export default function RideHistory() {
                       ))}
                     </div>
 
-                    {/* Completed status */}
-                    <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/15 rounded-xl px-3 py-2">
-                      <CheckCircle size={13} className="text-emerald-500 flex-shrink-0" />
-                      <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Trip completed successfully</p>
-                      <span className="ml-auto text-[10px] text-emerald-500 font-mono">{trip.tripId?.slice(-10)}</span>
+                    {/* Status + vehicle row */}
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${stateCfg.bg} ${stateCfg.text}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${stateCfg.dot}`} />
+                        {stateCfg.label}
+                      </span>
+                      {trip.vehicle && trip.vehicle !== '—' && (
+                        <span className="flex items-center gap-1 text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                          <Car size={10} /> {trip.vehicle}
+                        </span>
+                      )}
+                      {trip.pauseCount > 0 && (
+                        <span className="flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 font-bold">
+                          <RotateCcw size={10} /> {trip.pauseCount} pause{trip.pauseCount !== 1 ? 's' : ''}
+                        </span>
+                      )}
                     </div>
+
+                    {/* Completed strip */}
+                    {trip.rideState === 'completed' && (
+                      <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/15 rounded-xl px-3 py-2">
+                        <CheckCircle size={13} className="text-emerald-500 flex-shrink-0" />
+                        <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 flex-1">Trip completed</p>
+                        <span className="text-[10px] text-emerald-500 font-mono">{trip.tripId?.slice(-10)}</span>
+                      </div>
+                    )}
+
+                    {/* Cancelled strip */}
+                    {trip.rideState === 'cancelled' && (
+                      <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/15 rounded-xl px-3 py-2">
+                        <span className="w-3 h-3 rounded-full bg-red-500 flex-shrink-0" />
+                        <p className="text-xs font-semibold text-red-700 dark:text-red-400">Trip cancelled</p>
+                      </div>
+                    )}
+
+                    {/* Lifecycle events */}
+                    {hasLC && trip.events?.length > 0 && (
+                      <div>
+                        <button onClick={() => toggleEvents(i)}
+                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-violet-50 dark:bg-violet-900/15 border border-violet-200 dark:border-violet-800/30 text-xs font-bold text-violet-700 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/25 transition-colors">
+                          <div className="flex items-center gap-2">
+                            <Zap size={13} />
+                            <span>Ride Events ({trip.events.length})</span>
+                          </div>
+                          {eventsVisible ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                        </button>
+                        {eventsVisible && (
+                          <div className="mt-2 space-y-1.5">
+                            {trip.events.map((ev, ei) => {
+                              const evCfg = {
+                                started:   { dot: 'bg-blue-500',    label: 'Started'  },
+                                paused:    { dot: 'bg-amber-500',   label: 'Paused'   },
+                                resumed:   { dot: 'bg-emerald-500', label: 'Resumed'  },
+                                completed: { dot: 'bg-emerald-600', label: 'Completed'},
+                                cancelled: { dot: 'bg-red-500',     label: 'Cancelled'},
+                              }[ev.type] || { dot: 'bg-slate-400', label: ev.type }
+                              return (
+                                <div key={ei} className="flex items-center gap-2.5 px-3 py-2 bg-white dark:bg-navy-800/60 rounded-xl border border-slate-100 dark:border-navy-700">
+                                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${evCfg.dot}`} />
+                                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{ev.label}</span>
+                                  <span className="ml-auto text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                                    {new Date(ev.at).toLocaleTimeString()}
+                                  </span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* GPS section */}
                     {hasGPS ? (
@@ -242,11 +394,10 @@ export default function RideHistory() {
                           className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/15 border border-blue-200 dark:border-blue-800/30 text-xs font-bold text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/25 transition-colors">
                           <div className="flex items-center gap-2">
                             <Signal size={13} />
-                            <span>GPS Data Recorded</span>
+                            <span>GPS Data</span>
                           </div>
                           {gpsVisible ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                         </button>
-
                         {gpsVisible && (
                           <div className="mt-2.5 space-y-2.5">
                             {trip.gps.startCoord && (
@@ -257,8 +408,6 @@ export default function RideHistory() {
                               <LocationPinCard type="end" coord={trip.gps.endCoord}
                                 time={trip.gps.endCoord.timestamp ? new Date(trip.gps.endCoord.timestamp).toLocaleTimeString() : undefined} />
                             )}
-
-                            {/* Coordinates detail */}
                             {(trip.gps.startCoord || trip.gps.endCoord) && (
                               <div className="bg-slate-900 dark:bg-navy-950 rounded-xl p-3 border border-slate-700 dark:border-navy-700">
                                 <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-2">Raw Coordinates</p>

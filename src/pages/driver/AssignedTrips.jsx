@@ -1,21 +1,27 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, Phone, Play, CheckCircle, Navigation,
-  AlertTriangle, Clock, MapPin, Car, Filter,
+  ArrowLeft, Phone, CheckCircle, Navigation,
+  AlertTriangle, Clock, MapPin, Car,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
-import { TODAY_TRIPS, TRIP_TYPES, TRIP_STATUS_CFG } from '../../data/driverData'
+import { useRideLifecycleContext } from '../../context/RideLifecycleContext'
+import { TODAY_TRIPS, TRIP_TYPES } from '../../data/driverData'
+import { RIDE_STATES, RIDE_STATE_CFG } from '../../hooks/useRideLifecycle'
+import { useGPS, loadActiveRideGPS, saveActiveRideGPS, clearActiveRideGPS, appendGPSHistory } from '../../hooks/useGPS'
+import ActiveTripCard from '../../components/ride/ActiveTripCard'
+import { StartRideButton } from '../../components/ride/RideLifecycleControls'
 
 const FILTERS = [
-  { key: 'all',       label: 'All'        },
-  { key: 'pending',   label: 'Scheduled'  },
-  { key: 'driving',   label: 'Active'     },
-  { key: 'completed', label: 'Done'       },
+  { key: 'all',       label: 'All'       },
+  { key: 'pending',   label: 'Scheduled' },
+  { key: 'driving',   label: 'Active'    },
+  { key: 'completed', label: 'Done'      },
 ]
 
 function StatusPill({ status }) {
-  const cfg = TRIP_STATUS_CFG[status] || TRIP_STATUS_CFG.pending
+  const mapped = status === 'driving' ? 'started' : status
+  const cfg = RIDE_STATE_CFG[mapped] || { bg: 'bg-slate-100 dark:bg-navy-800', text: 'text-slate-600 dark:text-slate-400', dot: 'bg-slate-400', label: status }
   return (
     <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${cfg.bg} ${cfg.text}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} ${status === 'driving' ? 'animate-pulse' : ''}`} />
@@ -27,24 +33,83 @@ function StatusPill({ status }) {
 export default function AssignedTrips() {
   const { user }  = useAuth()
   const navigate  = useNavigate()
+  const gps       = useGPS()
   const driverKey = user?.username?.toLowerCase() || 'ramanan'
 
+  const {
+    activeRide, rideState, elapsed, elapsedFmt,
+    isActive,
+    startRide, pauseRide, resumeRide, endRide, cancelRide,
+    onRideStart, onRidePause, onRideResume, onRideEnd,
+  } = useRideLifecycleContext()
+
   const base = TODAY_TRIPS[driverKey] || []
-  const [trips,  setTrips]  = useState(base)
+  const [trips,  setTrips]  = useState(() =>
+    activeRide?.tripId
+      ? base.map(t => t.tripId === activeRide.tripId ? { ...t, status: 'driving' } : t)
+      : base
+  )
   const [filter, setFilter] = useState('all')
-  const [active, setActive] = useState(null)   // expanded trip id
+  const [active, setActive] = useState(null)
 
-  const filtered = filter === 'all' ? trips : trips.filter(t => t.status === filter)
+  const filtered = filter === 'all' ? trips : trips.filter(t =>
+    filter === 'driving' ? (t.status === 'driving') : t.status === filter
+  )
 
-  const totalFare = trips.reduce((s, t) => s + t.fare, 0)
-  const doneCount = trips.filter(t => t.status === 'completed').length
+  const totalFare  = trips.reduce((s, t) => s + t.fare, 0)
+  const doneCount  = trips.filter(t => t.status === 'completed').length
 
-  const startRide = (tripId) => {
-    setTrips(prev => prev.map(t => t.tripId === tripId ? { ...t, status: 'driving', startTime: 'Now' } : t))
-  }
-  const endRide = (tripId) => {
-    setTrips(prev => prev.map(t => t.tripId === tripId ? { ...t, status: 'completed', endTime: 'Now', duration: '~1h 20m' } : t))
-  }
+  // ── Start ride ────────────────────────────────────────────
+  const handleStart = useCallback(async (tripId) => {
+    const trip = trips.find(t => t.tripId === tripId)
+    if (!trip || isActive) return
+    const ride = startRide({ ...trip, vehicle: user?.vehicle || '' }, user?.id)
+    const startCoord = await gps.requestCurrent()
+    const rideGPS = { tripId, customer: trip.customer, startCoord: startCoord || null, startTime: new Date().toISOString(), endCoord: null, endTime: null }
+    saveActiveRideGPS(rideGPS)
+    onRideStart(ride)
+    setTrips(prev => prev.map(t => t.tripId === tripId ? { ...t, status: 'driving' } : t))
+  }, [trips, isActive, startRide, user, gps, onRideStart])
+
+  // ── Pause ─────────────────────────────────────────────────
+  const handlePause = useCallback(() => {
+    pauseRide()
+    onRidePause(activeRide)
+  }, [pauseRide, onRidePause, activeRide])
+
+  // ── Resume ────────────────────────────────────────────────
+  const handleResume = useCallback(() => {
+    resumeRide()
+    onRideResume(activeRide)
+  }, [resumeRide, onRideResume, activeRide])
+
+  // ── End ride ──────────────────────────────────────────────
+  const handleEnd = useCallback(async () => {
+    const endCoord = await gps.requestCurrent()
+    const now = new Date()
+    const saved = loadActiveRideGPS()
+    if (saved) {
+      const ms = saved.startTime ? now.getTime() - new Date(saved.startTime).getTime() : null
+      const dur = ms ? (() => { const m = Math.floor(ms/60000); const h = Math.floor(m/60); return h > 0 ? `${h}h ${m%60}m` : `${m}m` })() : elapsedFmt
+      appendGPSHistory({ ...saved, endCoord, endTime: now.toISOString(), duration: dur, completedAt: now.toISOString() })
+    }
+    clearActiveRideGPS()
+    const result = endRide()
+    onRideEnd(activeRide)
+    const tripId = activeRide?.tripId
+    setTrips(prev => prev.map(t =>
+      t.tripId === tripId ? { ...t, status: 'completed', endTime: now.toLocaleTimeString(), duration: result?.duration || elapsedFmt } : t
+    ))
+  }, [gps, endRide, onRideEnd, activeRide, elapsedFmt])
+
+  // ── Cancel ────────────────────────────────────────────────
+  const handleCancel = useCallback(() => {
+    if (!window.confirm('Cancel this ride?')) return
+    const tripId = activeRide?.tripId
+    cancelRide('Driver cancelled')
+    clearActiveRideGPS()
+    setTrips(prev => prev.map(t => t.tripId === tripId ? { ...t, status: 'pending' } : t))
+  }, [activeRide, cancelRide])
 
   return (
     <div className="space-y-4 max-w-lg mx-auto animate-fade-up pb-6">
@@ -52,7 +117,7 @@ export default function AssignedTrips() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <button onClick={() => navigate('/driver')}
-                className="w-9 h-9 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors flex-shrink-0">
+          className="w-9 h-9 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors flex-shrink-0">
           <ArrowLeft size={17} />
         </button>
         <div className="flex-1 min-w-0">
@@ -61,12 +126,25 @@ export default function AssignedTrips() {
         </div>
       </div>
 
+      {/* Active ride card at top */}
+      {isActive && activeRide && (
+        <ActiveTripCard
+          ride={activeRide}
+          elapsed={elapsed}
+          rideState={rideState}
+          onPause={handlePause}
+          onResume={handleResume}
+          onEnd={handleEnd}
+          onCancel={handleCancel}
+        />
+      )}
+
       {/* Summary */}
       <div className="grid grid-cols-3 gap-2.5">
         {[
-          { label:'Total Trips',   value: trips.length,    color:'text-blue-600 dark:text-blue-400'    },
-          { label:'Completed',     value: doneCount,       color:'text-emerald-600 dark:text-emerald-400' },
-          { label:'Total Fare',    value:`Rs. ${(totalFare/1000).toFixed(1)}k`, color:'text-navy-800 dark:text-blue-300' },
+          { label: 'Total Trips', value: trips.length,    color: 'text-blue-600 dark:text-blue-400'        },
+          { label: 'Completed',   value: doneCount,       color: 'text-emerald-600 dark:text-emerald-400'  },
+          { label: 'Total Fare',  value: `Rs. ${(totalFare/1000).toFixed(1)}k`, color: 'text-navy-800 dark:text-blue-300' },
         ].map(s => (
           <div key={s.label} className="glass-card rounded-xl p-3 text-center">
             <p className={`text-lg font-display font-black ${s.color}`}>{s.value}</p>
@@ -78,14 +156,14 @@ export default function AssignedTrips() {
       {/* Filter tabs */}
       <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1">
         {FILTERS.map(f => {
-          const cnt = f.key === 'all' ? trips.length : trips.filter(t => t.status === f.key).length
+          const cnt = f.key === 'all' ? trips.length : trips.filter(t => f.key === 'driving' ? t.status === 'driving' : t.status === f.key).length
           return (
             <button key={f.key} onClick={() => setFilter(f.key)}
-                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                      filter === f.key
-                        ? 'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow'
-                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                    }`}>
+              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                filter === f.key
+                  ? 'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+              }`}>
               {f.label}
               {cnt > 0 && <span className={`ml-1 text-[10px] ${filter === f.key ? 'text-blue-500' : 'text-slate-400'}`}>{cnt}</span>}
             </button>
@@ -104,13 +182,14 @@ export default function AssignedTrips() {
           {filtered.map(trip => {
             const isExpanded = active === trip.tripId
             const typeLabel  = TRIP_TYPES[trip.tripType] || trip.tripType
+            const isDriving  = trip.status === 'driving'
 
             return (
-              <div key={trip.tripId} className="glass-card rounded-2xl overflow-hidden">
+              <div key={trip.tripId} className={`glass-card rounded-2xl overflow-hidden ${isDriving ? 'ring-2 ring-blue-400/50' : ''}`}>
                 {/* Card header */}
                 <div className="flex items-center gap-3 p-4 cursor-pointer select-none"
                      onClick={() => setActive(isExpanded ? null : trip.tripId)}>
-                  <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center flex-shrink-0 ${trip.status === 'driving' ? 'bg-blue-600 animate-pulse' : 'bg-navy-900 dark:bg-navy-800'}`}>
+                  <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center flex-shrink-0 ${isDriving ? 'bg-blue-600 animate-pulse' : 'bg-navy-900 dark:bg-navy-800'}`}>
                     <span className="text-[9px] font-bold text-blue-300 uppercase leading-none">{trip.scheduledTime.split(' ')[1]}</span>
                     <span className="text-sm font-black text-white leading-tight">{trip.scheduledTime.split(' ')[0]}</span>
                   </div>
@@ -118,8 +197,7 @@ export default function AssignedTrips() {
                     <p className="font-bold text-slate-800 dark:text-white text-sm truncate">{trip.customer}</p>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{typeLabel} · {trip.km} km</p>
                     <div className="flex items-center gap-1 text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
-                      <MapPin size={9} />
-                      <span className="truncate">{trip.pickup}</span>
+                      <MapPin size={9} /><span className="truncate">{trip.pickup}</span>
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
@@ -128,7 +206,7 @@ export default function AssignedTrips() {
                   </div>
                 </div>
 
-                {/* Expanded details */}
+                {/* Expanded */}
                 {isExpanded && (
                   <div className="border-t border-slate-100 dark:border-navy-700 p-4 bg-slate-50/50 dark:bg-navy-800/30 space-y-3">
                     {/* Route */}
@@ -150,25 +228,23 @@ export default function AssignedTrips() {
                       </div>
                     </div>
 
-                    {/* Detail grid */}
+                    {/* Details grid */}
                     <div className="grid grid-cols-2 gap-2">
                       {[
-                        { label:'Trip ID',      value: trip.tripId,  mono: true },
-                        { label:'Scheduled',    value: trip.scheduledTime },
-                        { label:'Trip Type',    value: typeLabel },
-                        { label:'Distance',     value: `${trip.km} km` },
-                        { label:'Fare',         value: `Rs. ${trip.fare.toLocaleString('en-IN')}`, highlight: true },
-                        { label:'Customer Ph.', value: trip.contact },
+                        { label:'Trip ID',    value: trip.tripId,           mono: true },
+                        { label:'Scheduled',  value: trip.scheduledTime              },
+                        { label:'Trip Type',  value: typeLabel                       },
+                        { label:'Distance',   value: `${trip.km} km`                },
+                        { label:'Fare',       value: `Rs. ${trip.fare.toLocaleString('en-IN')}`, hi: true },
+                        { label:'Contact',    value: trip.contact                    },
                         ...(trip.status === 'completed' ? [
-                          { label:'Start', value: trip.startTime },
-                          { label:'Duration', value: trip.duration, highlight: true },
+                          { label:'Start',    value: trip.startTime                 },
+                          { label:'Duration', value: trip.duration, hi: true         },
                         ] : []),
                       ].map(d => (
                         <div key={d.label} className="bg-white dark:bg-navy-800/60 rounded-xl p-2.5 border border-slate-100 dark:border-navy-700">
                           <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5">{d.label}</p>
-                          <p className={`text-xs font-bold leading-tight ${d.mono ? 'font-mono' : ''} ${d.highlight ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-200'}`}>
-                            {d.value}
-                          </p>
+                          <p className={`text-xs font-bold leading-tight ${d.mono ? 'font-mono' : ''} ${d.hi ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-200'}`}>{d.value}</p>
                         </div>
                       ))}
                     </div>
@@ -180,30 +256,38 @@ export default function AssignedTrips() {
                       </div>
                     )}
 
-                    {/* Action buttons */}
-                    <div className="flex gap-2">
-                      <a href={`tel:${trip.contact}`}
-                         className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
-                        <Phone size={13} /> Call
-                      </a>
-                      {trip.status === 'pending' && (
-                        <button onClick={() => startRide(trip.tripId)}
-                                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-navy-900 hover:bg-navy-800 dark:bg-blue-700 dark:hover:bg-blue-600 text-white text-xs font-bold transition-all shadow-md active:scale-95">
-                          <Play size={13} /> Start Ride
-                        </button>
-                      )}
-                      {trip.status === 'driving' && (
-                        <button onClick={() => endRide(trip.tripId)}
-                                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md active:scale-95">
-                          <CheckCircle size={13} /> End Ride
-                        </button>
-                      )}
-                      {trip.status === 'completed' && (
-                        <div className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 text-xs font-bold">
-                          <CheckCircle size={13} /> Completed
-                        </div>
-                      )}
-                    </div>
+                    {/* Active ride inline controls */}
+                    {isDriving && isActive && activeRide?.tripId === trip.tripId && (
+                      <ActiveTripCard
+                        ride={activeRide}
+                        elapsed={elapsed}
+                        rideState={rideState}
+                        onPause={handlePause}
+                        onResume={handleResume}
+                        onEnd={handleEnd}
+                        onCancel={handleCancel}
+                        compact
+                      />
+                    )}
+
+                    {/* Start button for pending */}
+                    {trip.status === 'pending' && !isActive && (
+                      <div className="flex gap-2">
+                        <a href={`tel:${trip.contact}`}
+                           className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+                          <Phone size={13} /> Call
+                        </a>
+                        <StartRideButton onStart={() => handleStart(trip.tripId)} fullWidth />
+                      </div>
+                    )}
+
+                    {trip.status === 'completed' && (
+                      <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/15 rounded-xl px-3 py-2">
+                        <CheckCircle size={13} className="text-emerald-500 flex-shrink-0" />
+                        <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Trip completed successfully</p>
+                        {trip.duration && <span className="ml-auto text-xs font-bold text-emerald-600 dark:text-emerald-400">{trip.duration}</span>}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
