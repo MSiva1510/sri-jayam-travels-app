@@ -1,8 +1,10 @@
 import {
   TrendingUp, IndianRupee, Car, Receipt,
   CheckCircle, Clock, Users, Fuel, Plus, FileText,
-  ShieldOff, CalendarCheck,
+  ShieldOff, CalendarCheck, BookOpen, Navigation,
+  Zap, XCircle,
 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import StatCard   from '../components/ui/StatCard'
 import Avatar     from '../components/ui/Avatar'
 import Badge      from '../components/ui/Badge'
@@ -15,6 +17,7 @@ import {
   doneTrips, pendingTrips, monthlyFare,
 } from '../data/mockData'
 import { loadAttendanceToday } from '../data/attendanceData'
+import { loadBookings, getStatusCfg, TRIP_TYPE_CONFIG } from '../data/tripTypes'
 
 // ── Blocked section placeholder ───────────────────────────────
 function AccessBlocked({ label }) {
@@ -64,21 +67,30 @@ function DonutRing({ pct, color, size = 110 }) {
 
 export default function Dashboard() {
   const { can, isAdmin, isManager } = useAuth()
+  const navigate = useNavigate()
 
-  // Attendance today summary (for admin/manager)
   const todayAttendance = loadAttendanceToday()
-  const presentCount = todayAttendance.filter(a => a.status === 'present' || a.status === 'half-day').length
-  const absentCount  = todayAttendance.filter(a => a.status === 'absent').length
+  const presentCount    = todayAttendance.filter(a => a.status === 'present' || a.status === 'half-day').length
+  const absentCount     = todayAttendance.filter(a => a.status === 'absent').length
+
+  // ── Booking data ──────────────────────────────────────────
+  const bookings         = loadBookings()
+  const todayStr         = new Date().toISOString().slice(0, 10)
+  const bookingToday     = bookings.filter(b => b.startDate === todayStr)
+  const bookingActive    = bookings.filter(b => b.status === 'started')
+  const bookingCompleted = bookings.filter(b => b.status === 'completed')
+  const bookingCancelled = bookings.filter(b => b.status === 'cancelled')
+  const bookingPending   = bookings.filter(b => ['draft','confirmed','assigned'].includes(b.status))
 
   return (
     <div className="space-y-6 animate-fade-up">
       <PageHeader
         title="Dashboard"
         subtitle="Overview — May 2026"
-        action={can('trips') ? <Button icon={Plus} variant="primary">New Invoice</Button> : null}
+        action={can('trips') ? <Button icon={Plus} variant="primary" onClick={() => navigate('/trips')}>New Booking</Button> : null}
       />
 
-      {/* ── KPI Stats — only show financial to admin ── */}
+      {/* ── KPI Stats ── */}
       {can('revenueDashboard') ? (
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
           <StatCard label="Total Fare"  value={`Rs. ${totalFare.toLocaleString('en-IN')}`}  sub={`${TRIPS.length} trips`}      icon={IndianRupee} gradient="bg-gradient-to-br from-navy-700 to-blue-600"    trend={8.4} trendUp={true}  />
@@ -87,12 +99,109 @@ export default function Dashboard() {
           <StatCard label="Expenses"    value={`Rs. ${totalExp.toLocaleString('en-IN')}`}   sub={`${EXPENSES.length} entries`} icon={Receipt}     gradient="bg-gradient-to-br from-amber-500 to-orange-500"  trend={2.1} trendUp={false} />
         </div>
       ) : (
-        // Manager sees trip/operational stats only — no revenue figures
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-          <StatCard label="Total Trips"  value={TRIPS.length}                sub="This month"          icon={Car}         gradient="bg-gradient-to-br from-navy-700 to-blue-600"    />
-          <StatCard label="Bills Done"   value={doneTrips}                   sub="Invoices generated"  icon={CheckCircle} gradient="bg-gradient-to-br from-emerald-600 to-teal-500" />
-          <StatCard label="Total KM"     value={totalKm.toLocaleString()}    sub="Kilometres covered"  icon={Car}         gradient="bg-gradient-to-br from-violet-600 to-purple-500" />
-          <StatCard label="Pending Bills"value={pendingTrips}                sub="Awaiting invoice"    icon={Clock}       gradient="bg-gradient-to-br from-amber-500 to-orange-500"  />
+          <StatCard label="Total Trips"   value={TRIPS.length}              sub="This month"          icon={Car}         gradient="bg-gradient-to-br from-navy-700 to-blue-600"    />
+          <StatCard label="Bills Done"    value={doneTrips}                 sub="Invoices generated"  icon={CheckCircle} gradient="bg-gradient-to-br from-emerald-600 to-teal-500" />
+          <StatCard label="Total KM"      value={totalKm.toLocaleString()}  sub="Kilometres covered"  icon={Car}         gradient="bg-gradient-to-br from-violet-600 to-purple-500" />
+          <StatCard label="Pending Bills" value={pendingTrips}              sub="Awaiting invoice"    icon={Clock}       gradient="bg-gradient-to-br from-amber-500 to-orange-500"  />
+        </div>
+      )}
+
+      {/* ── Booking Widgets ── */}
+      {!can('revenueDashboard') === false || can('trips') ? (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Booking Management</p>
+              <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">Booking Overview</h3>
+            </div>
+            <button onClick={() => navigate('/trips')}
+              className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors flex items-center gap-1">
+              View all →
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            {[
+              { label:'Total Bookings', value: bookings.length,         icon: BookOpen,    color:'text-navy-800 dark:text-blue-300',         bg:'bg-navy-50 dark:bg-navy-800/60',          onClick:()=>navigate('/trips') },
+              { label:"Today's Trips",  value: bookingToday.length,     icon: CalendarCheck,color:'text-blue-600 dark:text-blue-400',        bg:'bg-blue-50 dark:bg-blue-900/20',          onClick:()=>navigate('/trips') },
+              { label:'Active Trips',   value: bookingActive.length,    icon: Zap,         color:'text-amber-600 dark:text-amber-400',       bg:'bg-amber-50 dark:bg-amber-900/20',        onClick:()=>navigate('/trips') },
+              { label:'Completed',      value: bookingCompleted.length, icon: CheckCircle, color:'text-emerald-600 dark:text-emerald-400',   bg:'bg-emerald-50 dark:bg-emerald-900/20',    onClick:()=>navigate('/trips') },
+              { label:'Cancelled',      value: bookingCancelled.length, icon: XCircle,     color:'text-red-600 dark:text-red-400',           bg:'bg-red-50 dark:bg-red-900/20',            onClick:()=>navigate('/trips') },
+            ].map(s => (
+              <div key={s.label} onClick={s.onClick}
+                className="glass-card rounded-2xl p-3.5 flex items-center gap-3 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5 cursor-pointer">
+                <div className={`w-9 h-9 rounded-xl ${s.bg} flex items-center justify-center flex-shrink-0`}>
+                  <s.icon size={16} className={s.color} />
+                </div>
+                <div className="min-w-0">
+                  <p className={`text-xl font-display font-black leading-none ${s.color}`}>{s.value}</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">{s.label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* ── Today's bookings quick list ── */}
+      {bookingToday.length > 0 && (
+        <div>
+          <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2.5">Today's Schedule</p>
+          <div className="glass-card rounded-2xl overflow-hidden">
+            {bookingToday.slice(0, 4).map((b, i) => {
+              const typeCfg = TRIP_TYPE_CONFIG[b.type]
+              const stCfg   = getStatusCfg(b.status)
+              return (
+                <div key={b.id} onClick={() => navigate('/trips')}
+                  className="flex items-center gap-3 px-4 py-3 border-b border-slate-50 dark:border-navy-800 last:border-0 hover:bg-blue-50/40 dark:hover:bg-navy-800/40 transition-colors cursor-pointer">
+                  <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${typeCfg?.gradient || 'from-slate-400 to-slate-500'} flex items-center justify-center text-sm flex-shrink-0`}>
+                    {typeCfg?.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{b.customer}</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
+                      {b.startTime && `${b.startTime} · `}{b.pickup}{b.drop ? ` → ${b.drop}` : ''}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full ${stCfg.badge}`}>
+                      <span className={`w-1 h-1 rounded-full ${stCfg.dot.replace(' animate-pulse','')}`} />
+                      {stCfg.label}
+                    </span>
+                    {b.driver && <p className="text-[10px] text-slate-400">{b.driver}</p>}
+                  </div>
+                </div>
+              )
+            })}
+            {bookingToday.length > 4 && (
+              <div className="px-4 py-2.5 text-center">
+                <button onClick={() => navigate('/trips')} className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
+                  +{bookingToday.length - 4} more trips today →
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Pending assignments notice ── */}
+      {bookingPending.filter(b => !b.driver).length > 0 && (isAdmin || isManager) && (
+        <div className="flex items-center justify-between gap-3 bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-800/30 rounded-2xl px-4 py-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
+              <Users size={15} className="text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-amber-700 dark:text-amber-400">
+                {bookingPending.filter(b => !b.driver).length} trip{bookingPending.filter(b => !b.driver).length !== 1 ? 's' : ''} need driver assignment
+              </p>
+              <p className="text-xs text-amber-600 dark:text-amber-500">Confirmed bookings without a driver</p>
+            </div>
+          </div>
+          <button onClick={() => navigate('/trips')}
+            className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white text-xs font-bold transition-all active:scale-95 shadow-md flex-shrink-0">
+            Assign
+          </button>
         </div>
       )}
 
@@ -116,7 +225,7 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* ── Attendance today strip (admin + manager) ── */}
+      {/* ── Attendance strip ── */}
       {can('attendance') && (
         <div className="glass-card rounded-2xl p-4">
           <div className="flex items-center justify-between mb-3">
@@ -124,20 +233,20 @@ export default function Dashboard() {
               <CalendarCheck size={16} className="text-navy-700 dark:text-blue-400" />
               <p className="text-sm font-bold text-slate-700 dark:text-slate-200">Today's Attendance</p>
             </div>
-            <span className="text-xs text-slate-400 dark:text-slate-500">{new Date().toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short' })}</span>
+            <span className="text-xs text-slate-400 dark:text-slate-500">
+              {new Date().toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short' })}
+            </span>
           </div>
           <div className="grid grid-cols-4 gap-2">
             {[
-              { label:'Present',  value: presentCount,                                                          color:'text-emerald-600 dark:text-emerald-400', dot:'bg-emerald-500' },
-              { label:'Absent',   value: absentCount,                                                           color:'text-red-600 dark:text-red-400',         dot:'bg-red-500'     },
-              { label:'On Leave', value: todayAttendance.filter(a=>a.status==='leave').length,                  color:'text-amber-600 dark:text-amber-400',      dot:'bg-amber-500'   },
-              { label:'Half Day', value: todayAttendance.filter(a=>a.status==='half-day').length,               color:'text-blue-600 dark:text-blue-400',        dot:'bg-blue-500'    },
+              { label:'Present',  value: presentCount, dot:'bg-emerald-500', text:'text-emerald-600 dark:text-emerald-400' },
+              { label:'Absent',   value: absentCount,  dot:'bg-red-500',     text:'text-red-600 dark:text-red-400' },
+              { label:'On Leave', value: todayAttendance.filter(a=>a.status==='leave').length,    dot:'bg-amber-500', text:'text-amber-600 dark:text-amber-400' },
+              { label:'Half Day', value: todayAttendance.filter(a=>a.status==='half-day').length, dot:'bg-blue-500',  text:'text-blue-600 dark:text-blue-400' },
             ].map(s => (
               <div key={s.label} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3 text-center">
-                <div className="flex items-center justify-center gap-1 mb-1">
-                  <span className={`w-2 h-2 rounded-full ${s.dot}`} />
-                </div>
-                <p className={`text-xl font-display font-black ${s.color}`}>{s.value}</p>
+                <div className="flex items-center justify-center gap-1 mb-1"><span className={`w-2 h-2 rounded-full ${s.dot}`} /></div>
+                <p className={`text-xl font-display font-black ${s.text}`}>{s.value}</p>
                 <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{s.label}</p>
               </div>
             ))}
@@ -145,9 +254,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── Charts row ── */}
+      {/* ── Charts ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Bar chart — blocked for manager */}
         {can('revenueDashboard') ? (
           <div className="glass-card rounded-2xl p-5">
             <div className="flex items-center justify-between mb-4">
@@ -167,7 +275,6 @@ export default function Dashboard() {
           <AccessBlocked label="Revenue Chart" />
         )}
 
-        {/* Profit donut — blocked for manager */}
         {can('profitReports') ? (
           <div className="glass-card rounded-2xl p-5 flex flex-col">
             <div className="mb-4">
@@ -200,7 +307,7 @@ export default function Dashboard() {
           <AccessBlocked label="Profit Reports" />
         )}
 
-        {/* Driver pay — always visible (operational) */}
+        {/* Driver pay — always visible */}
         <div className="glass-card rounded-2xl p-5">
           <div className="mb-4">
             <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Driver Stats</p>
@@ -218,7 +325,6 @@ export default function Dashboard() {
                       <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{d.name}</p>
                       <p className="text-[10px] text-slate-400">{driverTrips.length} trips</p>
                     </div>
-                    {/* Only show bata cost to admin */}
                     {can('financialAnalytics') && (
                       <p className="text-xs font-bold text-red-500">Rs. {(d.totalBata+d.totalExp).toLocaleString('en-IN')}</p>
                     )}
@@ -241,14 +347,13 @@ export default function Dashboard() {
             <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Recent Activity</p>
             <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">Latest Trips</h3>
           </div>
-          <Button icon={FileText} variant="outline" size="sm">View All</Button>
+          <Button icon={FileText} variant="outline" size="sm" onClick={() => navigate('/trips')}>View All</Button>
         </div>
         <div className="glass-card rounded-2xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 dark:border-navy-700 bg-slate-50/80 dark:bg-navy-800/50">
-                  {/* Hide financial columns for manager */}
                   {['Customer','Route','Driver','KM',
                     ...(can('revenueDashboard') ? ['Fare','Net'] : []),
                     'Status'].map(h => (
@@ -258,7 +363,7 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {TRIPS.slice(0,7).map(t => (
-                  <tr key={t.id} className="border-b border-slate-50 dark:border-navy-800 hover:bg-blue-50/40 dark:hover:bg-navy-800/50 transition-colors">
+                  <tr key={t.id} className="border-b border-slate-50 dark:border-navy-800 hover:bg-blue-50/40 dark:hover:bg-navy-800/50 transition-colors cursor-pointer" onClick={() => navigate('/trips')}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
                         <Avatar name={t.customer} size={28} />
