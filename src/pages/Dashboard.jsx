@@ -17,6 +17,7 @@ import {
   doneTrips, pendingTrips, monthlyFare,
 } from '../data/mockData'
 import { loadAttendanceToday } from '../data/attendanceData'
+import { loadCustomers } from '../data/customerData'
 import { loadBookings, getStatusCfg, TRIP_TYPE_CONFIG } from '../data/tripTypes'
 import { docStatus, daysLabel } from './Vehicles'
 
@@ -95,6 +96,12 @@ export default function Dashboard() {
     ].filter(d => { const s = docStatus(d.expiry); return s.key === 'expired' || s.key === 'soon' })
      .map(d => ({ ...d, st: docStatus(d.expiry) }))
   )
+
+  // ── Customer data ─────────────────────────────────────────
+  const customers         = loadCustomers().filter(c => !c._deleted)
+  const thisMonthStr      = new Date().toISOString().slice(0, 7)
+  const newCustomersMonth = customers.filter(c => c.createdAt?.startsWith(thisMonthStr)).length
+  const corporateCustomers= customers.filter(c => c.type === 'corporate' || c.type === 'agent').length
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -307,6 +314,41 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+
+      {/* ── Customer dashboard widgets — Module 8 ── */}
+      {can('customers') && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Customer Management</p>
+              <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">Customer Overview</h3>
+            </div>
+            <button onClick={() => navigate('/customers')}
+              className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
+              View all →
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label:'Total Customers',   value: customers.length,         icon: Users,       color:'text-navy-800 dark:text-blue-300',        bg:'bg-navy-50 dark:bg-navy-800/60'       },
+              { label:'Active',            value: customers.filter(c=>c.status==='active').length, icon: CheckCircle, color:'text-emerald-600 dark:text-emerald-400', bg:'bg-emerald-50 dark:bg-emerald-900/20' },
+              { label:'Corporate / Agent', value: corporateCustomers,       icon: Users,       color:'text-violet-600 dark:text-violet-400',    bg:'bg-violet-50 dark:bg-violet-900/20'   },
+              { label:'New This Month',    value: newCustomersMonth,         icon: Plus,        color:'text-blue-600 dark:text-blue-400',        bg:'bg-blue-50 dark:bg-blue-900/20'       },
+            ].map(s => (
+              <div key={s.label} onClick={() => navigate('/customers')}
+                className="glass-card rounded-2xl p-3.5 flex items-center gap-3 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5 cursor-pointer">
+                <div className={`w-9 h-9 rounded-xl ${s.bg} flex items-center justify-center flex-shrink-0`}>
+                  <s.icon size={16} className={s.color} />
+                </div>
+                <div className="min-w-0">
+                  <p className={`text-xl font-display font-black leading-none ${s.color}`}>{s.value}</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">{s.label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Attendance strip ── */}
       {can('attendance') && (

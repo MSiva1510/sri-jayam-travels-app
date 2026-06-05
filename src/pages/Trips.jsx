@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
-  Plus, Search, Filter, ChevronDown, ChevronUp,
-  Calendar, Car, User, MapPin, Phone, Clock,
+  Plus, Search, ChevronDown, ChevronUp,
+  Calendar, Car, User, MapPin,
   CheckCircle, X, Edit2, Trash2, UserCheck,
   ChevronLeft, ChevronRight, AlertTriangle,
 } from 'lucide-react'
@@ -590,7 +590,12 @@ function CalendarView({ bookings }) {
 // ─────────────────────────────────────────────────────────────
 export default function Trips() {
   const navigate          = useNavigate()
+  const location          = useLocation()
   const { user, can, isAdmin, isManager, isDriver } = useAuth()
+
+  // Module 9: If navigated from Customer Profile with prefill state,
+  // auto-open the create booking modal with customer name + contact pre-filled
+  const prefill = location.state?.prefill || null
 
   // Permissions
   const canCreate  = can('trips') && (isAdmin || isManager)
@@ -605,7 +610,7 @@ export default function Trips() {
   const [statusFilter, setStatusFilter]= useState('all')
   const [typeFilter,   setTypeFilter]  = useState('all')
   const [expanded,     setExpanded]    = useState(null)
-  const [showCreate,   setShowCreate]  = useState(false)
+  const [showCreate,   setShowCreate]  = useState(() => !!prefill)
   const [editBooking,  setEditBooking] = useState(null)
   const [assignBooking,setAssignBooking]= useState(null)
 
@@ -838,7 +843,7 @@ export default function Trips() {
       {/* ── Modals ── */}
       {(showCreate || editBooking) && (
         <BookingModal
-          booking={editBooking}
+          booking={editBooking || (prefill ? { customer: prefill.customer, contact: prefill.contact } : null)}
           onClose={() => { setShowCreate(false); setEditBooking(null) }}
           onSave={handleSave}
           userName={user?.name}
