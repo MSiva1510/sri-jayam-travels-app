@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Plus, Search, Phone, MapPin, Edit2, Trash2,
@@ -30,6 +30,86 @@ function TypeBadge({ type }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+//  Input Restrictions & Validation Rules
+// ─────────────────────────────────────────────────────────────
+const FIELD_RESTRICTIONS = {
+  name: {
+    maxLength: 50,
+    minLength: 2,
+    pattern: /^[a-zA-Z\s\-'.]*$/,
+    errorMsg: 'Only letters, spaces, hyphens, and apostrophes allowed',
+    placeholder: 'Full name or company name (2-50 chars)',
+  },
+  mobile: {
+    maxLength: 10,
+    minLength: 10,
+    pattern: /^[0-9]*$/,
+    errorMsg: 'Mobile must be exactly 10 digits',
+    placeholder: '10-digit mobile number (e.g., 9876543210)',
+  },
+  altMobile: {
+    maxLength: 10,
+    minLength: 0,
+    pattern: /^[0-9]*$/,
+    errorMsg: 'Mobile must be 10 digits',
+    placeholder: '10 digits only (optional)',
+  },
+  email: {
+    maxLength: 100,
+    pattern: /^[^\s]*@?[^\s]*\.?[^\s]*$/,
+    errorMsg: 'Please enter a valid email address',
+    placeholder: 'user@example.com (optional)',
+  },
+  city: {
+    maxLength: 30,
+    pattern: /^[a-zA-Z\s\-'.]*$/,
+    errorMsg: 'Only letters, spaces, hyphens, and apostrophes allowed',
+    placeholder: 'City name (optional)',
+  },
+  state: {
+    maxLength: 30,
+    pattern: /^[a-zA-Z\s\-'.]*$/,
+    errorMsg: 'Only letters, spaces, hyphens, and apostrophes allowed',
+    placeholder: 'State name (optional)',
+  },
+  address: {
+    maxLength: 100,
+    pattern: /^[a-zA-Z0-9\s\-',./]*$/,
+    errorMsg: 'Address contains invalid characters',
+    placeholder: 'Door no., Street name (optional)',
+  },
+  companyName: {
+    maxLength: 60,
+    pattern: /^[a-zA-Z0-9\s\-'.&()]*$/,
+    errorMsg: 'Only alphanumeric, spaces, and basic punctuation allowed',
+    placeholder: 'Registered company name (optional)',
+  },
+  contactPerson: {
+    maxLength: 50,
+    pattern: /^[a-zA-Z\s\-'.]*$/,
+    errorMsg: 'Only letters, spaces, hyphens, and apostrophes allowed',
+    placeholder: 'Primary contact name (optional)',
+  },
+  gst: {
+    maxLength: 15,
+    pattern: /^[0-9A-Z]*$/,
+    errorMsg: 'GST must be 15 alphanumeric characters (e.g., 29AAACM0000A1Z5)',
+    placeholder: 'GSTIN - 15 characters (optional)',
+  },
+  billingAddress: {
+    maxLength: 120,
+    pattern: /^[a-zA-Z0-9\s\-',./]*$/,
+    errorMsg: 'Address contains invalid characters',
+    placeholder: 'GST billing address (optional)',
+  },
+  notes: {
+    maxLength: 300,
+    errorMsg: 'Notes cannot exceed 300 characters',
+    placeholder: 'Preferred driver, vehicle, payment terms, VIP status…',
+  },
+}
+
+// ─────────────────────────────────────────────────────────────
 //  Add / Edit Customer Modal — Module 2 & 3
 // ─────────────────────────────────────────────────────────────
 const EMPTY_CUSTOMER = {
@@ -40,16 +120,169 @@ const EMPTY_CUSTOMER = {
   notes:'',
 }
 
+// ─ Separate field input component to prevent re-renders ─
+function FormField({ label, field, type = 'text', required, placeholder, value, onChange, error }) {
+  const restrictions = FIELD_RESTRICTIONS[field]
+  const maxLength = restrictions?.maxLength
+  const currentLength = (value || '').length
+
+  const handleChange = (e) => {
+    let inputValue = e.target.value
+
+    // Apply restrictions
+    if (restrictions) {
+      // Enforce max length
+      if (maxLength && inputValue.length > maxLength) {
+        inputValue = inputValue.slice(0, maxLength)
+      }
+
+      // Special handling for mobile fields - only numbers
+      if (field === 'mobile' || field === 'altMobile') {
+        inputValue = inputValue.replace(/\D/g, '')
+      }
+
+      // Special handling for GST - uppercase
+      if (field === 'gst') {
+        inputValue = inputValue.toUpperCase()
+      }
+
+      // Apply pattern restriction (only for non-email fields)
+      // Email is validated on save only, not during typing
+      if (restrictions.pattern && inputValue.length > 0 && field !== 'email') {
+        // For pattern validation, check character by character
+        const lastChar = inputValue[inputValue.length - 1]
+        if (!restrictions.pattern.test(inputValue)) {
+          // Remove the last invalid character
+          inputValue = inputValue.slice(0, -1)
+        }
+      }
+    }
+
+    onChange({ target: { value: inputValue } })
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+          {label}{required && <span className="text-red-500 ml-1">*</span>}
+        </label>
+        {maxLength && (
+          <span className={`text-[9px] font-semibold ${
+            currentLength > maxLength * 0.9
+              ? 'text-red-500'
+              : currentLength > maxLength * 0.7
+              ? 'text-amber-500'
+              : 'text-slate-400 dark:text-slate-500'
+          }`}>
+            {currentLength}/{maxLength}
+          </span>
+        )}
+      </div>
+      <input
+        type={type}
+        value={value || ''}
+        placeholder={restrictions?.placeholder || placeholder}
+        onChange={handleChange}
+        maxLength={maxLength || undefined}
+        required={required}
+        className={`w-full px-3 py-2 text-sm rounded-xl border bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100
+          focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition-all
+          ${error ? 'border-red-400 dark:border-red-600' : 'border-slate-200 dark:border-navy-700'}`}
+      />
+      {error && (
+        <div className="mt-1 flex items-start gap-1.5">
+          <span className="text-red-500 text-[10px] font-bold mt-0.5">⚠</span>
+          <p className="text-[11px] text-red-500">{error}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─ Separate select component ─
+function FormSelect({ label, field, value, onChange, options }) {
+  return (
+    <div>
+      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">{label}</label>
+      <select
+        value={value || ''}
+        onChange={onChange}
+        className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none appearance-none"
+      >
+        {options.map(o => typeof o === 'string' ? <option key={o}>{o}</option> : <option key={o.key} value={o.key}>{o.label}</option>)}
+      </select>
+    </div>
+  )
+}
+
+// ─ Section separator ─
+function FormSection({ title }) {
+  return <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest border-t border-slate-100 dark:border-navy-700 pt-3 mt-1">{title}</p>
+}
+
 function CustomerModal({ customer, onClose, onSave }) {
   const isEdit = !!customer?.id
   const [form,   setForm]   = useState(() => customer || { ...EMPTY_CUSTOMER })
   const [errors, setErrors] = useState({})
-  const upd = p => setForm(f => ({ ...f, ...p }))
+
+  // ─ Use useCallback to memoize the updater function ─
+  const upd = useCallback(p => setForm(f => ({ ...f, ...p })), [])
 
   const validate = () => {
     const e = {}
-    if (!form.name.trim())   e.name   = 'Customer name is required'
-    if (!form.mobile.trim()) e.mobile = 'Mobile number is required'
+
+    // Required field validations
+    if (!form.name.trim()) {
+      e.name = 'Customer name is required'
+    } else {
+      const nameRes = FIELD_RESTRICTIONS.name
+      if (form.name.length < nameRes.minLength) {
+        e.name = `Name must be at least ${nameRes.minLength} characters`
+      } else if (!nameRes.pattern.test(form.name)) {
+        e.name = nameRes.errorMsg
+      }
+    }
+
+    if (!form.mobile.trim()) {
+      e.mobile = 'Mobile number is required'
+    } else {
+      const mobileRes = FIELD_RESTRICTIONS.mobile
+      if (form.mobile.length !== mobileRes.maxLength) {
+        e.mobile = `Mobile must be exactly ${mobileRes.maxLength} digits`
+      } else if (!mobileRes.pattern.test(form.mobile)) {
+        e.mobile = 'Mobile must contain only numbers'
+      }
+    }
+
+    // Optional field validations (only if not empty)
+    if (form.altMobile.trim()) {
+      const altRes = FIELD_RESTRICTIONS.altMobile
+      if (form.altMobile.length !== altRes.maxLength) {
+        e.altMobile = `Alternate mobile must be ${altRes.maxLength} digits`
+      } else if (!altRes.pattern.test(form.altMobile)) {
+        e.altMobile = 'Must contain only numbers'
+      }
+    }
+
+    if (form.email.trim()) {
+      const emailRes = FIELD_RESTRICTIONS.email
+      // Proper email validation regex
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(form.email)) {
+        e.email = emailRes.errorMsg
+      }
+    }
+
+    if (form.gst.trim()) {
+      const gstRes = FIELD_RESTRICTIONS.gst
+      if (form.gst.length !== 15) {
+        e.gst = 'GST must be exactly 15 characters'
+      } else if (!gstRes.pattern.test(form.gst)) {
+        e.gst = gstRes.errorMsg
+      }
+    }
+
     return e
   }
 
@@ -65,40 +298,22 @@ function CustomerModal({ customer, onClose, onSave }) {
     })
   }
 
-  function F({ label, field, type = 'text', required, placeholder }) {
-    return (
-      <div>
-        <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-          {label}{required && <span className="text-red-500 ml-1">*</span>}
-        </label>
-        <input
-          type={type} value={form[field] || ''} placeholder={placeholder}
-          onChange={e => upd({ [field]: e.target.value })} required={required}
-          className={`w-full px-3 py-2 text-sm rounded-xl border bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100
-            focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition-all
-            ${errors[field] ? 'border-red-400 dark:border-red-600' : 'border-slate-200 dark:border-navy-700'}`} />
-        {errors[field] && <p className="text-[11px] text-red-500 mt-1">{errors[field]}</p>}
-      </div>
-    )
-  }
-
-  function Sel({ label, field, options }) {
-    return (
-      <div>
-        <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">{label}</label>
-        <select value={form[field] || ''} onChange={e => upd({ [field]: e.target.value })}
-          className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none appearance-none">
-          {options.map(o => typeof o === 'string' ? <option key={o}>{o}</option> : <option key={o.key} value={o.key}>{o.label}</option>)}
-        </select>
-      </div>
-    )
-  }
-
-  function Sep({ title }) {
-    return <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest border-t border-slate-100 dark:border-navy-700 pt-3 mt-1">{title}</p>
-  }
-
   const isCorporate = form.type === 'corporate' || form.type === 'agent'
+
+  // ─ Memoized change handlers for each field ─
+  const handleNameChange = useCallback(e => upd({ name: e.target.value }), [upd])
+  const handleMobileChange = useCallback(e => upd({ mobile: e.target.value }), [upd])
+  const handleAltMobileChange = useCallback(e => upd({ altMobile: e.target.value }), [upd])
+  const handleEmailChange = useCallback(e => upd({ email: e.target.value }), [upd])
+  const handleTypeChange = useCallback(e => upd({ type: e.target.value }), [upd])
+  const handleAddressChange = useCallback(e => upd({ address: e.target.value }), [upd])
+  const handleCityChange = useCallback(e => upd({ city: e.target.value }), [upd])
+  const handleStateChange = useCallback(e => upd({ state: e.target.value }), [upd])
+  const handleCompanyNameChange = useCallback(e => upd({ companyName: e.target.value }), [upd])
+  const handleContactPersonChange = useCallback(e => upd({ contactPerson: e.target.value }), [upd])
+  const handleGstChange = useCallback(e => upd({ gst: e.target.value }), [upd])
+  const handleBillingAddressChange = useCallback(e => upd({ billingAddress: e.target.value }), [upd])
+  const handleNotesChange = useCallback(e => upd({ notes: e.target.value }), [upd])
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
@@ -120,53 +335,157 @@ function CustomerModal({ customer, onClose, onSave }) {
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
           {/* Basic info */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2"><F label="Customer Name" field="name" required placeholder="Full name or company name" /></div>
-            <F label="Mobile Number"     field="mobile"    required type="tel" placeholder="10-digit mobile" />
-            <F label="Alternate Number"  field="altMobile" type="tel" placeholder="Optional" />
-            <F label="Email"             field="email"     type="email" placeholder="email@example.com" />
-            <Sel label="Customer Type" field="type" options={CUSTOMER_TYPES} />
+            <div className="col-span-2">
+              <FormField
+                label="Customer Name"
+                field="name"
+                required
+                value={form.name}
+                onChange={handleNameChange}
+                error={errors.name}
+              />
+            </div>
+            <FormField
+              label="Mobile Number"
+              field="mobile"
+              required
+              type="tel"
+              value={form.mobile}
+              onChange={handleMobileChange}
+              error={errors.mobile}
+            />
+            <FormField
+              label="Alternate Number"
+              field="altMobile"
+              type="tel"
+              value={form.altMobile}
+              onChange={handleAltMobileChange}
+              error={errors.altMobile}
+            />
+            <FormField
+              label="Email"
+              field="email"
+              type="email"
+              value={form.email}
+              onChange={handleEmailChange}
+              error={errors.email}
+            />
+            <FormSelect
+              label="Customer Type"
+              field="type"
+              value={form.type}
+              onChange={handleTypeChange}
+              options={CUSTOMER_TYPES}
+            />
           </div>
 
           {/* Address */}
-          <Sep title="Address" />
+          <FormSection title="Address" />
           <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2"><F label="Street Address" field="address" placeholder="Door no., Street name" /></div>
-            <F label="City"  field="city"  placeholder="City" />
-            <F label="State" field="state" placeholder="State" />
+            <div className="col-span-2">
+              <FormField
+                label="Street Address"
+                field="address"
+                value={form.address}
+                onChange={handleAddressChange}
+                error={errors.address}
+              />
+            </div>
+            <FormField
+              label="City"
+              field="city"
+              value={form.city}
+              onChange={handleCityChange}
+              error={errors.city}
+            />
+            <FormField
+              label="State"
+              field="state"
+              value={form.state}
+              onChange={handleStateChange}
+              error={errors.state}
+            />
           </div>
 
           {/* Corporate fields */}
           {isCorporate && (
             <>
-              <Sep title="Corporate Details" />
+              <FormSection title="Corporate Details" />
               <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2"><F label="Company Name"    field="companyName"    placeholder="Registered company name" /></div>
-                <F label="Contact Person"  field="contactPerson" placeholder="Primary contact" />
-                <F label="GST Number"      field="gst"           placeholder="GSTIN (optional)" />
-                <div className="col-span-2"><F label="Billing Address" field="billingAddress" placeholder="GST billing address" /></div>
+                <div className="col-span-2">
+                  <FormField
+                    label="Company Name"
+                    field="companyName"
+                    value={form.companyName}
+                    onChange={handleCompanyNameChange}
+                    error={errors.companyName}
+                  />
+                </div>
+                <FormField
+                  label="Contact Person"
+                  field="contactPerson"
+                  value={form.contactPerson}
+                  onChange={handleContactPersonChange}
+                  error={errors.contactPerson}
+                />
+                <FormField
+                  label="GST Number"
+                  field="gst"
+                  value={form.gst}
+                  onChange={handleGstChange}
+                  error={errors.gst}
+                />
+                <div className="col-span-2">
+                  <FormField
+                    label="Billing Address"
+                    field="billingAddress"
+                    value={form.billingAddress}
+                    onChange={handleBillingAddressChange}
+                    error={errors.billingAddress}
+                  />
+                </div>
               </div>
             </>
           )}
 
           {/* Notes */}
-          <Sep title="Notes" />
+          <FormSection title="Notes" />
           <div>
-            <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-              Customer Notes
-            </label>
-            <textarea value={form.notes || ''} onChange={e => upd({ notes: e.target.value })}
-              placeholder="Preferred driver, vehicle, payment terms, VIP status…" rows={3}
-              className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25 resize-none transition-all" />
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                Customer Notes
+              </label>
+              <span className={`text-[9px] font-semibold ${
+                form.notes.length > 270
+                  ? 'text-red-500'
+                  : form.notes.length > 210
+                  ? 'text-amber-500'
+                  : 'text-slate-400 dark:text-slate-500'
+              }`}>
+                {form.notes.length}/300
+              </span>
+            </div>
+            <textarea
+              value={form.notes || ''}
+              onChange={e => {
+                let val = e.target.value
+                if (val.length > 300) val = val.slice(0, 300)
+                handleNotesChange({ target: { value: val } })
+              }}
+              placeholder="Preferred driver, vehicle, payment terms, VIP status…"
+              rows={3}
+              maxLength={300}
+              className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25 resize-none transition-all"
+            />
           </div>
         </div>
 
-        <div className="px-5 py-4 border-t border-slate-100 dark:border-navy-700 flex gap-2 flex-shrink-0">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">
+        <div className="flex gap-2 px-5 py-4 border-t border-slate-100 dark:border-navy-700 bg-slate-50 dark:bg-navy-800/50 rounded-b-3xl sm:rounded-b-3xl flex-shrink-0">
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-navy-600 text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-navy-700 transition-all">
             Cancel
           </button>
-          <button onClick={handleSave}
-            className="flex-1 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-sm font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-md active:scale-95">
-            {isEdit ? 'Save Changes' : 'Add Customer'}
+          <button onClick={handleSave} className="flex-1 px-4 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-sm font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all">
+            {isEdit ? 'Update' : 'Create'} Customer
           </button>
         </div>
       </div>
@@ -175,236 +494,160 @@ function CustomerModal({ customer, onClose, onSave }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Customer Profile / Detail Panel — Modules 4, 5, 7, 9
+//  Customer Profile (expanded details)
 // ─────────────────────────────────────────────────────────────
 function CustomerProfile({ customer, bookings, onEdit, onDelete, onBooking, canEdit, canDelete }) {
+  const isCorp = customer.type === 'corporate' || customer.type === 'agent'
   const stats = getCustomerStats(customer.id, customer.name, bookings)
-  const [tab,  setTab] = useState('overview')   // overview | trips | notes
-  const isCorporate = customer.type === 'corporate' || customer.type === 'agent'
 
-  return (
-    <div className="border-t border-slate-100 dark:border-navy-700 bg-slate-50/50 dark:bg-navy-800/20">
-      {/* Tab bar */}
-      <div className="flex gap-1 px-4 pt-3">
-        {[['overview','Overview'],['trips','Trips'],['notes','Notes']].map(([k,l]) => (
-          <button key={k} onClick={() => setTab(k)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              tab === k
-                ? 'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-            }`}>{l}
-          </button>
-        ))}
-      </div>
-
-      <div className="p-4 space-y-3">
-        {/* ── Overview tab ── */}
-        {tab === 'overview' && (
-          <>
-            {/* Booking stats */}
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { label:'Total Trips',    value: stats.totalTrips,     color:'text-navy-800 dark:text-blue-300' },
-                { label:'Completed',      value: stats.completedTrips, color:'text-emerald-600 dark:text-emerald-400' },
-                { label:'Cancelled',      value: stats.cancelledTrips, color:'text-red-600 dark:text-red-400' },
-                { label:'Total Revenue',  value: stats.totalRevenue > 0 ? `Rs.${(stats.totalRevenue/1000).toFixed(1)}k` : '—', color:'text-violet-600 dark:text-violet-400' },
-              ].map(s => (
-                <div key={s.label} className="bg-white dark:bg-navy-800/60 rounded-xl p-2.5 border border-slate-100 dark:border-navy-700 text-center">
-                  <p className={`text-lg font-display font-black ${s.color}`}>{s.value}</p>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{s.label}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Contact details */}
-            <div className="bg-white dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700 space-y-2">
-              {[
-                { icon: Phone,    label:'Mobile',   value: customer.mobile        },
-                ...(customer.altMobile ? [{ icon: Phone, label:'Alt. Mobile', value: customer.altMobile }] : []),
-                ...(customer.email  ? [{ icon: FileText, label:'Email',    value: customer.email  }] : []),
-                ...(customer.city   ? [{ icon: MapPin,   label:'City',     value: `${customer.city}${customer.state ? ', ' + customer.state : ''}` }] : []),
-              ].map(d => (
-                <div key={d.label} className="flex items-center gap-2.5">
-                  <d.icon size={12} className="text-slate-400 flex-shrink-0" />
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500 w-16 flex-shrink-0">{d.label}</span>
-                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{d.value}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Corporate details — Module 6 */}
-            {isCorporate && customer.companyName && (
-              <div className="bg-violet-50 dark:bg-violet-900/15 rounded-xl p-3 border border-violet-200 dark:border-violet-800/30">
-                <div className="flex items-center gap-2 mb-2">
-                  <Building2 size={13} className="text-violet-600 dark:text-violet-400 flex-shrink-0" />
-                  <p className="text-xs font-bold text-violet-700 dark:text-violet-400">{customer.companyName}</p>
-                </div>
-                <div className="space-y-1">
-                  {customer.contactPerson && (
-                    <p className="text-[10px] text-violet-600 dark:text-violet-500">Contact: {customer.contactPerson}</p>
-                  )}
-                  {customer.gst && (
-                    <p className="text-[10px] font-mono text-violet-600 dark:text-violet-500">GST: {customer.gst}</p>
-                  )}
-                  {customer.billingAddress && (
-                    <p className="text-[10px] text-violet-600 dark:text-violet-500">{customer.billingAddress}</p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Upcoming trips */}
-            {stats.upcoming.length > 0 && (
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Upcoming Trips</p>
-                <div className="space-y-1.5">
-                  {stats.upcoming.slice(0, 2).map(b => {
-                    const typeCfg = TRIP_TYPE_CONFIG[b.type]
-                    const stCfg   = getStatusCfg(b.status)
-                    return (
-                      <div key={b.id} className="flex items-center gap-2.5 bg-white dark:bg-navy-800/60 rounded-xl px-3 py-2.5 border border-slate-100 dark:border-navy-700">
-                        <span className="text-base flex-shrink-0">{typeCfg?.icon}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{b.pickup} → {b.drop || '—'}</p>
-                          <p className="text-[10px] text-slate-400">{b.startDate} {b.startTime || ''}</p>
-                        </div>
-                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${stCfg.badge}`}>{stCfg.label}</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ── Trips tab — Module 5 ── */}
-        {tab === 'trips' && (
-          <div>
-            {stats.recent.length === 0 && stats.upcoming.length === 0 ? (
-              <div className="text-center py-6">
-                <Navigation size={28} className="mx-auto text-slate-300 dark:text-slate-600 mb-2" />
-                <p className="text-xs text-slate-400">No trips on record yet</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {[...stats.upcoming, ...stats.recent].map(b => {
-                  const typeCfg = TRIP_TYPE_CONFIG[b.type]
-                  const stCfg   = getStatusCfg(b.status)
-                  return (
-                    <div key={b.id} className="bg-white dark:bg-navy-800/60 rounded-xl px-3 py-2.5 border border-slate-100 dark:border-navy-700">
-                      <div className="flex items-start justify-between gap-2 mb-1.5">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-sm flex-shrink-0">{typeCfg?.icon}</span>
-                          <div className="min-w-0">
-                            <p className="text-[10px] font-mono text-slate-400">{b.bookingNo}</p>
-                            <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{b.pickup} → {b.drop || '—'}</p>
-                          </div>
-                        </div>
-                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${stCfg.badge}`}>{stCfg.label}</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-[10px] text-slate-400 flex-wrap">
-                        <span className="flex items-center gap-1"><Calendar size={9} />{b.startDate}</span>
-                        {b.driver   && <span className="flex items-center gap-1"><User size={9} />{b.driver}</span>}
-                        {b.vehicle  && <span className="flex items-center gap-1"><span>🚗</span>{b.vehicle}</span>}
-                        {b.fare > 0 && <span className="font-bold text-navy-700 dark:text-blue-300 ml-auto">Rs. {b.fare.toLocaleString('en-IN')}</span>}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Notes tab — Module 7 ── */}
-        {tab === 'notes' && (
-          <div>
-            {customer.notes ? (
-              <div className="bg-amber-50 dark:bg-amber-900/15 rounded-xl p-4 border border-amber-200 dark:border-amber-800/30">
-                <div className="flex items-center gap-2 mb-2">
-                  <Star size={13} className="text-amber-500 fill-amber-500" />
-                  <p className="text-xs font-bold text-amber-700 dark:text-amber-400">Customer Notes</p>
-                </div>
-                <p className="text-sm text-amber-800 dark:text-amber-300 leading-relaxed">{customer.notes}</p>
-                <p className="text-[10px] text-amber-600 dark:text-amber-500 mt-2">
-                  Last updated: {customer.updatedAt ? new Date(customer.updatedAt).toLocaleDateString('en-IN') : '—'}
-                </p>
-              </div>
-            ) : (
-              <div className="text-center py-6">
-                <Star size={28} className="mx-auto text-slate-300 dark:text-slate-600 mb-2" />
-                <p className="text-xs text-slate-400">No notes added yet</p>
-                {canEdit && (
-                  <button onClick={() => onEdit(customer)}
-                    className="mt-2 text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700">
-                    Add a note →
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Action buttons */}
-        <div className="flex gap-2 flex-wrap pt-1">
-          {/* Module 9: Quick booking */}
-          <button onClick={() => onBooking(customer)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all active:scale-95 shadow-md">
-            <Plus size={13} /> Create Booking
-          </button>
-          {canEdit && (
-            <button onClick={() => onEdit(customer)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
-              <Edit2 size={13} /> Edit
-            </button>
-          )}
-          {canDelete && (
-            <button onClick={() => onDelete(customer.id)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/15 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/25 transition-colors">
-              <Trash2 size={13} /> Delete
-            </button>
-          )}
+  const renderField = (label, value, icon = null) => (
+    value ? (
+      <div className="flex items-start gap-2.5">
+        {icon && <span className="text-slate-400 dark:text-slate-500 flex-shrink-0 mt-0.5">{icon}</span>}
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">{label}</p>
+          <p className="text-slate-800 dark:text-slate-100 text-sm break-words">{value}</p>
         </div>
       </div>
+    ) : null
+  )
+
+  return (
+    <div className="bg-slate-50/50 dark:bg-navy-800/30 border-t border-slate-100 dark:border-navy-700 px-4 py-4 space-y-4">
+      {/* Basic Info */}
+      <div className="grid grid-cols-2 gap-4">
+        {renderField('Name', customer.name)}
+        {renderField('Type', getCustomerTypeCfg(customer.type).label)}
+        {renderField('Mobile', customer.mobile, <Phone size={14} />)}
+        {renderField('Alternate', customer.altMobile)}
+        {renderField('Email', customer.email)}
+        {renderField('Status', customer.status)}
+      </div>
+
+      {/* Address */}
+      {(customer.address || customer.city || customer.state) && (
+        <>
+          <div className="border-t border-slate-200 dark:border-navy-600 pt-3" />
+          <div className="grid grid-cols-2 gap-4">
+            {renderField('Address', customer.address, <MapPin size={14} />)}
+            {renderField('City', customer.city)}
+            {renderField('State', customer.state)}
+          </div>
+        </>
+      )}
+
+      {/* Corporate */}
+      {isCorp && (customer.companyName || customer.gst) && (
+        <>
+          <div className="border-t border-slate-200 dark:border-navy-600 pt-3" />
+          <div className="grid grid-cols-2 gap-4">
+            {renderField('Company', customer.companyName, <Building2 size={14} />)}
+            {renderField('Contact', customer.contactPerson)}
+            {renderField('GST', customer.gst)}
+            {renderField('Billing Address', customer.billingAddress)}
+          </div>
+        </>
+      )}
+
+      {/* Notes */}
+      {customer.notes && (
+        <>
+          <div className="border-t border-slate-200 dark:border-navy-600 pt-3" />
+          <div className="flex gap-2.5">
+            <FileText size={14} className="text-slate-400 dark:text-slate-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">Notes</p>
+              <p className="text-slate-700 dark:text-slate-300 text-sm">{customer.notes}</p>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Stats */}
+      {stats.totalTrips > 0 && (
+        <>
+          <div className="border-t border-slate-200 dark:border-navy-600 pt-3" />
+          <div className="grid grid-cols-4 gap-2 text-center text-xs">
+            <div className="rounded-lg bg-white dark:bg-navy-700/40 p-2">
+              <p className="font-bold text-navy-900 dark:text-white">{stats.totalTrips}</p>
+              <p className="text-slate-500 dark:text-slate-400 text-[9px]">Total Trips</p>
+            </div>
+            <div className="rounded-lg bg-white dark:bg-navy-700/40 p-2">
+              <p className="font-bold text-emerald-600 dark:text-emerald-400">{stats.completedTrips}</p>
+              <p className="text-slate-500 dark:text-slate-400 text-[9px]">Completed</p>
+            </div>
+            <div className="rounded-lg bg-white dark:bg-navy-700/40 p-2">
+              <p className="font-bold text-blue-600 dark:text-blue-400">{stats.activeTrips}</p>
+              <p className="text-slate-500 dark:text-slate-400 text-[9px]">Active</p>
+            </div>
+            <div className="rounded-lg bg-white dark:bg-navy-700/40 p-2">
+              <p className="font-bold text-slate-800 dark:text-white">₹{stats.totalRevenue?.toLocaleString('en-IN')}</p>
+              <p className="text-slate-500 dark:text-slate-400 text-[9px]">Revenue</p>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Actions */}
+      <div className="border-t border-slate-200 dark:border-navy-600 pt-3 flex gap-2">
+        {canEdit && (
+          <button onClick={() => onEdit(customer)} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-bold hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all flex-1">
+            <Edit2 size={12} /> Edit
+          </button>
+        )}
+        <button onClick={() => onBooking(customer)} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-xs font-bold hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-all flex-1">
+          <Calendar size={12} /> Book Trip
+        </button>
+        {canDelete && (
+          <button onClick={() => onDelete(customer.id)} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-xs font-bold hover:bg-red-200 dark:hover:bg-red-900/50 transition-all">
+            <Trash2 size={12} />
+          </button>
+        )}
+      </div>
+
+      {/* Upcoming trips */}
+      {stats.upcoming?.length > 0 && (
+        <>
+          <div className="border-t border-slate-200 dark:border-navy-600 pt-3" />
+          <div>
+            <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Upcoming Trips</p>
+            <div className="space-y-1.5">
+              {stats.upcoming.slice(0, 3).map(b => (
+                <div key={b.id} className="flex items-center gap-2 text-[11px] px-2.5 py-1.5 rounded-lg bg-white dark:bg-navy-700/40">
+                  <span className="flex-1">{b.tripType}</span>
+                  <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap">{b.startDate?.split('T')[0]}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Quick Booking Mini-Modal — Module 9
+//  Quick Booking Modal
 // ─────────────────────────────────────────────────────────────
 function QuickBookingModal({ customer, onClose }) {
   const navigate = useNavigate()
+  const handleQuickBook = () => {
+    navigate(`/trips?customer=${encodeURIComponent(customer.name)}`)
+    onClose()
+  }
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:w-80 bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl z-10">
-        <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mb-4 sm:hidden" />
-        <div className="text-center mb-5">
-          <Avatar name={customer.name} size={48} className="mx-auto mb-3" />
-          <h3 className="font-display font-black text-slate-800 dark:text-white text-base">{customer.name}</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400">{customer.mobile}</p>
-        </div>
-        <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3 mb-4 space-y-1.5">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Will auto-fill in booking form</p>
-          <div className="flex justify-between text-xs">
-            <span className="text-slate-500">Customer Name</span>
-            <span className="font-bold text-slate-700 dark:text-slate-200">{customer.name}</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-slate-500">Mobile</span>
-            <span className="font-bold text-slate-700 dark:text-slate-200">{customer.mobile}</span>
-          </div>
-        </div>
+      <div className="relative bg-white dark:bg-navy-900 rounded-3xl shadow-2xl p-6 max-w-sm mx-4">
+        <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
+          Start a new trip for <span className="font-bold">{customer.name}</span>?
+        </p>
         <div className="flex gap-2">
-          <button onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">
+          <button onClick={onClose} className="flex-1 px-4 py-2 rounded-lg border border-slate-200 dark:border-navy-600 text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-navy-800 transition-all">
             Cancel
           </button>
-          <button onClick={() => { onClose(); navigate('/trips', { state: { prefill: { customer: customer.name, contact: customer.mobile } } }) }}
-            className="flex-1 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-sm font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-md active:scale-95">
-            Open Trips →
+          <button onClick={handleQuickBook} className="flex-1 px-4 py-2 rounded-lg bg-navy-900 dark:bg-blue-700 text-white text-sm font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all">
+            Start Booking
           </button>
         </div>
       </div>
@@ -413,77 +656,77 @@ function QuickBookingModal({ customer, onClose }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Main Customers Page
+//  Main Customers List
 // ─────────────────────────────────────────────────────────────
 export default function Customers() {
-  const { isAdmin, isManager, isDriver } = useAuth()
+  const { user } = useAuth()
+  const navigate = useNavigate()
 
-  const canAdd    = isAdmin || isManager
-  const canEdit   = isAdmin || isManager
-  const canDelete = isAdmin
+  const [customers, setCustomers] = useState(loadCustomers())
+  const [bookings, setBookings] = useState(loadBookings())
+  const [showAdd, setShowAdd] = useState(false)
+  const [editCustomer, setEditCustomer] = useState(null)
+  const [bookingFor, setBookingFor] = useState(null)
+  const [search, setSearch] = useState('')
+  const [typeFilter, setTypeFilter] = useState('all')
+  const [sortBy, setSortBy] = useState('name')
+  const [expanded, setExpanded] = useState(null)
+  const [toast, setToast] = useState('')
 
-  const bookings = loadBookings()
+  const canAdd    = ['admin', 'manager'].includes(user?.role)
+  const canEdit   = ['admin', 'manager'].includes(user?.role)
+  const canDelete = user?.role === 'admin'
 
-  const [customers,      setCustomers]     = useState(() => loadCustomers().filter(c => !c._deleted))
-  const [search,         setSearch]        = useState('')
-  const [typeFilter,     setTypeFilter]    = useState('all')
-  const [sortBy,         setSortBy]        = useState('name')
-  const [expanded,       setExpanded]      = useState(null)
-  const [showAdd,        setShowAdd]       = useState(false)
-  const [editCustomer,   setEditCustomer]  = useState(null)
-  const [bookingFor,     setBookingFor]    = useState(null)
-  const [toast,          setToast]         = useState('')
-
-  const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 3000) }
-  const reload    = () => setCustomers(loadCustomers().filter(c => !c._deleted))
-
-  // ── Derived ───────────────────────────────────────────────
-  const filtered = useMemo(() => {
-    return customers
-      .filter(c => {
-        const q = search.toLowerCase()
-        const matchSearch = !q || c.name.toLowerCase().includes(q)
-          || c.mobile.includes(q)
-          || (c.email || '').toLowerCase().includes(q)
-          || (c.city  || '').toLowerCase().includes(q)
-          || (c.companyName || '').toLowerCase().includes(q)
-        const matchType = typeFilter === 'all' || c.type === typeFilter
-        return matchSearch && matchType
-      })
-      .sort((a, b) => {
-        if (sortBy === 'name')    return a.name.localeCompare(b.name)
-        if (sortBy === 'city')    return (a.city || '').localeCompare(b.city || '')
-        if (sortBy === 'recent')  return (b.updatedAt || '').localeCompare(a.updatedAt || '')
-        return 0
-      })
-  }, [customers, search, typeFilter, sortBy])
-
-  // Module 8 counts
-  const thisMonth     = new Date().toISOString().slice(0, 7)
-  const newThisMonth  = customers.filter(c => c.createdAt?.startsWith(thisMonth)).length
-  const corporateCount = customers.filter(c => c.type === 'corporate' || c.type === 'agent').length
-
-  const handleSave = (c) => {
-    saveCustomer(c)
-    reload()
+  const handleSave = (customer) => {
+    saveCustomer(customer)
+    setCustomers(loadCustomers())
     setShowAdd(false)
     setEditCustomer(null)
-    showToast(editCustomer ? 'Customer updated' : 'Customer added')
+    setToast(`${customer.id ? 'Updated' : 'Added'} ${customer.name}`)
+    setTimeout(() => setToast(''), 3000)
   }
 
   const handleDelete = (id) => {
-    if (!window.confirm('Delete this customer? This cannot be undone.')) return
+    if (!confirm('Delete this customer? This cannot be undone.')) return
     deleteCustomer(id)
-    reload()
-    setExpanded(null)
-    showToast('Customer deleted')
+    setCustomers(loadCustomers())
+    setToast('Customer deleted')
+    setTimeout(() => setToast(''), 3000)
   }
 
-  if (isDriver) {
+  const filtered = useMemo(() => {
+    return customers
+      .filter(c => typeFilter === 'all' || c.type === typeFilter)
+      .filter(c =>
+        !search ||
+        c.name.toLowerCase().includes(search.toLowerCase()) ||
+        c.mobile.includes(search) ||
+        c.city?.toLowerCase().includes(search.toLowerCase()) ||
+        c.email?.toLowerCase().includes(search.toLowerCase())
+      )
+      .sort((a, b) =>
+        sortBy === 'name'   ? a.name.localeCompare(b.name) :
+        sortBy === 'city'   ? (a.city || '').localeCompare(b.city || '') :
+        sortBy === 'recent' ? (b.updatedAt || '').localeCompare(a.updatedAt || '') :
+        0
+      )
+  }, [customers, search, typeFilter, sortBy])
+
+  const corporateCount = customers.filter(c => c.type === 'corporate' || c.type === 'agent').length
+  const newThisMonth = customers.filter(c => {
+    const created = new Date(c.createdAt || 0)
+    const now = new Date()
+    return created.getMonth() === now.getMonth() && created.getFullYear() === now.getFullYear()
+  }).length
+
+  if (user?.role === 'driver') {
     return (
-      <div className="glass-card rounded-2xl p-12 text-center">
-        <AlertTriangle size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-        <p className="font-bold text-slate-500 dark:text-slate-400">Customer management is not available for drivers.</p>
+      <div className="space-y-5 animate-fade-up">
+        <PageHeader title="Customers" subtitle="Driver access view" />
+        <div className="glass-card rounded-2xl p-12 text-center">
+          <User size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
+          <p className="font-bold text-slate-500 dark:text-slate-400">Customer management is not available for drivers.</p>
+        </div>
       </div>
     )
   }
