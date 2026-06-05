@@ -1,8 +1,8 @@
 import {
   TrendingUp, IndianRupee, Car, Receipt,
   CheckCircle, Clock, Users, Fuel, Plus, FileText,
-  ShieldOff, CalendarCheck, BookOpen, Navigation,
-  Zap, XCircle,
+  ShieldOff, CalendarCheck, BookOpen,
+  Zap, XCircle, AlertTriangle, Wrench, Shield,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import StatCard   from '../components/ui/StatCard'
@@ -18,6 +18,7 @@ import {
 } from '../data/mockData'
 import { loadAttendanceToday } from '../data/attendanceData'
 import { loadBookings, getStatusCfg, TRIP_TYPE_CONFIG } from '../data/tripTypes'
+import { docStatus, daysLabel } from './Vehicles'
 
 // ── Blocked section placeholder ───────────────────────────────
 function AccessBlocked({ label }) {
@@ -81,6 +82,19 @@ export default function Dashboard() {
   const bookingCompleted = bookings.filter(b => b.status === 'completed')
   const bookingCancelled = bookings.filter(b => b.status === 'cancelled')
   const bookingPending   = bookings.filter(b => ['draft','confirmed','assigned'].includes(b.status))
+
+  // ── Vehicle data ──────────────────────────────────────────
+  const availableVehicles   = VEHICLES.filter(v => v.status === 'active').length
+  const maintenanceVehicles = VEHICLES.filter(v => v.status === 'maintenance').length
+  const vehicleDocAlerts = VEHICLES.flatMap(v =>
+    [
+      { label:`${v.reg} Insurance`,  expiry: v.insExpiry    },
+      { label:`${v.reg} Permit`,     expiry: v.permitExpiry },
+      { label:`${v.reg} FC`,         expiry: v.fcExpiry     },
+      { label:`${v.reg} PUC`,        expiry: v.pucExpiry    },
+    ].filter(d => { const s = docStatus(d.expiry); return s.key === 'expired' || s.key === 'soon' })
+     .map(d => ({ ...d, st: docStatus(d.expiry) }))
+  )
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -202,6 +216,75 @@ export default function Dashboard() {
             className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white text-xs font-bold transition-all active:scale-95 shadow-md flex-shrink-0">
             Assign
           </button>
+        </div>
+      )}
+
+      {/* ── Vehicle dashboard widgets ── */}
+      {can('vehicles') && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Fleet Management</p>
+              <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">Vehicle Overview</h3>
+            </div>
+            <button onClick={() => navigate('/vehicles')}
+              className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
+              View all →
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label:'Total Vehicles',  value: VEHICLES.length,       icon: Car,       color:'text-navy-800 dark:text-blue-300',         bg:'bg-navy-50 dark:bg-navy-800/60'        },
+              { label:'Available',       value: availableVehicles,      icon: CheckCircle,color:'text-emerald-600 dark:text-emerald-400',  bg:'bg-emerald-50 dark:bg-emerald-900/20'  },
+              { label:'Maintenance',     value: maintenanceVehicles,    icon: Wrench,    color:'text-red-600 dark:text-red-400',           bg:'bg-red-50 dark:bg-red-900/20'          },
+              { label:'Doc Alerts',      value: vehicleDocAlerts.length,icon: AlertTriangle, color:'text-amber-600 dark:text-amber-400',  bg:'bg-amber-50 dark:bg-amber-900/20'      },
+            ].map(s => (
+              <div key={s.label} onClick={() => navigate('/vehicles')}
+                className="glass-card rounded-2xl p-3.5 flex items-center gap-3 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5 cursor-pointer">
+                <div className={`w-9 h-9 rounded-xl ${s.bg} flex items-center justify-center flex-shrink-0`}>
+                  <s.icon size={16} className={s.color} />
+                </div>
+                <div className="min-w-0">
+                  <p className={`text-xl font-display font-black leading-none ${s.color}`}>{s.value}</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">{s.label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Vehicle doc expiry alert ── */}
+      {vehicleDocAlerts.length > 0 && can('vehicles') && (
+        <div className="bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-800/30 rounded-2xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={15} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
+              <p className="text-sm font-bold text-amber-700 dark:text-amber-400">
+                {vehicleDocAlerts.length} vehicle document{vehicleDocAlerts.length !== 1 ? 's' : ''} need attention
+              </p>
+            </div>
+            <button onClick={() => navigate('/vehicles')}
+              className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white text-xs font-bold transition-all active:scale-95 shadow-md flex-shrink-0">
+              Review
+            </button>
+          </div>
+          <div className="space-y-1.5">
+            {vehicleDocAlerts.slice(0, 4).map((a, i) => (
+              <div key={i} className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 truncate">{a.label}</p>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${a.st.badge}`}>{a.st.label}</span>
+                  <span className="text-[10px] text-amber-600 dark:text-amber-500 font-mono">{a.expiry}</span>
+                </div>
+              </div>
+            ))}
+            {vehicleDocAlerts.length > 4 && (
+              <p className="text-[10px] text-amber-600 dark:text-amber-500 font-semibold pt-1">
+                +{vehicleDocAlerts.length - 4} more — view all in Vehicles
+              </p>
+            )}
+          </div>
         </div>
       )}
 

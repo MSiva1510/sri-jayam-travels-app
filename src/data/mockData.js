@@ -42,9 +42,51 @@ export const DRIVERS = [
 ]
 
 export const VEHICLES = [
-  { id:1, reg:'PY01CY1255', type:'4+1 Sedan',   model:'Toyota Etios',  year:2020, km:52340, status:'active',      ins:'Dec 2026', nextService:'Aug 2026', lastService:'Mar 2026', fuelType:'Petrol', color:'White', driver:'Ramanan'      },
-  { id:2, reg:'PY01DF1255', type:'4+1 Sedan',   model:'Maruti Dzire',  year:2021, km:44890, status:'active',      ins:'Feb 2027', nextService:'Sep 2026', lastService:'Apr 2026', fuelType:'CNG',    color:'Silver',driver:'Babu'          },
-  { id:3, reg:'PY01VF1255', type:'7+1 SUV',     model:'Maruti Ertiga', year:2022, km:38120, status:'maintenance', ins:'Jan 2027', nextService:'Oct 2026', lastService:'May 2026', fuelType:'Petrol', color:'Grey',  driver:'Rajasekharan' },
+  {
+    id:1, reg:'PY01CY1255', type:'4+1 Sedan', model:'Toyota Etios', year:2020,
+    km:52340, status:'active', fuelType:'Petrol', color:'White', driver:'Ramanan',
+    // Service
+    lastServiceDate:'2026-03-10', lastServiceKm:50000,
+    nextServiceDate:'2026-08-10', nextServiceKm:55000,
+    // Insurance
+    insProvider:'New India Assurance', insNumber:'NIA-2024-PY1255', insExpiry:'2026-12-31',
+    // Permit
+    permitNumber:'PY-TN-2024-0012', permitExpiry:'2027-03-15',
+    // FC (Fitness Certificate)
+    fcNumber:'FC-PY-2024-1255', fcExpiry:'2026-09-30',
+    // Pollution Certificate
+    pucNumber:'PUC-PY-2026-3301', pucExpiry:'2026-11-15',
+  },
+  {
+    id:2, reg:'PY01DF1255', type:'4+1 Sedan', model:'Maruti Dzire', year:2021,
+    km:44890, status:'active', fuelType:'CNG', color:'Silver', driver:'Babu',
+    // Service
+    lastServiceDate:'2026-04-05', lastServiceKm:43000,
+    nextServiceDate:'2026-09-05', nextServiceKm:48000,
+    // Insurance
+    insProvider:'Oriental Insurance', insNumber:'OIC-2025-PY1255', insExpiry:'2027-02-28',
+    // Permit
+    permitNumber:'PY-TN-2024-0043', permitExpiry:'2026-07-20',   // expiring soon
+    // FC
+    fcNumber:'FC-PY-2025-1856', fcExpiry:'2027-01-15',
+    // Pollution
+    pucNumber:'PUC-PY-2026-4412', pucExpiry:'2026-06-10',        // expired
+  },
+  {
+    id:3, reg:'PY01VF1255', type:'7+1 SUV', model:'Maruti Ertiga', year:2022,
+    km:38120, status:'maintenance', fuelType:'Petrol', color:'Grey', driver:'Rajasekharan',
+    // Service
+    lastServiceDate:'2026-05-02', lastServiceKm:37500,
+    nextServiceDate:'2026-10-02', nextServiceKm:42500,
+    // Insurance
+    insProvider:'United India Insurance', insNumber:'UIL-2025-PY1255', insExpiry:'2027-01-31',
+    // Permit
+    permitNumber:'PY-TN-2025-0091', permitExpiry:'2027-05-10',
+    // FC
+    fcNumber:'FC-PY-2025-2201', fcExpiry:'2026-07-05',           // expiring soon
+    // Pollution
+    pucNumber:'PUC-PY-2026-5523', pucExpiry:'2026-12-01',
+  },
 ]
 
 // Derived / computed helpers

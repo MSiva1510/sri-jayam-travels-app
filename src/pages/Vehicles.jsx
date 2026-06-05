@@ -1,96 +1,217 @@
-import { useState } from 'react'
-import { Plus, Wrench, Shield, Fuel, Gauge, X, CheckCircle } from 'lucide-react'
-import Badge      from '../components/ui/Badge'
-import Button     from '../components/ui/Button'
+import { useState, useMemo } from 'react'
+import {
+  Plus, Wrench, Shield, Fuel, Gauge, X, CheckCircle,
+  ChevronDown, ChevronUp, AlertTriangle, Car, User,
+  Calendar, FileText, Edit2, History,
+} from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
 import Avatar     from '../components/ui/Avatar'
+import { useAuth } from '../context/AuthContext'
 import { VEHICLES, TRIPS, DRIVERS } from '../data/mockData'
 import { saveVehicleAssignment, loadVehicleAssignments } from '../data/attendanceData'
 
-// ── Vehicle Assignment Modal ───────────────────────────────────
-// Fix 5: shown when driver transitions Offline → Available
-function AssignmentModal({ vehicle, onClose, onConfirm }) {
-  const [selectedDriver, setSelectedDriver] = useState(vehicle.driver || '')
-  const now = new Date()
-  const dateStr = now.toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short', year:'numeric' })
-  const timeStr = now.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })
+// ─────────────────────────────────────────────────────────────
+//  Document expiry helpers
+// ─────────────────────────────────────────────────────────────
+const TODAY = new Date()
+TODAY.setHours(0,0,0,0)
 
-  const handleConfirm = () => {
-    const record = {
-      vehicleReg:  vehicle.reg,
-      vehicleType: vehicle.type,
-      vehicleModel:vehicle.model,
-      driverId:    DRIVERS.find(d => d.name === selectedDriver)?.id || null,
-      driverName:  selectedDriver,
-      assignedDate:now.toISOString().slice(0,10),
-      assignedTime:timeStr,
-      assignedAt:  now.toISOString(),
-    }
-    saveVehicleAssignment(record)
-    onConfirm(record)
+export function docStatus(expiryDateStr) {
+  if (!expiryDateStr) return { key:'unknown', label:'Unknown', badge:'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400', dot:'bg-slate-400' }
+  const exp  = new Date(expiryDateStr)
+  const days = Math.floor((exp - TODAY) / (1000*60*60*24))
+  if (days < 0)   return { key:'expired',  label:'Expired',        badge:'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',       dot:'bg-red-500',    days }
+  if (days <= 30) return { key:'soon',     label:'Expiring Soon',  badge:'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', dot:'bg-amber-500',  days }
+  return              { key:'active',  label:'Active',         badge:'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', dot:'bg-emerald-500', days }
+}
+
+export function daysLabel(days) {
+  if (days == null) return ''
+  if (days < 0) return `${Math.abs(days)}d overdue`
+  if (days === 0) return 'Expires today'
+  return `${days}d left`
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Status config
+// ─────────────────────────────────────────────────────────────
+const STATUS_CFG = {
+  active:      { label:'Available',   badge:'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', dot:'bg-emerald-500'            },
+  assigned:    { label:'Assigned',    badge:'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',             dot:'bg-blue-500'               },
+  maintenance: { label:'Maintenance', badge:'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',                 dot:'bg-red-500'                },
+  offline:     { label:'Offline',     badge:'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',            dot:'bg-slate-400'              },
+}
+function StatusBadge({ status }) {
+  const cfg = STATUS_CFG[status] || STATUS_CFG.active
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${cfg.badge}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+      {cfg.label}
+    </span>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Document row — single document (ins/permit/FC/PUC)
+// ─────────────────────────────────────────────────────────────
+function DocRow({ icon: Icon, label, number, expiry }) {
+  const st = docStatus(expiry)
+  return (
+    <div className="flex items-center gap-2.5 py-2 border-b border-slate-100 dark:border-navy-700 last:border-0">
+      <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-navy-800 flex items-center justify-center flex-shrink-0">
+        <Icon size={12} className="text-slate-500 dark:text-slate-400" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{label}</p>
+          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${st.badge}`}>{st.label}</span>
+        </div>
+        {number && <p className="text-xs font-mono text-slate-600 dark:text-slate-300 truncate">{number}</p>}
+      </div>
+      <div className="text-right flex-shrink-0">
+        <p className="text-[10px] font-bold text-slate-700 dark:text-slate-200">{expiry || '—'}</p>
+        {st.days != null && (
+          <p className={`text-[9px] font-bold ${st.key === 'expired' ? 'text-red-500' : st.key === 'soon' ? 'text-amber-500' : 'text-emerald-500'}`}>
+            {daysLabel(st.days)}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Add / Edit Vehicle Modal
+// ─────────────────────────────────────────────────────────────
+const VEHICLE_STORE_KEY = 'sjt_vehicles_override'
+
+function loadVehicleOverrides() {
+  try { const r = localStorage.getItem(VEHICLE_STORE_KEY); return r ? JSON.parse(r) : [] } catch { return [] }
+}
+function saveVehicleOverride(v) {
+  try {
+    const arr = loadVehicleOverrides()
+    const idx = arr.findIndex(x => x.id === v.id)
+    if (idx >= 0) arr[idx] = v; else arr.push(v)
+    localStorage.setItem(VEHICLE_STORE_KEY, JSON.stringify(arr))
+  } catch {}
+}
+
+const EMPTY_VEHICLE = {
+  id: null, reg:'', type:'4+1 Sedan', model:'', year: new Date().getFullYear(),
+  km:0, status:'active', fuelType:'Petrol', color:'White', driver:'',
+  lastServiceDate:'', lastServiceKm:'', nextServiceDate:'', nextServiceKm:'',
+  insProvider:'', insNumber:'', insExpiry:'',
+  permitNumber:'', permitExpiry:'',
+  fcNumber:'', fcExpiry:'',
+  pucNumber:'', pucExpiry:'',
+}
+
+function VehicleModal({ vehicle, onClose, onSave }) {
+  const [form, setForm] = useState(() => vehicle || { ...EMPTY_VEHICLE, id: Date.now() })
+  const upd = patch => setForm(f => ({ ...f, ...patch }))
+
+  function Field({ label, field, type='text', required }) {
+    return (
+      <div>
+        <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+          {label}{required && <span className="text-red-500 ml-1">*</span>}
+        </label>
+        <input type={type} value={form[field] || ''} onChange={e => upd({ [field]: e.target.value })} required={required}
+          className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition-all" />
+      </div>
+    )
+  }
+
+  function SelectField({ label, field, options }) {
+    return (
+      <div>
+        <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">{label}</label>
+        <select value={form[field] || ''} onChange={e => upd({ [field]: e.target.value })}
+          className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none appearance-none">
+          {options.map(o => <option key={o}>{o}</option>)}
+        </select>
+      </div>
+    )
+  }
+
+  function SectionHead({ title }) {
+    return <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest pt-2 pb-1 border-t border-slate-100 dark:border-navy-700 mt-2">{title}</p>
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:w-96 bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl z-10">
-        <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mb-4 sm:hidden" />
-
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Vehicle Assignment</p>
-            <h3 className="font-display font-black text-slate-800 dark:text-white text-base">{vehicle.reg}</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">{vehicle.model} · {vehicle.type}</p>
-          </div>
+      <div className="relative w-full sm:w-[500px] max-h-[92vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-3xl shadow-2xl z-10 flex flex-col">
+        <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-navy-700 flex-shrink-0">
+          <h3 className="font-display font-black text-slate-800 dark:text-white text-base">
+            {vehicle ? 'Edit Vehicle' : 'Add Vehicle'}
+          </h3>
           <button onClick={onClose} className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700 transition-colors">
             <X size={15} />
           </button>
         </div>
 
-        {/* Assignment details */}
-        <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3 mb-4 space-y-1.5">
-          <div className="flex justify-between text-xs">
-            <span className="text-slate-500 dark:text-slate-400 font-medium">Date</span>
-            <span className="font-bold text-slate-700 dark:text-slate-200">{dateStr}</span>
+        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
+          {/* Basic */}
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Reg. Number" field="reg" required />
+            <SelectField label="Type" field="type" options={['4+1 Sedan','7+1 SUV','Tempo Traveller','Mini Van']} />
+            <Field label="Model" field="model" required />
+            <Field label="Year" field="year" type="number" />
+            <Field label="Current KM" field="km" type="number" />
+            <SelectField label="Fuel Type" field="fuelType" options={['Petrol','Diesel','CNG','Electric']} />
+            <Field label="Color" field="color" />
+            <SelectField label="Status" field="status" options={['active','maintenance','offline']} />
           </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-slate-500 dark:text-slate-400 font-medium">Time</span>
-            <span className="font-bold text-slate-700 dark:text-slate-200">{timeStr}</span>
+
+          {/* Service */}
+          <SectionHead title="Service Tracking" />
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Last Service Date" field="lastServiceDate" type="date" />
+            <Field label="Last Service KM"  field="lastServiceKm"  type="number" />
+            <Field label="Next Service Date" field="nextServiceDate" type="date" />
+            <Field label="Next Service KM"  field="nextServiceKm"  type="number" />
+          </div>
+
+          {/* Insurance */}
+          <SectionHead title="Insurance" />
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Provider"   field="insProvider" />
+            <Field label="Policy No." field="insNumber"   />
+            <div className="col-span-2"><Field label="Expiry Date" field="insExpiry" type="date" /></div>
+          </div>
+
+          {/* Permit */}
+          <SectionHead title="Permit" />
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Permit No." field="permitNumber" />
+            <Field label="Expiry"     field="permitExpiry" type="date" />
+          </div>
+
+          {/* FC */}
+          <SectionHead title="Fitness Certificate (FC)" />
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="FC No."  field="fcNumber"  />
+            <Field label="Expiry"  field="fcExpiry"  type="date" />
+          </div>
+
+          {/* PUC */}
+          <SectionHead title="Pollution Certificate (PUC)" />
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="PUC No." field="pucNumber" />
+            <Field label="Expiry"  field="pucExpiry" type="date" />
           </div>
         </div>
 
-        {/* Driver selector */}
-        <div className="mb-4">
-          <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">
-            Assign Driver
-          </label>
-          <div className="space-y-2">
-            {DRIVERS.map(d => (
-              <button key={d.id} onClick={() => setSelectedDriver(d.name)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all ${
-                  selectedDriver === d.name
-                    ? 'border-navy-400 bg-navy-50 dark:bg-navy-800 ring-2 ring-navy-400/30'
-                    : 'border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/40 hover:bg-slate-50 dark:hover:bg-navy-800'
-                }`}>
-                <Avatar name={d.name} size={28} />
-                <div className="flex-1 text-left">
-                  <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{d.name}</p>
-                  <p className="text-[10px] text-slate-400">{d.vehicle} · {d.vehicleType}</p>
-                </div>
-                {selectedDriver === d.name && <CheckCircle size={16} className="text-navy-600 dark:text-blue-400 flex-shrink-0" />}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex gap-2">
-          <button onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">
+        <div className="px-5 py-4 border-t border-slate-100 dark:border-navy-700 flex gap-2 flex-shrink-0">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">
             Cancel
           </button>
-          <button onClick={handleConfirm} disabled={!selectedDriver}
-            className="flex-1 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-sm font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-md disabled:opacity-40 disabled:cursor-not-allowed active:scale-95">
-            Confirm Assignment
+          <button onClick={() => { if(!form.reg) return; saveVehicleOverride(form); onSave(form) }}
+            className="flex-1 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-sm font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-md active:scale-95">
+            {vehicle ? 'Save Changes' : 'Add Vehicle'}
           </button>
         </div>
       </div>
@@ -98,134 +219,470 @@ function AssignmentModal({ vehicle, onClose, onConfirm }) {
   )
 }
 
+// ─────────────────────────────────────────────────────────────
+//  Assignment Modal — reused from Day 9, enhanced
+// ─────────────────────────────────────────────────────────────
+function AssignmentModal({ vehicle, onClose, onConfirm }) {
+  const [selectedDriver, setSelectedDriver] = useState(vehicle.driver || '')
+  const now     = new Date()
+  const dateStr = now.toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short', year:'numeric' })
+  const timeStr = now.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full sm:w-96 bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl z-10">
+        <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mb-4 sm:hidden" />
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Assign Driver</p>
+            <h3 className="font-display font-black text-slate-800 dark:text-white text-base">{vehicle.reg}</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">{vehicle.model} · {vehicle.type}</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700">
+            <X size={15} />
+          </button>
+        </div>
+        <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3 mb-4 space-y-1">
+          {[['Date', dateStr],['Time', timeStr]].map(([l,v]) => (
+            <div key={l} className="flex justify-between text-xs">
+              <span className="text-slate-500 font-medium">{l}</span>
+              <span className="font-bold text-slate-700 dark:text-slate-200">{v}</span>
+            </div>
+          ))}
+        </div>
+        <div className="space-y-2 mb-4">
+          {DRIVERS.map(d => (
+            <button key={d.id} onClick={() => setSelectedDriver(d.name)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all ${
+                selectedDriver === d.name
+                  ? 'border-navy-400 bg-navy-50 dark:bg-navy-800 ring-2 ring-navy-400/30'
+                  : 'border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/40 hover:bg-slate-50 dark:hover:bg-navy-800'
+              }`}>
+              <Avatar name={d.name} size={28} />
+              <div className="flex-1 text-left">
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{d.name}</p>
+                <p className="text-[10px] text-slate-400">{d.vehicle}</p>
+              </div>
+              {selectedDriver === d.name && <CheckCircle size={16} className="text-navy-600 dark:text-blue-400 flex-shrink-0" />}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">Cancel</button>
+          <button onClick={() => {
+            if (!selectedDriver) return
+            const record = {
+              vehicleReg: vehicle.reg, vehicleType: vehicle.type, vehicleModel: vehicle.model,
+              driverId:   DRIVERS.find(d => d.name === selectedDriver)?.id || null,
+              driverName: selectedDriver,
+              assignedDate: now.toISOString().slice(0,10), assignedTime: timeStr,
+              assignedAt:   now.toISOString(), releasedDate: null,
+            }
+            saveVehicleAssignment(record)
+            onConfirm(record)
+          }} disabled={!selectedDriver}
+            className="flex-1 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-sm font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-md disabled:opacity-40 active:scale-95">
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Vehicle Detail Panel (expanded row)
+// ─────────────────────────────────────────────────────────────
+function VehicleDetail({ v, assignments, onEdit, onAssign, canEdit, canAssign, canDelete, onDelete }) {
+  const vTrips   = TRIPS.filter(t => t.car === v.reg)
+  const vHistory = assignments.filter(a => a.vehicleReg === v.reg)
+  const [tab, setTab] = useState('docs')  // docs | service | history
+
+  return (
+    <div className="border-t border-slate-100 dark:border-navy-700 bg-slate-50/50 dark:bg-navy-800/20">
+      {/* Tab bar */}
+      <div className="flex gap-1 px-4 pt-3 pb-0">
+        {[['docs','Documents'],['service','Service'],['history','History']].map(([k,l]) => (
+          <button key={k} onClick={() => setTab(k)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              tab === k
+                ? 'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+            }`}>{l}
+          </button>
+        ))}
+      </div>
+
+      <div className="p-4 space-y-3">
+        {/* ── Documents tab ── */}
+        {tab === 'docs' && (
+          <div className="bg-white dark:bg-navy-800/60 rounded-xl p-4 border border-slate-100 dark:border-navy-700">
+            <DocRow icon={Shield}   label="Insurance"      number={v.insNumber}    expiry={v.insExpiry}    />
+            <DocRow icon={FileText} label="Permit"         number={v.permitNumber} expiry={v.permitExpiry} />
+            <DocRow icon={FileText} label="Fitness (FC)"   number={v.fcNumber}     expiry={v.fcExpiry}     />
+            <DocRow icon={Fuel}     label="Pollution (PUC)"number={v.pucNumber}    expiry={v.pucExpiry}    />
+          </div>
+        )}
+
+        {/* ── Service tab ── */}
+        {tab === 'service' && (
+          <div className="space-y-2">
+            <div className="bg-white dark:bg-navy-800/60 rounded-xl p-4 border border-slate-100 dark:border-navy-700">
+              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Last Service</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label:'Date', value: v.lastServiceDate || '—' },
+                  { label:'KM',   value: v.lastServiceKm ? `${Number(v.lastServiceKm).toLocaleString()} km` : '—' },
+                ].map(d => (
+                  <div key={d.label} className="bg-slate-50 dark:bg-navy-900/40 rounded-lg p-2">
+                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">{d.label}</p>
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{d.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="bg-white dark:bg-navy-800/60 rounded-xl p-4 border border-slate-100 dark:border-navy-700">
+              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Next Service</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label:'Date', value: v.nextServiceDate || '—' },
+                  { label:'KM',   value: v.nextServiceKm ? `${Number(v.nextServiceKm).toLocaleString()} km` : '—' },
+                ].map(d => (
+                  <div key={d.label} className="bg-slate-50 dark:bg-navy-900/40 rounded-lg p-2">
+                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">{d.label}</p>
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{d.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* KM to service */}
+            {v.nextServiceKm && v.km && (
+              <div className="bg-white dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700">
+                <div className="flex justify-between text-xs mb-1.5">
+                  <span className="text-slate-500">KM Progress</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-200">
+                    {Number(v.km).toLocaleString()} / {Number(v.nextServiceKm).toLocaleString()} km
+                  </span>
+                </div>
+                <div className="h-2 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full"
+                    style={{ width:`${Math.min(100, Math.round((v.km / v.nextServiceKm) * 100))}%` }} />
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1 text-right">
+                  {Math.max(0, v.nextServiceKm - v.km).toLocaleString()} km to next service
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Assignment History tab ── */}
+        {tab === 'history' && (
+          <div>
+            {vHistory.length === 0 ? (
+              <div className="text-center py-6">
+                <History size={28} className="mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+                <p className="text-xs text-slate-400 dark:text-slate-500">No assignment history yet</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {vHistory.map((h, i) => (
+                  <div key={i} className="bg-white dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700 flex items-center gap-3">
+                    <Avatar name={h.driverName} size={28} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{h.driverName}</p>
+                      <p className="text-[10px] text-slate-400">
+                        Assigned {h.assignedDate} {h.assignedTime}
+                        {h.releasedDate ? ` → Released ${h.releasedDate}` : ' · Active'}
+                      </p>
+                    </div>
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${h.releasedDate ? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
+                      {h.releasedDate ? 'Released' : 'Current'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="mt-3 pt-3 border-t border-slate-100 dark:border-navy-700">
+              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">Trip Summary</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-white dark:bg-navy-800/60 rounded-xl p-2.5 border border-slate-100 dark:border-navy-700 text-center">
+                  <p className="text-lg font-display font-black text-navy-800 dark:text-blue-300">{vTrips.length}</p>
+                  <p className="text-[10px] text-slate-400">Total Trips</p>
+                </div>
+                <div className="bg-white dark:bg-navy-800/60 rounded-xl p-2.5 border border-slate-100 dark:border-navy-700 text-center">
+                  <p className="text-lg font-display font-black text-emerald-600 dark:text-emerald-400">
+                    {vTrips.reduce((s,t) => s+t.km, 0).toLocaleString()}
+                  </p>
+                  <p className="text-[10px] text-slate-400">Total KM</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex gap-2 flex-wrap pt-1">
+          {canAssign && v.status !== 'maintenance' && (
+            <button onClick={() => onAssign(v)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all active:scale-95 shadow-md">
+              <User size={13} /> Assign Driver
+            </button>
+          )}
+          {canEdit && (
+            <button onClick={() => onEdit(v)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
+              <Edit2 size={13} /> Edit
+            </button>
+          )}
+          {canDelete && (
+            <button onClick={() => onDelete(v.id)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/15 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/25 transition-colors">
+              <X size={13} /> Delete
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Main Vehicles Page
+// ─────────────────────────────────────────────────────────────
 export default function Vehicles() {
-  const [assignModal,  setAssignModal]  = useState(null)  // vehicle object or null
-  const [assignments,  setAssignments]  = useState(() => loadVehicleAssignments())
-  const [successMsg,   setSuccessMsg]   = useState('')
+  const { isAdmin, isManager, isDriver } = useAuth()
+
+  const canAdd    = isAdmin || isManager
+  const canEdit   = isAdmin || isManager
+  const canAssign = isAdmin || isManager
+  const canDelete = isAdmin
+
+  const [overrides,    setOverrides]   = useState(() => loadVehicleOverrides())
+  const [assignments,  setAssignments] = useState(() => loadVehicleAssignments())
+  const [expanded,     setExpanded]    = useState(null)
+  const [assignModal,  setAssignModal] = useState(null)
+  const [editModal,    setEditModal]   = useState(null)
+  const [showAdd,      setShowAdd]     = useState(false)
+  const [toast,        setToast]       = useState('')
+
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
+
+  // Merge overrides into base VEHICLES
+  const vehicles = useMemo(() => {
+    const overrideMap = Object.fromEntries(overrides.map(o => [o.id, o]))
+    const base = VEHICLES.map(v => overrideMap[v.id] ? { ...v, ...overrideMap[v.id] } : v)
+    // Add any new vehicles from overrides that don't exist in base
+    const newOnes = overrides.filter(o => !VEHICLES.find(v => v.id === o.id))
+    return [...base, ...newOnes]
+  }, [overrides])
+
+  const reload = () => { setOverrides(loadVehicleOverrides()); setAssignments(loadVehicleAssignments()) }
+
+  const handleSave = () => { reload(); setEditModal(null); setShowAdd(false); showToast('Vehicle saved') }
+  const handleAssigned = (record) => { reload(); setAssignModal(null); showToast(`${record.vehicleReg} assigned to ${record.driverName}`) }
+  const handleDelete = (id) => {
+    if (!window.confirm('Delete this vehicle?')) return
+    try {
+      const arr = loadVehicleOverrides().filter(o => o.id !== id)
+      localStorage.setItem(VEHICLE_STORE_KEY, JSON.stringify(arr))
+      // If it's a base vehicle, mark it deleted
+      if (VEHICLES.find(v => v.id === id)) {
+        const del = { ...VEHICLES.find(v => v.id === id), _deleted: true }
+        const withDel = [...arr, del]
+        localStorage.setItem(VEHICLE_STORE_KEY, JSON.stringify(withDel))
+      }
+    } catch {}
+    reload()
+    showToast('Vehicle deleted')
+  }
+
+  // Driver sees only their assigned vehicle
+  const displayVehicles = isDriver
+    ? vehicles.filter(v => v.driver === 'Ramanan') // filtered by auth user in real app
+    : vehicles.filter(v => !v._deleted)
+
+  // Summary counts
+  const counts = {
+    total:       displayVehicles.length,
+    available:   displayVehicles.filter(v => v.status === 'active').length,
+    assigned:    assignments.length,
+    maintenance: displayVehicles.filter(v => v.status === 'maintenance').length,
+    offline:     displayVehicles.filter(v => v.status === 'offline').length,
+  }
+
+  // Alerts: docs expiring within 30 days or expired
+  const alerts = useMemo(() => {
+    const list = []
+    displayVehicles.forEach(v => {
+      const docs = [
+        { field:'insExpiry',    label:`${v.reg} Insurance`  },
+        { field:'permitExpiry', label:`${v.reg} Permit`     },
+        { field:'fcExpiry',     label:`${v.reg} FC`         },
+        { field:'pucExpiry',    label:`${v.reg} PUC`        },
+      ]
+      docs.forEach(d => {
+        const st = docStatus(v[d.field])
+        if (st.key === 'expired' || st.key === 'soon') {
+          list.push({ label: d.label, status: st, expiry: v[d.field] })
+        }
+      })
+    })
+    return list
+  }, [displayVehicles])
 
   const getAssignment = (reg) => assignments.find(a => a.vehicleReg === reg)
-
-  const handleAssigned = (record) => {
-    setAssignments(loadVehicleAssignments())
-    setAssignModal(null)
-    setSuccessMsg(`${record.vehicleReg} assigned to ${record.driverName}`)
-    setTimeout(() => setSuccessMsg(''), 3000)
-  }
 
   return (
     <div className="space-y-5 animate-fade-up">
       <PageHeader
-        title="Vehicles"
-        subtitle="Fleet management, servicing & insurance tracking"
-        action={<Button icon={Plus} variant="primary">Add Vehicle</Button>}
+        title={isDriver ? 'My Vehicle' : 'Vehicle Management'}
+        subtitle={isDriver ? 'Your assigned vehicle details' : `Fleet of ${counts.total} vehicles`}
+        action={canAdd
+          ? <button onClick={() => setShowAdd(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white font-bold text-sm hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-lg active:scale-95">
+              <Plus size={15} /> Add Vehicle
+            </button>
+          : null}
       />
 
-      {/* Success toast */}
-      {successMsg && (
+      {/* Toast */}
+      {toast && (
         <div className="flex items-center gap-2.5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 rounded-xl px-4 py-2.5">
-          <CheckCircle size={15} className="text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
-          <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">{successMsg}</p>
+          <CheckCircle size={15} className="text-emerald-600 flex-shrink-0" />
+          <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">{toast}</p>
         </div>
       )}
 
-      {/* Fleet summary */}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label:'Total Vehicles',  value: VEHICLES.length,                                    color:'text-blue-600 dark:text-blue-400'       },
-          { label:'Active',          value: VEHICLES.filter(v=>v.status==='active').length,      color:'text-emerald-600 dark:text-emerald-400' },
-          { label:'In Maintenance',  value: VEHICLES.filter(v=>v.status==='maintenance').length, color:'text-red-600 dark:text-red-400'         },
-        ].map(s => (
-          <div key={s.label} className="glass-card rounded-xl p-4 text-center">
-            <p className={`text-3xl font-display font-black ${s.color}`}>{s.value}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{s.label}</p>
+      {/* Expiry alerts */}
+      {alerts.length > 0 && !isDriver && (
+        <div className="bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-800/30 rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle size={15} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
+            <p className="text-sm font-bold text-amber-700 dark:text-amber-400">
+              {alerts.length} document{alerts.length !== 1 ? 's' : ''} need{alerts.length === 1 ? 's' : ''} attention
+            </p>
           </div>
-        ))}
-      </div>
+          <div className="space-y-1.5">
+            {alerts.map((a, i) => (
+              <div key={i} className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">{a.label}</p>
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${a.status.badge}`}>{a.status.label}</span>
+                  <span className="text-[10px] text-amber-600 dark:text-amber-500">{a.expiry}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
-      {/* Vehicle cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        {VEHICLES.map(v => {
-          const vTrips     = TRIPS.filter(t => t.car === v.reg)
-          const vFare      = vTrips.reduce((s, t) => s + t.fare, 0)
-          const isMaint    = v.status === 'maintenance'
+      {/* Dashboard widgets */}
+      {!isDriver && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label:'Total Vehicles',  value: counts.total,       color:'text-navy-800 dark:text-blue-300'       },
+            { label:'Available',       value: counts.available,   color:'text-emerald-600 dark:text-emerald-400' },
+            { label:'Assigned',        value: counts.assigned,    color:'text-blue-600 dark:text-blue-400'       },
+            { label:'Maintenance',     value: counts.maintenance, color:'text-red-600 dark:text-red-400'         },
+          ].map(s => (
+            <div key={s.label} className="glass-card rounded-xl p-4 text-center">
+              <p className={`text-2xl font-display font-black ${s.color}`}>{s.value}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Vehicle list */}
+      <div className="space-y-3">
+        {displayVehicles.map(v => {
+          const isOpen     = expanded === v.id
           const assignment = getAssignment(v.reg)
           const assignedDriver = assignment?.driverName || v.driver
+          const isMaint    = v.status === 'maintenance'
+
+          // Alert count for this vehicle
+          const vAlerts = [v.insExpiry, v.permitExpiry, v.fcExpiry, v.pucExpiry]
+            .filter(e => { const st = docStatus(e); return st.key === 'expired' || st.key === 'soon' }).length
 
           return (
-            <div key={v.id}
-              className={`glass-card rounded-2xl overflow-hidden hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 ${isMaint ? 'border-red-200 dark:border-red-900/50' : ''}`}>
-
-              {/* Header */}
-              <div className={`p-5 relative overflow-hidden ${isMaint ? 'bg-gradient-to-br from-red-900 to-rose-800' : 'bg-gradient-to-br from-navy-900 to-navy-800'}`}>
-                <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full bg-white/5" />
-                <div className="relative flex items-start justify-between">
-                  <div>
-                    <p className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-0.5">Registration</p>
-                    <h3 className="font-display font-black text-white text-xl tracking-widest">{v.reg}</h3>
-                    <p className="text-white/60 text-sm mt-1">{v.model} · {v.year}</p>
-                  </div>
-                  <Badge status={v.status} />
-                </div>
-                <div className="relative mt-3 flex gap-2 flex-wrap">
-                  <span className="badge badge-active text-[10px]">{v.type}</span>
-                  <span className="badge badge-active text-[10px]">{v.fuelType}</span>
-                  <span className="badge badge-active text-[10px]">{v.color}</span>
-                </div>
-              </div>
-
-              {/* Stats */}
-              <div className="p-5">
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  {[
-                    { icon: Gauge,  label:'Odometer',    value:`${v.km.toLocaleString()} km` },
-                    { icon: Shield, label:'Insurance',    value: v.ins                        },
-                    { icon: Wrench, label:'Last Service', value: v.lastService                },
-                    { icon: Wrench, label:'Next Service', value: v.nextService                },
-                  ].map(s => (
-                    <div key={s.label} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3 flex items-start gap-2">
-                      <s.icon size={13} className="text-slate-400 dark:text-slate-500 mt-0.5 flex-shrink-0" />
-                      <div>
-                        <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold tracking-wide">{s.label}</p>
-                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200 mt-0.5">{s.value}</p>
-                      </div>
+            <div key={v.id} className={`glass-card rounded-2xl overflow-hidden hover:shadow-lg transition-all duration-200 ${isMaint ? 'border border-red-200 dark:border-red-900/50' : ''}`}>
+              {/* Card header — dark banner */}
+              <div className={`p-4 relative overflow-hidden ${isMaint ? 'bg-gradient-to-r from-red-900 to-rose-800' : 'bg-gradient-to-r from-navy-900 to-navy-800'}`}>
+                <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/5" />
+                <div className="relative flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                      <h3 className="font-display font-black text-white text-lg tracking-widest">{v.reg}</h3>
+                      {vAlerts > 0 && (
+                        <span className="flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                          <AlertTriangle size={9} /> {vAlerts} alert{vAlerts !== 1 ? 's' : ''}
+                        </span>
+                      )}
                     </div>
-                  ))}
-                </div>
-
-                {/* Current assignment */}
-                <div className="flex items-center gap-2.5 p-3 bg-slate-50 dark:bg-navy-800/60 rounded-xl mb-3">
-                  <Avatar name={assignedDriver} size={30} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold">Assigned Driver</p>
-                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{assignedDriver}</p>
-                    {assignment && (
-                      <p className="text-[10px] text-slate-400 dark:text-slate-500">
-                        Since {assignment.assignedDate} {assignment.assignedTime}
-                      </p>
-                    )}
+                    <p className="text-white/60 text-xs">{v.model} · {v.year} · {v.color}</p>
+                    <div className="flex gap-2 mt-2 flex-wrap">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/10 text-white/70">{v.type}</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/10 text-white/70">{v.fuelType}</span>
+                    </div>
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500">{vTrips.length} trips</p>
-                    <p className="text-xs font-bold text-navy-800 dark:text-blue-300">Rs. {vFare.toLocaleString('en-IN')}</p>
-                  </div>
-                </div>
-
-                {/* Fix 5: Assign Vehicle button */}
-                <div className="flex gap-2">
-                  <Button icon={Wrench} variant="outline" size="sm" className="flex-1">Service Log</Button>
-                  <button
-                    onClick={() => setAssignModal(v)}
-                    className="flex-1 py-1.5 px-3 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all active:scale-95 shadow-md">
-                    Assign Driver
-                  </button>
+                  <StatusBadge status={v.status} />
                 </div>
               </div>
+
+              {/* Card body */}
+              <div
+                className="px-4 py-3.5 flex items-center gap-3 cursor-pointer select-none"
+                onClick={() => setExpanded(isOpen ? null : v.id)}>
+                {/* Assigned driver */}
+                <Avatar name={assignedDriver} size={34} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Assigned Driver</p>
+                  <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{assignedDriver}</p>
+                  {assignment && (
+                    <p className="text-[10px] text-slate-400">Since {assignment.assignedDate}</p>
+                  )}
+                </div>
+                {/* KM */}
+                <div className="text-right flex-shrink-0">
+                  <div className="flex items-center gap-1 justify-end text-slate-600 dark:text-slate-300">
+                    <Gauge size={12} />
+                    <span className="text-sm font-bold">{Number(v.km).toLocaleString()}</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400">km</p>
+                </div>
+                {isOpen ? <ChevronUp size={15} className="text-slate-400 flex-shrink-0 ml-1" />
+                         : <ChevronDown size={15} className="text-slate-400 flex-shrink-0 ml-1" />}
+              </div>
+
+              {/* Expanded detail */}
+              {isOpen && (
+                <VehicleDetail
+                  v={v}
+                  assignments={assignments}
+                  onEdit={setEditModal}
+                  onAssign={setAssignModal}
+                  onDelete={handleDelete}
+                  canEdit={canEdit}
+                  canAssign={canAssign}
+                  canDelete={canDelete}
+                />
+              )}
             </div>
           )
         })}
       </div>
 
-      {/* Assignment modal */}
+      {/* Modals */}
+      {(showAdd || editModal) && (
+        <VehicleModal
+          vehicle={editModal}
+          onClose={() => { setShowAdd(false); setEditModal(null) }}
+          onSave={handleSave}
+        />
+      )}
       {assignModal && (
         <AssignmentModal
           vehicle={assignModal}
