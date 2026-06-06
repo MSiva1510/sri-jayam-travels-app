@@ -1,101 +1,711 @@
-import { Plus } from 'lucide-react'
-import Button     from '../components/ui/Button'
+import { useState, useMemo } from 'react'
+import {
+  Plus, Search, ChevronDown, ChevronUp,
+  X, Edit2, Trash2, CheckCircle, AlertTriangle,
+  Receipt, Calendar, User, Car, FileText,
+  TrendingDown, Filter,
+} from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
-import { EXPENSES, expByCategory, totalExp } from '../data/mockData'
+import Avatar     from '../components/ui/Avatar'
+import { useAuth } from '../context/AuthContext'
+import {
+  loadExpenses, saveExpense, deleteExpense, generateExpenseId,
+  EXPENSE_TYPES, APPROVAL_STATUSES, DRIVER_ALLOWED_TYPES,
+  getExpTypeCfg, getApprovalCfg,
+  isToday, isThisWeek, isThisMonth,
+  summariseByType, getTripExpenses,
+} from '../data/expenseData'
+import { DRIVERS, VEHICLES } from '../data/mockData'
+import { loadBookings } from '../data/tripTypes'
 
-const CAT_COLORS = {
-  'Car Parts':     'bg-red-500',
-  'Car Service':   'bg-blue-500',
-  'Other':         'bg-slate-400',
-  'GPRS/Tracking': 'bg-violet-500',
-  'Cleaning':      'bg-teal-500',
-  'Insurance':     'bg-amber-500',
-  'Driver Expense':'bg-rose-500',
+// ─────────────────────────────────────────────────────────────
+//  Shared badges
+// ─────────────────────────────────────────────────────────────
+function TypeBadge({ type }) {
+  const cfg = getExpTypeCfg(type)
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${cfg.badge}`}>
+      <span className="text-[11px]">{cfg.icon}</span>{cfg.label}
+    </span>
+  )
 }
 
-export default function Expenses() {
-  const cats = Object.entries(expByCategory).sort((a,b) => b[1]-a[1])
+function ApprovalBadge({ status }) {
+  const cfg = getApprovalCfg(status)
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${cfg.badge}`}>
+      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${cfg.dot}`} />
+      {cfg.label}
+    </span>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Add / Edit Expense Modal — Modules 2 & 3
+// ─────────────────────────────────────────────────────────────
+const EMPTY = {
+  id:'', type:'fuel', status:'draft',
+  date: new Date().toISOString().slice(0,10),
+  amount:'', description:'', tripRef:'',
+  driver:'', vehicle:'', addedBy:'',
+  receiptName:'', receiptDate:'', notes:'',
+}
+
+function ExpenseModal({ expense, onClose, onSave, currentUser, isDriver: isDrv }) {
+  const isEdit   = !!expense?.id
+  const [form,   setForm]   = useState(() => expense || { ...EMPTY, addedBy: currentUser?.name || '' })
+  const [errors, setErrors] = useState({})
+  const upd = p => setForm(f => ({ ...f, ...p }))
+
+  const allowedTypes = isDrv ? EXPENSE_TYPES.filter(t => DRIVER_ALLOWED_TYPES.includes(t.key)) : EXPENSE_TYPES
+  const bookings     = loadBookings()
+
+  const validate = () => {
+    const e = {}
+    if (!form.type)               e.type   = 'Expense type is required'
+    if (!form.amount || form.amount <= 0) e.amount = 'Valid amount is required'
+    return e
+  }
+
+  const handleSave = () => {
+    const e = validate()
+    if (Object.keys(e).length) { setErrors(e); return }
+    const now = new Date().toISOString()
+    onSave({
+      ...form,
+      id:        form.id || generateExpenseId(),
+      amount:    Number(form.amount),
+      status:    form.status || 'draft',
+      createdAt: form.createdAt || now,
+      updatedAt: now,
+    })
+  }
+
+  function F({ label, field, type='text', required, placeholder }) {
+    return (
+      <div>
+        <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+          {label}{required && <span className="text-red-500 ml-1">*</span>}
+        </label>
+        <input type={type} value={form[field] || ''} placeholder={placeholder}
+          onChange={e => upd({ [field]: e.target.value })} required={required}
+          className={`w-full px-3 py-2 text-sm rounded-xl border bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100
+            focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition-all
+            ${errors[field] ? 'border-red-400 dark:border-red-600' : 'border-slate-200 dark:border-navy-700'}`} />
+        {errors[field] && <p className="text-[11px] text-red-500 mt-1">{errors[field]}</p>}
+      </div>
+    )
+  }
+
+  function Sel({ label, field, children, required }) {
+    return (
+      <div>
+        <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+          {label}{required && <span className="text-red-500 ml-1">*</span>}
+        </label>
+        <select value={form[field] || ''} onChange={e => upd({ [field]: e.target.value })}
+          className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none appearance-none">
+          {children}
+        </select>
+        {errors[field] && <p className="text-[11px] text-red-500 mt-1">{errors[field]}</p>}
+      </div>
+    )
+  }
 
   return (
-    <div className="space-y-5 animate-fade-up">
-      <PageHeader
-        title="Expenses"
-        subtitle="Monthly operating cost tracker"
-        action={<Button icon={Plus} variant="amber">Add Expense</Button>}
-      />
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full sm:w-[480px] max-h-[92vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-3xl shadow-2xl z-10 flex flex-col">
+        <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-navy-700 flex-shrink-0">
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{isEdit ? 'Edit Expense' : 'Add Expense'}</p>
+            <h3 className="font-display font-black text-slate-800 dark:text-white text-base">
+              {isEdit ? form.id : 'New Expense'}
+            </h3>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700">
+            <X size={15} />
+          </button>
+        </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Sel label="Expense Type" field="type" required>
+              <option value="">— Select type —</option>
+              {allowedTypes.map(t => (
+                <option key={t.key} value={t.key}>{t.icon} {t.label}</option>
+              ))}
+            </Sel>
+            <F label="Date"   field="date"   type="date" required />
+            <F label="Amount (Rs.)" field="amount" type="number" required placeholder="0" />
+            {!isDrv && (
+              <Sel label="Status" field="status">
+                {APPROVAL_STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+              </Sel>
+            )}
+          </div>
+
+          <F label="Description" field="description" placeholder="What was this expense for?" />
+
+          <div className="grid grid-cols-2 gap-3">
+            {!isDrv ? (
+              <Sel label="Driver">
+                <option value="">— None —</option>
+                {DRIVERS.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+              </Sel>
+            ) : (
+              <F label="Driver" field="driver" placeholder={currentUser?.name} />
+            )}
+            <Sel label="Vehicle" field="vehicle">
+              <option value="">— None —</option>
+              {VEHICLES.map(v => <option key={v.id} value={v.reg}>{v.reg} — {v.type}</option>)}
+            </Sel>
+          </div>
+
+          {/* Module 4: Trip reference */}
+          <Sel label="Trip Reference (optional)" field="tripRef">
+            <option value="">— No trip linked —</option>
+            {loadBookings().map(b => (
+              <option key={b.id} value={b.bookingNo}>{b.bookingNo} — {b.customer}</option>
+            ))}
+          </Sel>
+
+          {/* Module 5: Receipt attachment (mock) */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+              Receipt (Mock — future Google Drive)
+            </label>
+            <div className="flex gap-2">
+              <input type="text" value={form.receiptName || ''} onChange={e => upd({ receiptName: e.target.value })}
+                placeholder="receipt_filename.jpg"
+                className="flex-1 px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
+              <button type="button" onClick={() => upd({ receiptName: `receipt_${form.type}_${form.date}.jpg`, receiptDate: form.date })}
+                className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-200 dark:hover:bg-navy-700 transition-colors whitespace-nowrap">
+                📎 Attach
+              </button>
+            </div>
+            {form.receiptName && (
+              <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
+                <CheckCircle size={10} /> {form.receiptName}
+              </p>
+            )}
+            <p className="text-[10px] text-slate-400 mt-1">Google Drive integration planned for a future release.</p>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Notes</label>
+            <textarea value={form.notes || ''} onChange={e => upd({ notes: e.target.value })}
+              placeholder="Additional details…" rows={2}
+              className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25 resize-none transition-all" />
+          </div>
+        </div>
+
+        <div className="px-5 py-4 border-t border-slate-100 dark:border-navy-700 flex gap-2 flex-shrink-0">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">
+            Cancel
+          </button>
+          <button onClick={handleSave}
+            className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold transition-all shadow-md active:scale-95">
+            {isEdit ? 'Save Changes' : isDrv ? 'Submit Expense' : 'Add Expense'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Simple bar chart for category breakdown — Module 9
+// ─────────────────────────────────────────────────────────────
+function CategoryBar({ expenses }) {
+  const summary  = summariseByType(expenses)
+  const maxTotal = summary[0]?.total || 1
+  return (
+    <div className="space-y-3">
+      {summary.slice(0, 6).map(t => (
+        <div key={t.key}>
+          <div className="flex justify-between text-xs mb-1">
+            <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 font-medium">
+              <span>{t.icon}</span>{t.label}
+              <span className="text-slate-400 dark:text-slate-500">({t.count})</span>
+            </span>
+            <span className="font-bold text-amber-600 dark:text-amber-400">Rs. {t.total.toLocaleString('en-IN')}</span>
+          </div>
+          <div className="h-1.5 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden">
+            <div className={`h-full rounded-full bg-gradient-to-r ${t.color}`}
+              style={{ width: `${Math.round((t.total / maxTotal) * 100)}%`, transition:'width .5s' }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Monthly trend sparkline — Module 9
+// ─────────────────────────────────────────────────────────────
+function TrendBars({ expenses }) {
+  // Last 6 months
+  const months = []
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date()
+    d.setMonth(d.getMonth() - i)
+    const key = d.toISOString().slice(0, 7)
+    const lbl = d.toLocaleString('en-IN', { month: 'short' })
+    const tot = expenses.filter(e => e.date.startsWith(key)).reduce((s,e) => s+(e.amount||0), 0)
+    months.push({ key, lbl, tot })
+  }
+  const max = Math.max(...months.map(m => m.tot), 1)
+  return (
+    <div className="flex items-end gap-1.5 h-16">
+      {months.map((m, i) => {
+        const isLast = i === months.length - 1
+        const pct    = Math.max(6, Math.round((m.tot / max) * 100))
+        return (
+          <div key={m.key} className="flex-1 flex flex-col items-center gap-1">
+            <div className="w-full relative group">
+              <div className={`w-full rounded-t-md ${isLast ? 'bg-gradient-to-t from-amber-500 to-amber-400' : 'bg-slate-200 dark:bg-navy-700'}`}
+                style={{ height: `${pct * 0.6}px` }} />
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 opacity-0 group-hover:opacity-100 transition-opacity bg-navy-900 text-white text-[10px] font-bold px-2 py-1 rounded-lg whitespace-nowrap pointer-events-none z-10">
+                Rs. {m.tot.toLocaleString('en-IN')}
+              </div>
+            </div>
+            <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500">{m.lbl}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Expense row detail panel
+// ─────────────────────────────────────────────────────────────
+function ExpenseDetail({ expense, onEdit, onDelete, onApprove, onReject, canEdit, canDelete, canApprove }) {
+  const isApproved = expense.status === 'approved'
+  const isRejected = expense.status === 'rejected'
+  const isDone     = isApproved || isRejected
+
+  return (
+    <div className="border-t border-slate-100 dark:border-navy-700 p-4 bg-slate-50/50 dark:bg-navy-800/20 space-y-3">
+      {/* Detail grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         {[
-          { label:'Total Expenses', value:`Rs. ${totalExp.toLocaleString('en-IN')}`, sub:`${EXPENSES.length} entries`, color:'from-amber-500 to-orange-500' },
-          { label:'Largest Item',   value: cats[0]?.[0] ?? '—',                       sub:`Rs. ${cats[0]?.[1]?.toLocaleString('en-IN') ?? 0}`, color:'from-red-500 to-rose-500'   },
-          { label:'Avg per Entry',  value:`Rs. ${Math.round(totalExp/EXPENSES.length).toLocaleString('en-IN')}`, sub:'Per expense', color:'from-violet-500 to-purple-500' },
-        ].map(c => (
-          <div key={c.label} className="glass-card rounded-2xl p-5 relative overflow-hidden">
-            <div className={`absolute -top-6 -right-6 w-20 h-20 rounded-full opacity-20 blur-2xl bg-gradient-to-br ${c.color}`} />
-            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">{c.label}</p>
-            <p className="text-2xl font-display font-black text-slate-800 dark:text-white">{c.value}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{c.sub}</p>
+          { label:'Expense ID', value: expense.id,          mono: true    },
+          { label:'Date',       value: expense.date                        },
+          { label:'Amount',     value: `Rs. ${expense.amount.toLocaleString('en-IN')}`, hi: true },
+          { label:'Driver',     value: expense.driver  || '—'             },
+          { label:'Vehicle',    value: expense.vehicle || '—'             },
+          { label:'Trip Ref',   value: expense.tripRef || 'None',  mono: true },
+          { label:'Added By',   value: expense.addedBy || '—'             },
+        ].map(d => (
+          <div key={d.label} className="bg-white dark:bg-navy-800/60 rounded-xl p-2.5 border border-slate-100 dark:border-navy-700">
+            <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5">{d.label}</p>
+            <p className={`text-xs font-bold leading-tight ${d.mono ? 'font-mono' : ''} ${d.hi ? 'text-amber-600 dark:text-amber-400' : 'text-slate-700 dark:text-slate-200'}`}>
+              {d.value}
+            </p>
           </div>
         ))}
       </div>
 
+      {expense.notes && (
+        <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-900/15 rounded-xl px-3 py-2.5 border border-amber-100 dark:border-amber-800/30">
+          <AlertTriangle size={12} className="text-amber-500 flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">{expense.notes}</p>
+        </div>
+      )}
+
+      {/* Module 5: Receipt */}
+      {expense.receiptName && (
+        <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/15 rounded-xl px-3 py-2 border border-blue-100 dark:border-blue-800/30">
+          <FileText size={12} className="text-blue-500 flex-shrink-0" />
+          <span className="text-xs font-medium text-blue-700 dark:text-blue-400 flex-1 truncate">{expense.receiptName}</span>
+          <span className="text-[10px] text-blue-500">Stored locally</span>
+        </div>
+      )}
+
+      {/* Action buttons */}
+      <div className="flex gap-2 flex-wrap pt-1">
+        {/* Module 6: Approval actions */}
+        {canApprove && expense.status === 'submitted' && (
+          <>
+            <button onClick={() => onApprove(expense)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500 transition-all active:scale-95 shadow-md">
+              <CheckCircle size={13} /> Approve
+            </button>
+            <button onClick={() => onReject(expense)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors">
+              <X size={13} /> Reject
+            </button>
+          </>
+        )}
+        {canEdit && !isApproved && (
+          <button onClick={() => onEdit(expense)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
+            <Edit2 size={13} /> Edit
+          </button>
+        )}
+        {canDelete && !isApproved && (
+          <button onClick={() => onDelete(expense.id)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/15 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/25 transition-colors">
+            <Trash2 size={13} /> Delete
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Main Expenses Page
+// ─────────────────────────────────────────────────────────────
+export default function Expenses() {
+  const { user, isAdmin, isManager, isDriver } = useAuth()
+
+  const canAdd     = true          // all roles can add (drivers: limited types)
+  const canEdit    = isAdmin || isManager
+  const canDelete  = isAdmin
+  const canApprove = isAdmin || isManager
+
+  const [expenses,   setExpenses]  = useState(() => loadExpenses())
+  const [search,     setSearch]    = useState('')
+  const [typeFilter, setTypeFilter]= useState('all')
+  const [statFilter, setStatFilter]= useState('all')
+  const [dateRange,  setDateRange] = useState('month')  // today | week | month | all
+  const [expanded,   setExpanded]  = useState(null)
+  const [showAdd,    setShowAdd]   = useState(false)
+  const [editExp,    setEditExp]   = useState(null)
+  const [toast,      setToast]     = useState('')
+  const [page,       setPage]      = useState(1)
+
+  const PAGE_SIZE = 10
+  const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 3000) }
+  const reload    = () => setExpenses(loadExpenses())
+
+  // Driver sees only their own expenses — Module 7
+  const myExpenses = isDriver
+    ? expenses.filter(e => e.addedBy === user?.username || e.addedBy === user?.name || e.driver === user?.name)
+    : expenses
+
+  // Date range filter
+  const rangeFiltered = useMemo(() => myExpenses.filter(e => {
+    if (dateRange === 'today') return isToday(e.date)
+    if (dateRange === 'week')  return isThisWeek(e.date)
+    if (dateRange === 'month') return isThisMonth(e.date)
+    return true
+  }), [myExpenses, dateRange])
+
+  // Search + type + status filter
+  const filtered = useMemo(() => {
+    return rangeFiltered.filter(e => {
+      const q = search.toLowerCase()
+      const matchSearch = !q || e.description?.toLowerCase().includes(q)
+        || e.driver?.toLowerCase().includes(q)
+        || e.vehicle?.toLowerCase().includes(q)
+        || e.tripRef?.toLowerCase().includes(q)
+        || e.id?.toLowerCase().includes(q)
+      const matchType = typeFilter === 'all' || e.type === typeFilter
+      const matchStat = statFilter === 'all' || e.status === statFilter
+      return matchSearch && matchType && matchStat
+    })
+  }, [rangeFiltered, search, typeFilter, statFilter])
+
+  // Pagination
+  const totalPages   = Math.ceil(filtered.length / PAGE_SIZE)
+  const paginated    = filtered.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE)
+
+  // Summary totals for dashboard (Module 1)
+  const totalAmt     = rangeFiltered.reduce((s,e) => s + e.amount, 0)
+  const fuelAmt      = rangeFiltered.filter(e=>e.type==='fuel').reduce((s,e)=>s+e.amount,0)
+  const bataAmt      = rangeFiltered.filter(e=>e.type==='bata').reduce((s,e)=>s+e.amount,0)
+  const tollAmt      = rangeFiltered.filter(e=>e.type==='toll').reduce((s,e)=>s+e.amount,0)
+  const parkAmt      = rangeFiltered.filter(e=>e.type==='parking').reduce((s,e)=>s+e.amount,0)
+  const pendingCount = rangeFiltered.filter(e=>e.status==='submitted').length
+
+  const handleSave = (exp) => {
+    saveExpense(exp)
+    reload()
+    setShowAdd(false)
+    setEditExp(null)
+    showToast(editExp ? 'Expense updated' : 'Expense added')
+    setPage(1)
+  }
+
+  const handleDelete = id => {
+    if (!window.confirm('Delete this expense?')) return
+    deleteExpense(id)
+    reload()
+    setExpanded(null)
+    showToast('Expense deleted')
+  }
+
+  const handleApprove = exp => {
+    saveExpense({ ...exp, status: 'approved', updatedAt: new Date().toISOString() })
+    reload()
+    showToast(`${exp.id} approved`)
+  }
+
+  const handleReject = exp => {
+    saveExpense({ ...exp, status: 'rejected', updatedAt: new Date().toISOString() })
+    reload()
+    showToast(`${exp.id} rejected`)
+  }
+
+  return (
+    <div className="space-y-5 animate-fade-up">
+      <PageHeader
+        title={isDriver ? 'My Expenses' : 'Expense Management'}
+        subtitle={isDriver ? 'Submit and track your expenses' : 'Operational cost tracker & approval'}
+        action={
+          <button onClick={() => setShowAdd(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-bold text-sm transition-all shadow-lg active:scale-95">
+            <Plus size={15} /> {isDriver ? 'Submit Expense' : 'Add Expense'}
+          </button>
+        }
+      />
+
+      {toast && (
+        <div className="flex items-center gap-2.5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 rounded-xl px-4 py-2.5">
+          <CheckCircle size={15} className="text-emerald-600 flex-shrink-0" />
+          <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">{toast}</p>
+        </div>
+      )}
+
+      {/* Module 6: Pending approval alert */}
+      {pendingCount > 0 && canApprove && (
+        <div className="flex items-center justify-between gap-3 bg-blue-50 dark:bg-blue-900/15 border border-blue-200 dark:border-blue-800/30 rounded-2xl px-4 py-3">
+          <div className="flex items-center gap-2.5">
+            <Receipt size={15} className="text-blue-600 dark:text-blue-400 flex-shrink-0" />
+            <p className="text-sm font-bold text-blue-700 dark:text-blue-400">
+              {pendingCount} expense{pendingCount!==1?'s':''} awaiting approval
+            </p>
+          </div>
+          <button onClick={() => setStatFilter('submitted')}
+            className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all active:scale-95 shadow-md flex-shrink-0">
+            Review
+          </button>
+        </div>
+      )}
+
+      {/* Module 1: Dashboard summary */}
+      {/* Date range tabs */}
+      <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1 w-fit">
+        {[['today','Today'],['week','This Week'],['month','This Month'],['all','All Time']].map(([k,l]) => (
+          <button key={k} onClick={() => setDateRange(k)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+              dateRange === k
+                ? 'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow'
+                : 'text-slate-500 dark:text-slate-400'
+            }`}>{l}
+          </button>
+        ))}
+      </div>
+
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {[
+          { label:'Total',     value: `Rs.${(totalAmt/1000).toFixed(1)}k`, color:'text-amber-600 dark:text-amber-400' },
+          { label:'Fuel',      value: `Rs.${(fuelAmt/1000).toFixed(1)}k`,  color:'text-orange-600 dark:text-orange-400' },
+          { label:'Toll',      value: `Rs.${(tollAmt).toLocaleString()}`,   color:'text-blue-600 dark:text-blue-400' },
+          { label:'Parking',   value: `Rs.${(parkAmt).toLocaleString()}`,   color:'text-teal-600 dark:text-teal-400' },
+          { label:'Bata',      value: `Rs.${(bataAmt).toLocaleString()}`,   color:'text-emerald-600 dark:text-emerald-400' },
+          { label:'Entries',   value: rangeFiltered.length,                 color:'text-slate-600 dark:text-slate-300' },
+        ].map(s => (
+          <div key={s.label} className="glass-card rounded-xl px-3 py-2.5 text-center">
+            <p className={`text-lg font-display font-black ${s.color}`}>{s.value}</p>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Module 9: Analytics row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Category breakdown */}
         <div className="glass-card rounded-2xl p-5">
           <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">By Category</p>
-          <h3 className="font-display font-black text-slate-800 dark:text-white text-lg mb-4">Breakdown</h3>
-          <div className="space-y-3">
-            {cats.map(([cat, amt]) => (
-              <div key={cat}>
-                <div className="flex justify-between text-xs mb-1">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2.5 h-2.5 rounded-full ${CAT_COLORS[cat] || 'bg-slate-400'}`} />
-                    <span className="text-slate-600 dark:text-slate-300 font-medium">{cat}</span>
-                  </div>
-                  <span className="font-bold text-amber-600 dark:text-amber-400">Rs. {amt.toLocaleString('en-IN')}</span>
-                </div>
-                <div className="h-1.5 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${CAT_COLORS[cat] || 'bg-slate-400'} opacity-80`}
-                    style={{ width: `${Math.round((amt/totalExp)*100)}%`, transition:'width .5s' }}
-                  />
-                </div>
-                <p className="text-[10px] text-slate-400 mt-0.5 text-right">{Math.round((amt/totalExp)*100)}%</p>
-              </div>
-            ))}
+          <h3 className="font-display font-black text-slate-800 dark:text-white text-base mb-4">Breakdown</h3>
+          {rangeFiltered.length > 0
+            ? <CategoryBar expenses={rangeFiltered} />
+            : <p className="text-xs text-slate-400 text-center py-4">No expenses in this period</p>
+          }
+        </div>
+
+        {/* Trend */}
+        <div className="glass-card rounded-2xl p-5">
+          <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Monthly Trend</p>
+          <h3 className="font-display font-black text-slate-800 dark:text-white text-base mb-4">6-Month View</h3>
+          <TrendBars expenses={myExpenses} />
+          <div className="mt-3 pt-3 border-t border-slate-100 dark:border-navy-700 flex justify-between text-xs">
+            <span className="text-slate-500">This month</span>
+            <span className="font-bold text-amber-600 dark:text-amber-400">
+              Rs. {myExpenses.filter(e=>isThisMonth(e.date)).reduce((s,e)=>s+e.amount,0).toLocaleString('en-IN')}
+            </span>
           </div>
         </div>
 
-        <div className="lg:col-span-2 glass-card rounded-2xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100 dark:border-navy-700">
-            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">All Entries</p>
-            <h3 className="font-display font-black text-slate-800 dark:text-white text-base">Expense Ledger</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 dark:border-navy-700 bg-slate-50/80 dark:bg-navy-800/50">
-                  {['Date','Description','Category','Amount','Notes'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {EXPENSES.map(e => (
-                  <tr key={e.id} className="border-b border-slate-50 dark:border-navy-800 hover:bg-amber-50/40 dark:hover:bg-navy-800/40 transition-colors">
-                    <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{e.date}</td>
-                    <td className="px-4 py-3 text-xs font-medium text-slate-700 dark:text-slate-200 max-w-[200px] truncate">{e.desc}</td>
-                    <td className="px-4 py-3">
-                      <span className="badge badge-pending text-[10px]">{e.cat}</span>
-                    </td>
-                    <td className="px-4 py-3 text-xs font-bold text-red-600 dark:text-red-400 whitespace-nowrap">Rs. {e.amount.toLocaleString('en-IN')}</td>
-                    <td className="px-4 py-3 text-xs text-slate-400 dark:text-slate-500">{e.notes || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {/* Top categories */}
+        <div className="glass-card rounded-2xl p-5">
+          <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Top Categories</p>
+          <h3 className="font-display font-black text-slate-800 dark:text-white text-base mb-4">All Time</h3>
+          <div className="space-y-2.5">
+            {summariseByType(myExpenses).slice(0, 5).map((t, i) => (
+              <div key={t.key} className="flex items-center gap-2.5">
+                <span className="w-5 h-5 rounded-lg bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-xs flex-shrink-0">
+                  {i + 1}
+                </span>
+                <span className="text-sm flex-shrink-0">{t.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{t.label}</p>
+                  <p className="text-[10px] text-slate-400">{t.count} entries</p>
+                </div>
+                <p className="text-xs font-bold text-amber-600 dark:text-amber-400 flex-shrink-0">
+                  Rs. {t.total.toLocaleString('en-IN')}
+                </p>
+              </div>
+            ))}
+            {summariseByType(myExpenses).length === 0 && (
+              <p className="text-xs text-slate-400 text-center py-4">No expense data yet</p>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Module 3: Expense list */}
+      <div className="glass-card rounded-2xl overflow-hidden">
+        {/* List controls */}
+        <div className="px-4 py-3 border-b border-slate-100 dark:border-navy-700 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="font-display font-black text-slate-800 dark:text-white text-base">
+              {filtered.length} Expenses
+            </h3>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/70 dark:bg-navy-800/60 flex-1 min-w-[140px] max-w-xs">
+              <Search size={13} className="text-slate-400 flex-shrink-0" />
+              <input type="text" value={search} onChange={e=>{ setSearch(e.target.value); setPage(1) }}
+                placeholder="Search…"
+                className="bg-transparent text-sm text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 outline-none w-full font-body" />
+            </div>
+
+            <select value={typeFilter} onChange={e=>{ setTypeFilter(e.target.value); setPage(1) }}
+              className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
+              <option value="all">All Types</option>
+              {EXPENSE_TYPES.map(t => <option key={t.key} value={t.key}>{t.icon} {t.label}</option>)}
+            </select>
+
+            <select value={statFilter} onChange={e=>{ setStatFilter(e.target.value); setPage(1) }}
+              className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
+              <option value="all">All Statuses</option>
+              {APPROVAL_STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* Expense rows */}
+        {paginated.length === 0 ? (
+          <div className="p-10 text-center">
+            <TrendingDown size={32} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
+            <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">No expenses found</p>
+          </div>
+        ) : (
+          <div>
+            {paginated.map(exp => {
+              const isOpen  = expanded === exp.id
+              const typeCfg = getExpTypeCfg(exp.type)
+              return (
+                <div key={exp.id} className="border-b border-slate-50 dark:border-navy-800 last:border-0">
+                  {/* Row */}
+                  <div className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-amber-50/30 dark:hover:bg-navy-800/40 transition-colors select-none"
+                       onClick={() => setExpanded(isOpen ? null : exp.id)}>
+                    {/* Type icon */}
+                    <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${typeCfg.color} flex items-center justify-center text-lg flex-shrink-0 shadow-sm`}>
+                      {typeCfg.icon}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{exp.description || typeCfg.label}</p>
+                      <div className="flex items-center gap-2 text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 flex-wrap">
+                        <span className="flex items-center gap-1"><Calendar size={9} />{exp.date}</span>
+                        {exp.driver  && <span className="flex items-center gap-1"><User size={9} />{exp.driver}</span>}
+                        {exp.tripRef && <span className="flex items-center gap-1 font-mono">{exp.tripRef}</span>}
+                        {exp.receiptName && <span className="flex items-center gap-1 text-blue-500">📎</span>}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                      <p className="text-sm font-black text-amber-600 dark:text-amber-400">
+                        Rs. {exp.amount.toLocaleString('en-IN')}
+                      </p>
+                      <ApprovalBadge status={exp.status} />
+                    </div>
+
+                    {isOpen ? <ChevronUp size={13} className="text-slate-400 ml-1 flex-shrink-0" />
+                             : <ChevronDown size={13} className="text-slate-400 ml-1 flex-shrink-0" />}
+                  </div>
+
+                  {isOpen && (
+                    <ExpenseDetail
+                      expense={exp}
+                      onEdit={setEditExp}
+                      onDelete={handleDelete}
+                      onApprove={handleApprove}
+                      onReject={handleReject}
+                      canEdit={canEdit}
+                      canDelete={canDelete}
+                      canApprove={canApprove}
+                    />
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 dark:border-navy-700 bg-slate-50/50 dark:bg-navy-800/30">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Showing {(page-1)*PAGE_SIZE+1}–{Math.min(page*PAGE_SIZE, filtered.length)} of {filtered.length}
+            </p>
+            <div className="flex gap-1">
+              <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page===1}
+                className="w-8 h-8 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors disabled:opacity-40">
+                ‹
+              </button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                const pg = page <= 3 ? i+1 : page-2+i
+                if (pg > totalPages) return null
+                return (
+                  <button key={pg} onClick={() => setPage(pg)}
+                    className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
+                      pg === page
+                        ? 'bg-amber-500 text-white shadow'
+                        : 'border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-navy-700'
+                    }`}>{pg}
+                  </button>
+                )
+              })}
+              <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page===totalPages}
+                className="w-8 h-8 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors disabled:opacity-40">
+                ›
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Modals */}
+      {(showAdd || editExp) && (
+        <ExpenseModal
+          expense={editExp}
+          onClose={() => { setShowAdd(false); setEditExp(null) }}
+          onSave={handleSave}
+          currentUser={user}
+          isDriver={isDriver}
+        />
+      )}
     </div>
   )
 }

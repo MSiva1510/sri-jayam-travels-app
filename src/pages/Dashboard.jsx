@@ -1,8 +1,8 @@
 import {
-  TrendingUp, IndianRupee, Car, Receipt,
+  TrendingUp, TrendingDown, IndianRupee, Car, Receipt,
   CheckCircle, Clock, Users, Fuel, Plus, FileText,
   ShieldOff, CalendarCheck, BookOpen,
-  Zap, XCircle, AlertTriangle, Wrench, Shield,
+  Zap, XCircle, AlertTriangle, Wrench, Shield, Filter,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import StatCard   from '../components/ui/StatCard'
@@ -18,6 +18,7 @@ import {
 } from '../data/mockData'
 import { loadAttendanceToday } from '../data/attendanceData'
 import { loadCustomers } from '../data/customerData'
+import { loadExpenses, summariseByType, isThisMonth } from '../data/expenseData'
 import { loadBookings, getStatusCfg, TRIP_TYPE_CONFIG } from '../data/tripTypes'
 import { docStatus, daysLabel } from './Vehicles'
 
@@ -102,6 +103,13 @@ export default function Dashboard() {
   const thisMonthStr      = new Date().toISOString().slice(0, 7)
   const newCustomersMonth = customers.filter(c => c.createdAt?.startsWith(thisMonthStr)).length
   const corporateCustomers= customers.filter(c => c.type === 'corporate' || c.type === 'agent').length
+
+  // ── Expense data ─────────────────────────────────────────
+  const allExpenses        = loadExpenses()
+  const monthExpenses      = allExpenses.filter(e => isThisMonth(e.date))
+  const monthExpTotal      = monthExpenses.reduce((s,e) => s + e.amount, 0)
+  const pendingApprovals   = allExpenses.filter(e => e.status === 'submitted').length
+  const expByCategory      = summariseByType(monthExpenses).slice(0, 3)
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -347,6 +355,87 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ── Expense widgets — Module 9 ── */}
+      {can('expenses') && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Expense Management</p>
+              <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">This Month</h3>
+            </div>
+            <button onClick={() => navigate('/expenses')}
+              className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
+              View all →
+            </button>
+          </div>
+
+          {/* KPI chips */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+            {[
+              { label:'Month Total',    value:`Rs. ${(monthExpTotal/1000).toFixed(1)}k`, icon:TrendingDown, color:'text-amber-600 dark:text-amber-400', bg:'bg-amber-50 dark:bg-amber-900/20' },
+              { label:'Entries',        value: monthExpenses.length,                    icon:Receipt,      color:'text-slate-600 dark:text-slate-300', bg:'bg-slate-50 dark:bg-navy-800/60'  },
+              { label:'Pending Approval',value: pendingApprovals,                       icon:Clock,        color:'text-blue-600 dark:text-blue-400',   bg:'bg-blue-50 dark:bg-blue-900/20'   },
+              { label:'Categories',     value: expByCategory.length,                   icon:Filter,       color:'text-violet-600 dark:text-violet-400',bg:'bg-violet-50 dark:bg-violet-900/20'},
+            ].map(s => (
+              <div key={s.label} onClick={() => navigate('/expenses')}
+                className="glass-card rounded-2xl p-3.5 flex items-center gap-3 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5 cursor-pointer">
+                <div className={`w-9 h-9 rounded-xl ${s.bg} flex items-center justify-center flex-shrink-0`}>
+                  <s.icon size={16} className={s.color} />
+                </div>
+                <div className="min-w-0">
+                  <p className={`text-xl font-display font-black leading-none ${s.color}`}>{s.value}</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">{s.label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Top 3 categories this month */}
+          {expByCategory.length > 0 && (
+            <div className="glass-card rounded-2xl p-4">
+              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Top Categories This Month</p>
+              <div className="space-y-2.5">
+                {expByCategory.map(t => {
+                  const pct = Math.round((t.total / monthExpTotal) * 100)
+                  return (
+                    <div key={t.key}>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 font-medium">
+                          <span>{t.icon}</span>{t.label}
+                        </span>
+                        <span className="font-bold text-amber-600 dark:text-amber-400">
+                          Rs. {t.total.toLocaleString('en-IN')} <span className="text-slate-400 font-normal">({pct}%)</span>
+                        </span>
+                      </div>
+                      <div className="h-1.5 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full bg-gradient-to-r ${t.color}`}
+                          style={{ width: `${pct}%`, transition:'width .5s' }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Pending approval alert */}
+          {pendingApprovals > 0 && (
+            <div className="flex items-center justify-between gap-3 bg-blue-50 dark:bg-blue-900/15 border border-blue-200 dark:border-blue-800/30 rounded-2xl px-4 py-3 mt-3">
+              <div className="flex items-center gap-2.5">
+                <Receipt size={15} className="text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                <p className="text-sm font-bold text-blue-700 dark:text-blue-400">
+                  {pendingApprovals} expense{pendingApprovals!==1?'s':''} awaiting your approval
+                </p>
+              </div>
+              <button onClick={() => navigate('/expenses')}
+                className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all active:scale-95 shadow-md flex-shrink-0">
+                Review
+              </button>
+            </div>
+          )}
         </div>
       )}
 
