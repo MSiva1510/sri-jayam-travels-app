@@ -21,6 +21,7 @@ import Vehicles        from './pages/Vehicles'
 import Settings        from './pages/Settings'
 import Attendance      from './pages/Attendance'
 import Profile         from './pages/Profile'
+import Payroll         from './pages/Payroll'
 
 // Driver pages
 import DriverDashboard from './pages/driver/DriverDashboard'
@@ -58,17 +59,18 @@ export default function App() {
             <Route path="/drivers"     element={<ProtectedRoute allowedRoles={['admin','manager']}><Drivers /></ProtectedRoute>} />
             <Route path="/vehicles"    element={<ProtectedRoute allowedRoles={['admin','manager']}><Vehicles /></ProtectedRoute>} />
             <Route path="/settings"    element={<ProtectedRoute allowedRoles={['admin']}><Settings /></ProtectedRoute>} />
+            {/* Fix 2: /attendance locked to admin + manager only */}
             <Route path="/attendance"  element={<ProtectedRoute allowedRoles={['admin','manager']}><Attendance /></ProtectedRoute>} />
             <Route path="/profile"     element={<ProtectedRoute allowedRoles={['admin','manager']}><Profile /></ProtectedRoute>} />
+            <Route path="/payroll"     element={<ProtectedRoute allowedRoles={['admin','manager']}><Payroll /></ProtectedRoute>} />
 
-            {/* Driver */}
+            {/* Driver — Fix 2: no /attendance route for drivers */}
             <Route path="/driver"          element={<DriverShell><DriverDashboard /></DriverShell>} />
             <Route path="/assigned-trips"  element={<DriverShell><AssignedTrips /></DriverShell>}   />
             <Route path="/ride-history"    element={<DriverShell><RideHistory /></DriverShell>}     />
             <Route path="/driver-profile"  element={<DriverShell><DriverProfile /></DriverShell>}   />
             <Route path="/live-location"   element={<DriverShell><LiveLocation /></DriverShell>}    />
-            {/* Driver attendance — driver role, no DriverShell needed */}
-            <Route path="/attendance"      element={<ProtectedRoute allowedRoles={['admin','manager','driver']}><Attendance /></ProtectedRoute>} />
+            <Route path="/payslips"       element={<DriverShell><Payroll /></DriverShell>}          />
 
             {/* Legacy */}
             <Route path="/my-trips" element={<Navigate to="/driver" replace />} />

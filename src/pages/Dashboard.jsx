@@ -19,11 +19,19 @@ import {
 import { loadAttendanceToday } from '../data/attendanceData'
 import { loadCustomers } from '../data/customerData'
 import { loadExpenses, summariseByType, isThisMonth } from '../data/expenseData'
+import { loadSettlements, monthLabel } from '../data/settlementData'
 import { loadBookings, getStatusCfg, TRIP_TYPE_CONFIG } from '../data/tripTypes'
 import { docStatus, daysLabel } from './Vehicles'
 
 // ── Blocked section placeholder ───────────────────────────────
 function AccessBlocked({ label }) {
+  // ── Payroll data ──────────────────────────────────────────
+  const settlements        = loadSettlements()
+  const settledPaid        = settlements.filter(s => s.status === 'paid')
+  const settledPending     = settlements.filter(s => s.status === 'pending').length
+  const settledApproved    = settlements.filter(s => s.status === 'approved').length
+  const totalPayrollPaid   = settledPaid.reduce((s,p) => s + p.netAmount, 0)
+
   return (
     <div className="glass-card rounded-2xl p-6 flex flex-col items-center justify-center text-center gap-2 min-h-[120px]">
       <ShieldOff size={22} className="text-slate-300 dark:text-slate-600" />
@@ -355,6 +363,54 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ── Payroll widgets — Module 3 ── */}
+      {can('payroll') && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Payroll & Settlements</p>
+              <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">Driver Salary</h3>
+            </div>
+            <button onClick={() => navigate('/payroll')}
+              className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
+              View all →
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label:'Total Paid',        value:`Rs.${(totalPayrollPaid/1000).toFixed(1)}k`, color:'text-emerald-600 dark:text-emerald-400', bg:'bg-emerald-50 dark:bg-emerald-900/20' },
+              { label:'Pending Approval',  value: settledPending,                             color:'text-blue-600 dark:text-blue-400',       bg:'bg-blue-50 dark:bg-blue-900/20'       },
+              { label:'Approved (Unpaid)', value: settledApproved,                            color:'text-violet-600 dark:text-violet-400',   bg:'bg-violet-50 dark:bg-violet-900/20'   },
+              { label:'Total Settlements', value: settlements.length,                         color:'text-navy-800 dark:text-blue-300',       bg:'bg-navy-50 dark:bg-navy-800/60'       },
+            ].map(s => (
+              <div key={s.label} onClick={() => navigate('/payroll')}
+                className="glass-card rounded-2xl p-3.5 flex items-center gap-3 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5 cursor-pointer">
+                <div className={`w-9 h-9 rounded-xl ${s.bg} flex items-center justify-center flex-shrink-0`}>
+                  <IndianRupee size={16} className={s.color} />
+                </div>
+                <div className="min-w-0">
+                  <p className={`text-xl font-display font-black leading-none ${s.color}`}>{s.value}</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">{s.label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          {(settledPending > 0 || settledApproved > 0) && (
+            <div className="flex items-center justify-between gap-3 bg-violet-50 dark:bg-violet-900/15 border border-violet-200 dark:border-violet-800/30 rounded-2xl px-4 py-3 mt-3">
+              <p className="text-sm font-bold text-violet-700 dark:text-violet-400">
+                {settledPending > 0 && `${settledPending} settlement${settledPending!==1?'s':''} awaiting approval`}
+                {settledPending > 0 && settledApproved > 0 && ' · '}
+                {settledApproved > 0 && `${settledApproved} approved — ready to pay`}
+              </p>
+              <button onClick={() => navigate('/payroll')}
+                className="px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold transition-all active:scale-95 shadow-md flex-shrink-0">
+                Review
+              </button>
+            </div>
+          )}
         </div>
       )}
 

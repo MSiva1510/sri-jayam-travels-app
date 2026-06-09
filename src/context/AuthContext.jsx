@@ -1,73 +1,87 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { autoCheckIn, autoCheckOut } from '../data/attendanceData'
 
 export const MOCK_USERS = [
-  { id:1, name:'Arjun Sharma',    email:'admin@srijayamtravels.in',    username:'admin',        password:'admin123',   role:'admin',   phone:'+91 94423 37470', joined:'Jan 2022' },
-  { id:2, name:'Kavitha Rajan',   email:'manager@srijayamtravels.in',  username:'manager',      password:'manager123', role:'manager', phone:'+91 98765 43210', joined:'Mar 2022' },
-  { id:3, name:'Ramanan',         email:'ramanan@srijayamtravels.in',  username:'ramanan',      password:'driver123',  role:'driver',  phone:'8754914315', vehicle:'PY01CY1255', vehicleType:'4+1 Sedan', joined:'Jan 2022' },
-  { id:4, name:'Babu',            email:'babu@srijayamtravels.in',     username:'babu',         password:'driver123',  role:'driver',  phone:'9894403206', vehicle:'PY01DF1255', vehicleType:'4+1 Sedan', joined:'Mar 2021' },
-  { id:5, name:'Rajasekharan',    email:'raja@srijayamtravels.in',     username:'rajasekharan', password:'driver123',  role:'driver',  phone:'6383401383', vehicle:'PY01VF1255', vehicleType:'7+1 SUV',   joined:'Sep 2022' },
+  { id:1, name:'Arjun Sharma',  email:'admin@srijayamtravels.in',   username:'admin',        password:'admin123',   role:'admin',   phone:'+91 94423 37470', joined:'Jan 2022' },
+  { id:2, name:'Kavitha Rajan', email:'manager@srijayamtravels.in', username:'manager',      password:'manager123', role:'manager', phone:'+91 98765 43210', joined:'Mar 2022' },
+  { id:3, name:'Ramanan',       email:'ramanan@srijayamtravels.in', username:'ramanan',      password:'driver123',  role:'driver',  phone:'8754914315', vehicle:'PY01CY1255', vehicleType:'4+1 Sedan', joined:'Jan 2022' },
+  { id:4, name:'Babu',          email:'babu@srijayamtravels.in',    username:'babu',         password:'driver123',  role:'driver',  phone:'9894403206', vehicle:'PY01DF1255', vehicleType:'4+1 Sedan', joined:'Mar 2021' },
+  { id:5, name:'Rajasekharan',  email:'raja@srijayamtravels.in',    username:'rajasekharan', password:'driver123',  role:'driver',  phone:'6383401383', vehicle:'PY01VF1255', vehicleType:'7+1 SUV',   joined:'Sep 2022' },
 ]
 
-// ── Fix 3: Explicit permission matrix per role ─────────────────
-// true = can access, false = blocked
+// ── Role permission matrix ─────────────────────────────────────
 export const ROLE_PERMISSIONS = {
   admin: {
-    trips:              true,
-    vehicles:           true,
-    customers:          true,
-    expenses:           true,
-    invoices:           true,
-    reports:            true,
-    settings:           true,
-    drivers:            true,
-    attendance:         true,
-    // Financial sections
-    revenueDashboard:   true,
-    profitReports:      true,
-    financialAnalytics: true,
-    expenseReports:     true,
-    invoiceManagement:  true,
+    trips:true,
+    vehicles:true,
+    customers:true,
+    expenses:true,
+    invoices:true,
+    reports:true,
+    settings:true,
+    drivers:true,
+    attendance:true,
+
+    payroll:true,
+    settlements:true,
+    payslips:true,
+
+    revenueDashboard:true,
+    profitReports:true,
+    financialAnalytics:true,
+    expenseReports:true,
+    invoiceManagement:true,
   },
+
   manager: {
-    trips:              true,
-    vehicles:           true,
-    customers:          true,
-    expenses:           true,    // view only — no financial analytics
-    invoices:           false,   // cannot manage invoices
-    reports:            false,   // no financial reports
-    settings:           false,
-    drivers:            true,
-    attendance:         true,    // can view all driver attendance
-    // Financial sections — BLOCKED for manager
-    revenueDashboard:   false,
-    profitReports:      false,
-    financialAnalytics: false,
-    expenseReports:     false,
-    invoiceManagement:  false,
+    trips:true,
+    vehicles:true,
+    customers:true,
+    expenses:true,
+    invoices:false,
+    reports:false,
+    settings:false,
+    drivers:true,
+    attendance:true,
+
+    payroll:true,
+    settlements:true,
+    payslips:false,
+
+    revenueDashboard:false,
+    profitReports:false,
+    financialAnalytics:false,
+    expenseReports:false,
+    invoiceManagement:false,
   },
+
   driver: {
-    trips:              false,
-    vehicles:           false,
-    customers:          false,
-    expenses:           false,
-    invoices:           false,
-    reports:            false,
-    settings:           false,
-    drivers:            false,
-    attendance:         true,    // own attendance only
-    // Financial — all blocked
-    revenueDashboard:   false,
-    profitReports:      false,
-    financialAnalytics: false,
-    expenseReports:     false,
-    invoiceManagement:  false,
+    trips:false,
+    vehicles:false,
+    customers:false,
+    expenses:false,
+    invoices:false,
+    reports:false,
+    settings:false,
+    drivers:false,
+    attendance:false,
+
+    payroll:false,
+    settlements:false,
+    payslips:true,
+
+    revenueDashboard:false,
+    profitReports:false,
+    financialAnalytics:false,
+    expenseReports:false,
+    invoiceManagement:false,
   },
 }
 
 export const ROLE_ROUTES = {
-  admin:   ['/', '/invoices', '/customers', '/expenses', '/drivers', '/vehicles', '/settings', '/trips', '/create-trip', '/attendance', '/profile'],
-  manager: ['/', '/customers', '/expenses', '/drivers', '/vehicles', '/trips', '/create-trip', '/attendance', '/profile'],
-  driver:  ['/driver', '/assigned-trips', '/ride-history', '/driver-profile', '/live-location', '/attendance'],
+  admin:   ['/', '/invoices', '/customers', '/expenses', '/drivers', '/vehicles', '/settings', '/trips', '/create-trip', '/attendance', '/profile', '/payroll'],
+  manager: ['/', '/customers', '/expenses', '/drivers', '/vehicles', '/trips', '/create-trip', '/attendance', '/profile', '/payroll'],
+  driver:  ['/driver', '/assigned-trips', '/ride-history', '/driver-profile', '/live-location', '/payslips'],
 }
 
 export const ROLE_LABELS = { admin:'Administrator', manager:'Manager', driver:'Driver' }
@@ -97,38 +111,59 @@ export function AuthProvider({ children }) {
   const [authLoading, setAuthLoading] = useState(false)
   const [loginError,  setLoginError]  = useState('')
 
+  // ── Restore session on mount ─────────────────────────────
   useEffect(() => {
     const stored = readStorage()
     if (stored?.id && stored?.role) {
       const live = MOCK_USERS.find(u => u.id === stored.id)
       if (live) {
         const { password: _p, ...safe } = live
-        const restored = { ...safe, lastLogin: stored.lastLogin }
-        setUser(restored)
-        writeSession(restored)
+        setUser({ ...safe, lastLogin: stored.lastLogin })
+        writeSession({ ...safe, lastLogin: stored.lastLogin })
       } else { clearAllStorage() }
     }
     setInitialized(true)
   }, [])
 
+  // ── Login ────────────────────────────────────────────────
   const login = useCallback(async ({ username, password, remember }) => {
     setAuthLoading(true)
     setLoginError('')
     await new Promise(r => setTimeout(r, 700))
     const found = MOCK_USERS.find(
-      u => (u.username === username.trim().toLowerCase() || u.email === username.trim().toLowerCase()) && u.password === password
+      u => (u.username === username.trim().toLowerCase() ||
+            u.email    === username.trim().toLowerCase()) &&
+           u.password  === password
     )
-    if (!found) { setLoginError('Invalid username or password.'); setAuthLoading(false); return false }
+    if (!found) {
+      setLoginError('Invalid username or password.')
+      setAuthLoading(false)
+      return false
+    }
     const { password: _p, ...safeUser } = found
     const sessionUser = { ...safeUser, lastLogin: new Date().toISOString() }
     setUser(sessionUser)
     writeSession(sessionUser)
     if (remember) writePersistent(sessionUser)
+
+    // Fix 3: auto check-in for drivers on login
+    if (found.role === 'driver') {
+      autoCheckIn(found.name, found.vehicle || '')
+    }
+
     setAuthLoading(false)
     return true
   }, [])
 
-  const logout = useCallback(() => { setUser(null); clearAllStorage() }, [])
+  // ── Logout ────────────────────────────────────────────────
+  const logout = useCallback(() => {
+    // Fix 3: auto check-out for drivers on logout
+    if (user?.role === 'driver') {
+      autoCheckOut(user.name)
+    }
+    setUser(null)
+    clearAllStorage()
+  }, [user])
 
   // ── Permission helper ──────────────────────────────────────
   const can = useCallback((permission) => {

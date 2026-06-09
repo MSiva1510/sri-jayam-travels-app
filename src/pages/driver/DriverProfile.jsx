@@ -1,12 +1,12 @@
 import { useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, Phone, Mail, Car, Star, Award,
-  Calendar, Shield, MapPin, TrendingUp, Clock,
-  Navigation, IndianRupee,
+  ArrowLeft, Phone, Mail, Car, Star,
+  Calendar, Shield, MapPin, Clock,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { getDriverProfile, getDriverVehicle, getDriverHistory, getTodayStats } from '../../data/driverData'
 import Avatar from '../../components/ui/Avatar'
+import { loadSettlements, monthLabel, getSettlementStatusCfg } from '../../data/settlementData'
 
 function InfoRow({ icon: Icon, label, value, highlight }) {
   return (
@@ -173,6 +173,40 @@ export default function DriverProfile() {
           ))}
         </div>
       </div>
+
+      {/* Module 11: Payroll strip */}
+      {(() => {
+        const settlements = loadSettlements().filter(s => s.driver === user?.name)
+        if (settlements.length === 0) return null
+        const latest   = settlements[0]
+        const current  = settlements.find(s => {
+          const now = new Date()
+          return s.month === now.getMonth()+1 && s.year === now.getFullYear()
+        })
+        const lastPaid = settlements.find(s => s.status === 'paid')
+        const stCfg    = getSettlementStatusCfg(latest.status)
+        return (
+          <div className="glass-card rounded-2xl p-4">
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Payroll</p>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-2.5 text-center col-span-2">
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">
+                  {current ? 'Current Month' : 'Latest Settlement'}
+                </p>
+                <p className="text-lg font-display font-black text-emerald-600 dark:text-emerald-400">
+                  Rs. {(current || latest).netAmount.toLocaleString('en-IN')}
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">{monthLabel((current||latest).month,(current||latest).year)}</p>
+              </div>
+              <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-2.5 text-center">
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">Status</p>
+                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${stCfg.badge}`}>{stCfg.label}</span>
+                {lastPaid && <p className="text-[10px] text-slate-400 mt-1">Last paid<br/>{monthLabel(lastPaid.month,lastPaid.year)}</p>}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Achievements */}
       <div className="glass-card rounded-2xl p-4">

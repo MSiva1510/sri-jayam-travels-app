@@ -3,7 +3,7 @@ import {
   LayoutDashboard, FileText, Users, Receipt,
   User, Car, Settings, ChevronLeft, ChevronRight,
   MapPin, Phone, Globe, LogOut, Navigation,
-  History, List, Route, Signal, CalendarCheck,
+  History, List, Route, Signal, CalendarCheck, IndianRupee,
 } from 'lucide-react'
 import { useApp }  from '../../context/AppContext'
 import { useAuth, ROLE_LABELS, ROLE_COLORS } from '../../context/AuthContext'
@@ -21,12 +21,12 @@ const NAV_ITEMS = [
   { to: '/drivers',        label: 'Drivers',       icon: User,            roles: ['admin','manager'], perm: 'drivers'  },
   { to: '/vehicles',       label: 'Vehicles',      icon: Car,             roles: ['admin','manager'], perm: 'vehicles' },
   { to: '/attendance',     label: 'Attendance',    icon: CalendarCheck,   roles: ['admin','manager'], perm: 'attendance'},
-  // Driver
+  { to: '/payroll',        label: 'Payroll',       icon: IndianRupee,     roles: ['admin','manager'], perm: 'payroll'   },
   { to: '/driver',         label: 'Home',          icon: LayoutDashboard, roles: ['driver'] },
   { to: '/assigned-trips', label: 'Trips Today',   icon: List,            roles: ['driver'] },
   { to: '/live-location',  label: 'Live Location', icon: Signal,          roles: ['driver'] },
-  { to: '/attendance',     label: 'Attendance',    icon: CalendarCheck,   roles: ['driver'] },
   { to: '/ride-history',   label: 'Ride History',  icon: History,         roles: ['driver'] },
+  { to: '/payslips',       label: 'My Payslips',   icon: IndianRupee,     roles: ['driver'] },
   { to: '/driver-profile', label: 'My Profile',    icon: User,            roles: ['driver'] },
 ]
 
