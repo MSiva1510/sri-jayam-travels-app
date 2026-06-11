@@ -22,6 +22,7 @@ import Settings        from './pages/Settings'
 import Attendance      from './pages/Attendance'
 import Profile         from './pages/Profile'
 import Payroll         from './pages/Payroll'
+import Reports         from './pages/Reports'
 
 // Driver pages
 import DriverDashboard from './pages/driver/DriverDashboard'
@@ -63,6 +64,7 @@ export default function App() {
             <Route path="/attendance"  element={<ProtectedRoute allowedRoles={['admin','manager']}><Attendance /></ProtectedRoute>} />
             <Route path="/profile"     element={<ProtectedRoute allowedRoles={['admin','manager']}><Profile /></ProtectedRoute>} />
             <Route path="/payroll"     element={<ProtectedRoute allowedRoles={['admin','manager']}><Payroll /></ProtectedRoute>} />
+            <Route path="/reports"     element={<ProtectedRoute allowedRoles={['admin','manager']}><Reports /></ProtectedRoute>} />
 
             {/* Driver — Fix 2: no /attendance route for drivers */}
             <Route path="/driver"          element={<DriverShell><DriverDashboard /></DriverShell>} />

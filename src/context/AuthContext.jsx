@@ -12,75 +12,33 @@ export const MOCK_USERS = [
 // ── Role permission matrix ─────────────────────────────────────
 export const ROLE_PERMISSIONS = {
   admin: {
-    trips:true,
-    vehicles:true,
-    customers:true,
-    expenses:true,
-    invoices:true,
-    reports:true,
-    settings:true,
-    drivers:true,
-    attendance:true,
-
-    payroll:true,
-    settlements:true,
-    payslips:true,
-
-    revenueDashboard:true,
-    profitReports:true,
-    financialAnalytics:true,
-    expenseReports:true,
-    invoiceManagement:true,
+    trips:true, vehicles:true, customers:true, expenses:true, invoices:true,
+    reports:true, settings:true, drivers:true,
+    attendance:true,            // full attendance management
+    revenueDashboard:true, profitReports:true, financialAnalytics:true,
+    expenseReports:true, invoiceManagement:true,
   },
-
   manager: {
-    trips:true,
-    vehicles:true,
-    customers:true,
-    expenses:true,
-    invoices:false,
-    reports:false,
-    settings:false,
-    drivers:true,
-    attendance:true,
-
-    payroll:true,
-    settlements:true,
-    payslips:false,
-
-    revenueDashboard:false,
-    profitReports:false,
-    financialAnalytics:false,
-    expenseReports:false,
-    invoiceManagement:false,
+    trips:true, vehicles:true, customers:true, expenses:true, invoices:false,
+    reports:false, settings:false, drivers:true,
+    attendance:true,            // can view + mark all driver attendance
+    revenueDashboard:false, profitReports:false, financialAnalytics:false,
+    expenseReports:false, invoiceManagement:false,
   },
-
   driver: {
-    trips:false,
-    vehicles:false,
-    customers:false,
-    expenses:false,
-    invoices:false,
-    reports:false,
-    settings:false,
-    drivers:false,
+    trips:false, vehicles:false, customers:false, expenses:false,
+    invoices:false, reports:false, settings:false, drivers:false,
+    // Fix 2 & Fix 9: drivers cannot access the Attendance page
     attendance:false,
-
-    payroll:false,
-    settlements:false,
-    payslips:true,
-
-    revenueDashboard:false,
-    profitReports:false,
-    financialAnalytics:false,
-    expenseReports:false,
-    invoiceManagement:false,
+    revenueDashboard:false, profitReports:false, financialAnalytics:false,
+    expenseReports:false, invoiceManagement:false,
   },
 }
 
 export const ROLE_ROUTES = {
-  admin:   ['/', '/invoices', '/customers', '/expenses', '/drivers', '/vehicles', '/settings', '/trips', '/create-trip', '/attendance', '/profile', '/payroll'],
-  manager: ['/', '/customers', '/expenses', '/drivers', '/vehicles', '/trips', '/create-trip', '/attendance', '/profile', '/payroll'],
+  admin:   ['/', '/invoices', '/customers', '/expenses', '/drivers', '/vehicles', '/settings', '/trips', '/create-trip', '/attendance', '/profile', '/payroll', '/reports'],
+  manager: ['/', '/customers', '/expenses', '/drivers', '/vehicles', '/trips', '/create-trip', '/attendance', '/profile', '/payroll', '/reports'],
+  // Fix 2: /attendance removed from driver allowed routes
   driver:  ['/driver', '/assigned-trips', '/ride-history', '/driver-profile', '/live-location', '/payslips'],
 }
 
