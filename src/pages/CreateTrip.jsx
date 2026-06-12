@@ -6,7 +6,7 @@ import {
   MapPin, RotateCcw, Navigation, Key,
   CheckCircle, AlertTriangle,
 } from 'lucide-react'
-import { TRIP_TYPE_LIST, TRIP_TYPE_CONFIG } from '../data/tripTypes'
+import { TRIP_TYPE_LIST, TRIP_TYPE_CONFIG, saveBooking, generateBookingNumber } from '../data/tripTypes'
 import { DRIVERS, VEHICLES } from '../data/mockData'
 import PageHeader from '../components/ui/PageHeader'
 
@@ -411,7 +411,40 @@ export default function CreateTrip() {
     e.preventDefault()
     const errs = validate()
     if (Object.keys(errs).length) { setErrors(errs); return }
-    // In a real app: POST to API. Here we just show success.
+
+    const bookingNo = generateBookingNumber()
+    const now       = new Date().toISOString()
+
+    // Derive pickup/drop from type-specific data for display
+    const pickup = typeData.pickup || typeData.baseLocation || common.customer
+    const drop   = typeData.drop   || typeData.destination  || typeData.stops?.join(' · ') || '—'
+
+    const booking = {
+      id:         bookingNo,
+      bookingNo,
+      type:       tripType,
+      status:     common.driver ? 'assigned' : 'draft',
+      customer:   common.customer.trim(),
+      contact:    common.contact.trim(),
+      pickup,
+      drop,
+      startDate:  common.startDate,
+      startTime:  common.startTime || null,
+      // Round-trip / multi-day extras
+      returnDate: typeData.returnDate  || null,
+      returnTime: typeData.returnTime  || null,
+      notes:      common.notes.trim(),
+      driver:     common.driver || null,
+      vehicle:    common.vehicle || null,
+      fare:       null,
+      km:         null,
+      typeData,                          // preserve type-specific fields
+      createdAt:  now,
+      updatedAt:  now,
+      createdBy:  'manager',             // replaced with user.role after auth wired to Supabase
+    }
+
+    saveBooking(booking)
     setSubmitted(true)
   }
 

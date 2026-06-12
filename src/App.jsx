@@ -64,7 +64,7 @@ export default function App() {
             <Route path="/attendance"  element={<ProtectedRoute allowedRoles={['admin','manager']}><Attendance /></ProtectedRoute>} />
             <Route path="/profile"     element={<ProtectedRoute allowedRoles={['admin','manager']}><Profile /></ProtectedRoute>} />
             <Route path="/payroll"     element={<ProtectedRoute allowedRoles={['admin','manager']}><Payroll /></ProtectedRoute>} />
-            <Route path="/reports"     element={<ProtectedRoute allowedRoles={['admin','manager']}><Reports /></ProtectedRoute>} />
+            <Route path="/reports"     element={<ProtectedRoute allowedRoles={['admin']}><Reports /></ProtectedRoute>} />
 
             {/* Driver — Fix 2: no /attendance route for drivers */}
             <Route path="/driver"          element={<DriverShell><DriverDashboard /></DriverShell>} />

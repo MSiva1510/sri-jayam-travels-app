@@ -79,12 +79,12 @@ export const VEHICLE_AVAIL_CFG = {
 }
 
 // ── Booking number generator ──────────────────────────────────
-let _seq = 7  // start after mock data
 export function generateBookingNumber() {
-  _seq++
-  const y  = new Date().getFullYear().toString().slice(-2)
-  const m  = String(new Date().getMonth() + 1).padStart(2, '0')
-  return `BK-${y}${m}-${String(_seq).padStart(3,'0')}`
+  const d  = new Date()
+  const y  = d.getFullYear().toString().slice(-2)
+  const m  = String(d.getMonth() + 1).padStart(2, '0')
+  const ts = Date.now().toString().slice(-4)
+  return `BK-${y}${m}-${ts}`
 }
 
 // ── localStorage store ────────────────────────────────────────

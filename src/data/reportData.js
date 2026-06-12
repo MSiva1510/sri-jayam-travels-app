@@ -8,7 +8,7 @@ import { loadExpenses, EXPENSE_TYPES, summariseByType,
          isThisMonth }                                   from './expenseData'
 import { loadSettlements }                               from './settlementData'
 import { loadAttendance, loadVehicleAssignments }        from './attendanceData'
-import { docStatus }                                     from '../pages/Vehicles'
+import { docStatus }                                     from '../utils/vehicleUtils'
 
 export function inRange(dateStr, from, to) {
   if (!dateStr) return false

@@ -3,9 +3,12 @@
 
 import { TRIPS, DRIVERS, VEHICLES } from './mockData'
 
-// ── TODAY'S DATE (simulated) ─────────────────────────────────
-export const TODAY = '29-05-2026'
-export const TODAY_DAY = 'Thursday, 29 May 2026'
+// ── TODAY'S DATE (computed at runtime) ───────────────────────
+const _now = new Date()
+export const TODAY     = _now.toLocaleDateString('en-CA')          // 'YYYY-MM-DD'
+export const TODAY_DAY = _now.toLocaleDateString('en-IN', {
+  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+})
 
 // ── DRIVER STATUS OPTIONS ────────────────────────────────────
 export const DRIVER_STATUSES = [

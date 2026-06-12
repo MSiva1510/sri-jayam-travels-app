@@ -106,11 +106,12 @@ export function buildSettlement({
 }
 
 // ── ID generator ──────────────────────────────────────────────
-let _settlSeq = 6
 export function generateSettlementId() {
-  _settlSeq++
-  const d = new Date()
-  return `STL-${d.getFullYear().toString().slice(-2)}${String(d.getMonth()+1).padStart(2,'0')}-${String(_settlSeq).padStart(3,'0')}`
+  const d  = new Date()
+  const y  = d.getFullYear().toString().slice(-2)
+  const m  = String(d.getMonth() + 1).padStart(2, '0')
+  const ts = Date.now().toString().slice(-4)
+  return `STL-${y}${m}-${ts}`
 }
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']

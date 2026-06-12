@@ -9,9 +9,10 @@ import {
 import { useAuth }  from '../../context/AuthContext'
 import { useRideLifecycleContext } from '../../context/RideLifecycleContext'
 import {
-  TODAY_TRIPS, TODAY_DAY, DRIVER_STATUSES, TRIP_STATUS_CFG,
+  TODAY_DAY, DRIVER_STATUSES, TRIP_STATUS_CFG,
   TRIP_TYPES, getTodayStats, getDriverProfile, getDriverVehicle,
 } from '../../data/driverData'
+import { loadBookings } from '../../data/tripTypes'
 import {
   useGPS,
   loadActiveRideGPS, saveActiveRideGPS, clearActiveRideGPS,
@@ -209,11 +210,37 @@ export default function DriverDashboard() {
     onRideStart, onRidePause, onRideResume, onRideEnd,
   } = useRideLifecycleContext()
 
-  const driverKey  = user?.username?.toLowerCase() || 'ramanan'
-  const driverName = user?.name || 'Ramanan'
+  const driverKey  = user?.username?.toLowerCase() || ''
+  const driverName = user?.name || ''
   const profile    = getDriverProfile(driverName)
   const vehicle    = getDriverVehicle(user?.vehicle)
-  const todayBase  = TODAY_TRIPS[driverKey] || []
+
+  // Load today's trips from real bookings (same logic as AssignedTrips)
+  const todayISO = new Date().toISOString().slice(0, 10)
+  const todayBase = loadBookings()
+    .filter(b =>
+      b.driver?.toLowerCase() === driverName.toLowerCase() &&
+      b.startDate === todayISO &&
+      b.status !== 'cancelled'
+    )
+    .map(b => ({
+      tripId:        b.id,
+      customer:      b.customer,
+      contact:       b.contact || '',
+      pickup:        b.pickup  || '',
+      drop:          b.drop    || '',
+      tripType:      b.type    || 'one_way',
+      scheduledTime: b.startTime
+        ? new Date(`${b.startDate}T${b.startTime}`).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : '—',
+      status:  b.status === 'started' ? 'driving'
+             : b.status === 'completed' ? 'completed'
+             : 'pending',
+      fare:    b.fare  || 0,
+      km:      b.km    || 0,
+      notes:   b.notes || '',
+    }))
+
   const stats      = getTodayStats(driverName)
   const rideHistory = loadRideHistory()
   const todayHistoryCount = rideHistory.filter(r => {

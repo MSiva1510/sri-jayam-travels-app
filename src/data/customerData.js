@@ -15,10 +15,9 @@ export const getCustomerTypeCfg = key => CUSTOMER_TYPES.find(t => t.key === key)
 // (tripTypes.js → customerData.js would be circular)
 
 // ── Auto-incrementing ID ──────────────────────────────────────
-let _seq = 12
 export function generateCustomerId() {
-  _seq++
-  return `CUS-${String(_seq).padStart(4, '0')}`
+  const ts = Date.now().toString().slice(-4)
+  return `CUS-${ts}`
 }
 
 // ── Mock seed customers ───────────────────────────────────────

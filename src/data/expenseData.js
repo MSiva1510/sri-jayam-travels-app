@@ -29,11 +29,12 @@ export const APPROVAL_STATUSES = [
 export const getApprovalCfg = key => APPROVAL_STATUSES.find(s => s.key === key) || APPROVAL_STATUSES[0]
 
 // ── ID generator ──────────────────────────────────────────────
-let _seq = 8
 export function generateExpenseId() {
-  _seq++
-  const d = new Date()
-  return `EXP-${d.getFullYear().toString().slice(-2)}${String(d.getMonth()+1).padStart(2,'0')}-${String(_seq).padStart(3,'0')}`
+  const d  = new Date()
+  const y  = d.getFullYear().toString().slice(-2)
+  const m  = String(d.getMonth() + 1).padStart(2, '0')
+  const ts = Date.now().toString().slice(-4)
+  return `EXP-${y}${m}-${ts}`
 }
 
 // ── Driver-submittable types ──────────────────────────────────
@@ -116,7 +117,29 @@ export const MOCK_EXPENSES = [
 ]
 
 // ── localStorage helpers ──────────────────────────────────────
+
+// One-time migration: copy any records from the old v1 key into v2
+const EXPENSES_KEY_V1 = 'sjt_expenses'
+function migrateExpensesV1() {
+  try {
+    const old = localStorage.getItem(EXPENSES_KEY_V1)
+    if (!old) return
+    const oldRecords = JSON.parse(old)
+    if (!Array.isArray(oldRecords) || oldRecords.length === 0) {
+      localStorage.removeItem(EXPENSES_KEY_V1)
+      return
+    }
+    const existing    = localStorage.getItem(EXPENSES_KEY)
+    const existingArr = existing ? JSON.parse(existing) : []
+    const existingIds = new Set(existingArr.map(e => e.id))
+    const merged      = [...existingArr, ...oldRecords.filter(e => !existingIds.has(e.id))]
+    localStorage.setItem(EXPENSES_KEY, JSON.stringify(merged))
+    localStorage.removeItem(EXPENSES_KEY_V1)
+  } catch { /* silent — migration is best-effort */ }
+}
+
 export function loadExpenses() {
+  migrateExpensesV1()
   try {
     const raw    = localStorage.getItem(EXPENSES_KEY)
     const stored = raw ? JSON.parse(raw) : []
