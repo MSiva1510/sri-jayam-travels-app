@@ -105,9 +105,9 @@ function SalaryConfigPanel({ onClose }) {
   const handleSave = () => { savePayrollSettings(cfg); setSaved(true); setTimeout(() => setSaved(false), 2000) }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:w-[500px] max-h-[90vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-3xl shadow-2xl z-10 flex flex-col">
+      <div className="relative w-full sm:w-[500px] max-h-[90vh] sm:max-h-[85vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl z-10 flex flex-col">
         <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-navy-700 flex-shrink-0">
           <div>
@@ -238,9 +238,9 @@ function SettlementModal({ settlement, onClose, onSave, currentUser }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:w-[520px] max-h-[94vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-3xl shadow-2xl z-10 flex flex-col">
+      <div className="relative w-full sm:w-[520px] max-h-[94vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl z-10 flex flex-col">
         <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-navy-700 flex-shrink-0">
           <div>
@@ -344,9 +344,9 @@ function SettlementModal({ settlement, onClose, onSave, currentUser }) {
 function PayslipView({ settlement, onClose }) {
   const cfg = getSettlementStatusCfg(settlement.status)
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:w-[400px] max-h-[92vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-3xl shadow-2xl z-10 flex flex-col">
+      <div className="relative w-full sm:w-[400px] max-h-[92vh] sm:max-h-[85vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl z-10 flex flex-col">
         <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
 
         {/* Payslip header */}
@@ -436,9 +436,9 @@ function MarkPaidModal({ settlement, onClose, onSave }) {
   const [form, setForm] = useState({ paymentDate: new Date().toISOString().slice(0,10), paymentMethod:'Bank Transfer', paymentRemarks:'' })
   const upd = (f,v) => setForm(p => ({ ...p, [f]: v }))
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:w-80 bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl z-10">
+      <div className="relative w-full sm:w-80 bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl p-5 shadow-2xl z-10">
         <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mb-4 sm:hidden" />
         <h3 className="font-display font-black text-slate-800 dark:text-white text-base mb-1">Mark as Paid</h3>
         <p className="text-xs text-slate-500 mb-4">{settlement.driver} · {monthLabel(settlement.month, settlement.year)} · Rs. {settlement.netAmount.toLocaleString('en-IN')}</p>

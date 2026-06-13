@@ -51,11 +51,50 @@ const EMPTY = {
   receiptName:'', receiptDate:'', notes:'',
 }
 
+// ── EF and ESel defined OUTSIDE modal so React doesn't remount on every keystroke ──
+function EF({ label, field, type='text', required, placeholder, value, onChange, error }) {
+  const handleChange = (e) => {
+    let v = e.target.value
+    if (type === 'number' && field === 'amount' && (isNaN(v) || Number(v) < 0)) v = ''
+    if (field === 'description' || field === 'notes') v = v.slice(0, 200)
+    if (field === 'driver' && v.length > 0 && !/^[a-zA-Z\s\-'.]*$/.test(v)) v = v.slice(0, -1)
+    onChange(field, v)
+  }
+  return (
+    <div>
+      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+        {label}{required && <span className="text-red-500 ml-1">*</span>}
+      </label>
+      <input type={type} value={value || ''} placeholder={placeholder}
+        onChange={handleChange} required={required}
+        className={`w-full px-3 py-2 text-sm rounded-lg border bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100
+          focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition-all
+          ${error ? 'border-red-400 dark:border-red-600' : 'border-slate-200 dark:border-navy-700'}`} />
+      {error && <p className="text-[11px] text-red-500 mt-1">{error}</p>}
+    </div>
+  )
+}
+
+function ESel({ label, field, children, required, value, onChange, error }) {
+  return (
+    <div>
+      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+        {label}{required && <span className="text-red-500 ml-1">*</span>}
+      </label>
+      <select value={value || ''} onChange={e => onChange(field, e.target.value)}
+        className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none appearance-none">
+        {children}
+      </select>
+      {error && <p className="text-[11px] text-red-500 mt-1">{error}</p>}
+    </div>
+  )
+}
+
 function ExpenseModal({ expense, onClose, onSave, currentUser, isDriver: isDrv }) {
   const isEdit   = !!expense?.id
   const [form,   setForm]   = useState(() => expense || { ...EMPTY, addedBy: currentUser?.name || '' })
   const [errors, setErrors] = useState({})
-  const upd = p => setForm(f => ({ ...f, ...p }))
+  const upd = (field, value) => setForm(f => ({ ...f, [field]: value }))
 
   const allowedTypes = isDrv ? EXPENSE_TYPES.filter(t => DRIVER_ALLOWED_TYPES.includes(t.key)) : EXPENSE_TYPES
   const bookings     = loadBookings()
@@ -81,50 +120,10 @@ function ExpenseModal({ expense, onClose, onSave, currentUser, isDriver: isDrv }
     })
   }
 
-  function F({ label, field, type='text', required, placeholder }) {
-    const handleChange = (e) => {
-      let v = e.target.value
-      if (type === 'number') {
-        if (field === 'amount' && (isNaN(v) || Number(v) < 0)) v = ''
-      }
-      if (field === 'description' || field === 'notes') v = v.slice(0, 200)
-      if (field === 'driver' && v.length > 0 && !/^[a-zA-Z\s\-'.]*$/.test(v)) v = v.slice(0, -1)
-      upd({ [field]: v })
-    }
-    return (
-      <div>
-        <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-          {label}{required && <span className="text-red-500 ml-1">*</span>}
-        </label>
-        <input type={type} value={form[field] || ''} placeholder={placeholder}
-          onChange={handleChange} required={required}
-          className={`w-full px-3 py-2 text-sm rounded-lg border bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100
-            focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition-all
-            ${errors[field] ? 'border-red-400 dark:border-red-600' : 'border-slate-200 dark:border-navy-700'}`} />
-        {errors[field] && <p className="text-[11px] text-red-500 mt-1">{errors[field]}</p>}
-      </div>
-    )
-  }
-
-  function Sel({ label, field, children, required }) {
-    return (
-      <div>
-        <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-          {label}{required && <span className="text-red-500 ml-1">*</span>}
-        </label>
-        <select value={form[field] || ''} onChange={e => upd({ [field]: e.target.value })}
-          className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none appearance-none">
-          {children}
-        </select>
-        {errors[field] && <p className="text-[11px] text-red-500 mt-1">{errors[field]}</p>}
-      </div>
-    )
-  }
-
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:w-[480px] max-h-[92vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-3xl shadow-2xl z-10 flex flex-col">
+      <div className="relative w-full sm:w-[480px] max-h-[92vh] sm:max-h-[85vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl z-10 flex flex-col">
         <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-navy-700 flex-shrink-0">
           <div>
@@ -140,45 +139,45 @@ function ExpenseModal({ expense, onClose, onSave, currentUser, isDriver: isDrv }
 
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <Sel label="Expense Type" field="type" required>
+            <ESel label="Expense Type" field="type" required value={form.type} onChange={upd} error={errors.type}>
               <option value="">— Select type —</option>
               {allowedTypes.map(t => (
                 <option key={t.key} value={t.key}>{t.icon} {t.label}</option>
               ))}
-            </Sel>
-            <F label="Date"   field="date"   type="date" required />
-            <F label="Amount (Rs.)" field="amount" type="number" required placeholder="0" />
+            </ESel>
+            <EF label="Date"   field="date"   type="date" required value={form.date} onChange={upd} error={errors.date} />
+            <EF label="Amount (Rs.)" field="amount" type="number" required placeholder="0" value={form.amount} onChange={upd} error={errors.amount} />
             {!isDrv && (
-              <Sel label="Status" field="status">
+              <ESel label="Status" field="status" value={form.status} onChange={upd} error={errors.status}>
                 {APPROVAL_STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-              </Sel>
+              </ESel>
             )}
           </div>
 
-          <F label="Description" field="description" placeholder="What was this expense for?" />
+          <EF label="Description" field="description" placeholder="What was this expense for?" value={form.description} onChange={upd} error={errors.description} />
 
           <div className="grid grid-cols-2 gap-3">
             {!isDrv ? (
-              <Sel label="Driver">
+              <ESel label="Driver" field="driver" value={form.driver} onChange={upd} error={errors.driver}>
                 <option value="">— None —</option>
                 {DRIVERS.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
-              </Sel>
+              </ESel>
             ) : (
-              <F label="Driver" field="driver" placeholder={currentUser?.name} />
+              <EF label="Driver" field="driver" placeholder={currentUser?.name} value={form.driver} onChange={upd} error={errors.driver} />
             )}
-            <Sel label="Vehicle" field="vehicle">
+            <ESel label="Vehicle" field="vehicle" value={form.vehicle} onChange={upd} error={errors.vehicle}>
               <option value="">— None —</option>
               {VEHICLES.map(v => <option key={v.id} value={v.reg}>{v.reg} — {v.type}</option>)}
-            </Sel>
+            </ESel>
           </div>
 
           {/* Module 4: Trip reference */}
-          <Sel label="Trip Reference (optional)" field="tripRef">
+          <ESel label="Trip Reference (optional)" field="tripRef" value={form.tripRef} onChange={upd} error={errors.tripRef}>
             <option value="">— No trip linked —</option>
             {loadBookings().map(b => (
               <option key={b.id} value={b.bookingNo}>{b.bookingNo} — {b.customer}</option>
             ))}
-          </Sel>
+          </ESel>
 
           {/* Module 5: Receipt attachment (mock) */}
           <div>

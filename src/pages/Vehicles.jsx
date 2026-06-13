@@ -104,62 +104,57 @@ const EMPTY_VEHICLE = {
   pucNumber:'', pucExpiry:'',
 }
 
+// ── Field components defined OUTSIDE modal so React doesn't remount on every keystroke ──
+function VField({ label, field, type='text', required, value, onChange }) {
+  const handleChange = (e) => {
+    let v = e.target.value
+    if (field === 'reg')          { v = v.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12) }
+    if (field === 'model')        { v = v.slice(0, 40) }
+    if (field === 'color')        { v = v.replace(/[^a-zA-Z\s]/g, '').slice(0, 20) }
+    if (field === 'year')         { v = v.replace(/\D/g, '').slice(0, 4) }
+    if (field === 'lastServiceKm' || field === 'nextServiceKm' || field === 'km') {
+      v = v.replace(/\D/g, '').slice(0, 7)
+    }
+    if (['insNumber','permitNumber','fcNumber','pucNumber'].includes(field)) {
+      v = v.toUpperCase().replace(/[^A-Z0-9\-/]/g, '').slice(0, 20)
+    }
+    onChange(field, v)
+  }
+  return (
+    <div>
+      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+        {label}{required && <span className="text-red-500 ml-1">*</span>}
+      </label>
+      <input type={type} value={value || ''} onChange={handleChange} required={required}
+        className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition-all" />
+    </div>
+  )
+}
+
+function VSelectField({ label, field, options, value, onChange }) {
+  return (
+    <div>
+      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">{label}</label>
+      <select value={value || ''} onChange={e => onChange(field, e.target.value)}
+        className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none appearance-none">
+        {options.map(o => <option key={o}>{o}</option>)}
+      </select>
+    </div>
+  )
+}
+
+function VSectionHead({ title }) {
+  return <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest pt-2 pb-1 border-t border-slate-100 dark:border-navy-700 mt-2">{title}</p>
+}
+
 function VehicleModal({ vehicle, onClose, onSave }) {
   const [form, setForm] = useState(() => vehicle || { ...EMPTY_VEHICLE, id: Date.now() })
-  const upd = patch => setForm(f => ({ ...f, ...patch }))
-
-  function Field({ label, field, type='text', required }) {
-    const handleChange = (e) => {
-      let v = e.target.value
-      // Registration numbers: uppercase alphanumeric
-      if (field === 'reg') { v = v.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12) }
-      // Model name: alphanumeric + spaces, max 40
-      if (field === 'model') { v = v.slice(0, 40) }
-      // Color: letters only, max 20
-      if (field === 'color') { v = v.replace(/[^a-zA-Z\s]/g, '').slice(0, 20) }
-      // Year: 4-digit number only
-      if (field === 'year') { v = v.replace(/\D/g, '').slice(0, 4) }
-      // KM readings: digits only
-      if (field === 'kmReading' || field === 'lastServiceKm' || field === 'nextServiceKm') {
-        v = v.replace(/\D/g, '').slice(0, 7)
-      }
-      // License / permit / FC / PUC numbers: alphanumeric, max 20
-      if (['insNumber','permitNumber','fcNumber','pucNumber'].includes(field)) {
-        v = v.toUpperCase().replace(/[^A-Z0-9\-/]/g, '').slice(0, 20)
-      }
-      upd({ [field]: v })
-    }
-    return (
-      <div>
-        <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-          {label}{required && <span className="text-red-500 ml-1">*</span>}
-        </label>
-        <input type={type} value={form[field] || ''} onChange={handleChange} required={required}
-          className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition-all" />
-      </div>
-    )
-  }
-
-  function SelectField({ label, field, options }) {
-    return (
-      <div>
-        <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">{label}</label>
-        <select value={form[field] || ''} onChange={e => upd({ [field]: e.target.value })}
-          className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none appearance-none">
-          {options.map(o => <option key={o}>{o}</option>)}
-        </select>
-      </div>
-    )
-  }
-
-  function SectionHead({ title }) {
-    return <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest pt-2 pb-1 border-t border-slate-100 dark:border-navy-700 mt-2">{title}</p>
-  }
+  const upd = (field, value) => setForm(f => ({ ...f, [field]: value }))
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:w-[500px] max-h-[92vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-3xl shadow-2xl z-10 flex flex-col">
+      <div className="relative w-full sm:w-[500px] max-h-[92vh] sm:max-h-[85vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl z-10 flex flex-col">
         <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-navy-700 flex-shrink-0">
           <h3 className="font-display font-black text-slate-800 dark:text-white text-base">
@@ -173,52 +168,52 @@ function VehicleModal({ vehicle, onClose, onSave }) {
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
           {/* Basic */}
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Reg. Number" field="reg" required />
-            <SelectField label="Type" field="type" options={['4+1 Sedan','7+1 SUV','Tempo Traveller','Mini Van']} />
-            <Field label="Model" field="model" required />
-            <Field label="Year" field="year" type="number" />
-            <Field label="Current KM" field="km" type="number" />
-            <SelectField label="Fuel Type" field="fuelType" options={['Petrol','Diesel','CNG','Electric']} />
-            <Field label="Color" field="color" />
-            <SelectField label="Status" field="status" options={['active','maintenance','offline']} />
+            <VField label="Reg. Number" field="reg" required value={form.reg} onChange={upd} />
+            <VSelectField label="Type" field="type" options={['4+1 Sedan','7+1 SUV','Tempo Traveller','Mini Van']} value={form.type} onChange={upd} />
+            <VField label="Model" field="model" required value={form.model} onChange={upd} />
+            <VField label="Year" field="year" type="number" value={form.year} onChange={upd} />
+            <VField label="Current KM" field="km" type="number" value={form.km} onChange={upd} />
+            <VSelectField label="Fuel Type" field="fuelType" options={['Petrol','Diesel','CNG','Electric']} value={form.fuelType} onChange={upd} />
+            <VField label="Color" field="color" value={form.color} onChange={upd} />
+            <VSelectField label="Status" field="status" options={['active','maintenance','offline']} value={form.status} onChange={upd} />
           </div>
 
           {/* Service */}
-          <SectionHead title="Service Tracking" />
+          <VSectionHead title="Service Tracking" />
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Last Service Date" field="lastServiceDate" type="date" />
-            <Field label="Last Service KM"  field="lastServiceKm"  type="number" />
-            <Field label="Next Service Date" field="nextServiceDate" type="date" />
-            <Field label="Next Service KM"  field="nextServiceKm"  type="number" />
+            <VField label="Last Service Date" field="lastServiceDate" type="date" value={form.lastServiceDate} onChange={upd} />
+            <VField label="Last Service KM"  field="lastServiceKm"  type="number" value={form.lastServiceKm} onChange={upd} />
+            <VField label="Next Service Date" field="nextServiceDate" type="date" value={form.nextServiceDate} onChange={upd} />
+            <VField label="Next Service KM"  field="nextServiceKm"  type="number" value={form.nextServiceKm} onChange={upd} />
           </div>
 
           {/* Insurance */}
-          <SectionHead title="Insurance" />
+          <VSectionHead title="Insurance" />
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Provider"   field="insProvider" />
-            <Field label="Policy No." field="insNumber"   />
-            <div className="col-span-2"><Field label="Expiry Date" field="insExpiry" type="date" /></div>
+            <VField label="Provider"   field="insProvider" value={form.insProvider} onChange={upd} />
+            <VField label="Policy No." field="insNumber" value={form.insNumber} onChange={upd} />
+            <div className="col-span-2"><VField label="Expiry Date" field="insExpiry" type="date" value={form.insExpiry} onChange={upd} /></div>
           </div>
 
           {/* Permit */}
-          <SectionHead title="Permit" />
+          <VSectionHead title="Permit" />
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Permit No." field="permitNumber" />
-            <Field label="Expiry"     field="permitExpiry" type="date" />
+            <VField label="Permit No." field="permitNumber" value={form.permitNumber} onChange={upd} />
+            <VField label="Expiry"     field="permitExpiry" type="date" value={form.permitExpiry} onChange={upd} />
           </div>
 
           {/* FC */}
-          <SectionHead title="Fitness Certificate (FC)" />
+          <VSectionHead title="Fitness Certificate (FC)" />
           <div className="grid grid-cols-2 gap-3">
-            <Field label="FC No."  field="fcNumber"  />
-            <Field label="Expiry"  field="fcExpiry"  type="date" />
+            <VField label="FC No."  field="fcNumber" value={form.fcNumber} onChange={upd} />
+            <VField label="Expiry"  field="fcExpiry"  type="date" value={form.fcExpiry} onChange={upd} />
           </div>
 
           {/* PUC */}
-          <SectionHead title="Pollution Certificate (PUC)" />
+          <VSectionHead title="Pollution Certificate (PUC)" />
           <div className="grid grid-cols-2 gap-3">
-            <Field label="PUC No." field="pucNumber" />
-            <Field label="Expiry"  field="pucExpiry" type="date" />
+            <VField label="PUC No." field="pucNumber" value={form.pucNumber} onChange={upd} />
+            <VField label="Expiry"  field="pucExpiry" type="date" value={form.pucExpiry} onChange={upd} />
           </div>
         </div>
 
