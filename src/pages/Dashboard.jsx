@@ -21,7 +21,7 @@ import { loadCustomers } from '../data/customerData'
 import { loadExpenses, summariseByType, isThisMonth } from '../data/expenseData'
 import { loadSettlements, monthLabel } from '../data/settlementData'
 import { loadBookings, getStatusCfg, TRIP_TYPE_CONFIG } from '../data/tripTypes'
-import { docStatus, daysLabel } from './Vehicles'
+import { docStatus, daysLabel } from '../utils/vehicleUtils'
 
 // ── Blocked section placeholder ───────────────────────────────
 function AccessBlocked({ label }) {
