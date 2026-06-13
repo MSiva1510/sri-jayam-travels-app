@@ -58,9 +58,21 @@ function FieldLabel({ children, required }) {
   )
 }
 
-function Input({ value, onChange, placeholder, type = 'text', required }) {
+function Input({ value, onChange, placeholder, type = 'text', required, field }) {
+  const handleChange = (e) => {
+    let v = e.target.value
+    // Phone field: digits only, max 10
+    if (field === 'contact') { v = v.replace(/\D/g, '').slice(0, 10) }
+    // Name/customer: letters, spaces, basic punctuation only, max 60
+    if (field === 'customer') { v = v.slice(0, 60); if (v.length > 0 && !/^[a-zA-Z0-9\s\-'.&()]*$/.test(v)) v = v.slice(0, -1) }
+    // Locations: alphanumeric + common punctuation, max 100
+    if (field === 'pickup' || field === 'drop') { v = v.slice(0, 100) }
+    // Fare: positive numbers only
+    if (type === 'number' && field === 'fare') { if (Number(v) < 0) v = '0' }
+    onChange({ target: { value: v } })
+  }
   return (
-    <input type={type} value={value} onChange={onChange} placeholder={placeholder} required={required}
+    <input type={type} value={value} onChange={handleChange} placeholder={placeholder} required={required}
       className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60
                  text-slate-800 dark:text-slate-100 placeholder-slate-300 dark:placeholder-slate-600 text-sm
                  focus:outline-none focus:ring-2 focus:ring-navy-500/25 focus:border-navy-400 transition-all font-body" />
@@ -151,12 +163,12 @@ function BookingModal({ booking, onClose, onSave, userName }) {
           <Grid2>
             <div>
               <FieldLabel required>Customer Name</FieldLabel>
-              <Input value={form.customer} onChange={e => upd({ customer: e.target.value })} placeholder="Full name" required />
+              <Input value={form.customer} onChange={e => upd({ customer: e.target.value })} placeholder="Full name or company" required field="customer" />
               {errors.customer && <p className="text-xs text-red-500 mt-1">{errors.customer}</p>}
             </div>
             <div>
               <FieldLabel>Contact</FieldLabel>
-              <Input type="tel" value={form.contact} onChange={e => upd({ contact: e.target.value })} placeholder="Mobile number" />
+              <Input type="tel" value={form.contact} onChange={e => upd({ contact: e.target.value })} placeholder="10-digit mobile" field="contact" />
             </div>
           </Grid2>
 
@@ -174,12 +186,12 @@ function BookingModal({ booking, onClose, onSave, userName }) {
           {/* Pickup / Drop */}
           <div>
             <FieldLabel required>Pickup Location</FieldLabel>
-            <Input value={form.pickup} onChange={e => upd({ pickup: e.target.value })} placeholder="e.g. Hotel Atithi, Puducherry" required />
+            <Input value={form.pickup} onChange={e => upd({ pickup: e.target.value })} placeholder="e.g. Hotel Atithi, Puducherry" required field="pickup" />
             {errors.pickup && <p className="text-xs text-red-500 mt-1">{errors.pickup}</p>}
           </div>
           <div>
             <FieldLabel>Drop / Destination</FieldLabel>
-            <Input value={form.drop} onChange={e => upd({ drop: e.target.value })} placeholder="e.g. Chennai Airport" />
+            <Input value={form.drop} onChange={e => upd({ drop: e.target.value })} placeholder="e.g. Chennai Airport" field="drop" />
           </div>
 
           {/* Dates */}
@@ -213,7 +225,7 @@ function BookingModal({ booking, onClose, onSave, userName }) {
           <Grid2>
             <div>
               <FieldLabel>Fare (Rs.)</FieldLabel>
-              <Input type="number" value={form.fare} onChange={e => upd({ fare: e.target.value })} placeholder="0" />
+              <Input type="number" value={form.fare} onChange={e => upd({ fare: e.target.value })} placeholder="0" field="fare" />
             </div>
             <div>
               <FieldLabel>Status</FieldLabel>

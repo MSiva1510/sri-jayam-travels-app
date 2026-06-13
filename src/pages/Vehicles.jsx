@@ -96,12 +96,32 @@ function VehicleModal({ vehicle, onClose, onSave }) {
   const upd = patch => setForm(f => ({ ...f, ...patch }))
 
   function Field({ label, field, type='text', required }) {
+    const handleChange = (e) => {
+      let v = e.target.value
+      // Registration numbers: uppercase alphanumeric
+      if (field === 'reg') { v = v.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12) }
+      // Model name: alphanumeric + spaces, max 40
+      if (field === 'model') { v = v.slice(0, 40) }
+      // Color: letters only, max 20
+      if (field === 'color') { v = v.replace(/[^a-zA-Z\s]/g, '').slice(0, 20) }
+      // Year: 4-digit number only
+      if (field === 'year') { v = v.replace(/\D/g, '').slice(0, 4) }
+      // KM readings: digits only
+      if (field === 'kmReading' || field === 'lastServiceKm' || field === 'nextServiceKm') {
+        v = v.replace(/\D/g, '').slice(0, 7)
+      }
+      // License / permit / FC / PUC numbers: alphanumeric, max 20
+      if (['insNumber','permitNumber','fcNumber','pucNumber'].includes(field)) {
+        v = v.toUpperCase().replace(/[^A-Z0-9\-/]/g, '').slice(0, 20)
+      }
+      upd({ [field]: v })
+    }
     return (
       <div>
         <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
           {label}{required && <span className="text-red-500 ml-1">*</span>}
         </label>
-        <input type={type} value={form[field] || ''} onChange={e => upd({ [field]: e.target.value })} required={required}
+        <input type={type} value={form[field] || ''} onChange={handleChange} required={required}
           className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition-all" />
       </div>
     )

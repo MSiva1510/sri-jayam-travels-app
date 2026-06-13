@@ -3,6 +3,7 @@
 
 export const SETTLEMENTS_KEY      = 'sjt_settlements'
 export const PAYSLIPS_KEY         = 'sjt_payslips'
+export const TRIP_PAYSLIPS_KEY    = 'sjt_trip_payslips'
 export const PAYROLL_SETTINGS_KEY = 'sjt_payroll_settings'
 
 // ── Settlement status config ──────────────────────────────────
@@ -240,4 +241,59 @@ export function savePayslip(payslip) {
 // Duplicate prevention
 export function settlementExists(driver, month, year) {
   return loadSettlements().some(s => s.driver === driver && s.month === month && s.year === year && !s._deleted)
+}
+
+// ── Per-trip payslips ─────────────────────────────────────────
+// A trip payslip is generated immediately when a trip is completed.
+// Shape: { id, bookingId, bookingNo, driver, vehicle, customer,
+//          pickup, drop, date, fare, bata, fuel, parking, net,
+//          status: 'pending'|'paid', paidAt, paidBy, createdAt }
+
+export function loadTripPayslips() {
+  try { const r = localStorage.getItem(TRIP_PAYSLIPS_KEY); return r ? JSON.parse(r) : [] } catch { return [] }
+}
+
+export function saveTripPayslip(payslip) {
+  try {
+    const arr = loadTripPayslips()
+    const idx = arr.findIndex(p => p.id === payslip.id)
+    if (idx >= 0) arr[idx] = payslip; else arr.unshift(payslip)
+    localStorage.setItem(TRIP_PAYSLIPS_KEY, JSON.stringify(arr))
+  } catch {}
+}
+
+export function generateTripPayslipId() {
+  const d  = new Date()
+  const y  = d.getFullYear().toString().slice(-2)
+  const m  = String(d.getMonth() + 1).padStart(2, '0')
+  const ts = Date.now().toString().slice(-5)
+  return `TPS-${y}${m}-${ts}`
+}
+
+// Build a trip payslip from a completed booking + payroll settings
+export function buildTripPayslip(booking, settings) {
+  const driverCfg = settings?.drivers?.[booking.driver] || {}
+  const bata      = driverCfg.dailyBata || 0
+  const fare      = booking.fare || 0
+  const net       = fare + bata
+  return {
+    id:        generateTripPayslipId(),
+    bookingId: booking.id,
+    bookingNo: booking.bookingNo || booking.id,
+    driver:    booking.driver || '',
+    vehicle:   booking.vehicle || '',
+    customer:  booking.customer || '',
+    pickup:    booking.pickup || '',
+    drop:      booking.drop || '',
+    date:      booking.startDate || new Date().toISOString().slice(0, 10),
+    fare,
+    bata,
+    fuel:      0,
+    parking:   0,
+    net,
+    status:    'pending',
+    paidAt:    null,
+    paidBy:    null,
+    createdAt: new Date().toISOString(),
+  }
 }

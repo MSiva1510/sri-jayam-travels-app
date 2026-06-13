@@ -82,13 +82,22 @@ function ExpenseModal({ expense, onClose, onSave, currentUser, isDriver: isDrv }
   }
 
   function F({ label, field, type='text', required, placeholder }) {
+    const handleChange = (e) => {
+      let v = e.target.value
+      if (type === 'number') {
+        if (field === 'amount' && (isNaN(v) || Number(v) < 0)) v = ''
+      }
+      if (field === 'description' || field === 'notes') v = v.slice(0, 200)
+      if (field === 'driver' && v.length > 0 && !/^[a-zA-Z\s\-'.]*$/.test(v)) v = v.slice(0, -1)
+      upd({ [field]: v })
+    }
     return (
       <div>
         <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
           {label}{required && <span className="text-red-500 ml-1">*</span>}
         </label>
         <input type={type} value={form[field] || ''} placeholder={placeholder}
-          onChange={e => upd({ [field]: e.target.value })} required={required}
+          onChange={handleChange} required={required}
           className={`w-full px-3 py-2 text-sm rounded-xl border bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100
             focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition-all
             ${errors[field] ? 'border-red-400 dark:border-red-600' : 'border-slate-200 dark:border-navy-700'}`} />

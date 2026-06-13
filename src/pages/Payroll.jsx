@@ -16,6 +16,7 @@ import {
   PAYMENT_METHODS, DEDUCTION_TYPES,
   DEFAULT_PAYROLL_SETTINGS, monthLabel, settlementExists,
   savePayslip, loadPayslips,
+  loadTripPayslips, saveTripPayslip,
 } from '../data/settlementData'
 import { loadExpenses } from '../data/expenseData'
 import { DRIVERS } from '../data/mockData'
@@ -555,85 +556,116 @@ function SettlementDetail({ s, onEdit, onDelete, onApprove, onSubmit, onMarkPaid
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Driver-only payslips portal — Module 5
+//  Per-Trip Payslip Card
+// ─────────────────────────────────────────────────────────────
+function TripPayslipCard({ p }) {
+  const [open, setOpen] = useState(false)
+  const isPaid = p.status === 'paid'
+  return (
+    <div className="glass-card rounded-2xl overflow-hidden">
+      <div className="flex items-center gap-3 p-4 cursor-pointer" onClick={() => setOpen(v => !v)}>
+        {/* Date badge */}
+        <div className="w-11 h-11 rounded-xl bg-navy-900 dark:bg-navy-800 flex flex-col items-center justify-center flex-shrink-0">
+          <span className="text-[8px] font-bold text-blue-400 uppercase leading-none">
+            {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date(p.date).getMonth()]}
+          </span>
+          <span className="text-sm font-black text-white leading-tight">{new Date(p.date).getDate()}</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{p.customer}</p>
+          <p className="text-[10px] text-slate-400 truncate">{p.pickup} → {p.drop || '—'}</p>
+          <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500">{p.bookingNo}</p>
+        </div>
+        <div className="text-right flex-shrink-0">
+          <p className="text-base font-black text-emerald-600 dark:text-emerald-400">Rs. {p.net.toLocaleString('en-IN')}</p>
+          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${isPaid ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'}`}>
+            {isPaid ? '✓ Paid' : 'Pending'}
+          </span>
+        </div>
+        {open ? <ChevronUp size={13} className="text-slate-400 flex-shrink-0" /> : <ChevronDown size={13} className="text-slate-400 flex-shrink-0" />}
+      </div>
+
+      {open && (
+        <div className="border-t border-slate-100 dark:border-navy-700 px-4 pb-4 pt-3 space-y-2 bg-slate-50/50 dark:bg-navy-800/20">
+          <div className="bg-white dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700 space-y-1.5">
+            <div className="flex justify-between text-xs"><span className="text-slate-500 dark:text-slate-400">Trip Fare</span><span className="font-bold text-slate-700 dark:text-slate-200">Rs. {p.fare.toLocaleString('en-IN')}</span></div>
+            {p.bata > 0 && <div className="flex justify-between text-xs"><span className="text-slate-500 dark:text-slate-400 pl-2">+ Daily Bata</span><span className="font-bold text-emerald-600 dark:text-emerald-400">Rs. {p.bata.toLocaleString('en-IN')}</span></div>}
+            {p.fuel > 0 && <div className="flex justify-between text-xs"><span className="text-slate-500 dark:text-slate-400 pl-2">+ Fuel</span><span className="font-bold text-emerald-600 dark:text-emerald-400">Rs. {p.fuel.toLocaleString('en-IN')}</span></div>}
+            {p.parking > 0 && <div className="flex justify-between text-xs"><span className="text-slate-500 dark:text-slate-400 pl-2">+ Parking</span><span className="font-bold text-emerald-600 dark:text-emerald-400">Rs. {p.parking.toLocaleString('en-IN')}</span></div>}
+            <div className="flex justify-between pt-1.5 border-t border-slate-100 dark:border-navy-700">
+              <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Net</span>
+              <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">Rs. {p.net.toLocaleString('en-IN')}</span>
+            </div>
+          </div>
+          {isPaid && p.paidAt && (
+            <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+              <CheckCircle size={10} /> Paid on {p.paidAt.slice(0,10)}{p.paidBy ? ` by ${p.paidBy}` : ''}
+            </p>
+          )}
+          <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500">{p.id} · {p.vehicle || '—'}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Driver-only payslips portal — per-trip model
 // ─────────────────────────────────────────────────────────────
 function DriverPayslipPortal({ user }) {
-  const allSettlements = loadSettlements()
-  const mine = allSettlements.filter(s => s.driver === user?.name)
-  const [selected, setSelected] = useState(null)
+  const mine = loadTripPayslips().filter(p => p.driver === user?.name)
 
-  const latest = mine[0]
+  const totalEarned = mine.reduce((s, p) => s + p.net, 0)
+  const totalPaid   = mine.filter(p => p.status === 'paid').reduce((s, p) => s + p.net, 0)
+  const pending     = mine.filter(p => p.status === 'pending').reduce((s, p) => s + p.net, 0)
 
   return (
     <div className="space-y-4">
-      {/* Current month summary */}
-      {latest && (
-        <div className="rounded-2xl overflow-hidden shadow-xl" style={{ background:'linear-gradient(135deg,#0d1b4b 0%,#1e3a8a 60%,#1d4ed8 100%)' }}>
-          <div className="p-5">
-            <div className="flex items-start justify-between gap-3 mb-4">
-              <div>
-                <p className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-1">Latest Settlement</p>
-                <h2 className="font-display font-black text-white text-xl">{monthLabel(latest.month, latest.year)}</h2>
-                <p className="text-white/60 text-xs">{latest.id}</p>
-              </div>
-              <StatusBadge status={latest.status} />
-            </div>
-            <div className="grid grid-cols-3 gap-2 mb-4">
-              {[
-                { label:'Working Days', value: latest.workingDays },
-                { label:'Trips Done',   value: latest.completedTrips },
-                { label:'Incentive',    value: `Rs.${(latest.incentive||0).toLocaleString()}` },
-              ].map(s => (
-                <div key={s.label} className="bg-white/10 rounded-xl p-2.5 text-center">
-                  <p className="text-white font-bold text-sm">{s.value}</p>
-                  <p className="text-white/50 text-[9px] mt-0.5">{s.label}</p>
-                </div>
-              ))}
-            </div>
-            <div className="bg-white/10 rounded-xl p-3 flex items-center justify-between">
-              <span className="text-white/70 text-sm font-bold">Net Salary</span>
-              <span className="font-display font-black text-white text-2xl">Rs. {latest.netAmount.toLocaleString('en-IN')}</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Settlement history — Module 9 */}
-      <div>
-        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Settlement History</p>
-        {mine.length === 0 ? (
-          <div className="glass-card rounded-2xl p-10 text-center">
-            <IndianRupee size={32} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-            <p className="text-slate-500 text-sm font-medium">No settlements yet</p>
-          </div>
-        ) : (
-          <div className="space-y-2.5">
-            {mine.map(s => (
-              <div key={s.id} className="glass-card rounded-2xl overflow-hidden">
-                <div className="flex items-center gap-3 p-4 cursor-pointer" onClick={() => setSelected(s)}>
-                  <div className="w-11 h-11 rounded-xl bg-navy-900 dark:bg-navy-800 flex flex-col items-center justify-center flex-shrink-0">
-                    <span className="text-[8px] font-bold text-blue-400 uppercase">{['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][s.month-1]}</span>
-                    <span className="text-xs font-black text-white">{s.year}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <StatusBadge status={s.status} />
-                    <p className="text-[10px] text-slate-400 mt-0.5">
-                      {s.workingDays} days · {s.completedTrips} trips
-                      {s.paymentDate ? ` · Paid ${s.paymentDate}` : ''}
-                    </p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-base font-black text-emerald-600 dark:text-emerald-400">Rs. {s.netAmount.toLocaleString('en-IN')}</p>
-                    <p className="text-[10px] text-slate-400">{s.paymentMethod || '—'}</p>
-                  </div>
-                </div>
+      {/* Earnings summary */}
+      <div className="rounded-2xl overflow-hidden shadow-xl" style={{ background:'linear-gradient(135deg,#0d1b4b 0%,#1e3a8a 60%,#1d4ed8 100%)' }}>
+        <div className="p-5">
+          <p className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-1">Sri Jayam Travels</p>
+          <h2 className="font-display font-black text-white text-xl mb-4">My Trip Earnings</h2>
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            {[
+              { label:'Total Trips',  value: mine.length },
+              { label:'Paid Trips',   value: mine.filter(p => p.status === 'paid').length },
+              { label:'Pending',      value: mine.filter(p => p.status === 'pending').length },
+            ].map(s => (
+              <div key={s.label} className="bg-white/10 rounded-xl p-2.5 text-center">
+                <p className="text-white font-bold text-sm">{s.value}</p>
+                <p className="text-white/50 text-[9px] mt-0.5">{s.label}</p>
               </div>
             ))}
           </div>
-        )}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-white/10 rounded-xl p-3 text-center">
+              <p className="text-white/60 text-[10px] font-bold uppercase">Total Earned</p>
+              <p className="font-display font-black text-white text-lg">Rs. {totalEarned.toLocaleString('en-IN')}</p>
+            </div>
+            <div className="bg-emerald-500/30 rounded-xl p-3 text-center">
+              <p className="text-white/60 text-[10px] font-bold uppercase">Pending Pay</p>
+              <p className="font-display font-black text-amber-300 text-lg">Rs. {pending.toLocaleString('en-IN')}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {selected && <PayslipView settlement={selected} onClose={() => setSelected(null)} />}
+      {/* Trip payslip list */}
+      <div>
+        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Trip Payslips</p>
+        {mine.length === 0 ? (
+          <div className="glass-card rounded-2xl p-10 text-center">
+            <IndianRupee size={32} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
+            <p className="text-slate-500 text-sm font-medium">No trip payslips yet</p>
+            <p className="text-slate-400 text-xs mt-1">Payslips are generated automatically when you complete a trip</p>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {mine.map(p => <TripPayslipCard key={p.id} p={p} />)}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -649,7 +681,9 @@ export default function Payroll() {
   const canDelete  = isAdmin
   const canApprove = isAdmin
 
+  const [tab,          setTab]          = useState('settlements') // 'settlements' | 'trip_payslips'
   const [settlements,  setSettlements]  = useState(() => loadSettlements())
+  const [tripPayslips, setTripPayslips] = useState(() => loadTripPayslips())
   const [expanded,     setExpanded]     = useState(null)
   const [showCreate,   setShowCreate]   = useState(false)
   const [editItem,     setEditItem]     = useState(null)
@@ -661,12 +695,12 @@ export default function Payroll() {
   const [toast,        setToast]        = useState('')
 
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 3000) }
-  const reload    = () => setSettlements(loadSettlements())
+  const reload    = () => { setSettlements(loadSettlements()); setTripPayslips(loadTripPayslips()) }
 
-  // Driver gets their own portal — Module 5
+  // Driver gets their own portal
   if (isDriver) return (
     <div className="space-y-5 animate-fade-up max-w-lg mx-auto">
-      <PageHeader title="My Payslips" subtitle="Settlement history and earnings" />
+      <PageHeader title="My Payslips" subtitle="Per-trip payslip history" />
       <DriverPayslipPortal user={user} />
     </div>
   )
@@ -695,7 +729,7 @@ export default function Payroll() {
     <div className="space-y-5 animate-fade-up">
       <PageHeader
         title="Payroll & Settlements"
-        subtitle={`${settlements.length} settlements · driver salary management`}
+        subtitle={`${settlements.length} settlements · ${tripPayslips.length} trip payslips`}
         action={
           <div className="flex items-center gap-2">
             {isAdmin && (
@@ -704,7 +738,7 @@ export default function Payroll() {
                 <Settings size={15} />
               </button>
             )}
-            {canCreate && (
+            {canCreate && tab === 'settlements' && (
               <button onClick={() => setShowCreate(true)}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white font-bold text-sm hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-lg active:scale-95">
                 <Plus size={15} /> New Settlement
@@ -714,6 +748,23 @@ export default function Payroll() {
         }
       />
 
+      {/* Tabs */}
+      <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1 w-fit">
+        {[['settlements','Monthly Settlements'],['trip_payslips','Trip Payslips']].map(([key, lbl]) => (
+          <button key={key} onClick={() => setTab(key)}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+              tab === key
+                ? 'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+            }`}>
+            {lbl}
+            <span className={`ml-1.5 text-[10px] ${tab === key ? 'text-blue-500' : 'text-slate-400'}`}>
+              {key === 'settlements' ? settlements.length : tripPayslips.length}
+            </span>
+          </button>
+        ))}
+      </div>
+
       {toast && (
         <div className="flex items-center gap-2.5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 rounded-xl px-4 py-2.5">
           <CheckCircle size={15} className="text-emerald-600 flex-shrink-0" />
@@ -721,7 +772,97 @@ export default function Payroll() {
         </div>
       )}
 
-      {/* Module 3: Dashboard KPIs */}
+      {/* ── Trip Payslips tab ── */}
+      {tab === 'trip_payslips' && (() => {
+        const filteredTP = tripPayslips.filter(p =>
+          (driverFilter === 'all' || p.driver === driverFilter)
+        )
+        const tpPending = tripPayslips.filter(p => p.status === 'pending').reduce((s,p) => s+p.net, 0)
+        const tpPaid    = tripPayslips.filter(p => p.status === 'paid').reduce((s,p) => s+p.net, 0)
+        return (
+          <div className="space-y-4">
+            {/* KPIs */}
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label:'Total Payslips', value: tripPayslips.length,           color:'text-navy-800 dark:text-blue-300' },
+                { label:'Pending Pay',    value:`Rs.${(tpPending/1000).toFixed(1)}k`, color:'text-amber-600 dark:text-amber-400' },
+                { label:'Total Paid',     value:`Rs.${(tpPaid/1000).toFixed(1)}k`,   color:'text-emerald-600 dark:text-emerald-400' },
+              ].map(s => (
+                <div key={s.label} className="glass-card rounded-xl px-3 py-3 text-center">
+                  <p className={`text-xl font-display font-black ${s.color}`}>{s.value}</p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{s.label}</p>
+                </div>
+              ))}
+            </div>
+            {/* Driver filter */}
+            <select value={driverFilter} onChange={e => setDriverFilter(e.target.value)}
+              className="px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
+              <option value="all">All Drivers</option>
+              {DRIVERS.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+            </select>
+            {/* List */}
+            {filteredTP.length === 0 ? (
+              <div className="glass-card rounded-2xl p-12 text-center">
+                <FileText size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
+                <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">No trip payslips yet</p>
+                <p className="text-slate-400 text-xs mt-1">Auto-generated when a driver completes a trip</p>
+              </div>
+            ) : (
+              <div className="glass-card rounded-2xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-slate-50/80 dark:bg-navy-800/50 border-b border-slate-100 dark:border-navy-700">
+                        {['Payslip ID','Driver','Customer','Date','Booking','Fare','Bata','Net','Status','Action'].map(h => (
+                          <th key={h} className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredTP.map(p => (
+                        <tr key={p.id} className="border-b border-slate-50 dark:border-navy-800 hover:bg-slate-50/50 dark:hover:bg-navy-800/30 transition-colors">
+                          <td className="px-3 py-2.5 text-[10px] font-mono text-slate-500 whitespace-nowrap">{p.id}</td>
+                          <td className="px-3 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">{p.driver}</td>
+                          <td className="px-3 py-2.5 text-xs text-slate-600 dark:text-slate-300 truncate max-w-[120px]">{p.customer}</td>
+                          <td className="px-3 py-2.5 text-xs text-slate-500 whitespace-nowrap">{p.date}</td>
+                          <td className="px-3 py-2.5 text-[10px] font-mono text-slate-400">{p.bookingNo}</td>
+                          <td className="px-3 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">Rs.{p.fare.toLocaleString('en-IN')}</td>
+                          <td className="px-3 py-2.5 text-xs text-emerald-600 dark:text-emerald-400">Rs.{p.bata.toLocaleString('en-IN')}</td>
+                          <td className="px-3 py-2.5 text-xs font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">Rs.{p.net.toLocaleString('en-IN')}</td>
+                          <td className="px-3 py-2.5">
+                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                              p.status === 'paid'
+                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                            }`}>
+                              {p.status === 'paid' ? '✓ Paid' : 'Pending'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5">
+                            {p.status === 'pending' && isAdmin && (
+                              <button
+                                onClick={() => {
+                                  const updated = { ...p, status:'paid', paidAt: new Date().toISOString(), paidBy: user?.name }
+                                  saveTripPayslip(updated)
+                                  reload()
+                                  showToast(`${p.id} marked as paid`)
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[10px] font-bold hover:bg-emerald-500 transition-colors whitespace-nowrap">
+                                Mark Paid
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
+      {tab === 'settlements' && (<>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label:'Total Paid',          value:`Rs.${(totalPayroll/1000).toFixed(1)}k`, color:'text-emerald-600 dark:text-emerald-400', filter:null       },
@@ -831,6 +972,7 @@ export default function Payroll() {
       )}
 
       {/* Modals */}
+      </>)}
       {(showCreate || editItem) && (
         <SettlementModal
           settlement={editItem}

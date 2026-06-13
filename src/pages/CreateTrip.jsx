@@ -22,7 +22,19 @@ function Label({ children, required }) {
   )
 }
 
-function Input({ id, type = 'text', value, onChange, placeholder, min, required, className = '', icon: Icon }) {
+function Input({ id, type = 'text', value, onChange, placeholder, min, max, required, className = '', icon: Icon, field }) {
+  const handleChange = (e) => {
+    let v = e.target.value
+    if (field === 'customer')                           { v = v.slice(0, 60) }
+    if (field === 'contact')                            { v = v.replace(/\D/g, '').slice(0, 10) }
+    if (field === 'pickup' || field === 'drop'
+        || field === 'destination' || field === 'baseLocation'
+        || field === 'stop')                            { v = v.slice(0, 100) }
+    if (field === 'numberOfDays' && Number(v) < 1)      { v = '1' }
+    if (field === 'waitingTime')                        { v = v.slice(0, 40) }
+    if (field === 'notes')                              { v = v.slice(0, 300) }
+    onChange({ target: { value: v } })
+  }
   return (
     <div className="relative">
       {Icon && (
@@ -31,8 +43,8 @@ function Input({ id, type = 'text', value, onChange, placeholder, min, required,
         </div>
       )}
       <input
-        id={id} type={type} value={value} onChange={onChange}
-        placeholder={placeholder} min={min} required={required}
+        id={id} type={type} value={value} onChange={handleChange}
+        placeholder={placeholder} min={min} max={max} required={required}
         className={`
           w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700
           bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100
@@ -100,11 +112,11 @@ function OneWayFields({ data, set }) {
     <FieldGroup title="Route" icon={Navigation}>
       <div>
         <Label required>Pickup Location</Label>
-        <Input icon={MapPin} value={data.pickup} onChange={e => set({ ...data, pickup: e.target.value })} placeholder="e.g. Hotel Atithi, Puducherry" required />
+        <Input icon={MapPin} value={data.pickup} onChange={e => set({ ...data, pickup: e.target.value })} placeholder="e.g. Hotel Atithi, Puducherry" required field="pickup" />
       </div>
       <div>
         <Label required>Drop Location</Label>
-        <Input icon={MapPin} value={data.drop} onChange={e => set({ ...data, drop: e.target.value })} placeholder="e.g. Chennai International Airport" required />
+        <Input icon={MapPin} value={data.drop} onChange={e => set({ ...data, drop: e.target.value })} placeholder="e.g. Chennai International Airport" required field="drop" />
       </div>
     </FieldGroup>
   )
@@ -116,11 +128,11 @@ function RoundTripFields({ data, set }) {
       <Grid2>
         <div>
           <Label required>Pickup Location</Label>
-          <Input icon={MapPin} value={data.pickup} onChange={e => set({ ...data, pickup: e.target.value })} placeholder="e.g. Puducherry Bus Stand" required />
+          <Input icon={MapPin} value={data.pickup} onChange={e => set({ ...data, pickup: e.target.value })} placeholder="e.g. Puducherry Bus Stand" required field="pickup" />
         </div>
         <div>
           <Label required>Destination</Label>
-          <Input icon={MapPin} value={data.destination} onChange={e => set({ ...data, destination: e.target.value })} placeholder="e.g. Bangalore" required />
+          <Input icon={MapPin} value={data.destination} onChange={e => set({ ...data, destination: e.target.value })} placeholder="e.g. Bangalore" required field="destination" />
         </div>
       </Grid2>
       <Grid2>
@@ -146,7 +158,7 @@ function LocalVisitFields({ data, set }) {
     <FieldGroup title="Base Location & Stops" icon={MapPin}>
       <div>
         <Label required>Base Location</Label>
-        <Input icon={MapPin} value={data.baseLocation} onChange={e => set({ ...data, baseLocation: e.target.value })} placeholder="e.g. Puducherry" required />
+        <Input icon={MapPin} value={data.baseLocation} onChange={e => set({ ...data, baseLocation: e.target.value })} placeholder="e.g. Puducherry" required field="baseLocation" />
       </div>
 
       <div>
@@ -176,7 +188,7 @@ function LocalVisitFields({ data, set }) {
               <input
                 type="text"
                 value={stop}
-                onChange={e => updateStop(i, e.target.value)}
+                onChange={e => updateStop(i, e.target.value.slice(0, 100))}
                 placeholder={`Stop ${i + 1} — e.g. Auroville`}
                 className="flex-1 px-3 py-2 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/25 focus:border-violet-400 transition-all font-body placeholder-slate-300 dark:placeholder-slate-600"
               />
@@ -216,11 +228,11 @@ function MultiDayFields({ data, set }) {
         <Grid2>
           <div>
             <Label required>Pickup Location</Label>
-            <Input icon={MapPin} value={data.pickup} onChange={e => set({ ...data, pickup: e.target.value })} placeholder="e.g. Puducherry" required />
+            <Input icon={MapPin} value={data.pickup} onChange={e => set({ ...data, pickup: e.target.value })} placeholder="e.g. Puducherry" required field="pickup" />
           </div>
           <div>
             <Label required>Destination(s)</Label>
-            <Input icon={MapPin} value={data.destination} onChange={e => set({ ...data, destination: e.target.value })} placeholder="e.g. Tirupati – Bangalore – Mysore" required />
+            <Input icon={MapPin} value={data.destination} onChange={e => set({ ...data, destination: e.target.value })} placeholder="e.g. Tirupati – Bangalore – Mysore" required field="destination" />
           </div>
         </Grid2>
         <div>
@@ -231,6 +243,7 @@ function MultiDayFields({ data, set }) {
             onChange={e => set({ ...data, numberOfDays: e.target.value })}
             placeholder="e.g. 4"
             required
+            field="numberOfDays"
           />
         </div>
       </FieldGroup>
@@ -589,6 +602,7 @@ export default function CreateTrip() {
                 onChange={e => setCommon({ ...common, customer: e.target.value })}
                 placeholder="Full name"
                 required
+                field="customer"
                 className={errors.customer ? 'border-red-400 dark:border-red-600' : ''}
               />
               {errors.customer && <p className="text-xs text-red-500 mt-1">{errors.customer}</p>}
@@ -600,6 +614,7 @@ export default function CreateTrip() {
                 value={common.contact}
                 onChange={e => setCommon({ ...common, contact: e.target.value })}
                 placeholder="10-digit mobile"
+                field="contact"
               />
             </div>
           </Grid2>

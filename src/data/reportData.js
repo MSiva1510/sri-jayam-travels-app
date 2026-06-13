@@ -1,7 +1,7 @@
 // ─── Report Data Aggregator ───────────────────────────────────
 // Reads from all existing data modules. No new localStorage keys.
 
-import { TRIPS, DRIVERS, VEHICLES, totalFare, totalNet, totalKm, totalExp } from './mockData'
+import { TRIPS, DRIVERS, VEHICLES } from './mockData'
 import { loadBookings, getStatusCfg }                    from './tripTypes'
 import { loadCustomers, getCustomerStats }               from './customerData'
 import { loadExpenses, EXPENSE_TYPES, summariseByType,
@@ -26,6 +26,13 @@ export function getExecutiveSummary() {
   const customers   = loadCustomers().filter(c => !c._deleted)
   const expenses    = loadExpenses()
   const settlements = loadSettlements()
+
+  // Finance — computed from live data, not hardcoded mock
+  const liveTotalFare = bookings.reduce((s, b) => s + (b.fare || 0), 0)
+  const liveTotalKm   = bookings.reduce((s, b) => s + (b.km   || 0), 0)
+  const liveTotalExp  = expenses.reduce((s, e) => s + (e.amount || 0), 0)
+  const liveTotalNet  = liveTotalFare - liveTotalExp
+
   return {
     trips: {
       total:     bookings.length,
@@ -52,7 +59,10 @@ export function getExecutiveSummary() {
       onLeave:   DRIVERS.filter(d => d.status==='on-leave').length,
     },
     finance: {
-      totalFare, totalNet, totalKm, totalExp,
+      totalFare:     liveTotalFare,
+      totalNet:      liveTotalNet,
+      totalKm:       liveTotalKm,
+      totalExp:      liveTotalExp,
       monthExpenses: expenses.filter(e=>isThisMonth(e.date)).reduce((s,e)=>s+e.amount,0),
       paidPayroll:   settlements.filter(s=>s.status==='paid').reduce((s,p)=>s+p.netAmount,0),
     },

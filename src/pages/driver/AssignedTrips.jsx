@@ -1,12 +1,14 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Phone, CheckCircle, Navigation,
-  AlertTriangle, Clock, MapPin, Car,
+  AlertTriangle, Clock, MapPin, Car, Map,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useRideLifecycleContext } from '../../context/RideLifecycleContext'
-import { TODAY_TRIPS, TRIP_TYPES } from '../../data/driverData'
+import { TRIP_TYPES } from '../../data/driverData'
+import { loadBookings, saveBooking } from '../../data/tripTypes'
+import { buildTripPayslip, saveTripPayslip, loadPayrollSettings } from '../../data/settlementData'
 import { RIDE_STATES, RIDE_STATE_CFG } from '../../hooks/useRideLifecycle'
 import { useGPS, loadActiveRideGPS, saveActiveRideGPS, clearActiveRideGPS, appendGPSHistory } from '../../hooks/useGPS'
 import ActiveTripCard from '../../components/ride/ActiveTripCard'
@@ -34,7 +36,7 @@ export default function AssignedTrips() {
   const { user }  = useAuth()
   const navigate  = useNavigate()
   const gps       = useGPS()
-  const driverKey = user?.username?.toLowerCase() || 'ramanan'
+  const driverKey = user?.username?.toLowerCase() || ''
 
   const {
     activeRide, rideState, elapsed, elapsedFmt,
@@ -43,7 +45,36 @@ export default function AssignedTrips() {
     onRideStart, onRidePause, onRideResume, onRideEnd,
   } = useRideLifecycleContext()
 
-  const base = TODAY_TRIPS[driverKey] || []
+  // ── Build today's trips from real bookings ────────────────
+  const todayISO = new Date().toISOString().slice(0, 10)
+
+  const base = useMemo(() => {
+    const all = loadBookings()
+    return all
+      .filter(b =>
+        b.driver?.toLowerCase() === user?.name?.toLowerCase() &&
+        b.startDate === todayISO &&
+        b.status !== 'cancelled'
+      )
+      .map(b => ({
+        tripId:        b.id,
+        customer:      b.customer,
+        contact:       b.contact || '',
+        pickup:        b.pickup  || '',
+        drop:          b.drop    || '',
+        tripType:      b.type    || 'one_way',
+        scheduledTime: b.startTime
+          ? new Date(`${b.startDate}T${b.startTime}`).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : '—',
+        status:  b.status === 'started' ? 'driving'
+               : b.status === 'completed' ? 'completed'
+               : 'pending',
+        fare:    b.fare  || 0,
+        km:      b.km    || 0,
+        notes:   b.notes || '',
+        bookingId: b.id,
+      }))
+  }, [user, todayISO])
   const [trips,  setTrips]  = useState(() =>
     activeRide?.tripId
       ? base.map(t => t.tripId === activeRide.tripId ? { ...t, status: 'driving' } : t)
@@ -59,6 +90,14 @@ export default function AssignedTrips() {
   const totalFare  = trips.reduce((s, t) => s + t.fare, 0)
   const doneCount  = trips.filter(t => t.status === 'completed').length
 
+  // ── Sync booking status helper ────────────────────────────
+  const syncBookingStatus = useCallback((bookingId, newStatus) => {
+    const all     = loadBookings()
+    const booking = all.find(b => b.id === bookingId)
+    if (!booking) return
+    saveBooking({ ...booking, status: newStatus, updatedAt: new Date().toISOString() })
+  }, [])
+
   // ── Start ride ────────────────────────────────────────────
   const handleStart = useCallback(async (tripId) => {
     const trip = trips.find(t => t.tripId === tripId)
@@ -68,8 +107,9 @@ export default function AssignedTrips() {
     const rideGPS = { tripId, customer: trip.customer, startCoord: startCoord || null, startTime: new Date().toISOString(), endCoord: null, endTime: null }
     saveActiveRideGPS(rideGPS)
     onRideStart(ride)
+    syncBookingStatus(trip.bookingId, 'started')
     setTrips(prev => prev.map(t => t.tripId === tripId ? { ...t, status: 'driving' } : t))
-  }, [trips, isActive, startRide, user, gps, onRideStart])
+  }, [trips, isActive, startRide, user, gps, onRideStart, syncBookingStatus])
 
   // ── Pause ─────────────────────────────────────────────────
   const handlePause = useCallback(() => {
@@ -97,10 +137,19 @@ export default function AssignedTrips() {
     const result = endRide()
     onRideEnd(activeRide)
     const tripId = activeRide?.tripId
+    // Sync booking to completed and auto-generate per-trip payslip
+    const allBookings = loadBookings()
+    const completedBooking = allBookings.find(b => b.id === tripId)
+    if (completedBooking) {
+      const updated = { ...completedBooking, status: 'completed', updatedAt: new Date().toISOString() }
+      saveBooking(updated)
+      const payslip = buildTripPayslip(updated, loadPayrollSettings())
+      saveTripPayslip(payslip)
+    }
     setTrips(prev => prev.map(t =>
       t.tripId === tripId ? { ...t, status: 'completed', endTime: now.toLocaleTimeString(), duration: result?.duration || elapsedFmt } : t
     ))
-  }, [gps, endRide, onRideEnd, activeRide, elapsedFmt])
+  }, [gps, endRide, onRideEnd, activeRide, elapsedFmt, syncBookingStatus])
 
   // ── Cancel ────────────────────────────────────────────────
   const handleCancel = useCallback(() => {
@@ -108,8 +157,9 @@ export default function AssignedTrips() {
     const tripId = activeRide?.tripId
     cancelRide('Driver cancelled')
     clearActiveRideGPS()
+    syncBookingStatus(tripId, 'assigned')
     setTrips(prev => prev.map(t => t.tripId === tripId ? { ...t, status: 'pending' } : t))
-  }, [activeRide, cancelRide])
+  }, [activeRide, cancelRide, syncBookingStatus])
 
   return (
     <div className="space-y-4 max-w-lg mx-auto animate-fade-up pb-6">
@@ -128,15 +178,35 @@ export default function AssignedTrips() {
 
       {/* Active ride card at top */}
       {isActive && activeRide && (
-        <ActiveTripCard
-          ride={activeRide}
-          elapsed={elapsed}
-          rideState={rideState}
-          onPause={handlePause}
-          onResume={handleResume}
-          onEnd={handleEnd}
-          onCancel={handleCancel}
-        />
+        <>
+          <ActiveTripCard
+            ride={activeRide}
+            elapsed={elapsed}
+            rideState={rideState}
+            onPause={handlePause}
+            onResume={handleResume}
+            onEnd={handleEnd}
+            onCancel={handleCancel}
+          />
+          {/* Map route button — open Google Maps from pickup to drop */}
+          {(() => {
+            const t = trips.find(tr => tr.tripId === activeRide.tripId)
+            if (!t) return null
+            const origin = encodeURIComponent(t.pickup || '')
+            const dest   = encodeURIComponent(t.drop   || '')
+            const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&travelmode=driving`
+            return (
+              <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-sm shadow-lg active:scale-95 transition-all">
+                <Map size={17} />
+                Open Route in Google Maps
+                <span className="text-white/70 text-xs ml-1 font-normal truncate max-w-[160px]">
+                  {t.pickup} → {t.drop || '—'}
+                </span>
+              </a>
+            )
+          })()}
+        </>
       )}
 
       {/* Summary */}
@@ -272,12 +342,23 @@ export default function AssignedTrips() {
 
                     {/* Start button for pending */}
                     {trip.status === 'pending' && !isActive && (
-                      <div className="flex gap-2">
-                        <a href={`tel:${trip.contact}`}
-                           className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
-                          <Phone size={13} /> Call
-                        </a>
-                        <StartRideButton onStart={() => handleStart(trip.tripId)} fullWidth />
+                      <div className="space-y-2">
+                        {/* Route preview */}
+                        {trip.pickup && (
+                          <a href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(trip.pickup)}&destination=${encodeURIComponent(trip.drop || trip.pickup)}&travelmode=driving`}
+                            target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-2 w-full px-3 py-2.5 rounded-xl border border-blue-200 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 text-xs font-bold hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors">
+                            <Map size={13} />
+                            Preview Route: {trip.pickup} → {trip.drop || '—'}
+                          </a>
+                        )}
+                        <div className="flex gap-2">
+                          <a href={`tel:${trip.contact}`}
+                             className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+                            <Phone size={13} /> Call
+                          </a>
+                          <StartRideButton onStart={() => handleStart(trip.tripId)} fullWidth />
+                        </div>
                       </div>
                     )}
 

@@ -8,6 +8,11 @@
     --sidebar-collapsed: 72px;
     --topbar-height: 60px;
   }
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
   html { scroll-behavior: smooth; }
   body { font-family: 'DM Sans', system-ui, sans-serif; }
   ::-webkit-scrollbar { width: 4px; height: 4px; }
