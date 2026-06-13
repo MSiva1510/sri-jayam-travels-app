@@ -316,8 +316,7 @@ function CustomerModal({ customer, onClose, onSave }) {
   const handleNotesChange = useCallback(e => upd({ notes: e.target.value }), [upd])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+    <ModalOverlay onClose={onClose}>
       <div className="relative w-full sm:w-[500px] max-h-[92vh] sm:max-h-[85vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl z-10 flex flex-col">
         <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-navy-700 flex-shrink-0">
@@ -489,7 +488,7 @@ function CustomerModal({ customer, onClose, onSave }) {
           </button>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   )
 }
 
@@ -636,8 +635,7 @@ function QuickBookingModal({ customer, onClose }) {
     onClose()
   }
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+    <ModalOverlay center onClose={onClose}>
       <div className="relative bg-white dark:bg-navy-900 rounded-3xl shadow-2xl p-6 max-w-sm mx-4">
         <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
           Start a new trip for <span className="font-bold">{customer.name}</span>?
@@ -651,7 +649,7 @@ function QuickBookingModal({ customer, onClose }) {
           </button>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   )
 }
 

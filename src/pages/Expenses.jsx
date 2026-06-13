@@ -6,6 +6,7 @@ import {
   TrendingDown, Filter,
 } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
+import ModalOverlay from '../components/ui/ModalOverlay'
 import Avatar     from '../components/ui/Avatar'
 import { useAuth } from '../context/AuthContext'
 import {
@@ -121,8 +122,7 @@ function ExpenseModal({ expense, onClose, onSave, currentUser, isDriver: isDrv }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+    <ModalOverlay onClose={onClose}>
       <div className="relative w-full sm:w-[480px] max-h-[92vh] sm:max-h-[85vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl z-10 flex flex-col">
         <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-navy-700 flex-shrink-0">
@@ -220,7 +220,7 @@ function ExpenseModal({ expense, onClose, onSave, currentUser, isDriver: isDrv }
           </button>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   )
 }
 

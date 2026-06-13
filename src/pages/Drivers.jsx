@@ -20,7 +20,7 @@ function DriverModal({ driver, bookings, payslips, onClose }) {
   const pendingPay  = mySlips.filter(p => p.status === 'pending').reduce((s, p) => s + p.net, 0)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
+    <ModalOverlay center onClose={onClose}>
       <div className="w-full max-w-lg glass-card rounded-3xl overflow-hidden shadow-2xl animate-fade-up" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="bg-gradient-to-br from-navy-900 to-navy-800 p-6">
@@ -91,7 +91,7 @@ function DriverModal({ driver, bookings, payslips, onClose }) {
           </div>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   )
 }
 

@@ -13,6 +13,9 @@
     margin: 0;
     padding: 0;
   }
+  body {
+  overflow-x: hidden;
+  }
   html { scroll-behavior: smooth; }
   body { font-family: 'DM Sans', system-ui, sans-serif; }
   ::-webkit-scrollbar { width: 4px; height: 4px; }

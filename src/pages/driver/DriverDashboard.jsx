@@ -77,8 +77,7 @@ function QuickAction({ icon: Icon, label, sub, color, onClick, danger, badge }) 
 
 function StatusModal({ current, onSelect, onClose }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+    <ModalOverlay onClose={onClose}>
       <div className="relative w-full sm:w-80 bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl z-10 animate-fade-up">
         <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mb-4 sm:hidden" />
         <h3 className="font-display font-black text-slate-800 dark:text-white text-base mb-1">Set Your Status</h3>
@@ -97,7 +96,7 @@ function StatusModal({ current, onSelect, onClose }) {
           ))}
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   )
 }
 
