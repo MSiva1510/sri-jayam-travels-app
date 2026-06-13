@@ -73,7 +73,7 @@ function Input({ value, onChange, placeholder, type = 'text', required, field })
   }
   return (
     <input type={type} value={value} onChange={handleChange} placeholder={placeholder} required={required}
-      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60
+      className="w-full px-3 py-2.5 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60
                  text-slate-800 dark:text-slate-100 placeholder-slate-300 dark:placeholder-slate-600 text-sm
                  focus:outline-none focus:ring-2 focus:ring-navy-500/25 focus:border-navy-400 transition-all font-body" />
   )
@@ -82,7 +82,7 @@ function Input({ value, onChange, placeholder, type = 'text', required, field })
 function Select({ value, onChange, children, required }) {
   return (
     <select value={value} onChange={onChange} required={required}
-      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60
+      className="w-full px-3 py-2.5 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60
                  text-slate-800 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500/25
                  focus:border-navy-400 transition-all font-body appearance-none">
       {children}
@@ -139,7 +139,7 @@ function BookingModal({ booking, onClose, onSave, userName }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:w-[520px] max-h-[92vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-3xl shadow-2xl z-10 flex flex-col">
+      <div className="relative w-full sm:w-[520px] max-h-[92vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl z-10 flex flex-col">
         {/* Handle */}
         <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 mb-1 sm:hidden flex-shrink-0" />
 
@@ -240,7 +240,7 @@ function BookingModal({ booking, onClose, onSave, userName }) {
             <FieldLabel>Notes</FieldLabel>
             <textarea value={form.notes} onChange={e => upd({ notes: e.target.value })}
               placeholder="Special instructions, passenger count…" rows={2}
-              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 placeholder-slate-300 dark:placeholder-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500/25 resize-none transition-all" />
+              className="w-full px-3 py-2.5 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 placeholder-slate-300 dark:placeholder-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500/25 resize-none transition-all" />
           </div>
         </div>
 
@@ -280,7 +280,7 @@ function AssignModal({ booking, bookings, onClose, onAssign }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:w-[440px] max-h-[90vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-3xl shadow-2xl z-10 flex flex-col">
+      <div className="relative w-full sm:w-[440px] max-h-[90vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl z-10 flex flex-col">
         <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
 
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-navy-700 flex-shrink-0">
@@ -306,7 +306,7 @@ function AssignModal({ booking, bookings, onClose, onAssign }) {
                 const isSelected = driver === d.name
                 return (
                   <button key={d.id} disabled={!canSelect} onClick={() => canSelect && setDriver(d.name)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all text-left
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all text-left
                       ${isSelected
                         ? 'border-navy-400 bg-navy-50 dark:bg-navy-800 ring-2 ring-navy-400/30'
                         : canSelect
@@ -336,7 +336,7 @@ function AssignModal({ booking, bookings, onClose, onAssign }) {
                 const isSelected = vehicle === v.reg
                 return (
                   <button key={v.id} disabled={!canSelect} onClick={() => canSelect && setVehicle(v.reg)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all text-left
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all text-left
                       ${isSelected
                         ? 'border-navy-400 bg-navy-50 dark:bg-navy-800 ring-2 ring-navy-400/30'
                         : canSelect
@@ -423,7 +423,7 @@ function BookingDetail({ booking, onEdit, onDelete, onAssign, canEdit, canDelete
       </div>
 
       {booking.notes && (
-        <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-900/15 rounded-xl px-3 py-2.5 border border-amber-100 dark:border-amber-800/30">
+        <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-900/15 rounded-lg px-3 py-2.5 border border-amber-100 dark:border-amber-800/30">
           <AlertTriangle size={12} className="text-amber-500 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-amber-700 dark:text-amber-400 font-medium leading-tight">{booking.notes}</p>
         </div>
@@ -433,19 +433,19 @@ function BookingDetail({ booking, onEdit, onDelete, onAssign, canEdit, canDelete
       <div className="flex gap-2 flex-wrap">
         {canAssign && !['completed','cancelled'].includes(booking.status) && (
           <button onClick={() => onAssign(booking)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all active:scale-95 shadow-md">
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all active:scale-95 shadow-md">
             <UserCheck size={13} /> Assign
           </button>
         )}
         {canEdit && !['completed','cancelled'].includes(booking.status) && (
           <button onClick={() => onEdit(booking)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
             <Edit2 size={13} /> Edit
           </button>
         )}
         {canDelete && (
           <button onClick={() => onDelete(booking.id)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/15 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/25 transition-colors">
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/15 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/25 transition-colors">
             <Trash2 size={13} /> Delete
           </button>
         )}
@@ -707,7 +707,7 @@ export default function Trips() {
             { label:'Active',    value: counts.active,    color:'text-amber-600 dark:text-amber-400' },
             { label:'Completed', value: counts.completed, color:'text-emerald-600 dark:text-emerald-400' },
           ].map(s => (
-            <div key={s.label} className="glass-card rounded-xl px-3 py-2.5 text-center cursor-pointer hover:shadow-md transition-all"
+            <div key={s.label} className="glass-card rounded-lg px-3 py-2.5 text-center cursor-pointer hover:shadow-md transition-all"
                  onClick={() => setStatusFilter(s.label.toLowerCase() === 'total' ? 'all' : s.label.toLowerCase())}>
               <p className={`text-xl font-display font-black ${s.color}`}>{s.value}</p>
               <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{s.label}</p>
@@ -741,7 +741,7 @@ export default function Trips() {
           {/* Filters */}
           {!isDriver && (
             <div className="flex flex-wrap gap-2.5 items-center">
-              <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/70 dark:bg-navy-800/60 flex-1 min-w-[160px] max-w-xs">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white/70 dark:bg-navy-800/60 flex-1 min-w-[160px] max-w-xs">
                 <Search size={14} className="text-slate-400 flex-shrink-0" />
                 <input type="text" value={search} onChange={e => setSearch(e.target.value)}
                   placeholder="Search bookings…"
@@ -764,7 +764,7 @@ export default function Trips() {
 
               {/* Type filter */}
               <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
-                className="px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
+                className="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
                 <option value="all">All Types</option>
                 {TRIP_TYPE_LIST.map(t => (
                   <option key={t.id} value={t.id}>{t.icon} {t.label}</option>

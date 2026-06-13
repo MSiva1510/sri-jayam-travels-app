@@ -98,7 +98,7 @@ function ExpenseModal({ expense, onClose, onSave, currentUser, isDriver: isDrv }
         </label>
         <input type={type} value={form[field] || ''} placeholder={placeholder}
           onChange={handleChange} required={required}
-          className={`w-full px-3 py-2 text-sm rounded-xl border bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100
+          className={`w-full px-3 py-2 text-sm rounded-lg border bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100
             focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition-all
             ${errors[field] ? 'border-red-400 dark:border-red-600' : 'border-slate-200 dark:border-navy-700'}`} />
         {errors[field] && <p className="text-[11px] text-red-500 mt-1">{errors[field]}</p>}
@@ -113,7 +113,7 @@ function ExpenseModal({ expense, onClose, onSave, currentUser, isDriver: isDrv }
           {label}{required && <span className="text-red-500 ml-1">*</span>}
         </label>
         <select value={form[field] || ''} onChange={e => upd({ [field]: e.target.value })}
-          className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none appearance-none">
+          className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none appearance-none">
           {children}
         </select>
         {errors[field] && <p className="text-[11px] text-red-500 mt-1">{errors[field]}</p>}
@@ -188,9 +188,9 @@ function ExpenseModal({ expense, onClose, onSave, currentUser, isDriver: isDrv }
             <div className="flex gap-2">
               <input type="text" value={form.receiptName || ''} onChange={e => upd({ receiptName: e.target.value })}
                 placeholder="receipt_filename.jpg"
-                className="flex-1 px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
+                className="flex-1 px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
               <button type="button" onClick={() => upd({ receiptName: `receipt_${form.type}_${form.date}.jpg`, receiptDate: form.date })}
-                className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-200 dark:hover:bg-navy-700 transition-colors whitespace-nowrap">
+                className="px-3 py-2 rounded-lg bg-slate-100 dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-200 dark:hover:bg-navy-700 transition-colors whitespace-nowrap">
                 📎 Attach
               </button>
             </div>
@@ -207,7 +207,7 @@ function ExpenseModal({ expense, onClose, onSave, currentUser, isDriver: isDrv }
             <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Notes</label>
             <textarea value={form.notes || ''} onChange={e => upd({ notes: e.target.value })}
               placeholder="Additional details…" rows={2}
-              className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25 resize-none transition-all" />
+              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25 resize-none transition-all" />
           </div>
         </div>
 
@@ -320,7 +320,7 @@ function ExpenseDetail({ expense, onEdit, onDelete, onApprove, onReject, canEdit
       </div>
 
       {expense.notes && (
-        <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-900/15 rounded-xl px-3 py-2.5 border border-amber-100 dark:border-amber-800/30">
+        <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-900/15 rounded-lg px-3 py-2.5 border border-amber-100 dark:border-amber-800/30">
           <AlertTriangle size={12} className="text-amber-500 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">{expense.notes}</p>
         </div>
@@ -328,7 +328,7 @@ function ExpenseDetail({ expense, onEdit, onDelete, onApprove, onReject, canEdit
 
       {/* Module 5: Receipt */}
       {expense.receiptName && (
-        <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/15 rounded-xl px-3 py-2 border border-blue-100 dark:border-blue-800/30">
+        <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/15 rounded-lg px-3 py-2 border border-blue-100 dark:border-blue-800/30">
           <FileText size={12} className="text-blue-500 flex-shrink-0" />
           <span className="text-xs font-medium text-blue-700 dark:text-blue-400 flex-1 truncate">{expense.receiptName}</span>
           <span className="text-[10px] text-blue-500">Stored locally</span>
@@ -341,24 +341,24 @@ function ExpenseDetail({ expense, onEdit, onDelete, onApprove, onReject, canEdit
         {canApprove && expense.status === 'submitted' && (
           <>
             <button onClick={() => onApprove(expense)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500 transition-all active:scale-95 shadow-md">
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500 transition-all active:scale-95 shadow-md">
               <CheckCircle size={13} /> Approve
             </button>
             <button onClick={() => onReject(expense)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors">
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors">
               <X size={13} /> Reject
             </button>
           </>
         )}
         {canEdit && !isApproved && (
           <button onClick={() => onEdit(expense)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
             <Edit2 size={13} /> Edit
           </button>
         )}
         {canDelete && !isApproved && (
           <button onClick={() => onDelete(expense.id)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/15 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/25 transition-colors">
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/15 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/25 transition-colors">
             <Trash2 size={13} /> Delete
           </button>
         )}
@@ -522,7 +522,7 @@ export default function Expenses() {
           { label:'Bata',      value: `Rs.${(bataAmt).toLocaleString()}`,   color:'text-emerald-600 dark:text-emerald-400' },
           { label:'Entries',   value: rangeFiltered.length,                 color:'text-slate-600 dark:text-slate-300' },
         ].map(s => (
-          <div key={s.label} className="glass-card rounded-xl px-3 py-2.5 text-center">
+          <div key={s.label} className="glass-card rounded-lg px-3 py-2.5 text-center">
             <p className={`text-lg font-display font-black ${s.color}`}>{s.value}</p>
             <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{s.label}</p>
           </div>

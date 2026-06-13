@@ -46,7 +46,7 @@ function Input({ id, type = 'text', value, onChange, placeholder, min, max, requ
         id={id} type={type} value={value} onChange={handleChange}
         placeholder={placeholder} min={min} max={max} required={required}
         className={`
-          w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700
+          w-full px-3 py-2.5 rounded-lg border border-slate-200 dark:border-navy-700
           bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100
           placeholder-slate-300 dark:placeholder-slate-600 text-sm
           focus:outline-none focus:ring-2 focus:ring-navy-500/25 focus:border-navy-400 dark:focus:border-blue-500
@@ -63,7 +63,7 @@ function Select({ id, value, onChange, children, required }) {
   return (
     <select
       id={id} value={value} onChange={onChange} required={required}
-      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700
+      className="w-full px-3 py-2.5 rounded-lg border border-slate-200 dark:border-navy-700
                  bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100
                  text-sm focus:outline-none focus:ring-2 focus:ring-navy-500/25
                  focus:border-navy-400 dark:focus:border-blue-500 transition-all font-body
@@ -78,7 +78,7 @@ function Textarea({ value, onChange, placeholder, rows = 3 }) {
   return (
     <textarea
       value={value} onChange={onChange} placeholder={placeholder} rows={rows}
-      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700
+      className="w-full px-3 py-2.5 rounded-lg border border-slate-200 dark:border-navy-700
                  bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100
                  placeholder-slate-300 dark:placeholder-slate-600 text-sm
                  focus:outline-none focus:ring-2 focus:ring-navy-500/25 focus:border-navy-400
@@ -190,7 +190,7 @@ function LocalVisitFields({ data, set }) {
                 value={stop}
                 onChange={e => updateStop(i, e.target.value.slice(0, 100))}
                 placeholder={`Stop ${i + 1} — e.g. Auroville`}
-                className="flex-1 px-3 py-2 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/25 focus:border-violet-400 transition-all font-body placeholder-slate-300 dark:placeholder-slate-600"
+                className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/25 focus:border-violet-400 transition-all font-body placeholder-slate-300 dark:placeholder-slate-600"
               />
               <button
                 type="button"

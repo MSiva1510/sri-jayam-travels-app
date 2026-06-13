@@ -61,7 +61,7 @@ function FInput({ label, field, value, onChange, type = 'text', required, placeh
       </label>
       <input type={type} value={value ?? ''} onChange={e => onChange(field, e.target.value)}
         placeholder={placeholder} readOnly={readOnly} required={required}
-        className={`w-full px-3 py-2 text-sm rounded-xl border bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100
+        className={`w-full px-3 py-2 text-sm rounded-lg border bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100
           focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition-all
           ${readOnly ? 'opacity-60 cursor-default' : ''}
           border-slate-200 dark:border-navy-700`} />
@@ -76,7 +76,7 @@ function FSelect({ label, field, value, onChange, children, required }) {
         {label}{required && <span className="text-red-500 ml-1">*</span>}
       </label>
       <select value={value ?? ''} onChange={e => onChange(field, e.target.value)}
-        className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none appearance-none">
+        className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none appearance-none">
         {children}
       </select>
     </div>
@@ -252,7 +252,7 @@ function SettlementModal({ settlement, onClose, onSave, currentUser }) {
 
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
           {error && (
-            <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/30 rounded-xl px-3 py-2.5">
+            <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/30 rounded-lg px-3 py-2.5">
               <AlertTriangle size={13} className="text-red-500 flex-shrink-0" />
               <p className="text-xs text-red-700 dark:text-red-400 font-medium">{error}</p>
             </div>
@@ -323,7 +323,7 @@ function SettlementModal({ settlement, onClose, onSave, currentUser }) {
           <div>
             <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Notes</label>
             <textarea value={form.notes||''} onChange={e => upd('notes', e.target.value)} rows={2}
-              className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none resize-none" />
+              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none resize-none" />
           </div>
         </div>
 
@@ -503,7 +503,7 @@ function SettlementDetail({ s, onEdit, onDelete, onApprove, onSubmit, onMarkPaid
 
       {/* Payment info */}
       {s.status === 'paid' && s.paymentDate && (
-        <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/15 rounded-xl px-3 py-2 border border-emerald-200 dark:border-emerald-800/30">
+        <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/15 rounded-lg px-3 py-2 border border-emerald-200 dark:border-emerald-800/30">
           <Wallet size={13} className="text-emerald-600 flex-shrink-0" />
           <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
             Paid {s.paymentDate} via {s.paymentMethod}
@@ -517,36 +517,36 @@ function SettlementDetail({ s, onEdit, onDelete, onApprove, onSubmit, onMarkPaid
       {/* Actions */}
       <div className="flex gap-2 flex-wrap pt-1">
         <button onClick={() => onViewPayslip(s)}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
           <FileText size={13} /> Payslip
         </button>
         {canSubmit && (
           <button onClick={() => onSubmit(s)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-500 transition-all active:scale-95 shadow-md">
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-500 transition-all active:scale-95 shadow-md">
             <Send size={13} /> Submit
           </button>
         )}
         {canApprov && (
           <button onClick={() => onApprove(s)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-violet-600 text-white text-xs font-bold hover:bg-violet-500 transition-all active:scale-95 shadow-md">
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold hover:bg-violet-500 transition-all active:scale-95 shadow-md">
             <CheckCircle size={13} /> Approve
           </button>
         )}
         {canPay && (
           <button onClick={() => onMarkPaid(s)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500 transition-all active:scale-95 shadow-md">
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500 transition-all active:scale-95 shadow-md">
             <Wallet size={13} /> Mark Paid
           </button>
         )}
         {canEdit && !isApproved && (
           <button onClick={() => onEdit(s)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
             <Edit2 size={13} /> Edit
           </button>
         )}
         {canDelete && !isApproved && (
           <button onClick={() => onDelete(s.id)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/15 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/25 transition-colors">
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/15 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/25 transition-colors">
             <Trash2 size={13} /> Delete
           </button>
         )}
@@ -734,7 +734,7 @@ export default function Payroll() {
           <div className="flex items-center gap-2">
             {isAdmin && (
               <button onClick={() => setShowConfig(true)}
-                className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+                className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
                 <Settings size={15} />
               </button>
             )}
@@ -796,7 +796,7 @@ export default function Payroll() {
             </div>
             {/* Driver filter */}
             <select value={driverFilter} onChange={e => setDriverFilter(e.target.value)}
-              className="px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
+              className="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
               <option value="all">All Drivers</option>
               {DRIVERS.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
             </select>
@@ -881,7 +881,7 @@ export default function Payroll() {
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
         <select value={driverFilter} onChange={e => setDriverFilter(e.target.value)}
-          className="px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
+          className="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
           <option value="all">All Drivers</option>
           {DRIVERS.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
         </select>

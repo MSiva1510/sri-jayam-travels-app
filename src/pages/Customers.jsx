@@ -186,7 +186,7 @@ function FormField({ label, field, type = 'text', required, placeholder, value, 
         onChange={handleChange}
         maxLength={maxLength || undefined}
         required={required}
-        className={`w-full px-3 py-2 text-sm rounded-xl border bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100
+        className={`w-full px-3 py-2 text-sm rounded-lg border bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100
           focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition-all
           ${error ? 'border-red-400 dark:border-red-600' : 'border-slate-200 dark:border-navy-700'}`}
       />
@@ -208,7 +208,7 @@ function FormSelect({ label, field, value, onChange, options }) {
       <select
         value={value || ''}
         onChange={onChange}
-        className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none appearance-none"
+        className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none appearance-none"
       >
         {options.map(o => typeof o === 'string' ? <option key={o}>{o}</option> : <option key={o.key} value={o.key}>{o.label}</option>)}
       </select>
@@ -475,7 +475,7 @@ function CustomerModal({ customer, onClose, onSave }) {
               placeholder="Preferred driver, vehicle, payment terms, VIP status…"
               rows={3}
               maxLength={300}
-              className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25 resize-none transition-all"
+              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25 resize-none transition-all"
             />
           </div>
         </div>
@@ -771,7 +771,7 @@ export default function Customers() {
       {/* Filters + Sort */}
       <div className="flex flex-wrap gap-2.5 items-center">
         {/* Search */}
-        <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/70 dark:bg-navy-800/60 flex-1 min-w-[160px] max-w-xs">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white/70 dark:bg-navy-800/60 flex-1 min-w-[160px] max-w-xs">
           <Search size={14} className="text-slate-400 flex-shrink-0" />
           <input type="text" value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Name, mobile, city…"
@@ -793,7 +793,7 @@ export default function Customers() {
 
         {/* Sort */}
         <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-          className="px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
+          className="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
           <option value="name">Sort: Name</option>
           <option value="city">Sort: City</option>
           <option value="recent">Sort: Recent</option>

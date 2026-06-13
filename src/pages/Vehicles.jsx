@@ -11,10 +11,23 @@ import { VEHICLES, TRIPS, DRIVERS } from '../data/mockData'
 import { saveVehicleAssignment, loadVehicleAssignments } from '../data/attendanceData'
 
 // ─────────────────────────────────────────────────────────────
-//  Document expiry helpers — defined in utils, re-exported here
-//  for backward compatibility with any direct imports from this file.
+//  Document expiry helpers (inlined here + in utils/vehicleUtils.js)
 // ─────────────────────────────────────────────────────────────
-export { docStatus, daysLabel } from '../utils/vehicleUtils'
+const _today = () => { const d = new Date(); d.setHours(0,0,0,0); return d }
+export function docStatus(expiryDateStr) {
+  if (!expiryDateStr) return { key:'unknown', label:'Unknown', badge:'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400', dot:'bg-slate-400' }
+  const exp  = new Date(expiryDateStr)
+  const days = Math.floor((exp - _today()) / (1000*60*60*24))
+  if (days < 0)   return { key:'expired', label:'Expired',       badge:'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',             dot:'bg-red-500',    days }
+  if (days <= 30) return { key:'soon',    label:'Expiring Soon', badge:'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',     dot:'bg-amber-500',  days }
+  return              { key:'active',  label:'Active',       badge:'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', dot:'bg-emerald-500', days }
+}
+export function daysLabel(days) {
+  if (days == null) return ''
+  if (days < 0) return `${Math.abs(days)}d overdue`
+  if (days === 0) return 'Expires today'
+  return `${days}d left`
+}
 
 // ─────────────────────────────────────────────────────────────
 //  Status config
@@ -122,7 +135,7 @@ function VehicleModal({ vehicle, onClose, onSave }) {
           {label}{required && <span className="text-red-500 ml-1">*</span>}
         </label>
         <input type={type} value={form[field] || ''} onChange={handleChange} required={required}
-          className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition-all" />
+          className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition-all" />
       </div>
     )
   }
@@ -132,7 +145,7 @@ function VehicleModal({ vehicle, onClose, onSave }) {
       <div>
         <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">{label}</label>
         <select value={form[field] || ''} onChange={e => upd({ [field]: e.target.value })}
-          className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none appearance-none">
+          className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none appearance-none">
           {options.map(o => <option key={o}>{o}</option>)}
         </select>
       </div>
@@ -258,7 +271,7 @@ function AssignmentModal({ vehicle, onClose, onConfirm }) {
         <div className="space-y-2 mb-4">
           {DRIVERS.map(d => (
             <button key={d.id} onClick={() => setSelectedDriver(d.name)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all ${
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all ${
                 selectedDriver === d.name
                   ? 'border-navy-400 bg-navy-50 dark:bg-navy-800 ring-2 ring-navy-400/30'
                   : 'border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/40 hover:bg-slate-50 dark:hover:bg-navy-800'
@@ -430,19 +443,19 @@ function VehicleDetail({ v, assignments, onEdit, onAssign, canEdit, canAssign, c
         <div className="flex gap-2 flex-wrap pt-1">
           {canAssign && v.status !== 'maintenance' && (
             <button onClick={() => onAssign(v)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all active:scale-95 shadow-md">
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all active:scale-95 shadow-md">
               <User size={13} /> Assign Driver
             </button>
           )}
           {canEdit && (
             <button onClick={() => onEdit(v)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
               <Edit2 size={13} /> Edit
             </button>
           )}
           {canDelete && (
             <button onClick={() => onDelete(v.id)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/15 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/25 transition-colors">
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/15 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/25 transition-colors">
               <X size={13} /> Delete
             </button>
           )}
