@@ -15,6 +15,7 @@ import {
   MOCK_CUSTOMERS,
 } from '../data/customerData'
 import { loadBookings, TRIP_TYPE_CONFIG, getStatusCfg } from '../data/tripTypes'
+import ModalOverlay from '../components/ui/ModalOverlay'
 
 // ─────────────────────────────────────────────────────────────
 //  Type badge

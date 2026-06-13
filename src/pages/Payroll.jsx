@@ -20,6 +20,7 @@ import {
 } from '../data/settlementData'
 import { loadExpenses } from '../data/expenseData'
 import { DRIVERS } from '../data/mockData'
+import ModalOverlay from '../components/ui/ModalOverlay'
 
 // ─────────────────────────────────────────────────────────────
 //  Shared helpers

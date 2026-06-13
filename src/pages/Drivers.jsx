@@ -7,6 +7,7 @@ import PageHeader from '../components/ui/PageHeader'
 import { DRIVERS }    from '../data/mockData'
 import { loadBookings } from '../data/tripTypes'
 import { loadTripPayslips } from '../data/settlementData'
+import ModalOverlay from '../components/ui/ModalOverlay'
 
 const STATUS_COLORS = {
   active:     'badge-active',

@@ -16,6 +16,7 @@ import {
   generateBookingNumber, loadBookings, saveBooking, deleteBooking,
 } from '../data/tripTypes'
 import { DRIVERS, VEHICLES } from '../data/mockData'
+import ModalOverlay from '../components/ui/ModalOverlay'
 
 // ─────────────────────────────────────────────────────────────
 //  Shared primitives

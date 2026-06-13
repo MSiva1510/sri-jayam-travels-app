@@ -10,7 +10,7 @@ import { useAuth } from '../context/AuthContext'
 import { VEHICLES, TRIPS, DRIVERS } from '../data/mockData'
 import { saveVehicleAssignment, loadVehicleAssignments } from '../data/attendanceData'
 import { docStatus, daysLabel } from '../utils/vehicleUtils'
-
+import ModalOverlay from '../components/ui/ModalOverlay'
 
 // ─────────────────────────────────────────────────────────────
 //  Status config

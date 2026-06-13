@@ -25,7 +25,7 @@ import { GPSChip }           from '../../components/gps/GPSStatusCard'
 import LocationPinCard       from '../../components/gps/LocationPinCard'
 import ActiveTripCard        from '../../components/ride/ActiveTripCard'
 import { StartRideButton }   from '../../components/ride/RideLifecycleControls'
-
+import ModalOverlay from '../../components/ui/ModalOverlay'
 // ─────────────────────────────────────────────────────────────
 //  Shared sub-components
 // ─────────────────────────────────────────────────────────────
