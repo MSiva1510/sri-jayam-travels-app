@@ -37,7 +37,7 @@ export default function DriverProfile() {
   const totalFare     = history.reduce((s, t) => s + t.fare, 0)
 
   return (
-    <div className="space-y-4 max-w-lg mx-auto animate-fade-up pb-6">
+    <div className="space-y-4 max-w-7xl mx-auto animate-fade-up pb-6">
 
       {/* Header */}
       <div className="flex items-center gap-3">

@@ -17,6 +17,8 @@ import {
 } from '../data/tripTypes'
 import { DRIVERS, VEHICLES } from '../data/mockData'
 import ModalOverlay from '../components/ui/ModalOverlay'
+import { addAuditEvent }    from '../data/auditLogData'
+import { addTimelineEvent } from '../data/tripTimelineData'
 
 // ─────────────────────────────────────────────────────────────
 //  Shared primitives
@@ -652,6 +654,11 @@ export default function Trips() {
     if (!assignBooking) return
     const updated = { ...assignBooking, driver, vehicle, status: 'assigned', updatedAt: new Date().toISOString() }
     saveBooking(updated)
+    addAuditEvent('TRIP_ASSIGNED', {
+      description: `${updated.customer} assigned to ${driver} (${vehicle})`,
+      tripId: updated.id, driver,
+    })
+    addTimelineEvent(updated.id, 'assigned', `Assigned to ${driver}`)
     reload()
     setAssignBooking(null)
   }
@@ -665,6 +672,15 @@ export default function Trips() {
 
   const handleStatusChange = (booking, newStatus) => {
     saveBooking({ ...booking, status: newStatus, updatedAt: new Date().toISOString() })
+    const auditMap = { completed: 'TRIP_COMPLETED', cancelled: 'TRIP_CANCELLED', started: 'TRIP_STARTED' }
+    const evMap    = { completed: 'completed', cancelled: 'cancelled', started: 'started' }
+    if (auditMap[newStatus]) {
+      addAuditEvent(auditMap[newStatus], {
+        description: `${booking.customer} — ${booking.pickup || ''} → ${booking.drop || ''}`,
+        tripId: booking.id, driver: booking.driver,
+      })
+    }
+    if (evMap[newStatus]) addTimelineEvent(booking.id, evMap[newStatus])
     reload()
   }
 

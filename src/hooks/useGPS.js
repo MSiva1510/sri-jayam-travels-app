@@ -1,30 +1,14 @@
 // ─── useGPS — Browser Geolocation Hook ───────────────────────
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { getAreaFromCoords } from '../utils/locationUtils'
 
 export const GPS_STORAGE_KEY      = 'sjt_gps_active_ride'
 export const GPS_HISTORY_KEY      = 'sjt_gps_history'
-// Fix 2: persist permission state so we never re-prompt unnecessarily
 export const GPS_PERMISSION_KEY   = 'sjt_gps_permission'
 
-// ── Placeholder reverse geocoder ─────────────────────────────
+// ── Area name — delegates to granular locationUtils map ───────
 export function getAreaName(lat, lng) {
-  if (lat == null || lng == null) return '—'
-  const regions = [
-    { name: 'Puducherry',    latMin: 11.88, latMax: 11.97, lngMin: 79.77, lngMax: 79.86 },
-    { name: 'Auroville',    latMin: 11.97, latMax: 12.02, lngMin: 79.80, lngMax: 79.85 },
-    { name: 'Cuddalore',    latMin: 11.73, latMax: 11.80, lngMin: 79.73, lngMax: 79.79 },
-    { name: 'Villupuram',   latMin: 11.91, latMax: 11.96, lngMin: 79.45, lngMax: 79.55 },
-    { name: 'Chennai',      latMin: 12.90, latMax: 13.20, lngMin: 80.10, lngMax: 80.30 },
-    { name: 'Bangalore',    latMin: 12.85, latMax: 13.10, lngMin: 77.45, lngMax: 77.75 },
-    { name: 'Salem',        latMin: 11.60, latMax: 11.70, lngMin: 78.10, lngMax: 78.20 },
-    { name: 'Tirupati',     latMin: 13.60, latMax: 13.70, lngMin: 79.38, lngMax: 79.48 },
-    { name: 'Coimbatore',   latMin: 10.98, latMax: 11.05, lngMin: 76.93, lngMax: 77.00 },
-    { name: 'Mahabalipuram',latMin: 12.60, latMax: 12.66, lngMin: 80.17, lngMax: 80.22 },
-  ]
-  for (const r of regions) {
-    if (lat >= r.latMin && lat <= r.latMax && lng >= r.lngMin && lng <= r.lngMax) return r.name
-  }
-  return `${lat.toFixed(4)}°N, ${lng.toFixed(4)}°E`
+  return getAreaFromCoords(lat, lng)
 }
 
 function friendlyGPSError(err) {

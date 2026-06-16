@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Phone, CheckCircle, Navigation,
@@ -13,6 +13,12 @@ import { RIDE_STATES, RIDE_STATE_CFG } from '../../hooks/useRideLifecycle'
 import { useGPS, loadActiveRideGPS, saveActiveRideGPS, clearActiveRideGPS, appendGPSHistory } from '../../hooks/useGPS'
 import ActiveTripCard from '../../components/ride/ActiveTripCard'
 import { StartRideButton } from '../../components/ride/RideLifecycleControls'
+// Day 19/20 integrations
+import { addAuditEvent }    from '../../data/auditLogData'
+import { addTimelineEvent, loadTimeline, fmtTimelineTime, getEventCfg } from '../../data/tripTimelineData'
+import { startRouteRecording, buildRouteHistoryEntry, clearTripRoute, saveRoutePoint } from '../../data/gpsHistoryData'
+import { saveDriverStatus }  from '../../data/driverStatusData'
+import { buildMapsUrl, estimateTravelTime } from '../../utils/locationUtils'
 
 const FILTERS = [
   { key: 'all',       label: 'All'       },
@@ -36,7 +42,6 @@ export default function AssignedTrips() {
   const { user }  = useAuth()
   const navigate  = useNavigate()
   const gps       = useGPS()
-  const driverKey = user?.username?.toLowerCase() || ''
 
   const {
     activeRide, rideState, elapsed, elapsedFmt,
@@ -45,7 +50,6 @@ export default function AssignedTrips() {
     onRideStart, onRidePause, onRideResume, onRideEnd,
   } = useRideLifecycleContext()
 
-  // ── Build today's trips from real bookings ────────────────
   const todayISO = new Date().toISOString().slice(0, 10)
 
   const base = useMemo(() => {
@@ -75,6 +79,7 @@ export default function AssignedTrips() {
         bookingId: b.id,
       }))
   }, [user, todayISO])
+
   const [trips,  setTrips]  = useState(() =>
     activeRide?.tripId
       ? base.map(t => t.tripId === activeRide.tripId ? { ...t, status: 'driving' } : t)
@@ -83,10 +88,12 @@ export default function AssignedTrips() {
   const [filter, setFilter] = useState('all')
   const [active, setActive] = useState(null)
 
-  const filtered = filter === 'all' ? trips : trips.filter(t =>
-    filter === 'driving' ? (t.status === 'driving') : t.status === filter
-  )
+  // Route recording cleanup ref
+  const stopRecording = useRef(null)
 
+  const filtered   = filter === 'all' ? trips : trips.filter(t =>
+    filter === 'driving' ? t.status === 'driving' : t.status === filter
+  )
   const totalFare  = trips.reduce((s, t) => s + t.fare, 0)
   const doneCount  = trips.filter(t => t.status === 'completed').length
 
@@ -102,54 +109,124 @@ export default function AssignedTrips() {
   const handleStart = useCallback(async (tripId) => {
     const trip = trips.find(t => t.tripId === tripId)
     if (!trip || isActive) return
-    const ride = startRide({ ...trip, vehicle: user?.vehicle || '' }, user?.id)
+
+    const ride       = startRide({ ...trip, vehicle: user?.vehicle || '' }, user?.id)
     const startCoord = await gps.requestCurrent()
-    const rideGPS = { tripId, customer: trip.customer, startCoord: startCoord || null, startTime: new Date().toISOString(), endCoord: null, endTime: null }
+
+    // Persist GPS start
+    const rideGPS = {
+      tripId,
+      customer:   trip.customer,
+      driver:     user?.name,
+      startCoord: startCoord || null,
+      startTime:  new Date().toISOString(),
+      endCoord:   null,
+      endTime:    null,
+    }
     saveActiveRideGPS(rideGPS)
+
     onRideStart(ride)
     syncBookingStatus(trip.bookingId, 'started')
     setTrips(prev => prev.map(t => t.tripId === tripId ? { ...t, status: 'driving' } : t))
+
+    // ── Day 19/20 integrations ──────────────────────────────
+    addAuditEvent('TRIP_STARTED', {
+      description: `${trip.customer} — ${trip.pickup} → ${trip.drop}`,
+      tripId,
+      driver: user?.name,
+    })
+    addTimelineEvent(tripId, 'started')
+    saveDriverStatus(user?.name, 'driving', startCoord?.area || null)
+
+    // Save first route point immediately
+    if (startCoord) {
+      saveRoutePoint({ tripId, lat: startCoord.lat, lng: startCoord.lng, area: startCoord.area })
+    }
+
+    // Start recording route every 30 seconds
+    if (stopRecording.current) stopRecording.current()
+    stopRecording.current = startRouteRecording(tripId, () => gps.requestCurrent())
   }, [trips, isActive, startRide, user, gps, onRideStart, syncBookingStatus])
 
   // ── Pause ─────────────────────────────────────────────────
   const handlePause = useCallback(() => {
     pauseRide()
     onRidePause(activeRide)
-  }, [pauseRide, onRidePause, activeRide])
+    addTimelineEvent(activeRide?.tripId, 'paused')
+    saveDriverStatus(user?.name, 'waiting', null)
+  }, [pauseRide, onRidePause, activeRide, user])
 
   // ── Resume ────────────────────────────────────────────────
   const handleResume = useCallback(() => {
     resumeRide()
     onRideResume(activeRide)
-  }, [resumeRide, onRideResume, activeRide])
+    addTimelineEvent(activeRide?.tripId, 'resumed')
+    saveDriverStatus(user?.name, 'driving', null)
+  }, [resumeRide, onRideResume, activeRide, user])
 
   // ── End ride ──────────────────────────────────────────────
   const handleEnd = useCallback(async () => {
     const endCoord = await gps.requestCurrent()
-    const now = new Date()
-    const saved = loadActiveRideGPS()
+    const now      = new Date()
+    const saved    = loadActiveRideGPS()
+    const tripId   = activeRide?.tripId
+
+    // Build duration string
+    const ms  = saved?.startTime ? now.getTime() - new Date(saved.startTime).getTime() : null
+    const dur = ms ? (() => {
+      const m = Math.floor(ms / 60000)
+      const h = Math.floor(m / 60)
+      return h > 0 ? `${h}h ${m % 60}m` : `${m}m`
+    })() : elapsedFmt
+
+    // Save route history entry
     if (saved) {
-      const ms = saved.startTime ? now.getTime() - new Date(saved.startTime).getTime() : null
-      const dur = ms ? (() => { const m = Math.floor(ms/60000); const h = Math.floor(m/60); return h > 0 ? `${h}h ${m%60}m` : `${m}m` })() : elapsedFmt
-      appendGPSHistory({ ...saved, endCoord, endTime: now.toISOString(), duration: dur, completedAt: now.toISOString() })
+      const historyEntry = buildRouteHistoryEntry({
+        tripId,
+        customer:   saved.customer,
+        driver:     saved.driver || user?.name,
+        startCoord: saved.startCoord,
+        endCoord,
+        startTime:  saved.startTime,
+        endTime:    now.toISOString(),
+        duration:   dur,
+      })
+      appendGPSHistory({ ...historyEntry, completedAt: now.toISOString() })
     }
+
+    // Clear active state
     clearActiveRideGPS()
+    if (stopRecording.current) { stopRecording.current(); stopRecording.current = null }
+
     const result = endRide()
     onRideEnd(activeRide)
-    const tripId = activeRide?.tripId
-    // Sync booking to completed and auto-generate per-trip payslip
-    const allBookings = loadBookings()
+
+    // Update booking + auto-payslip
+    const allBookings      = loadBookings()
     const completedBooking = allBookings.find(b => b.id === tripId)
     if (completedBooking) {
-      const updated = { ...completedBooking, status: 'completed', updatedAt: new Date().toISOString() }
+      const updated = { ...completedBooking, status: 'completed', updatedAt: now.toISOString() }
       saveBooking(updated)
       const payslip = buildTripPayslip(updated, loadPayrollSettings())
       saveTripPayslip(payslip)
     }
+
     setTrips(prev => prev.map(t =>
-      t.tripId === tripId ? { ...t, status: 'completed', endTime: now.toLocaleTimeString(), duration: result?.duration || elapsedFmt } : t
+      t.tripId === tripId
+        ? { ...t, status: 'completed', endTime: now.toLocaleTimeString(), duration: result?.duration || dur }
+        : t
     ))
-  }, [gps, endRide, onRideEnd, activeRide, elapsedFmt, syncBookingStatus])
+
+    // ── Day 19/20 integrations ──────────────────────────────
+    addAuditEvent('TRIP_COMPLETED', {
+      description: `Trip ${tripId?.slice(-8)} completed — ${dur}`,
+      tripId,
+      driver: user?.name,
+    })
+    addTimelineEvent(tripId, 'completed')
+    saveDriverStatus(user?.name, 'available', endCoord?.area || null)
+
+  }, [gps, endRide, onRideEnd, activeRide, elapsedFmt, user])
 
   // ── Cancel ────────────────────────────────────────────────
   const handleCancel = useCallback(() => {
@@ -157,12 +234,15 @@ export default function AssignedTrips() {
     const tripId = activeRide?.tripId
     cancelRide('Driver cancelled')
     clearActiveRideGPS()
+    if (stopRecording.current) { stopRecording.current(); stopRecording.current = null }
     syncBookingStatus(tripId, 'assigned')
+    addTimelineEvent(tripId, 'cancelled')
+    saveDriverStatus(user?.name, 'available', null)
     setTrips(prev => prev.map(t => t.tripId === tripId ? { ...t, status: 'pending' } : t))
-  }, [activeRide, cancelRide, syncBookingStatus])
+  }, [activeRide, cancelRide, syncBookingStatus, user])
 
   return (
-    <div className="space-y-4 max-w-lg mx-auto animate-fade-up pb-6">
+    <div className="space-y-4 max-w-7xl mx-auto animate-fade-up pb-6">
 
       {/* Header */}
       <div className="flex items-center gap-3">
@@ -176,7 +256,7 @@ export default function AssignedTrips() {
         </div>
       </div>
 
-      {/* Active ride card at top */}
+      {/* Active ride card */}
       {isActive && activeRide && (
         <>
           <ActiveTripCard
@@ -188,15 +268,11 @@ export default function AssignedTrips() {
             onEnd={handleEnd}
             onCancel={handleCancel}
           />
-          {/* Map route button — open Google Maps from pickup to drop */}
           {(() => {
-            const t = trips.find(tr => tr.tripId === activeRide.tripId)
+            const t       = trips.find(tr => tr.tripId === activeRide.tripId)
             if (!t) return null
-            const origin = encodeURIComponent(t.pickup || '')
-            const dest   = encodeURIComponent(t.drop   || '')
-            const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&travelmode=driving`
             return (
-              <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+              <a href={buildMapsUrl(t.pickup, t.drop)} target="_blank" rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-sm shadow-lg active:scale-95 transition-all">
                 <Map size={17} />
                 Open Route in Google Maps
@@ -212,8 +288,8 @@ export default function AssignedTrips() {
       {/* Summary */}
       <div className="grid grid-cols-3 gap-2.5">
         {[
-          { label: 'Total Trips', value: trips.length,    color: 'text-blue-600 dark:text-blue-400'        },
-          { label: 'Completed',   value: doneCount,       color: 'text-emerald-600 dark:text-emerald-400'  },
+          { label: 'Total Trips', value: trips.length,    color: 'text-blue-600 dark:text-blue-400'       },
+          { label: 'Completed',   value: doneCount,       color: 'text-emerald-600 dark:text-emerald-400' },
           { label: 'Total Fare',  value: `Rs. ${(totalFare/1000).toFixed(1)}k`, color: 'text-navy-800 dark:text-blue-300' },
         ].map(s => (
           <div key={s.label} className="glass-card rounded-xl p-3 text-center">
@@ -226,7 +302,9 @@ export default function AssignedTrips() {
       {/* Filter tabs */}
       <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1">
         {FILTERS.map(f => {
-          const cnt = f.key === 'all' ? trips.length : trips.filter(t => f.key === 'driving' ? t.status === 'driving' : t.status === f.key).length
+          const cnt = f.key === 'all' ? trips.length : trips.filter(t =>
+            f.key === 'driving' ? t.status === 'driving' : t.status === f.key
+          ).length
           return (
             <button key={f.key} onClick={() => setFilter(f.key)}
               className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
@@ -253,6 +331,7 @@ export default function AssignedTrips() {
             const isExpanded = active === trip.tripId
             const typeLabel  = TRIP_TYPES[trip.tripType] || trip.tripType
             const isDriving  = trip.status === 'driving'
+            const timeline   = loadTimeline(trip.tripId)
 
             return (
               <div key={trip.tripId} className={`glass-card rounded-2xl overflow-hidden ${isDriving ? 'ring-2 ring-blue-400/50' : ''}`}>
@@ -279,7 +358,8 @@ export default function AssignedTrips() {
                 {/* Expanded */}
                 {isExpanded && (
                   <div className="border-t border-slate-100 dark:border-navy-700 p-4 bg-slate-50/50 dark:bg-navy-800/30 space-y-3">
-                    {/* Route */}
+
+                    {/* Route visual */}
                     <div className="flex items-stretch gap-3 bg-white dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700">
                       <div className="flex flex-col items-center gap-1">
                         <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0" />
@@ -298,18 +378,18 @@ export default function AssignedTrips() {
                       </div>
                     </div>
 
-                    {/* Details grid */}
+                    {/* Details */}
                     <div className="grid grid-cols-2 gap-2">
                       {[
-                        { label:'Trip ID',    value: trip.tripId,           mono: true },
-                        { label:'Scheduled',  value: trip.scheduledTime              },
-                        { label:'Trip Type',  value: typeLabel                       },
-                        { label:'Distance',   value: `${trip.km} km`                },
-                        { label:'Fare',       value: `Rs. ${trip.fare.toLocaleString('en-IN')}`, hi: true },
-                        { label:'Contact',    value: trip.contact                    },
+                        { label: 'Trip ID',   value: trip.tripId,     mono: true },
+                        { label: 'Scheduled', value: trip.scheduledTime           },
+                        { label: 'Trip Type', value: typeLabel                    },
+                        { label: 'Distance',  value: `${trip.km} km`             },
+                        { label: 'Fare',      value: `Rs. ${trip.fare.toLocaleString('en-IN')}`, hi: true },
+                        { label: 'Contact',   value: trip.contact                 },
                         ...(trip.status === 'completed' ? [
-                          { label:'Start',    value: trip.startTime                 },
-                          { label:'Duration', value: trip.duration, hi: true         },
+                          { label: 'End Time',  value: trip.endTime               },
+                          { label: 'Duration',  value: trip.duration, hi: true    },
                         ] : []),
                       ].map(d => (
                         <div key={d.label} className="bg-white dark:bg-navy-800/60 rounded-xl p-2.5 border border-slate-100 dark:border-navy-700">
@@ -326,7 +406,7 @@ export default function AssignedTrips() {
                       </div>
                     )}
 
-                    {/* Active ride inline controls */}
+                    {/* Active inline controls */}
                     {isDriving && isActive && activeRide?.tripId === trip.tripId && (
                       <ActiveTripCard
                         ride={activeRide}
@@ -340,21 +420,50 @@ export default function AssignedTrips() {
                       />
                     )}
 
-                    {/* Start button for pending */}
+                    {/* Pending — route preview card + start */}
                     {trip.status === 'pending' && !isActive && (
                       <div className="space-y-2">
-                        {/* Route preview */}
+
+                        {/* Enhanced route preview card */}
                         {trip.pickup && (
-                          <a href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(trip.pickup)}&destination=${encodeURIComponent(trip.drop || trip.pickup)}&travelmode=driving`}
-                            target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-2 w-full px-3 py-2.5 rounded-xl border border-blue-200 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 text-xs font-bold hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors">
-                            <Map size={13} />
-                            Preview Route: {trip.pickup} → {trip.drop || '—'}
-                          </a>
+                          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 rounded-xl p-3 space-y-2">
+                            <div className="flex items-stretch gap-2.5">
+                              <div className="flex flex-col items-center gap-1 pt-1">
+                                <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+                                <div className="flex-1 w-0.5 border-l border-dashed border-blue-300 dark:border-blue-700" />
+                                <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
+                              </div>
+                              <div className="flex-1 min-w-0 space-y-1.5">
+                                <div>
+                                  <p className="text-[9px] font-bold text-blue-500 dark:text-blue-400 uppercase">Pickup</p>
+                                  <p className="text-xs font-bold text-slate-700 dark:text-slate-200 leading-tight">{trip.pickup}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[9px] font-bold text-blue-500 dark:text-blue-400 uppercase">Destination</p>
+                                  <p className="text-xs font-bold text-slate-700 dark:text-slate-200 leading-tight">{trip.drop || '—'}</p>
+                                </div>
+                              </div>
+                              {trip.km > 0 && (
+                                <div className="flex-shrink-0 text-right">
+                                  <p className="text-[9px] font-bold text-blue-500 dark:text-blue-400 uppercase">Distance</p>
+                                  <p className="text-sm font-black text-slate-800 dark:text-white">{trip.km} KM</p>
+                                  <p className="text-[9px] font-bold text-blue-500 dark:text-blue-400 uppercase mt-1">ETA</p>
+                                  <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{estimateTravelTime(trip.km)}</p>
+                                </div>
+                              )}
+                            </div>
+                            <a href={buildMapsUrl(trip.pickup, trip.drop)}
+                              target="_blank" rel="noopener noreferrer"
+                              className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors">
+                              <Map size={12} />
+                              Open Route in Google Maps
+                            </a>
+                          </div>
                         )}
+
                         <div className="flex gap-2">
                           <a href={`tel:${trip.contact}`}
-                             className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+                            className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
                             <Phone size={13} /> Call
                           </a>
                           <StartRideButton onStart={() => handleStart(trip.tripId)} fullWidth />
@@ -362,6 +471,7 @@ export default function AssignedTrips() {
                       </div>
                     )}
 
+                    {/* Completed */}
                     {trip.status === 'completed' && (
                       <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/15 rounded-xl px-3 py-2">
                         <CheckCircle size={13} className="text-emerald-500 flex-shrink-0" />
@@ -369,6 +479,26 @@ export default function AssignedTrips() {
                         {trip.duration && <span className="ml-auto text-xs font-bold text-emerald-600 dark:text-emerald-400">{trip.duration}</span>}
                       </div>
                     )}
+
+                    {/* Trip Timeline */}
+                    {timeline.length > 0 && (
+                      <div>
+                        <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Trip Timeline</p>
+                        <div className="space-y-1.5">
+                          {timeline.map((ev, i) => {
+                            const evCfg = getEventCfg(ev.event)
+                            return (
+                              <div key={i} className="flex items-center gap-2.5 px-3 py-2 bg-white dark:bg-navy-800/60 rounded-xl border border-slate-100 dark:border-navy-700">
+                                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${evCfg.dot}`} />
+                                <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 flex-1">{ev.label}</span>
+                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{fmtTimelineTime(ev.timestamp)}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                   </div>
                 )}
               </div>

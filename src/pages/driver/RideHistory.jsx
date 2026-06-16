@@ -105,7 +105,7 @@ export default function RideHistory() {
   const toggleEvents = i => setShowEvents(p => ({ ...p, [i]: !p[i] }))
 
   return (
-    <div className="space-y-4 max-w-lg mx-auto animate-fade-up pb-6">
+    <div className="space-y-4 max-w-7xl mx-auto animate-fade-up pb-6">
 
       {/* Header */}
       <div className="flex items-center gap-3">

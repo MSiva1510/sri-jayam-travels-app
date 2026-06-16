@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Plus, Download, Eye } from 'lucide-react'
-import Avatar     from '../components/ui/Avatar'
-import Button     from '../components/ui/Button'
-import PageHeader from '../components/ui/PageHeader'
-import { loadBookings, getStatusCfg, BOOKING_STATUSES } from '../data/tripTypes'
+import { Plus, Printer, Eye } from 'lucide-react'
+import Avatar        from '../components/ui/Avatar'
+import Button        from '../components/ui/Button'
+import PageHeader    from '../components/ui/PageHeader'
+import InvoiceModal  from '../components/invoice/InvoiceModal'
+import { loadBookings, getStatusCfg } from '../data/tripTypes'
 
 const FILTERS = [
   { key: 'all',       label: 'All'       },
@@ -25,6 +26,7 @@ function StatusBadge({ status }) {
 
 export default function Invoices() {
   const [filter,   setFilter]   = useState('all')
+  const [selected, setSelected] = useState(null)   // booking shown in InvoiceModal
   const bookings = loadBookings()
 
   const filtered = filter === 'all'
@@ -37,6 +39,10 @@ export default function Invoices() {
 
   return (
     <div className="space-y-5 animate-fade-up">
+
+      {/* Invoice preview / print / share modal */}
+      {selected && <InvoiceModal booking={selected} onClose={() => setSelected(null)} />}
+
       <PageHeader
         title="Invoices"
         subtitle="Trip bills, pay slips &amp; invoice management"
@@ -121,11 +127,19 @@ export default function Invoices() {
                   <td className="px-4 py-3"><StatusBadge status={b.status} /></td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1.5">
-                      <button className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors" title="View Invoice">
+                      <button
+                        onClick={() => setSelected(b)}
+                        className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                        title="View Invoice"
+                      >
                         <Eye size={13} />
                       </button>
-                      <button className="w-7 h-7 rounded-lg bg-slate-50 dark:bg-navy-700 text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-navy-600 transition-colors" title="Download">
-                        <Download size={13} />
+                      <button
+                        onClick={() => setSelected(b)}
+                        className="w-7 h-7 rounded-lg bg-slate-50 dark:bg-navy-700 text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-navy-600 transition-colors"
+                        title="Print Invoice"
+                      >
+                        <Printer size={13} />
                       </button>
                     </div>
                   </td>

@@ -369,7 +369,7 @@ export default function DriverDashboard() {
   const currentArea = gps.currentCoord?.area || activeRideGPS?.currentCoord?.area
 
   return (
-    <div className="space-y-4 max-w-lg mx-auto animate-fade-up pb-6">
+    <div className="space-y-4 max-w-7xl mx-auto animate-fade-up pb-6">
 
       {/* ── Welcome card ── */}
       <div className="glass-card rounded-2xl p-4 relative overflow-hidden">

@@ -7,6 +7,8 @@ import {
   CheckCircle, AlertTriangle,
 } from 'lucide-react'
 import { TRIP_TYPE_LIST, TRIP_TYPE_CONFIG, saveBooking, generateBookingNumber } from '../data/tripTypes'
+import { addAuditEvent }   from '../data/auditLogData'
+import { addTimelineEvent } from '../data/tripTimelineData'
 import { DRIVERS, VEHICLES } from '../data/mockData'
 import PageHeader from '../components/ui/PageHeader'
 
@@ -458,6 +460,14 @@ export default function CreateTrip() {
     }
 
     saveBooking(booking)
+    addAuditEvent('TRIP_CREATED', {
+      description: `${booking.customer} — ${booking.pickup || ''} → ${booking.drop || ''}`,
+      tripId: booking.id,
+      driver: booking.driver,
+    })
+    if (booking.driver) {
+      addTimelineEvent(booking.id, 'assigned', `Assigned to ${booking.driver}`)
+    }
     setSubmitted(true)
   }
 

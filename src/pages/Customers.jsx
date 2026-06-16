@@ -16,6 +16,7 @@ import {
 } from '../data/customerData'
 import { loadBookings, TRIP_TYPE_CONFIG, getStatusCfg } from '../data/tripTypes'
 import ModalOverlay from '../components/ui/ModalOverlay'
+import { addAuditEvent } from '../data/auditLogData'
 
 // ─────────────────────────────────────────────────────────────
 //  Type badge
@@ -677,7 +678,11 @@ export default function Customers() {
   const canDelete = user?.role === 'admin'
 
   const handleSave = (customer) => {
+    const isNew = !customers.find(c => c.id === customer.id)
     saveCustomer(customer)
+    if (isNew) {
+      addAuditEvent('CUSTOMER_ADDED', { description: `${customer.name} — ${customer.type || 'individual'}` })
+    }
     setCustomers(loadCustomers())
     setShowAdd(false)
     setEditCustomer(null)

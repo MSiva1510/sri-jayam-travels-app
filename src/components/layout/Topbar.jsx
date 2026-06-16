@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Menu, Bell, Sun, Moon, Search, ChevronRight, LogOut, User, Settings, ChevronDown } from 'lucide-react'
+import { Menu, Sun, Moon, Search, ChevronRight, LogOut, User, Settings, ChevronDown } from 'lucide-react'
 import { useApp }  from '../../context/AppContext'
 import { useAuth, ROLE_LABELS, ROLE_COLORS } from '../../context/AuthContext'
 import Avatar from '../ui/Avatar'
+import NotificationCenter from '../ui/NotificationCenter'
 
 const PAGE_TITLES = {
   '/':                { label: 'Dashboard',       sub: 'Overview for May 2026'          },
@@ -84,10 +85,7 @@ export default function Topbar() {
         </button>
 
         {/* Notifications */}
-        <button className="relative w-9 h-9 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-navy-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-navy-700 transition-all">
-          <Bell size={16} />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 border-2 border-white dark:border-navy-800" />
-        </button>
+        <NotificationCenter />
 
         {/* User dropdown */}
         {user && (

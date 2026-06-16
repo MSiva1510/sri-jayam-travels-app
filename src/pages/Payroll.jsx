@@ -21,6 +21,7 @@ import {
 import { loadExpenses } from '../data/expenseData'
 import { DRIVERS } from '../data/mockData'
 import ModalOverlay from '../components/ui/ModalOverlay'
+import { addAuditEvent } from '../data/auditLogData'
 
 // ─────────────────────────────────────────────────────────────
 //  Shared helpers
@@ -720,7 +721,16 @@ export default function Payroll() {
   const handleDelete = id => { if (!window.confirm('Delete this settlement?')) return; deleteSettlement(id); reload(); setExpanded(null); showToast('Deleted') }
   const handleSubmit = s => { saveSettlement({ ...s, status:'pending', updatedAt: new Date().toISOString() }); reload(); showToast(`${s.id} submitted for approval`) }
   const handleApprove = s => { saveSettlement({ ...s, status:'approved', approvedBy: user?.name, updatedAt: new Date().toISOString() }); reload(); showToast(`${s.id} approved`) }
-  const handleMarkPaid = s => { saveSettlement(s); reload(); setMarkPaidItem(null); showToast(`${s.id} marked as paid`) }
+  const handleMarkPaid = s => {
+    saveSettlement(s)
+    reload()
+    setMarkPaidItem(null)
+    showToast(`${s.id} marked as paid`)
+    addAuditEvent('PAYROLL_SETTLED', {
+      description: `${s.driver} — Rs. ${(s.netAmount||0).toLocaleString('en-IN')} marked paid`,
+      driver: s.driver,
+    })
+  }
 
   return (
     <div className="space-y-5 animate-fade-up">

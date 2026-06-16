@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Save, Building, FileText, Bell, Palette, Database } from 'lucide-react'
+import { Save, Building, FileText, Bell, Palette, Database, CheckCircle, RotateCcw } from 'lucide-react'
 import Button     from '../components/ui/Button'
 import PageHeader from '../components/ui/PageHeader'
-import { BIZ } from '../data/mockData'
+import { loadSettings, saveSettings, resetSettings } from '../data/settingsData'
 
+// ─── Sub-components ───────────────────────────────────────────
 function Toggle({ checked, onChange }) {
   return (
     <button
@@ -29,143 +30,169 @@ function SectionCard({ icon: Icon, title, children }) {
   )
 }
 
-function Field({ label, type = 'text', defaultValue, options }) {
+function Field({ label, name, value, onChange, type = 'text', options, rows = 3 }) {
+  const cls = `w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-navy-700
+               bg-white dark:bg-navy-800/60 text-slate-700 dark:text-slate-200
+               focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400
+               transition-colors font-body`
   return (
     <div>
       <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{label}</label>
       {type === 'select' ? (
-        <select
-          defaultValue={defaultValue}
-          className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-navy-700
-                     bg-white dark:bg-navy-800/60 text-slate-700 dark:text-slate-200
-                     focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400
-                     transition-colors font-body"
-        >
-          {options?.map(o => <option key={o}>{o}</option>)}
+        <select className={cls} value={value} onChange={e => onChange(name, e.target.value)}>
+          {options?.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
       ) : type === 'textarea' ? (
-        <textarea
-          defaultValue={defaultValue}
-          rows={3}
-          className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-navy-700
-                     bg-white dark:bg-navy-800/60 text-slate-700 dark:text-slate-200
-                     focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400
-                     transition-colors resize-none font-body"
-        />
+        <textarea className={cls} rows={rows} value={value} onChange={e => onChange(name, e.target.value)} />
       ) : (
-        <input
-          type={type}
-          defaultValue={defaultValue}
-          className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-navy-700
-                     bg-white dark:bg-navy-800/60 text-slate-700 dark:text-slate-200
-                     focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400
-                     transition-colors font-body"
-        />
+        <input type={type} className={cls} value={value} onChange={e => onChange(name, e.target.value)} />
       )}
     </div>
   )
 }
 
+// ─── Main Settings Page ───────────────────────────────────────
 export default function Settings() {
-  const [notifWa,     setNotifWa]     = useState(true)
-  const [notifEmail,  setNotifEmail]  = useState(false)
-  const [autoInvoice, setAutoInvoice] = useState(true)
-  const [darkModeSet, setDarkModeSet] = useState(false)
-  const [compactMode, setCompactMode] = useState(false)
+  const [cfg,   setCfg]   = useState(() => loadSettings())
+  const [saved, setSaved] = useState(false)
+  const [toast, setToast] = useState('')
+
+  const updateBiz    = (key, val) => setCfg(c => ({ ...c, biz:           { ...c.biz,           [key]: val } }))
+  const updateInv    = (key, val) => setCfg(c => ({ ...c, invoice:       { ...c.invoice,       [key]: val } }))
+  const updateNotif  = (key, val) => setCfg(c => ({ ...c, notifications: { ...c.notifications, [key]: val } }))
+  const updateAppear = (key, val) => setCfg(c => ({ ...c, appearance:    { ...c.appearance,    [key]: val } }))
+
+  function handleSave() {
+    const ok = saveSettings(cfg)
+    if (ok) {
+      setSaved(true)
+      setToast('Settings saved successfully!')
+      setTimeout(() => { setSaved(false); setToast('') }, 3000)
+    }
+  }
+
+  function handleReset() {
+    if (!window.confirm('Reset all settings to defaults? This cannot be undone.')) return
+    resetSettings()
+    setCfg(loadSettings())
+    setToast('Settings reset to defaults.')
+    setTimeout(() => setToast(''), 3000)
+  }
 
   return (
     <div className="space-y-5 animate-fade-up max-w-3xl">
       <PageHeader
         title="Settings"
         subtitle="Business configuration and app preferences"
-        action={<Button icon={Save} variant="primary">Save Changes</Button>}
+        action={
+          <Button icon={saved ? CheckCircle : Save} variant="primary" onClick={handleSave}>
+            {saved ? 'Saved!' : 'Save Changes'}
+          </Button>
+        }
       />
 
-      {/* Business Info */}
+      {toast && (
+        <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-sm text-emerald-700 dark:text-emerald-400 font-medium">
+          <CheckCircle size={15} className="flex-shrink-0" />
+          {toast}
+        </div>
+      )}
+
+      {/* ── Business Info ── */}
       <SectionCard icon={Building} title="Business Information">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Business Name"   defaultValue={BIZ.name}    />
-          <Field label="Phone Number"    defaultValue={BIZ.phone}   type="tel"   />
-          <Field label="Email Address"   defaultValue={BIZ.email}   type="email" />
-          <Field label="Website"         defaultValue={BIZ.website} type="url"   />
+          <Field label="Business Name"    name="name"    value={cfg.biz.name}    onChange={updateBiz} />
+          <Field label="Phone Number"     name="phone"   value={cfg.biz.phone}   onChange={updateBiz} type="tel" />
+          <Field label="Email Address"    name="email"   value={cfg.biz.email}   onChange={updateBiz} type="email" />
+          <Field label="Website"          name="website" value={cfg.biz.website} onChange={updateBiz} type="url" />
+          <Field label="GSTIN (optional)" name="gstin"   value={cfg.biz.gstin}   onChange={updateBiz} />
+          <Field label="Logo URL"         name="logo"    value={cfg.biz.logo}    onChange={updateBiz} type="url" />
         </div>
-        <Field label="Address" defaultValue={BIZ.address} type="textarea" />
+        <Field label="Address" name="address" value={cfg.biz.address} onChange={updateBiz} type="textarea" rows={2} />
       </SectionCard>
 
-      {/* Invoice Settings */}
+      {/* ── Invoice Settings ── */}
       <SectionCard icon={FileText} title="Invoice Settings">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Field label="Invoice Prefix"    defaultValue="SJT"   />
-          <Field label="Currency Symbol"   defaultValue="Rs."   type="select" options={['Rs.', '₹', 'INR']} />
-          <Field label="Default Bill Type" defaultValue="Both"  type="select" options={['Pay Slip only', 'Invoice only', 'Both']} />
+          <Field label="Invoice Prefix"    name="prefix"   value={cfg.invoice.prefix}   onChange={updateInv} />
+          <Field label="Currency Symbol"   name="currency" value={cfg.invoice.currency} onChange={updateInv} type="select" options={['Rs.', '₹', 'INR']} />
+          <Field label="Default Bill Type" name="billType" value={cfg.invoice.billType} onChange={updateInv} type="select" options={['Pay Slip only', 'Invoice only', 'Both']} />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Financial Year Start" defaultValue="April" type="select" options={['April','January']} />
-          <Field label="Invoice Footer Text"  defaultValue="Thank you for choosing Sri Jayam Travels!" />
+          <Field label="Financial Year Start" name="fyStart"    value={cfg.invoice.fyStart}    onChange={updateInv} type="select" options={['April', 'January']} />
+          <Field label="Invoice Footer Text"  name="footerText" value={cfg.invoice.footerText} onChange={updateInv} />
+        </div>
+        <Field label="Terms & Conditions" name="termsText" value={cfg.invoice.termsText} onChange={updateInv} type="textarea" rows={2} />
+        <div className="flex items-center justify-between gap-4 py-1">
+          <div>
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Show GSTIN on invoice</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Display GSTIN number on generated invoices</p>
+          </div>
+          <Toggle checked={cfg.invoice.showGSTIN} onChange={v => updateInv('showGSTIN', v)} />
         </div>
       </SectionCard>
 
-      {/* Notifications */}
+      {/* ── Notifications ── */}
       <SectionCard icon={Bell} title="Notifications & Automation">
         {[
-          { label:'WhatsApp invoice to customer', sub:'Auto-send invoice via WA after bill generation', val:notifWa,     set:setNotifWa     },
-          { label:'Email notifications',           sub:'Send invoice copy to business email',            val:notifEmail,  set:setNotifEmail  },
-          { label:'Auto-generate bill',            sub:'Generate PDF automatically after trip entry',   val:autoInvoice, set:setAutoInvoice },
+          { key: 'whatsapp',    label: 'WhatsApp invoice to customer', sub: 'Auto-send invoice via WA after bill generation' },
+          { key: 'email',       label: 'Email notifications',          sub: 'Send invoice copy to business email'            },
+          { key: 'autoInvoice', label: 'Auto-generate bill',           sub: 'Generate PDF automatically after trip entry'    },
         ].map(t => (
-          <div key={t.label} className="flex items-center justify-between gap-4 py-1">
+          <div key={t.key} className="flex items-center justify-between gap-4 py-1">
             <div>
               <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{t.label}</p>
               <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{t.sub}</p>
             </div>
-            <Toggle checked={t.val} onChange={t.set} />
+            <Toggle checked={cfg.notifications[t.key]} onChange={v => updateNotif(t.key, v)} />
           </div>
         ))}
       </SectionCard>
 
-      {/* Appearance */}
+      {/* ── Appearance ── */}
       <SectionCard icon={Palette} title="Appearance">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Theme" defaultValue="Light" type="select" options={['Light','Dark','System']} />
-          <Field label="Accent Color" defaultValue="Navy Blue" type="select" options={['Navy Blue','Teal','Violet','Emerald']} />
-        </div>
-        {[
-          { label:'Compact mode', sub:'Reduce spacing for denser data view', val:compactMode, set:setCompactMode },
-        ].map(t => (
-          <div key={t.label} className="flex items-center justify-between gap-4 py-1">
-            <div>
-              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{t.label}</p>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{t.sub}</p>
-            </div>
-            <Toggle checked={t.val} onChange={t.set} />
+        <div className="flex items-center justify-between gap-4 py-1">
+          <div>
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Compact mode</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Reduce spacing for denser data view</p>
           </div>
-        ))}
+          <Toggle checked={cfg.appearance.compactMode} onChange={v => updateAppear('compactMode', v)} />
+        </div>
       </SectionCard>
 
-      {/* Drivers & vehicles quick-add */}
-      <SectionCard icon={Database} title="Default Driver Contacts">
+      {/* ── Data & Storage ── */}
+      <SectionCard icon={Database} title="Data & Storage">
         <div className="space-y-3">
-          {[
-            { name:'Ramanan',      mob:'8754914315' },
-            { name:'Babu',         mob:'9894403206' },
-            { name:'Rajasekharan', mob:'6383401383' },
-          ].map(d => (
-            <div key={d.name} className="flex items-center gap-3">
-              <input
-                defaultValue={d.name}
-                className="flex-1 px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30 font-body"
-              />
-              <input
-                defaultValue={d.mob}
-                className="flex-1 px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30 font-body"
-              />
-            </div>
-          ))}
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            All data is stored locally in your browser. Export CSV from the Reports page to back up data.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { key: 'sjt_bookings',       label: 'Bookings'   },
+              { key: 'sjt_customers',      label: 'Customers'  },
+              { key: 'sjt_expenses',       label: 'Expenses'   },
+              { key: 'sjt_settlements',    label: 'Payroll'    },
+              { key: 'sjt_audit_log',      label: 'Audit Log'  },
+              { key: 'sjt_trip_timelines', label: 'Timelines'  },
+            ].map(s => {
+              let count = 0
+              try { const r = localStorage.getItem(s.key); count = r ? JSON.parse(r).length : 0 } catch {}
+              return (
+                <div key={s.key} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl px-3 py-2.5 flex justify-between items-center">
+                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{s.label}</span>
+                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{count} records</span>
+                </div>
+              )
+            })}
+          </div>
         </div>
       </SectionCard>
 
       <div className="flex gap-3">
-        <Button icon={Save} variant="primary">Save All Changes</Button>
-        <Button variant="secondary">Reset to Defaults</Button>
+        <Button icon={Save} variant="primary" onClick={handleSave}>
+          {saved ? '✓ Saved!' : 'Save All Changes'}
+        </Button>
+        <Button icon={RotateCcw} variant="secondary" onClick={handleReset}>Reset to Defaults</Button>
       </div>
     </div>
   )

@@ -18,6 +18,7 @@ import {
 } from '../data/expenseData'
 import { DRIVERS, VEHICLES } from '../data/mockData'
 import { loadBookings } from '../data/tripTypes'
+import { addAuditEvent } from '../data/auditLogData'
 
 // ─────────────────────────────────────────────────────────────
 //  Shared badges
@@ -434,6 +435,10 @@ export default function Expenses() {
 
   const handleSave = (exp) => {
     saveExpense(exp)
+    addAuditEvent('EXPENSE_ADDED', {
+      description: `${exp.type} — Rs. ${(exp.amount||0).toLocaleString('en-IN')} by ${exp.driver || 'Staff'}`,
+      driver: exp.driver,
+    })
     reload()
     setShowAdd(false)
     setEditExp(null)

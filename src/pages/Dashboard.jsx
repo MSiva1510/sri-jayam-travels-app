@@ -22,6 +22,8 @@ import { loadExpenses, summariseByType, isThisMonth } from '../data/expenseData'
 import { loadSettlements, monthLabel } from '../data/settlementData'
 import { loadBookings, getStatusCfg, TRIP_TYPE_CONFIG } from '../data/tripTypes'
 import { docStatus, daysLabel } from '../utils/vehicleUtils'
+import LiveFleetBoard      from '../components/fleet/LiveFleetBoard'
+import { loadRecentActivity, fmtAuditTime } from '../data/auditLogData'
 
 // ── Blocked section placeholder ───────────────────────────────
 function AccessBlocked({ label }) {
@@ -609,6 +611,45 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* ── Live Fleet Board ── */}
+      {(isAdmin || isManager) && (
+        <div>
+          <div className="mb-3">
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Operations</p>
+            <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">Live Fleet</h3>
+          </div>
+          <LiveFleetBoard />
+        </div>
+      )}
+
+      {/* ── Recent Activity (Audit Log) ── */}
+      {(isAdmin || isManager) && (() => {
+        const recentActivity = loadRecentActivity(8)
+        if (recentActivity.length === 0) return null
+        return (
+          <div>
+            <div className="mb-3">
+              <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Audit Trail</p>
+              <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">Recent Activity</h3>
+            </div>
+            <div className="glass-card rounded-2xl overflow-hidden">
+              <div className="divide-y divide-slate-100 dark:divide-navy-700/60">
+                {recentActivity.map(ev => (
+                  <div key={ev.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <span className="text-base flex-shrink-0">{ev.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{ev.label}</p>
+                      {ev.description && <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{ev.description}</p>}
+                    </div>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 flex-shrink-0">{fmtAuditTime(ev.timestamp)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── Recent trips table ── */}
       <div>
