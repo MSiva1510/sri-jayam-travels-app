@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Phone, CheckCircle, Navigation,
@@ -91,6 +91,17 @@ export default function AssignedTrips() {
   // Route recording cleanup ref
   const stopRecording = useRef(null)
 
+  // ── Unmount cleanup — prevents leaked GPS interval if driver
+  //    navigates away from this page mid-trip ────────────────
+  useEffect(() => {
+    return () => {
+      if (stopRecording.current) {
+        stopRecording.current()
+        stopRecording.current = null
+      }
+    }
+  }, [])
+
   const filtered   = filter === 'all' ? trips : trips.filter(t =>
     filter === 'driving' ? t.status === 'driving' : t.status === filter
   )
@@ -145,7 +156,7 @@ export default function AssignedTrips() {
 
     // Start recording route every 30 seconds
     if (stopRecording.current) stopRecording.current()
-    stopRecording.current = startRouteRecording(tripId, () => gps.requestCurrent())
+    stopRecording.current = startRouteRecording(tripId, () => gps.requestCurrent(), 15000)
   }, [trips, isActive, startRide, user, gps, onRideStart, syncBookingStatus])
 
   // ── Pause ─────────────────────────────────────────────────
@@ -192,6 +203,9 @@ export default function AssignedTrips() {
         duration:   dur,
       })
       appendGPSHistory({ ...historyEntry, completedAt: now.toISOString() })
+      // Route points are now archived in the summary (routePoints/distanceKm)
+      // — safe to clear the raw per-trip key to avoid unbounded localStorage growth
+      clearTripRoute(tripId)
     }
 
     // Clear active state
@@ -234,6 +248,7 @@ export default function AssignedTrips() {
     const tripId = activeRide?.tripId
     cancelRide('Driver cancelled')
     clearActiveRideGPS()
+    clearTripRoute(tripId)
     if (stopRecording.current) { stopRecording.current(); stopRecording.current = null }
     syncBookingStatus(tripId, 'assigned')
     addTimelineEvent(tripId, 'cancelled')

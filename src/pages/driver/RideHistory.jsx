@@ -430,6 +430,18 @@ export default function RideHistory() {
                                       <span className="text-slate-300">{trip.gps.duration}</span>
                                     </div>
                                   )}
+                                  {trip.gps.distanceKm != null && (
+                                    <div className="flex justify-between text-[10px] font-mono">
+                                      <span className="text-violet-400">DISTANCE</span>
+                                      <span className="text-slate-300">{trip.gps.distanceKm} km</span>
+                                    </div>
+                                  )}
+                                  {trip.gps.routePoints != null && (
+                                    <div className="flex justify-between text-[10px] font-mono">
+                                      <span className="text-amber-400">ROUTE POINTS</span>
+                                      <span className="text-slate-300">{trip.gps.routePoints} recorded</span>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             )}

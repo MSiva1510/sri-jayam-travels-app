@@ -5,7 +5,7 @@
 
 export const GPS_HISTORY_KEY    = 'sjt_gps_history'          // existing key — trip summary list
 export const GPS_ROUTE_KEY      = 'sjt_gps_route'            // per-trip route points
-export const GPS_ROUTE_INTERVAL = 30 * 1000                  // 30 seconds
+export const GPS_ROUTE_INTERVAL = 15 * 1000                  // 15 seconds (default cadence)
 
 // ── Route Point Structure: { tripId, lat, lng, area, timestamp }
 
@@ -72,14 +72,19 @@ export function calcRouteDistanceKm(tripId) {
   return Math.round(total * 10) / 10
 }
 
-// ── Start recording route points every 30 seconds ────────────
-// Returns a stop() function — call when trip ends.
+// ── Start recording route points every 15–30 seconds ─────────
+// Returns a stop() function — call when trip ends OR on unmount.
 // getCoordFn must return Promise<{ lat, lng, area }> or null
-export function startRouteRecording(tripId, getCoordFn) {
+// intervalMs: optional override, clamped to [15000, 30000]
+export function startRouteRecording(tripId, getCoordFn, intervalMs = GPS_ROUTE_INTERVAL) {
   if (!tripId || typeof getCoordFn !== 'function') return () => {}
+  const clamped = Math.min(30000, Math.max(15000, intervalMs))
+  let cancelled = false
   const id = setInterval(async () => {
+    if (cancelled) return
     try {
       const coord = await getCoordFn()
+      if (cancelled) return // guard against race after stop() during await
       if (coord && coord.lat != null) {
         saveRoutePoint({
           tripId,
@@ -89,8 +94,8 @@ export function startRouteRecording(tripId, getCoordFn) {
         })
       }
     } catch { /* silent — GPS may be unavailable mid-trip */ }
-  }, GPS_ROUTE_INTERVAL)
-  return () => clearInterval(id)
+  }, clamped)
+  return () => { cancelled = true; clearInterval(id) }
 }
 
 // ── Build a trip summary for GPS history ─────────────────────
@@ -116,4 +121,17 @@ export function buildRouteHistoryEntry({
     distanceKm:  distance,
     completedAt: new Date().toISOString(),
   }
+}
+
+// ── List all trip IDs that currently have recorded route points ─
+export function listRoutedTripIds() {
+  const prefix = `${GPS_ROUTE_KEY}:`
+  const ids    = []
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (k && k.startsWith(prefix)) ids.push(k.slice(prefix.length))
+    }
+  } catch {}
+  return ids
 }
