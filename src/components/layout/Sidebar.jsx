@@ -22,7 +22,7 @@ const NAV_ITEMS = [
   { to: '/vehicles',       label: 'Vehicles',      icon: Car,             roles: ['admin','manager'], perm: 'vehicles' },
   { to: '/attendance',     label: 'Attendance',    icon: CalendarCheck,   roles: ['admin','manager'], perm: 'attendance'},
   { to: '/payroll',        label: 'Payroll',       icon: IndianRupee,     roles: ['admin','manager'], perm: 'payroll'   },
-  { to: '/reports',        label: 'Reports',       icon: BarChart2,       roles: ['admin','manager'], perm: 'reports'   },
+  { to: '/reports',        label: 'Reports',       icon: BarChart2,       roles: ['admin'], perm: 'reports'   },
   // Driver
   { to: '/driver',         label: 'Home',          icon: LayoutDashboard, roles: ['driver'] },
   { to: '/assigned-trips', label: 'Trips Today',   icon: List,            roles: ['driver'] },

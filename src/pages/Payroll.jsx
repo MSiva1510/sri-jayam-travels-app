@@ -672,7 +672,7 @@ function DriverPayslipPortal({ user }) {
 //  Main Payroll Page
 // ─────────────────────────────────────────────────────────────
 export default function Payroll() {
-  const { user, isAdmin, isManager, isDriver } = useAuth()
+  const { user, isAdmin, isManager, isDriver, can } = useAuth()
 
   const canCreate  = isAdmin || isManager
   const canEdit    = isAdmin || isManager
@@ -872,13 +872,15 @@ export default function Payroll() {
       {tab === 'settlements' && (<>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label:'Total Paid',          value:`Rs.${(totalPayroll/1000).toFixed(1)}k`, color:'text-emerald-600 dark:text-emerald-400', filter:null       },
+          // Module 3 (Day 20.5): company-wide Rs. total is a revenue-dashboard
+          // figure — managers can operate payroll but must not see totals.
+          { label:'Total Paid',          value: can('revenueDashboard') ? `Rs.${(totalPayroll/1000).toFixed(1)}k` : '—', color:'text-emerald-600 dark:text-emerald-400', filter:null, hidden: !can('revenueDashboard') },
           { label:'Pending Approval',    value: pendingCount,                           color:'text-blue-600 dark:text-blue-400',       filter:'pending'  },
           { label:'Approved (Unpaid)',   value: approvedCount,                          color:'text-violet-600 dark:text-violet-400',   filter:'approved' },
           { label:'Paid This Cycle',     value: paidCount,                              color:'text-navy-800 dark:text-blue-300',       filter:'paid'     },
         ].map(s => (
           <div key={s.label} onClick={() => s.filter && setStatFilter(s.filter)}
-            className={`glass-card rounded-xl px-3 py-3 text-center ${s.filter ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all' : ''}`}>
+            className={`glass-card rounded-xl px-3 py-3 text-center ${s.filter ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all' : ''} ${s.hidden ? 'opacity-50' : ''}`}>
             <p className={`text-xl font-display font-black ${s.color}`}>{s.value}</p>
             <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">{s.label}</p>
           </div>

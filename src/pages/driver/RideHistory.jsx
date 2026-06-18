@@ -35,6 +35,7 @@ function buildMergedHistory(mockTrips, lifecycleHistory, gpsHistory) {
     duration:     lc.duration   || (lc.durationSecs ? formatElapsed(lc.durationSecs) : '—'),
     rideState:    lc.rideState  || 'completed',
     pauseCount:   lc.pauseCount || 0,
+    pauseReason:  lc.pauseReason || null,
     fare:         lc.fare || 0,
     km:           lc.km   || 0,
     vehicle:      lc.vehicle || '—',
@@ -330,6 +331,7 @@ export default function RideHistory() {
                       {trip.pauseCount > 0 && (
                         <span className="flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 font-bold">
                           <RotateCcw size={10} /> {trip.pauseCount} pause{trip.pauseCount !== 1 ? 's' : ''}
+                          {trip.pauseReason && <span className="text-amber-500 dark:text-amber-400/80 font-normal">· {trip.pauseReason}</span>}
                         </span>
                       )}
                     </div>

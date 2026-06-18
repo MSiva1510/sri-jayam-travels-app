@@ -37,7 +37,7 @@ export const ROLE_PERMISSIONS = {
 
 export const ROLE_ROUTES = {
   admin:   ['/', '/invoices', '/customers', '/expenses', '/drivers', '/vehicles', '/settings', '/trips', '/create-trip', '/attendance', '/profile', '/payroll', '/reports'],
-  manager: ['/', '/customers', '/expenses', '/drivers', '/vehicles', '/trips', '/create-trip', '/attendance', '/profile', '/payroll', '/reports'],
+  manager: ['/', '/customers', '/expenses', '/drivers', '/vehicles', '/trips', '/create-trip', '/attendance', '/profile', '/payroll'],
   // Fix 2: /attendance removed from driver allowed routes
   driver:  ['/driver', '/assigned-trips', '/ride-history', '/driver-profile', '/live-location', '/payslips'],
 }

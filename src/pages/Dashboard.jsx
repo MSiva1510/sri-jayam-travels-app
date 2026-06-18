@@ -12,14 +12,11 @@ import Button     from '../components/ui/Button'
 import PageHeader from '../components/ui/PageHeader'
 import { useAuth } from '../context/AuthContext'
 import {
-  TRIPS, DRIVERS, EXPENSES, VEHICLES,
-  totalFare, totalNet, totalKm, totalExp,
-  doneTrips, pendingTrips, monthlyFare,
+  DRIVERS, VEHICLES,
 } from '../data/mockData'
 import { loadAttendanceToday } from '../data/attendanceData'
 import { loadCustomers } from '../data/customerData'
 import { loadExpenses, summariseByType, isThisMonth } from '../data/expenseData'
-import { loadSettlements, monthLabel } from '../data/settlementData'
 import { loadBookings, getStatusCfg, TRIP_TYPE_CONFIG } from '../data/tripTypes'
 import { docStatus, daysLabel } from '../utils/vehicleUtils'
 import LiveFleetBoard      from '../components/fleet/LiveFleetBoard'
@@ -27,13 +24,6 @@ import { loadRecentActivity, fmtAuditTime } from '../data/auditLogData'
 
 // ── Blocked section placeholder ───────────────────────────────
 function AccessBlocked({ label }) {
-  // ── Payroll data ──────────────────────────────────────────
-  const settlements        = loadSettlements()
-  const settledPaid        = settlements.filter(s => s.status === 'paid')
-  const settledPending     = settlements.filter(s => s.status === 'pending').length
-  const settledApproved    = settlements.filter(s => s.status === 'approved').length
-  const totalPayrollPaid   = settledPaid.reduce((s,p) => s + p.netAmount, 0)
-
   return (
     <div className="glass-card rounded-2xl p-6 flex flex-col items-center justify-center text-center gap-2 min-h-[120px]">
       <ShieldOff size={22} className="text-slate-300 dark:text-slate-600" />
@@ -44,7 +34,7 @@ function AccessBlocked({ label }) {
 }
 
 function BarChart({ data }) {
-  const max = Math.max(...data.map(d => d.fare))
+  const max = Math.max(1, ...data.map(d => d.fare))
   return (
     <div className="flex items-end gap-1.5 h-24 w-full">
       {data.map((d, i) => {
@@ -121,6 +111,52 @@ export default function Dashboard() {
   const pendingApprovals   = allExpenses.filter(e => e.status === 'submitted').length
   const expByCategory      = summariseByType(monthExpenses).slice(0, 3)
 
+  // ── Live KPI totals — derived from real bookings/expenses,  ─
+  //    NOT static mockData constants (Day 20.5 fix: these used  ─
+  //    to be frozen at module-load time and never reflected     ─
+  //    trips/expenses created at runtime) ────────────────────
+  const totalFare    = bookings.reduce((s, b) => s + (b.fare || 0), 0)
+  const totalKm       = bookings.reduce((s, b) => s + (b.km   || 0), 0)
+  const totalExp       = allExpenses.reduce((s, e) => s + (e.amount || 0), 0)
+  const totalNet       = totalFare - totalExp
+  const doneTrips      = bookingCompleted.length
+  const pendingTrips   = bookingPending.length
+
+  // Live monthly fare trend (last 6 calendar months incl. current)
+  const monthlyFare = (() => {
+    const now = new Date()
+    const months = []
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const key   = d.toISOString().slice(0, 7)            // YYYY-MM
+      const label = d.toLocaleDateString('en-IN', { month: 'short' })
+      const fare  = bookings
+        .filter(b => b.startDate?.startsWith(key))
+        .reduce((s, b) => s + (b.fare || 0), 0)
+      months.push({ month: label, fare })
+    }
+    return months
+  })()
+
+  // Live recent trips — replaces TRIPS.slice(0,7) mock rows.
+  // Maps real booking fields (pickup/drop/startDate) onto the
+  // shape the table below expects (source/destination/date/net).
+  const recentTrips = [...bookings]
+    .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
+    .slice(0, 7)
+    .map(b => ({
+      id:          b.id,
+      customer:    b.customer,
+      date:        b.startDate,
+      source:      b.pickup,
+      destination: b.drop,
+      driver:      b.driver || '—',
+      km:          b.km || 0,
+      fare:        b.fare || 0,
+      net:         (b.fare || 0) - (b.toll||0) - (b.bata||0) - (b.petrol||0) - (b.parking||0) - (b.extras||0),
+      status:      b.status,
+    }))
+
   return (
     <div className="space-y-6 animate-fade-up">
       <PageHeader
@@ -132,14 +168,14 @@ export default function Dashboard() {
       {/* ── KPI Stats ── */}
       {can('revenueDashboard') ? (
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-          <StatCard label="Total Fare"  value={`Rs. ${totalFare.toLocaleString('en-IN')}`}  sub={`${TRIPS.length} trips`}      icon={IndianRupee} gradient="bg-gradient-to-br from-navy-700 to-blue-600"    trend={8.4} trendUp={true}  />
+          <StatCard label="Total Fare"  value={`Rs. ${totalFare.toLocaleString('en-IN')}`}  sub={`${bookings.length} trips`}      icon={IndianRupee} gradient="bg-gradient-to-br from-navy-700 to-blue-600"    trend={8.4} trendUp={true}  />
           <StatCard label="Net Income"  value={`Rs. ${totalNet.toLocaleString('en-IN')}`}   sub="After trip costs"             icon={TrendingUp}  gradient="bg-gradient-to-br from-emerald-600 to-teal-500" trend={5.2} trendUp={true}  />
           <StatCard label="Total KM"    value={totalKm.toLocaleString('en-IN')}             sub="Kilometres covered"           icon={Car}         gradient="bg-gradient-to-br from-violet-600 to-purple-500"             />
-          <StatCard label="Expenses"    value={`Rs. ${totalExp.toLocaleString('en-IN')}`}   sub={`${EXPENSES.length} entries`} icon={Receipt}     gradient="bg-gradient-to-br from-amber-500 to-orange-500"  trend={2.1} trendUp={false} />
+          <StatCard label="Expenses"    value={`Rs. ${totalExp.toLocaleString('en-IN')}`}   sub={`${allExpenses.length} entries`} icon={Receipt}     gradient="bg-gradient-to-br from-amber-500 to-orange-500"  trend={2.1} trendUp={false} />
         </div>
       ) : (
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-          <StatCard label="Total Trips"   value={TRIPS.length}              sub="This month"          icon={Car}         gradient="bg-gradient-to-br from-navy-700 to-blue-600"    />
+          <StatCard label="Total Trips"   value={bookings.length}           sub="This month"          icon={Car}         gradient="bg-gradient-to-br from-navy-700 to-blue-600"    />
           <StatCard label="Bills Done"    value={doneTrips}                 sub="Invoices generated"  icon={CheckCircle} gradient="bg-gradient-to-br from-emerald-600 to-teal-500" />
           <StatCard label="Total KM"      value={totalKm.toLocaleString()}  sub="Kilometres covered"  icon={Car}         gradient="bg-gradient-to-br from-violet-600 to-purple-500" />
           <StatCard label="Pending Bills" value={pendingTrips}              sub="Awaiting invoice"    icon={Clock}       gradient="bg-gradient-to-br from-amber-500 to-orange-500"  />
@@ -555,9 +591,9 @@ export default function Dashboard() {
             </div>
             <div className="flex-1 flex items-center justify-center">
               <div className="relative">
-                <DonutRing pct={Math.round((totalNet / totalFare) * 100)} color="#10b981" />
+                <DonutRing pct={totalFare > 0 ? Math.round((totalNet / totalFare) * 100) : 0} color="#10b981" />
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <p className="text-xl font-display font-black text-slate-800 dark:text-white">{Math.round((totalNet / totalFare) * 100)}%</p>
+                  <p className="text-xl font-display font-black text-slate-800 dark:text-white">{totalFare > 0 ? Math.round((totalNet / totalFare) * 100) : 0}%</p>
                   <p className="text-[10px] text-slate-400">margin</p>
                 </div>
               </div>
@@ -587,8 +623,8 @@ export default function Dashboard() {
           </div>
           <div className="space-y-4">
             {DRIVERS.map(d => {
-              const driverTrips = TRIPS.filter(t => t.driver === d.name)
-              const farePct     = Math.round((driverTrips.reduce((s,t) => s+t.fare,0) / totalFare) * 100)
+              const driverTrips = bookings.filter(t => t.driver === d.name)
+              const farePct     = totalFare > 0 ? Math.round((driverTrips.reduce((s,t) => s+(t.fare||0),0) / totalFare) * 100) : 0
               return (
                 <div key={d.id}>
                   <div className="flex items-center gap-2.5 mb-1.5">
@@ -673,7 +709,7 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {TRIPS.slice(0,7).map(t => (
+                {recentTrips.map(t => (
                   <tr key={t.id} className="border-b border-slate-50 dark:border-navy-800 hover:bg-blue-50/40 dark:hover:bg-navy-800/50 transition-colors cursor-pointer" onClick={() => navigate('/trips')}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">

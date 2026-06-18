@@ -115,6 +115,70 @@ export function autoCheckOut(driverName) {
   return updated
 }
 
+// ── Trip-driven attendance sync (Module 9, Day 20.5) ───────────
+// Login/logout already drive checkIn/checkOut above. These two
+// functions layer trip activity on TOP of that record without
+// disturbing it — they track a `tripSessions` array (start/end
+// per trip) and recompute `tripWorkingMinutes`, giving a more
+// accurate "actually driving" figure alongside the broader
+// login-to-logout `workingHours` window.
+
+// Trip Start → ensure today's attendance exists, open a session.
+export function startTripSession(driverName, tripId) {
+  if (!driverName) return null
+  const today = new Date().toISOString().slice(0, 10)
+  const all      = loadAttendance()
+  const existing = all.find(a => a.driver === driverName && a.date === today)
+  const now      = new Date().toISOString()
+
+  const base = existing || {
+    id:           Date.now(),
+    driver:       driverName,
+    driverId:     null,
+    date:         today,
+    status:       'present',
+    checkIn:      new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:false }),
+    checkOut:     null,
+    vehicle:      null,
+    workingHours: null,
+    autoCheckedIn: true,
+  }
+
+  const sessions = base.tripSessions || []
+  if (!sessions.some(s => s.tripId === tripId && !s.endedAt)) {
+    sessions.push({ tripId, startedAt: now, endedAt: null })
+  }
+
+  const updated = { ...base, status: 'present', tripSessions: sessions }
+  saveAttendanceRecord(updated)
+  return updated
+}
+
+// Trip End → close the matching session and recompute total
+// trip-driving minutes for today.
+export function endTripSession(driverName, tripId) {
+  if (!driverName) return null
+  const today = new Date().toISOString().slice(0, 10)
+  const all      = loadAttendance()
+  const existing = all.find(a => a.driver === driverName && a.date === today)
+  if (!existing) return null
+
+  const now = new Date().toISOString()
+  const sessions = (existing.tripSessions || []).map(s =>
+    s.tripId === tripId && !s.endedAt ? { ...s, endedAt: now } : s
+  )
+
+  const tripWorkingMinutes = sessions.reduce((sum, s) => {
+    if (!s.startedAt) return sum
+    const end = s.endedAt ? new Date(s.endedAt) : new Date()
+    return sum + Math.max(0, Math.round((end - new Date(s.startedAt)) / 60000))
+  }, 0)
+
+  const updated = { ...existing, tripSessions: sessions, tripWorkingMinutes }
+  saveAttendanceRecord(updated)
+  return updated
+}
+
 // ── Get today's attendance (for dashboard strip) ──────────────
 export function loadAttendanceToday() {
   const today = new Date().toISOString().slice(0, 10)
@@ -133,4 +197,17 @@ export function saveVehicleAssignment(record) {
     else arr.push(record)
     localStorage.setItem(VEHICLE_ASSIGNMENT_KEY, JSON.stringify(arr))
   } catch {}
+}
+
+// ── Resolve the current live vehicle assignment for a driver ──
+// Returns the assignment record, or null if none / released.
+// (Day 20.5 — Module 1: drivers must reflect the REAL manager
+//  assignment, not the static mock `user.vehicle` field.)
+export function getCurrentVehicleForDriver(driverName) {
+  if (!driverName) return null
+  const all = loadVehicleAssignments()
+  const rec = all.find(a =>
+    a.driverName?.toLowerCase() === driverName.toLowerCase() && !a.releasedDate
+  )
+  return rec || null
 }

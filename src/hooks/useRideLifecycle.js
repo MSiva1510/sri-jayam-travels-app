@@ -182,7 +182,9 @@ export function useRideLifecycle() {
 
   // ── PAUSE RIDE ────────────────────────────────────────────
   // GPS hook point: call onRidePause(ride) after this resolves
-  const pauseRide = useCallback(() => {
+  // Module 2 (Day 20.5): reason is now required and stored with
+  // the pause event — pauseReason/pausedAt surface in ride history.
+  const pauseRide = useCallback((reason = 'Other') => {
     const now = new Date().toISOString()
     setActiveRide(prev => {
       if (!prev || prev.rideState !== RIDE_STATES.STARTED) return prev
@@ -190,6 +192,7 @@ export function useRideLifecycle() {
         ...prev,
         rideState:  RIDE_STATES.PAUSED,
         pausedAt:   now,
+        pauseReason: reason,
         pauseCount: (prev.pauseCount || 0) + 1,
         // Close the current open segment
         segments: prev.segments.map((seg, i) =>
@@ -197,7 +200,7 @@ export function useRideLifecycle() {
             ? { ...seg, endedAt: now }
             : seg
         ),
-        events: [...(prev.events || []), { type: 'paused', at: now, label: 'Ride paused' }],
+        events: [...(prev.events || []), { type: 'paused', at: now, label: 'Ride paused', reason }],
       }
       writeLifecycle(updated)
       return updated

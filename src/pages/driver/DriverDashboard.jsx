@@ -13,6 +13,7 @@ import {
   TRIP_TYPES, getTodayStats, getDriverProfile, getDriverVehicle,
 } from '../../data/driverData'
 import { loadBookings } from '../../data/tripTypes'
+import { getCurrentVehicleForDriver } from '../../data/attendanceData'
 import {
   useGPS,
   loadActiveRideGPS, saveActiveRideGPS, clearActiveRideGPS,
@@ -212,7 +213,25 @@ export default function DriverDashboard() {
   const driverKey  = user?.username?.toLowerCase() || ''
   const driverName = user?.name || ''
   const profile    = getDriverProfile(driverName)
-  const vehicle    = getDriverVehicle(user?.vehicle)
+
+  // ── Module 1 (Day 20.5): resolve REAL manager assignment first.
+  //    Falls back to the static mock vehicle only when no live
+  //    assignment record exists yet (keeps demo accounts working).
+  const liveAssignment   = getCurrentVehicleForDriver(driverName)
+  const assignedVehicleReg = liveAssignment?.vehicleReg || user?.vehicle || null
+  const hasVehicleAssigned = !!assignedVehicleReg
+  const vehicle    = getDriverVehicle(assignedVehicleReg)
+
+  // Confirmation prompt: shown once per fresh assignment, ack'd via localStorage
+  const vehicleAckKey = `sjt_vehicle_ack_${driverKey}_${liveAssignment?.assignedAt || ''}`
+  const [vehicleConfirmed, setVehicleConfirmed] = useState(() => {
+    if (!liveAssignment) return true // no live assignment to confirm — nothing to gate
+    try { return localStorage.getItem(vehicleAckKey) === '1' } catch { return false }
+  })
+  const confirmVehicleAssignment = useCallback(() => {
+    try { localStorage.setItem(vehicleAckKey, '1') } catch {}
+    setVehicleConfirmed(true)
+  }, [vehicleAckKey])
 
   // Load today's trips from real bookings (same logic as AssignedTrips)
   const todayISO = new Date().toISOString().slice(0, 10)
@@ -407,6 +426,37 @@ export default function DriverDashboard() {
           </div>
         </div>
       </div>
+
+      {/* ── Module 1 (Day 20.5): vehicle assignment gate ────────
+          Driver cannot proceed without a manager-assigned vehicle.
+          If freshly assigned, show a one-time confirmation prompt. */}
+      {!hasVehicleAssigned && (
+        <div className="glass-card rounded-2xl p-4 border-2 border-red-200 dark:border-red-800/40 bg-red-50/50 dark:bg-red-900/10 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
+            <AlertTriangle size={18} className="text-red-500" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-red-700 dark:text-red-400">No vehicle assigned.</p>
+            <p className="text-xs text-red-500 dark:text-red-400/80 mt-0.5">Contact your manager to get a vehicle assigned before starting trips.</p>
+          </div>
+        </div>
+      )}
+
+      {hasVehicleAssigned && liveAssignment && !vehicleConfirmed && (
+        <div className="glass-card rounded-2xl p-4 border-2 border-blue-200 dark:border-blue-800/40 bg-blue-50/50 dark:bg-blue-900/10 flex items-center gap-3 flex-wrap">
+          <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center flex-shrink-0">
+            <Car size={18} className="text-blue-500" />
+          </div>
+          <div className="flex-1 min-w-[160px]">
+            <p className="text-sm font-bold text-blue-700 dark:text-blue-400">Vehicle assigned: {liveAssignment.vehicleReg}</p>
+            <p className="text-xs text-blue-500 dark:text-blue-400/80 mt-0.5">{liveAssignment.vehicleModel || liveAssignment.vehicleType} · Please confirm to proceed</p>
+          </div>
+          <button onClick={confirmVehicleAssignment}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors flex-shrink-0">
+            <CheckCircle size={13} /> Confirm Vehicle
+          </button>
+        </div>
+      )}
 
       {/* ── Active Ride Card (lifecycle-aware) ── */}
       {isActive && activeRide && (

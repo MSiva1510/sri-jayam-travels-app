@@ -2,22 +2,26 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Phone, CheckCircle, Navigation,
-  AlertTriangle, Clock, MapPin, Car, Map,
+  AlertTriangle, Clock, MapPin, Car, Map, Pause, Coffee, Fuel, Wrench, HelpCircle, Users,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useRideLifecycleContext } from '../../context/RideLifecycleContext'
 import { TRIP_TYPES } from '../../data/driverData'
 import { loadBookings, saveBooking } from '../../data/tripTypes'
+import { getCurrentVehicleForDriver, startTripSession, endTripSession } from '../../data/attendanceData'
 import { buildTripPayslip, saveTripPayslip, loadPayrollSettings } from '../../data/settlementData'
 import { RIDE_STATES, RIDE_STATE_CFG } from '../../hooks/useRideLifecycle'
 import { useGPS, loadActiveRideGPS, saveActiveRideGPS, clearActiveRideGPS, appendGPSHistory } from '../../hooks/useGPS'
 import ActiveTripCard from '../../components/ride/ActiveTripCard'
 import { StartRideButton } from '../../components/ride/RideLifecycleControls'
+import ModalOverlay from '../../components/ui/ModalOverlay'
+import TripDocumentUpload from '../../components/ride/TripDocumentUpload'
 // Day 19/20 integrations
 import { addAuditEvent }    from '../../data/auditLogData'
 import { addTimelineEvent, loadTimeline, fmtTimelineTime, getEventCfg } from '../../data/tripTimelineData'
 import { startRouteRecording, buildRouteHistoryEntry, clearTripRoute, saveRoutePoint } from '../../data/gpsHistoryData'
 import { saveDriverStatus }  from '../../data/driverStatusData'
+import { markVehicleInUse, markVehicleAvailable } from '../../data/vehicleStatusData'
 import { buildMapsUrl, estimateTravelTime } from '../../utils/locationUtils'
 
 const FILTERS = [
@@ -26,6 +30,57 @@ const FILTERS = [
   { key: 'driving',   label: 'Active'    },
   { key: 'completed', label: 'Done'      },
 ]
+
+// Module 2 (Day 20.5): required pause reasons
+const PAUSE_REASONS = [
+  { key: 'On Break',              icon: Coffee     },
+  { key: 'Waiting For Customer',  icon: Users      },
+  { key: 'Vehicle Issue',         icon: Wrench     },
+  { key: 'Fuel Stop',             icon: Fuel       },
+  { key: 'Other',                 icon: HelpCircle },
+]
+
+function PauseReasonModal({ onConfirm, onClose }) {
+  const [selected, setSelected] = useState(null)
+  return (
+    <ModalOverlay onClose={onClose} center>
+      <div className="w-full max-w-sm bg-white dark:bg-navy-900 rounded-3xl shadow-2xl p-5 space-y-4" onClick={e => e.stopPropagation()}>
+        <div>
+          <h3 className="font-display font-black text-slate-800 dark:text-white text-base">Why are you pausing?</h3>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">A reason is required to pause this trip.</p>
+        </div>
+        <div className="space-y-2">
+          {PAUSE_REASONS.map(r => {
+            const Icon = r.icon
+            const isSel = selected === r.key
+            return (
+              <button key={r.key} onClick={() => setSelected(r.key)}
+                className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl border-2 transition-all ${
+                  isSel
+                    ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                    : 'border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/40 hover:bg-slate-50 dark:hover:bg-navy-800'
+                }`}>
+                <Icon size={16} className={isSel ? 'text-blue-500' : 'text-slate-400'} />
+                <span className={`text-sm font-bold flex-1 text-left ${isSel ? 'text-blue-700 dark:text-blue-300' : 'text-slate-700 dark:text-slate-200'}`}>{r.key}</span>
+                {isSel && <CheckCircle size={16} className="text-blue-500" />}
+              </button>
+            )
+          })}
+        </div>
+        <div className="flex gap-2">
+          <button onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">
+            Cancel
+          </button>
+          <button onClick={() => selected && onConfirm(selected)} disabled={!selected}
+            className="flex-1 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-sm font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-md disabled:opacity-40 active:scale-95">
+            Confirm Pause
+          </button>
+        </div>
+      </div>
+    </ModalOverlay>
+  )
+}
 
 function StatusPill({ status }) {
   const mapped = status === 'driving' ? 'started' : status
@@ -42,6 +97,13 @@ export default function AssignedTrips() {
   const { user }  = useAuth()
   const navigate  = useNavigate()
   const gps       = useGPS()
+
+  // ── Module 1 (Day 20.5): resolve REAL manager assignment.
+  //    Falls back to the static mock vehicle only when no live
+  //    assignment record exists yet (keeps demo accounts working).
+  const liveAssignment     = getCurrentVehicleForDriver(user?.name)
+  const assignedVehicleReg = liveAssignment?.vehicleReg || user?.vehicle || null
+  const hasVehicleAssigned = !!assignedVehicleReg
 
   const {
     activeRide, rideState, elapsed, elapsedFmt,
@@ -120,8 +182,13 @@ export default function AssignedTrips() {
   const handleStart = useCallback(async (tripId) => {
     const trip = trips.find(t => t.tripId === tripId)
     if (!trip || isActive) return
+    // Module 1 (Day 20.5): block trip start with no assigned vehicle
+    if (!hasVehicleAssigned) {
+      window.alert('No vehicle assigned. Contact your manager before starting a trip.')
+      return
+    }
 
-    const ride       = startRide({ ...trip, vehicle: user?.vehicle || '' }, user?.id)
+    const ride       = startRide({ ...trip, vehicle: assignedVehicleReg }, user?.id)
     const startCoord = await gps.requestCurrent()
 
     // Persist GPS start
@@ -148,6 +215,8 @@ export default function AssignedTrips() {
     })
     addTimelineEvent(tripId, 'started')
     saveDriverStatus(user?.name, 'driving', startCoord?.area || null)
+    markVehicleInUse(assignedVehicleReg, user?.name, startCoord?.area || null)
+    startTripSession(user?.name, tripId)
 
     // Save first route point immediately
     if (startCoord) {
@@ -157,14 +226,20 @@ export default function AssignedTrips() {
     // Start recording route every 30 seconds
     if (stopRecording.current) stopRecording.current()
     stopRecording.current = startRouteRecording(tripId, () => gps.requestCurrent(), 15000)
-  }, [trips, isActive, startRide, user, gps, onRideStart, syncBookingStatus])
+  }, [trips, isActive, startRide, user, gps, onRideStart, syncBookingStatus, assignedVehicleReg, hasVehicleAssigned])
 
-  // ── Pause ─────────────────────────────────────────────────
+  // ── Pause (Module 2, Day 20.5: reason required) ────────────
+  const [pauseModalOpen, setPauseModalOpen] = useState(false)
   const handlePause = useCallback(() => {
-    pauseRide()
+    setPauseModalOpen(true)
+  }, [])
+
+  const confirmPause = useCallback((reason) => {
+    pauseRide(reason)
     onRidePause(activeRide)
-    addTimelineEvent(activeRide?.tripId, 'paused')
+    addTimelineEvent(activeRide?.tripId, 'paused', reason)
     saveDriverStatus(user?.name, 'waiting', null)
+    setPauseModalOpen(false)
   }, [pauseRide, onRidePause, activeRide, user])
 
   // ── Resume ────────────────────────────────────────────────
@@ -239,8 +314,10 @@ export default function AssignedTrips() {
     })
     addTimelineEvent(tripId, 'completed')
     saveDriverStatus(user?.name, 'available', endCoord?.area || null)
+    markVehicleAvailable(assignedVehicleReg, endCoord?.area || null)
+    endTripSession(user?.name, tripId)
 
-  }, [gps, endRide, onRideEnd, activeRide, elapsedFmt, user])
+  }, [gps, endRide, onRideEnd, activeRide, elapsedFmt, user, assignedVehicleReg])
 
   // ── Cancel ────────────────────────────────────────────────
   const handleCancel = useCallback(() => {
@@ -253,6 +330,7 @@ export default function AssignedTrips() {
     syncBookingStatus(tripId, 'assigned')
     addTimelineEvent(tripId, 'cancelled')
     saveDriverStatus(user?.name, 'available', null)
+    markVehicleAvailable(assignedVehicleReg, null)
     setTrips(prev => prev.map(t => t.tripId === tripId ? { ...t, status: 'pending' } : t))
   }, [activeRide, cancelRide, syncBookingStatus, user])
 
@@ -270,6 +348,17 @@ export default function AssignedTrips() {
           <p className="text-xs text-slate-500 dark:text-slate-400">Today · {trips.length} trips scheduled</p>
         </div>
       </div>
+
+      {/* Module 1 (Day 20.5): vehicle assignment gate */}
+      {!hasVehicleAssigned && (
+        <div className="glass-card rounded-2xl p-4 border-2 border-red-200 dark:border-red-800/40 bg-red-50/50 dark:bg-red-900/10 flex items-center gap-3">
+          <AlertTriangle size={18} className="text-red-500 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-bold text-red-700 dark:text-red-400">No vehicle assigned.</p>
+            <p className="text-xs text-red-500 dark:text-red-400/80 mt-0.5">You cannot start a trip until your manager assigns a vehicle.</p>
+          </div>
+        </div>
+      )}
 
       {/* Active ride card */}
       {isActive && activeRide && (
@@ -481,7 +570,7 @@ export default function AssignedTrips() {
                             className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
                             <Phone size={13} /> Call
                           </a>
-                          <StartRideButton onStart={() => handleStart(trip.tripId)} fullWidth />
+                          <StartRideButton onStart={() => handleStart(trip.tripId)} fullWidth disabled={!hasVehicleAssigned} />
                         </div>
                       </div>
                     )}
@@ -494,6 +583,9 @@ export default function AssignedTrips() {
                         {trip.duration && <span className="ml-auto text-xs font-bold text-emerald-600 dark:text-emerald-400">{trip.duration}</span>}
                       </div>
                     )}
+
+                    {/* Module 5 (Day 20.5): trip document uploads */}
+                    <TripDocumentUpload tripId={trip.tripId} uploadedBy={user?.name} />
 
                     {/* Trip Timeline */}
                     {timeline.length > 0 && (
@@ -520,6 +612,14 @@ export default function AssignedTrips() {
             )
           })}
         </div>
+      )}
+
+      {/* Module 2 (Day 20.5): pause requires a reason */}
+      {pauseModalOpen && (
+        <PauseReasonModal
+          onConfirm={confirmPause}
+          onClose={() => setPauseModalOpen(false)}
+        />
       )}
     </div>
   )

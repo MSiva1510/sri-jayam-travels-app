@@ -4,7 +4,7 @@ import {
   Plus, Search, ChevronDown, ChevronUp,
   Calendar, Car, User, MapPin,
   CheckCircle, X, Edit2, Trash2, UserCheck,
-  ChevronLeft, ChevronRight, AlertTriangle,
+  ChevronLeft, ChevronRight, AlertTriangle, Navigation, Clock,
 } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
 import Avatar     from '../components/ui/Avatar'
@@ -18,6 +18,8 @@ import {
 import { DRIVERS, VEHICLES } from '../data/mockData'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import { addAuditEvent }    from '../data/auditLogData'
+import { loadTripRoute, calcRouteDistanceKm } from '../data/gpsHistoryData'
+import { loadGPSHistory } from '../hooks/useGPS'
 import { addTimelineEvent } from '../data/tripTimelineData'
 
 // ─────────────────────────────────────────────────────────────
@@ -377,10 +379,81 @@ function AssignModal({ booking, bookings, onClose, onAssign }) {
 // ─────────────────────────────────────────────────────────────
 //  Booking Detail Panel (expanded row)
 // ─────────────────────────────────────────────────────────────
+function RouteHistoryModal({ booking, onClose }) {
+  const points    = loadTripRoute(booking.id)
+  const distance  = calcRouteDistanceKm(booking.id)
+  const histEntry = loadGPSHistory().find(h => h.tripId === booking.id)
+
+  return (
+    <ModalOverlay onClose={onClose} center>
+      <div className="w-full max-w-lg bg-white dark:bg-navy-900 rounded-3xl shadow-2xl overflow-hidden animate-fade-up" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3.5 bg-slate-50 dark:bg-navy-800 border-b border-slate-200 dark:border-navy-700">
+          <div>
+            <p className="font-display font-black text-slate-800 dark:text-white text-sm">Route History</p>
+            <p className="text-[10px] text-slate-400 font-mono">{booking.bookingNo || booking.id}</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl border border-slate-200 dark:border-navy-600 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+            <X size={15} />
+          </button>
+        </div>
+        <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-slate-50 dark:bg-navy-800/50 rounded-xl p-3">
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Start Location</p>
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{histEntry?.startCoord?.area || booking.pickup || '—'}</p>
+              {histEntry?.startTime && <p className="text-[10px] text-slate-400 mt-0.5">{new Date(histEntry.startTime).toLocaleTimeString()}</p>}
+            </div>
+            <div className="bg-slate-50 dark:bg-navy-800/50 rounded-xl p-3">
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">End Location</p>
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{histEntry?.endCoord?.area || booking.drop || '—'}</p>
+              {histEntry?.endTime && <p className="text-[10px] text-slate-400 mt-0.5">{new Date(histEntry.endTime).toLocaleTimeString()}</p>}
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-slate-50 dark:bg-navy-800/50 rounded-xl p-3 text-center">
+              <p className="text-lg font-display font-black text-navy-800 dark:text-blue-300">{histEntry?.distanceKm ?? distance} km</p>
+              <p className="text-[9px] text-slate-400 mt-0.5">Distance</p>
+            </div>
+            <div className="bg-slate-50 dark:bg-navy-800/50 rounded-xl p-3 text-center">
+              <p className="text-lg font-display font-black text-navy-800 dark:text-blue-300">{histEntry?.duration || '—'}</p>
+              <p className="text-[9px] text-slate-400 mt-0.5">Duration</p>
+            </div>
+            <div className="bg-slate-50 dark:bg-navy-800/50 rounded-xl p-3 text-center">
+              <p className="text-lg font-display font-black text-navy-800 dark:text-blue-300">{histEntry?.routePoints ?? points.length}</p>
+              <p className="text-[9px] text-slate-400 mt-0.5">GPS Points</p>
+            </div>
+          </div>
+          {points.length === 0 && !histEntry ? (
+            <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-navy-800/40 rounded-xl px-4 py-3">
+              <AlertTriangle size={13} />
+              No GPS route data recorded for this trip yet.
+            </div>
+          ) : points.length > 0 && (
+            <div>
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">Recorded Points ({points.length})</p>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {points.map((p, i) => (
+                  <div key={i} className="flex items-center gap-2.5 px-3 py-1.5 bg-slate-50 dark:bg-navy-800/40 rounded-lg text-xs">
+                    <span className="text-slate-400 font-mono w-5 flex-shrink-0">{i+1}</span>
+                    <span className="text-slate-600 dark:text-slate-300 flex-1">{p.area}</span>
+                    <span className="text-slate-400 text-[10px] font-mono">{new Date(p.timestamp).toLocaleTimeString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </ModalOverlay>
+  )
+}
+
 function BookingDetail({ booking, onEdit, onDelete, onAssign, canEdit, canDelete, canAssign }) {
   const typeCfg = TRIP_TYPE_CONFIG[booking.type]
+  const [showRoute, setShowRoute] = useState(false)
   return (
     <div className="border-t border-slate-100 dark:border-navy-700 p-4 bg-slate-50/60 dark:bg-navy-800/30 space-y-3">
+      {showRoute && <RouteHistoryModal booking={booking} onClose={() => setShowRoute(false)} />}
       {/* Route */}
       <div className="flex items-stretch gap-3 bg-white dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700">
         <div className="flex flex-col items-center gap-1 pt-0.5">
@@ -403,6 +476,13 @@ function BookingDetail({ booking, onEdit, onDelete, onAssign, canEdit, canDelete
           {booking.km   && <p className="text-[10px] text-slate-400">{booking.km} km</p>}
         </div>
       </div>
+
+      {/* Module 6 (Day 20.5): Route Summary + View Route button */}
+      <button onClick={() => setShowRoute(true)}
+        className="flex items-center justify-center gap-2 w-full px-3 py-2.5 rounded-xl border border-blue-200 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 text-xs font-bold hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors">
+        <Navigation size={13} />
+        View Route
+      </button>
 
       {/* Detail grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">

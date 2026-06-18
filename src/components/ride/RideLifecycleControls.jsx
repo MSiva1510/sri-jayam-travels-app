@@ -84,11 +84,12 @@ export default function RideLifecycleControls({
 }
 
 // ── Start button — shown on pending trip cards ─────────────────
-export function StartRideButton({ onStart, size = 'md', fullWidth = false, label = 'Start Ride' }) {
+export function StartRideButton({ onStart, size = 'md', fullWidth = false, label = 'Start Ride', disabled = false }) {
   const s = SIZE[size] || SIZE.md
   return (
     <button
       onClick={onStart}
+      disabled={disabled}
       className={`${BTN_BASE} ${s.px} ${s.text} bg-navy-900 dark:bg-blue-700 text-white hover:bg-navy-800 dark:hover:bg-blue-600 shadow-md hover:shadow-lg ${fullWidth ? 'w-full' : ''}`}
     >
       <Play size={s.icon} />

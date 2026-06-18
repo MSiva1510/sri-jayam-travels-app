@@ -263,6 +263,18 @@ function AdminAttendanceView({ isAdmin }) {
                         { label:'Check Out',      value: record.checkOut      || '—' },
                         { label:'Vehicle',        value: record.vehicle       || '—' },
                         { label:'Working Hours',  value: record.workingHours  || '—' },
+                        // Module 9 (Day 20.5): trip-driven session time, synced
+                        // separately from the login/logout-based workingHours above.
+                        ...(record.tripWorkingMinutes != null ? [{
+                          label: 'Trip Driving Time',
+                          value: record.tripWorkingMinutes > 0
+                            ? `${Math.floor(record.tripWorkingMinutes/60)}h ${record.tripWorkingMinutes%60}m`
+                            : '—',
+                        }] : []),
+                        ...(record.tripSessions?.length ? [{
+                          label: 'Trips Today',
+                          value: `${record.tripSessions.length}`,
+                        }] : []),
                       ].map(d => (
                         <div key={d.label} className="bg-white dark:bg-navy-800/60 rounded-xl p-2.5 border border-slate-100 dark:border-navy-700">
                           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">{d.label}</p>

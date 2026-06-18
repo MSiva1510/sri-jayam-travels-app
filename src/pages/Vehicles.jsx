@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import {
   Plus, Wrench, Shield, Fuel, Gauge, X, CheckCircle,
   ChevronDown, ChevronUp, AlertTriangle, Car, User,
-  Calendar, FileText, Edit2, History,
+  Calendar, FileText, Edit2, History, MapPin, Clock,
 } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
 import Avatar     from '../components/ui/Avatar'
@@ -11,6 +11,8 @@ import { VEHICLES, TRIPS, DRIVERS } from '../data/mockData'
 import { saveVehicleAssignment, loadVehicleAssignments } from '../data/attendanceData'
 import { docStatus, daysLabel } from '../utils/vehicleUtils'
 import ModalOverlay from '../components/ui/ModalOverlay'
+import { getVehicleStatusEntry, getVehicleStatusCfg } from '../data/vehicleStatusData'
+import { fmtAuditTime } from '../data/auditLogData'
 
 // ─────────────────────────────────────────────────────────────
 //  Status config
@@ -292,8 +294,43 @@ function VehicleDetail({ v, assignments, onEdit, onAssign, canEdit, canAssign, c
   const vHistory = assignments.filter(a => a.vehicleReg === v.reg)
   const [tab, setTab] = useState('docs')  // docs | service | history
 
+  // ── Live status & idle location (Day 20.5 — Module 4 & 8) ──
+  const statusEntry = getVehicleStatusEntry(v.reg)
+  const statusCfg    = getVehicleStatusCfg(statusEntry.status)
+  const isIdle        = statusEntry.status !== 'in_use'
+
   return (
     <div className="border-t border-slate-100 dark:border-navy-700 bg-slate-50/50 dark:bg-navy-800/20">
+
+      {/* ── Live status & location — always visible, not tab-gated ── */}
+      <div className="px-4 pt-4">
+        <div className="bg-white dark:bg-navy-800/60 rounded-xl p-3.5 border border-slate-100 dark:border-navy-700 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2.5">
+            <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${statusCfg.badge}`}>
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${statusCfg.dot} ${statusEntry.status === 'in_use' ? 'animate-pulse' : ''}`} />
+              {statusCfg.label}
+            </span>
+            {statusEntry.driver && (
+              <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                <User size={10} />{statusEntry.driver}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+            <span className="flex items-center gap-1">
+              <MapPin size={11} className="text-slate-400" />
+              {statusEntry.area || (isIdle ? 'Last location unknown' : '—')}
+            </span>
+            {statusEntry.updatedAt && (
+              <span className="flex items-center gap-1">
+                <Clock size={11} className="text-slate-400" />
+                {fmtAuditTime(statusEntry.updatedAt)}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Tab bar */}
       <div className="flex gap-1 px-4 pt-3 pb-0">
         {[['docs','Documents'],['service','Service'],['history','History']].map(([k,l]) => (
