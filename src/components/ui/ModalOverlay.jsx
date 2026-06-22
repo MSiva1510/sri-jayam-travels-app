@@ -1,36 +1,63 @@
 // ─── ModalOverlay ─────────────────────────────────────────────
 // Reusable modal overlay wrapper.
-// Uses -inset-2 (= -8px on all sides) instead of inset-0 to
-// compensate for the AppShell layout offset and ensure the
-// backdrop covers the full visible viewport with no gap.
 //
-// Usage:
-//   <ModalOverlay onClose={onClose} center>
-//     <div className="relative w-full sm:w-[520px] ...">
-//       {/* modal panel */}
-//     </div>
-//   </ModalOverlay>
+// ⚠️  STACKING CONTEXT BUG FIX (previous implementation):
+// The old version rendered the backdrop `<div>` (which carries
+// `backdrop-filter: blur(...)`) as a sibling of `children`
+// inside the same `fixed` container. CSS `backdrop-filter`
+// creates a new stacking context AND causes the browser to apply
+// the blur to the *entire layer* that includes the element,
+// which visually bleeds into sibling elements rendered after it
+// in the same stacking context — blurring the modal panel too.
+//
+// Fix: render the blurred backdrop in its own `fixed` div at
+// z-[100], and render the modal panel in a *separate* `fixed`
+// div at z-[101]. Entirely separate stacking contexts mean the
+// backdrop-blur can never propagate into the panel layer.
 //
 // Props:
-//   onClose  — called when backdrop is clicked
-//   center   — if true: items-center (desktop-only dialogs)
-//              if false (default): items-end sm:items-center (sheet-style on mobile)
+//   onClose — called when backdrop is clicked
+//   center  — true: items-center (dialog); false: sheet on mobile
 //   children — the modal panel
+
+import { useState, useEffect } from 'react'
 
 export default function ModalOverlay({ onClose, center = false, children }) {
   const align = center
     ? 'items-center justify-center'
     : 'items-end sm:items-center justify-center'
 
+  // Fade-in on mount (avoids blur "pop" on first composite frame)
+  const [entered, setEntered] = useState(false)
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setEntered(true))
+    return () => cancelAnimationFrame(id)
+  }, [])
+
   return (
-    <div className={`fixed -inset-2 z-50 flex ${align}`}>
-      {/* Backdrop */}
+    <>
+      {/* Layer 1 — blurred backdrop, own stacking context at z-[100].
+          backdrop-blur is isolated here and cannot bleed into Layer 2. */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        aria-hidden="true"
+        className={`fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm transition-opacity duration-200 ease-out ${
+          entered ? 'opacity-100' : 'opacity-0'
+        }`}
         onClick={onClose}
       />
-      {/* Modal panel(s) */}
-      {children}
-    </div>
+
+      {/* Layer 2 — modal panel, separate stacking context at z-[101].
+          Rendered AFTER the backdrop in DOM order and at a higher z,
+          so it always paints above. No backdrop-filter here — the panel
+          content is fully crisp regardless of what's in Layer 1. */}
+      <div
+        className={`fixed inset-0 z-[101] flex pointer-events-none ${align}`}
+      >
+        {/* Re-enable pointer events only for the panel itself */}
+        <div className="pointer-events-auto">
+          {children}
+        </div>
+      </div>
+    </>
   )
 }

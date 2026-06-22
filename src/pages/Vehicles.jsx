@@ -138,7 +138,7 @@ function VehicleModal({ vehicle, onClose, onSave }) {
 
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="relative w-full sm:w-[500px] max-h-[92vh] sm:max-h-[85vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl z-10 flex flex-col">
+      <div className="relative w-full sm:w-[500px] max-h-[92vh] sm:max-h-[85vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
         <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-navy-700 flex-shrink-0">
           <h3 className="font-display font-black text-slate-800 dark:text-white text-base">
@@ -226,7 +226,7 @@ function AssignmentModal({ vehicle, onClose, onConfirm }) {
 
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="relative w-full sm:w-96 bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl z-10">
+      <div className="relative w-full sm:w-96 bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl animate-fade-up">
         <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mb-4 sm:hidden" />
         <div className="flex items-start justify-between mb-4">
           <div>

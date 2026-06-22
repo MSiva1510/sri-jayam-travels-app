@@ -108,7 +108,7 @@ function SalaryConfigPanel({ onClose }) {
 
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="relative w-full sm:w-[500px] max-h-[90vh] sm:max-h-[85vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl z-10 flex flex-col">
+      <div className="relative w-full sm:w-[500px] max-h-[90vh] sm:max-h-[85vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
         <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-navy-700 flex-shrink-0">
           <div>
@@ -240,7 +240,7 @@ function SettlementModal({ settlement, onClose, onSave, currentUser }) {
 
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="relative w-full sm:w-[520px] max-h-[94vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl z-10 flex flex-col">
+      <div className="relative w-full sm:w-[520px] max-h-[94vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
         <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-navy-700 flex-shrink-0">
           <div>
@@ -345,7 +345,7 @@ function PayslipView({ settlement, onClose }) {
   const cfg = getSettlementStatusCfg(settlement.status)
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="relative w-full sm:w-[400px] max-h-[92vh] sm:max-h-[85vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl z-10 flex flex-col">
+      <div className="relative w-full sm:w-[400px] max-h-[92vh] sm:max-h-[85vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
         <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
 
         {/* Payslip header */}
@@ -436,7 +436,7 @@ function MarkPaidModal({ settlement, onClose, onSave }) {
   const upd = (f,v) => setForm(p => ({ ...p, [f]: v }))
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="relative w-full sm:w-80 bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl p-5 shadow-2xl z-10">
+      <div className="relative w-full sm:w-80 bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl p-5 shadow-2xl animate-fade-up">
         <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mb-4 sm:hidden" />
         <h3 className="font-display font-black text-slate-800 dark:text-white text-base mb-1">Mark as Paid</h3>
         <p className="text-xs text-slate-500 mb-4">{settlement.driver} · {monthLabel(settlement.month, settlement.year)} · Rs. {settlement.netAmount.toLocaleString('en-IN')}</p>
