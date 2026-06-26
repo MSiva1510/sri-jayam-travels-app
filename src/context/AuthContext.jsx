@@ -1,5 +1,8 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { autoCheckIn, autoCheckOut } from '../data/attendanceData'
+import { authService } from '../services/authService'
+import { getDatabaseProvider, DATABASE_PROVIDERS } from '../config/database'
+import { isSupabaseConfigured } from '../lib/supabase'
 
 export const MOCK_USERS = [
   { id:1, name:'Arjun Sharma',  email:'admin@srijayamtravels.in',   username:'admin',        password:'admin123',   role:'admin',   phone:'+91 94423 37470', joined:'Jan 2022' },
@@ -72,50 +75,109 @@ export function AuthProvider({ children }) {
 
   // ── Restore session on mount ─────────────────────────────
   useEffect(() => {
-    const stored = readStorage()
-    if (stored?.id && stored?.role) {
-      const live = MOCK_USERS.find(u => u.id === stored.id)
-      if (live) {
-        const { password: _p, ...safe } = live
-        setUser({ ...safe, lastLogin: stored.lastLogin })
-        writeSession({ ...safe, lastLogin: stored.lastLogin })
-      } else { clearAllStorage() }
+    const restoreSession = async () => {
+      // Try Supabase if configured and enabled
+      if (isSupabaseConfigured() && getDatabaseProvider() === DATABASE_PROVIDERS.SUPABASE) {
+        try {
+          const supabaseUser = await authService.restoreSession()
+          if (supabaseUser) {
+            setUser(supabaseUser)
+            writeSession(supabaseUser)
+            setInitialized(true)
+            return
+          }
+        } catch (error) {
+          console.warn('Supabase session restore failed:', error)
+        }
+      }
+
+      // Fallback to local storage
+      const stored = readStorage()
+      if (stored?.id && stored?.role) {
+        const live = MOCK_USERS.find(u => u.id === stored.id)
+        if (live) {
+          const { password: _p, ...safe } = live
+          setUser({ ...safe, lastLogin: stored.lastLogin })
+          writeSession({ ...safe, lastLogin: stored.lastLogin })
+        } else { clearAllStorage() }
+      }
+      setInitialized(true)
     }
-    setInitialized(true)
+
+    restoreSession()
   }, [])
 
   // ── Login ────────────────────────────────────────────────
   const login = useCallback(async ({ username, password, remember }) => {
     setAuthLoading(true)
     setLoginError('')
-    await new Promise(r => setTimeout(r, 700))
-    const found = MOCK_USERS.find(
-      u => (u.username === username.trim().toLowerCase() ||
-            u.email    === username.trim().toLowerCase()) &&
-           u.password  === password
-    )
-    if (!found) {
-      setLoginError('Invalid username or password.')
+
+    try {
+      // Try Supabase if configured and enabled
+      if (isSupabaseConfigured() && getDatabaseProvider() === DATABASE_PROVIDERS.SUPABASE) {
+        try {
+          const result = await authService.login(username, password)
+          const sessionUser = {
+            ...result,
+            lastLogin: new Date().toISOString(),
+          }
+          setUser(sessionUser)
+          writeSession(sessionUser)
+          if (remember) writePersistent(sessionUser)
+          setAuthLoading(false)
+          return true
+        } catch (error) {
+          console.error('Supabase login failed:', error)
+          setLoginError('Invalid credentials or Supabase connection error')
+          setAuthLoading(false)
+          return false
+        }
+      }
+
+      // Fallback to local authentication
+      await new Promise(r => setTimeout(r, 700))
+      const found = MOCK_USERS.find(
+        u => (u.username === username.trim().toLowerCase() ||
+              u.email    === username.trim().toLowerCase()) &&
+             u.password  === password
+      )
+      if (!found) {
+        setLoginError('Invalid username or password.')
+        setAuthLoading(false)
+        return false
+      }
+      const { password: _p, ...safeUser } = found
+      const sessionUser = { ...safeUser, lastLogin: new Date().toISOString() }
+      setUser(sessionUser)
+      writeSession(sessionUser)
+      if (remember) writePersistent(sessionUser)
+
+      // Fix 3: auto check-in for drivers on login
+      if (found.role === 'driver') {
+        autoCheckIn(found.name, found.vehicle || '')
+      }
+
+      setAuthLoading(false)
+      return true
+    } catch (error) {
+      console.error('Login error:', error)
+      setLoginError('An unexpected error occurred')
       setAuthLoading(false)
       return false
     }
-    const { password: _p, ...safeUser } = found
-    const sessionUser = { ...safeUser, lastLogin: new Date().toISOString() }
-    setUser(sessionUser)
-    writeSession(sessionUser)
-    if (remember) writePersistent(sessionUser)
-
-    // Fix 3: auto check-in for drivers on login
-    if (found.role === 'driver') {
-      autoCheckIn(found.name, found.vehicle || '')
-    }
-
-    setAuthLoading(false)
-    return true
   }, [])
 
   // ── Logout ────────────────────────────────────────────────
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    // Logout from Supabase if using it
+    if (isSupabaseConfigured() && getDatabaseProvider() === DATABASE_PROVIDERS.SUPABASE) {
+      try {
+        await authService.logout()
+      } catch (error) {
+        console.error('Supabase logout failed:', error)
+      }
+    }
+
     // Fix 3: auto check-out for drivers on logout
     if (user?.role === 'driver') {
       autoCheckOut(user.name)

@@ -3,7 +3,7 @@ import {
   LayoutDashboard, FileText, Users, Receipt,
   User, Car, Settings, ChevronLeft, ChevronRight,
   MapPin, Phone, Globe, LogOut, Navigation,
-  History, List, Route, Signal, CalendarCheck, IndianRupee, BarChart2,
+  History, List, Route, Signal, CalendarCheck, IndianRupee, BarChart2, Database,
 } from 'lucide-react'
 import { useApp }  from '../../context/AppContext'
 import { useAuth, ROLE_LABELS, ROLE_COLORS } from '../../context/AuthContext'
@@ -33,6 +33,7 @@ const NAV_ITEMS = [
 ]
 
 const BOTTOM_ITEMS = [
+  { to: '/admin/database-status', label: 'Database Status', icon: Database, roles: ['admin'] },
   { to: '/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
 ]
 
