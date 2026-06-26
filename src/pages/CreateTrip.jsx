@@ -11,6 +11,7 @@ import { addAuditEvent }   from '../data/auditLogData'
 import { addTimelineEvent } from '../data/tripTimelineData'
 import { DRIVERS, VEHICLES } from '../data/mockData'
 import PageHeader from '../components/ui/PageHeader'
+import { validateField, sanitizeInput } from '../utils/formValidation'
 
 // ─────────────────────────────────────────────────────────────
 //  Shared field primitives
@@ -27,14 +28,20 @@ function Label({ children, required }) {
 function Input({ id, type = 'text', value, onChange, placeholder, min, max, required, className = '', icon: Icon, field }) {
   const handleChange = (e) => {
     let v = e.target.value
-    if (field === 'customer')                           { v = v.slice(0, 60) }
-    if (field === 'contact')                            { v = v.replace(/\D/g, '').slice(0, 10) }
-    if (field === 'pickup' || field === 'drop'
-        || field === 'destination' || field === 'baseLocation'
-        || field === 'stop')                            { v = v.slice(0, 100) }
-    if (field === 'numberOfDays' && Number(v) < 1)      { v = '1' }
-    if (field === 'waitingTime')                        { v = v.slice(0, 40) }
-    if (field === 'notes')                              { v = v.slice(0, 300) }
+    // Use centralized sanitization
+    if (field) {
+      v = sanitizeInput(v, field)
+    } else {
+      // Fallback to original inline logic for fields without validation rules
+      if (field === 'customer')                           { v = v.slice(0, 60) }
+      if (field === 'contact')                            { v = v.replace(/\D/g, '').slice(0, 10) }
+      if (field === 'pickup' || field === 'drop'
+          || field === 'destination' || field === 'baseLocation'
+          || field === 'stop')                            { v = v.slice(0, 100) }
+      if (field === 'numberOfDays' && Number(v) < 1)      { v = '1' }
+      if (field === 'waitingTime')                        { v = v.slice(0, 40) }
+      if (field === 'notes')                              { v = v.slice(0, 300) }
+    }
     onChange({ target: { value: v } })
   }
   return (
@@ -415,7 +422,12 @@ export default function CreateTrip() {
 
   const validate = () => {
     const e = {}
-    if (!common.customer.trim()) e.customer = 'Customer name is required'
+    const customerError = validateField('name', common.customer)
+    if (!common.customer.trim()) {
+      e.customer = 'Customer name is required'
+    } else if (customerError) {
+      e.customer = customerError
+    }
     if (!common.vehicle)         e.vehicle  = 'Vehicle is required'
     if (!isSelfDrive && !common.driver) e.driver = 'Driver is required'
     if (!common.startDate)       e.startDate = 'Start date is required'
