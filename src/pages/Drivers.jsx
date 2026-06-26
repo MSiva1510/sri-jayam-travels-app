@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Plus, Phone, Star, FileText, ChevronRight, TrendingUp } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { Plus, Phone, Star, FileText, ChevronRight, TrendingUp, Upload, X } from 'lucide-react'
 import Avatar     from '../components/ui/Avatar'
 import Badge      from '../components/ui/Badge'
 import Button     from '../components/ui/Button'
@@ -9,9 +9,145 @@ import { loadBookings } from '../data/tripTypes'
 import { loadTripPayslips } from '../data/settlementData'
 import ModalOverlay from '../components/ui/ModalOverlay'
 
+const DRIVERS_KEY = 'sjt_added_drivers'
+function loadAddedDrivers() {
+  try { return JSON.parse(localStorage.getItem(DRIVERS_KEY) || '[]') } catch { return [] }
+}
+function saveAddedDriver(d) {
+  const all = loadAddedDrivers()
+  const idx = all.findIndex(x => x.id === d.id)
+  if (idx >= 0) all[idx] = d; else all.unshift(d)
+  localStorage.setItem(DRIVERS_KEY, JSON.stringify(all))
+}
+
 const STATUS_COLORS = {
   active:     'badge-active',
   'on-leave': 'badge-pending',
+}
+
+function AddDriverModal({ onClose, onSaved }) {
+  const [form, setForm] = useState({
+    name:'', mobile:'', vehicle:'', license:'', vehicleType:'',
+    joined: new Date().toISOString().slice(0,10), status:'active', rating: 4.5,
+  })
+  const [licenceImg, setLicenceImg] = useState(null)
+  const [preview,    setPreview]    = useState(null)
+  const [errors,     setErrors]     = useState({})
+  const fileRef = useRef()
+
+  const upd = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const handleFile = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) { alert('File too large. Max 2MB.'); return }
+    const reader = new FileReader()
+    reader.onload = ev => { setLicenceImg(ev.target.result); setPreview(ev.target.result) }
+    reader.readAsDataURL(file)
+  }
+
+  const validate = () => {
+    const e = {}
+    if (!form.name.trim())                         e.name    = 'Required'
+    if (!form.mobile.trim() || form.mobile.length < 10) e.mobile = '10 digits required'
+    if (!form.license.trim())                      e.license = 'Required'
+    return e
+  }
+
+  const handleSave = () => {
+    const e = validate()
+    if (Object.keys(e).length) { setErrors(e); return }
+    const d = { ...form, id:`DRV-${Date.now()}`, licenceImage: licenceImg || null, createdAt: new Date().toISOString() }
+    saveAddedDriver(d)
+    onSaved(d)
+    onClose()
+  }
+
+  const inp = `w-full px-3 py-2.5 text-sm rounded-xl border bg-white dark:bg-navy-800/60
+    text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/25 transition-all`
+
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div className="relative w-full sm:w-[480px] max-h-[92vh] sm:max-h-[85vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
+        <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-navy-700 flex-shrink-0">
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Add Driver</p>
+            <h3 className="font-display font-black text-slate-800 dark:text-white text-base">New Driver</h3>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700">
+            <X size={15} />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Name <span className="text-red-500">*</span></label>
+              <input className={`${inp} ${errors.name ? 'border-red-400' : 'border-slate-200 dark:border-navy-700'}`}
+                value={form.name} onChange={e => upd('name', e.target.value)} placeholder="Full name" />
+              {errors.name && <p className="text-[10px] text-red-500 mt-0.5">{errors.name}</p>}
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Mobile <span className="text-red-500">*</span></label>
+              <input className={`${inp} ${errors.mobile ? 'border-red-400' : 'border-slate-200 dark:border-navy-700'}`}
+                value={form.mobile} onChange={e => upd('mobile', e.target.value.replace(/\D/g,'').slice(0,10))} placeholder="10 digits" />
+              {errors.mobile && <p className="text-[10px] text-red-500 mt-0.5">{errors.mobile}</p>}
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Vehicle Reg</label>
+              <input className={`${inp} border-slate-200 dark:border-navy-700`}
+                value={form.vehicle} onChange={e => upd('vehicle', e.target.value)} placeholder="PY01XX1234" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Vehicle Type</label>
+              <input className={`${inp} border-slate-200 dark:border-navy-700`}
+                value={form.vehicleType} onChange={e => upd('vehicleType', e.target.value)} placeholder="4+1 Sedan / 7+1 SUV" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Licence Number <span className="text-red-500">*</span></label>
+              <input className={`${inp} ${errors.license ? 'border-red-400' : 'border-slate-200 dark:border-navy-700'}`}
+                value={form.license} onChange={e => upd('license', e.target.value)} placeholder="TN1234567890" />
+              {errors.license && <p className="text-[10px] text-red-500 mt-0.5">{errors.license}</p>}
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Join Date</label>
+              <input type="date" className={`${inp} border-slate-200 dark:border-navy-700`}
+                value={form.joined} onChange={e => upd('joined', e.target.value)} />
+            </div>
+          </div>
+
+          {/* Licence Upload */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Driving Licence Upload</label>
+            <input ref={fileRef} type="file" accept="image/*,application/pdf" onChange={handleFile} className="hidden" />
+            <button type="button" onClick={() => fileRef.current?.click()}
+              className="w-full flex items-center gap-2.5 px-4 py-3 rounded-xl border-2 border-dashed border-teal-300 dark:border-teal-700/50 bg-teal-50 dark:bg-teal-900/10 text-teal-700 dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-900/20 transition-colors">
+              <Upload size={15} className="flex-shrink-0" />
+              <span className="text-sm font-bold">{licenceImg ? 'Replace Licence Image' : 'Upload Licence (image / PDF)'}</span>
+            </button>
+            {preview && (
+              <div className="mt-2 relative">
+                <img src={preview} alt="Licence preview" className="w-full max-h-40 object-cover rounded-xl border border-teal-200 dark:border-teal-800/40" />
+                <button type="button" onClick={() => { setLicenceImg(null); setPreview(null) }}
+                  className="absolute top-2 right-2 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center text-xs hover:bg-red-600">✕</button>
+                <p className="text-[10px] text-teal-600 dark:text-teal-400 mt-1">✓ Licence image attached</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="px-5 py-4 border-t border-slate-100 dark:border-navy-700 flex gap-2 flex-shrink-0">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">
+            Cancel
+          </button>
+          <button onClick={handleSave} className="flex-1 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-sm font-bold transition-all shadow-md active:scale-95">
+            Add Driver
+          </button>
+        </div>
+      </div>
+    </ModalOverlay>
+  )
 }
 
 function DriverModal({ driver, bookings, payslips, onClose }) {
@@ -97,12 +233,16 @@ function DriverModal({ driver, bookings, payslips, onClose }) {
 }
 
 export default function Drivers() {
-  const [selected, setSelected] = useState(null)
+  const [selected,     setSelected]     = useState(null)
+  const [showAdd,      setShowAdd]      = useState(false)
+  const [addedDrivers, setAddedDrivers] = useState(() => loadAddedDrivers())
   const bookings = loadBookings()
   const payslips = loadTripPayslips()
 
+  const allDrivers = [...DRIVERS, ...addedDrivers.filter(d => !DRIVERS.find(x => x.id === d.id))]
+
   // Compute live stats per driver from real bookings + payslips
-  const driversWithStats = DRIVERS.map(d => {
+  const driversWithStats = allDrivers.map(d => {
     const mine      = bookings.filter(b => b.driver === d.name)
     const mySlips   = payslips.filter(p => p.driver === d.name)
     const completed = mine.filter(b => b.status === 'completed').length
@@ -117,8 +257,8 @@ export default function Drivers() {
     <div className="space-y-5 animate-fade-up">
       <PageHeader
         title="Drivers"
-        subtitle={`${DRIVERS.length} drivers · fleet management`}
-        action={<Button icon={Plus} variant="teal">Add Driver</Button>}
+        subtitle={`${allDrivers.length} drivers · fleet management`}
+        action={<Button icon={Plus} variant="teal" onClick={() => setShowAdd(true)}>Add Driver</Button>}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -246,6 +386,12 @@ export default function Drivers() {
           bookings={bookings}
           payslips={payslips}
           onClose={() => setSelected(null)}
+        />
+      )}
+      {showAdd && (
+        <AddDriverModal
+          onClose={() => setShowAdd(false)}
+          onSaved={d => setAddedDrivers(prev => [d, ...prev.filter(x => x.id !== d.id)])}
         />
       )}
     </div>

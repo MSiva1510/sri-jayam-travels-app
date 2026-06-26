@@ -28,10 +28,11 @@ export const ROLE_PERMISSIONS = {
   driver: {
     trips:false, vehicles:false, customers:false, expenses:false,
     invoices:false, reports:false, settings:false, drivers:false,
-    // Fix 2 & Fix 9: drivers cannot access the Attendance page
     attendance:false,
     revenueDashboard:false, profitReports:false, financialAnalytics:false,
     expenseReports:false, invoiceManagement:false,
+    viewOwnPayslips:true, viewOwnEarnings:true,
+    viewPayrollDashboard:false, viewExpenseAnalytics:false,
   },
 }
 

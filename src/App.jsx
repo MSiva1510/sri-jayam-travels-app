@@ -8,6 +8,7 @@ import ProtectedRoute            from './components/auth/ProtectedRoute'
 // Public
 import Login           from './pages/Login'
 import Unauthorized    from './pages/Unauthorized'
+import PublicBooking   from './pages/PublicBooking'
 
 // Admin + Manager pages
 import Dashboard       from './pages/Dashboard'
@@ -47,6 +48,7 @@ export default function App() {
           {/* Public */}
           <Route path="/login"        element={<Login />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
+          <Route path="/book"         element={<PublicBooking />} />
 
           {/* Protected shell */}
           <Route element={<ProtectedRoute><AppShell /></ProtectedRoute>}>

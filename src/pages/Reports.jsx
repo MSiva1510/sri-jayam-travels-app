@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import {
   Car, Users, User, IndianRupee, AlertTriangle,
   CheckCircle, Download, BarChart2, FileText,
-  RefreshCw, Navigation, TrendingUp,
+  RefreshCw, Navigation, TrendingUp,TrendingDown,
 } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
 import Avatar     from '../components/ui/Avatar'
@@ -97,26 +97,47 @@ function ExecutiveOverview({ summary }) {
     { title:'Drivers',   icon:User,       color:'text-emerald-600 dark:text-emerald-400',bg:'bg-emerald-50 dark:bg-emerald-900/20',
       stats:[{l:'Total',v:drivers.total,c:'text-navy-800 dark:text-blue-300'},{l:'Available',v:drivers.available,c:'text-emerald-600 dark:text-emerald-400'},{l:'On Leave',v:drivers.onLeave,c:'text-amber-600 dark:text-amber-400'},{l:'Net Income',v:`Rs.${(finance.totalNet/1000).toFixed(0)}k`,c:'text-teal-600 dark:text-teal-400'}] },
   ]
+  const financeKpis = [
+    { label:'Total Revenue',  value:`Rs. ${(finance.totalFare/1000).toFixed(1)}k`, sub:'All bookings',  color:'text-navy-800 dark:text-blue-300',         bg:'bg-blue-50 dark:bg-blue-900/20',       icon:IndianRupee  },
+    { label:'Total Expenses', value:`Rs. ${(finance.totalExp /1000).toFixed(1)}k`, sub:'Paid out',      color:'text-red-700 dark:text-red-400',            bg:'bg-red-50 dark:bg-red-900/20',         icon:TrendingDown },
+    { label:'Net Profit',     value:`Rs. ${(finance.totalNet /1000).toFixed(1)}k`, sub:'Revenue − Exp', color:'text-emerald-700 dark:text-emerald-400',    bg:'bg-emerald-50 dark:bg-emerald-900/20', icon:TrendingUp   },
+    { label:'Avg Trip Fare',  value: trips.total > 0 ? `Rs. ${Math.round(finance.totalFare/trips.total).toLocaleString('en-IN')}` : '—', sub:'Per trip', color:'text-amber-700 dark:text-amber-400', bg:'bg-amber-50 dark:bg-amber-900/20', icon:Car },
+  ]
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      {cards.map(card => (
-        <div key={card.title} className="glass-card rounded-2xl p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <div className={`w-8 h-8 rounded-xl ${card.bg} flex items-center justify-center flex-shrink-0`}>
-              <card.icon size={15} className={card.color} />
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {financeKpis.map(k => (
+          <div key={k.label} className="glass-card rounded-2xl p-4">
+            <div className={`w-8 h-8 rounded-xl ${k.bg} flex items-center justify-center mb-3`}>
+              <k.icon size={14} className={k.color} />
             </div>
-            <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{card.title}</p>
+            <p className={`text-xl font-display font-black ${k.color}`}>{k.value}</p>
+            <p className="text-xs font-bold text-slate-600 dark:text-slate-200 mt-0.5">{k.label}</p>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500">{k.sub}</p>
           </div>
-          <div className="grid grid-cols-2 gap-1.5">
-            {card.stats.map(s => (
-              <div key={s.l} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-2 text-center">
-                <p className={`text-base font-display font-black ${s.c}`}>{s.v}</p>
-                <p className="text-[9px] text-slate-400 mt-0.5">{s.l}</p>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {cards.map(card => (
+          <div key={card.title} className="glass-card rounded-2xl p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className={`w-8 h-8 rounded-xl ${card.bg} flex items-center justify-center flex-shrink-0`}>
+                <card.icon size={15} className={card.color} />
               </div>
-            ))}
+              <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{card.title}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {card.stats.map(s => (
+                <div key={s.l} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-2 text-center">
+                  <p className={`text-base font-display font-black ${s.c}`}>{s.v}</p>
+                  <p className="text-[9px] text-slate-400 mt-0.5">{s.l}</p>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   )
 }

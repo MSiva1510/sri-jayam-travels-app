@@ -1,18 +1,13 @@
 import { useState } from 'react'
-import { Save, Building, FileText, Bell, Palette, Database, CheckCircle, RotateCcw } from 'lucide-react'
+import { Save, Building, FileText, Bell, Palette, CheckCircle, RotateCcw } from 'lucide-react'
 import Button     from '../components/ui/Button'
 import PageHeader from '../components/ui/PageHeader'
 import { loadSettings, saveSettings, resetSettings } from '../data/settingsData'
 
-// ─── Sub-components ───────────────────────────────────────────
 function Toggle({ checked, onChange }) {
   return (
-    <button
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${checked ? 'bg-blue-600' : 'bg-slate-200 dark:bg-navy-700'}`}
-    >
+    <button role="switch" aria-checked={checked} onClick={() => onChange(!checked)}
+      className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${checked ? 'bg-blue-600' : 'bg-slate-200 dark:bg-navy-700'}`}>
       <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
     </button>
   )
@@ -51,30 +46,50 @@ function Field({ label, name, value, onChange, type = 'text', options, rows = 3 
   )
 }
 
-// ─── Main Settings Page ───────────────────────────────────────
-export default function Settings() {
-  const [cfg,   setCfg]   = useState(() => loadSettings())
-  const [saved, setSaved] = useState(false)
-  const [toast, setToast] = useState('')
+const THEME_COLORS = [
+  { label:'Navy Blue',  value:'#1e3a5f', bg:'bg-[#1e3a5f]' },
+  { label:'Deep Green', value:'#14532d', bg:'bg-[#14532d]' },
+  { label:'Indigo',     value:'#312e81', bg:'bg-[#312e81]' },
+  { label:'Charcoal',   value:'#1f2937', bg:'bg-[#1f2937]' },
+  { label:'Burgundy',   value:'#7f1d1d', bg:'bg-[#7f1d1d]' },
+  { label:'Teal',       value:'#134e4a', bg:'bg-[#134e4a]' },
+]
+const BRAND_COLORS = [
+  { label:'Gold',    value:'#f59e0b', bg:'bg-amber-400'  },
+  { label:'Sky',     value:'#0ea5e9', bg:'bg-sky-500'    },
+  { label:'Emerald', value:'#10b981', bg:'bg-emerald-500'},
+  { label:'Orange',  value:'#f97316', bg:'bg-orange-500' },
+  { label:'Rose',    value:'#f43f5e', bg:'bg-rose-500'   },
+  { label:'Violet',  value:'#8b5cf6', bg:'bg-violet-500' },
+]
 
-  const updateBiz    = (key, val) => setCfg(c => ({ ...c, biz:           { ...c.biz,           [key]: val } }))
-  const updateInv    = (key, val) => setCfg(c => ({ ...c, invoice:       { ...c.invoice,       [key]: val } }))
-  const updateNotif  = (key, val) => setCfg(c => ({ ...c, notifications: { ...c.notifications, [key]: val } }))
-  const updateAppear = (key, val) => setCfg(c => ({ ...c, appearance:    { ...c.appearance,    [key]: val } }))
+export default function Settings() {
+  const [cfg,        setCfg]        = useState(() => loadSettings())
+  const [saved,      setSaved]      = useState(false)
+  const [toast,      setToast]      = useState('')
+  const [themeColor, setThemeColor] = useState(() => localStorage.getItem('sjt_theme_color') || '#1e3a5f')
+  const [brandColor, setBrandColor] = useState(() => localStorage.getItem('sjt_brand_color') || '#f59e0b')
+
+  const updateBiz    = (k, v) => setCfg(c => ({ ...c, biz:           { ...c.biz,           [k]: v } }))
+  const updateInv    = (k, v) => setCfg(c => ({ ...c, invoice:       { ...c.invoice,       [k]: v } }))
+  const updateNotif  = (k, v) => setCfg(c => ({ ...c, notifications: { ...c.notifications, [k]: v } }))
+  const updateAppear = (k, v) => setCfg(c => ({ ...c, appearance:    { ...c.appearance,    [k]: v } }))
 
   function handleSave() {
     const ok = saveSettings(cfg)
+    localStorage.setItem('sjt_theme_color', themeColor)
+    localStorage.setItem('sjt_brand_color', brandColor)
     if (ok) {
-      setSaved(true)
-      setToast('Settings saved successfully!')
+      setSaved(true); setToast('Settings saved successfully!')
       setTimeout(() => { setSaved(false); setToast('') }, 3000)
     }
   }
 
   function handleReset() {
-    if (!window.confirm('Reset all settings to defaults? This cannot be undone.')) return
-    resetSettings()
-    setCfg(loadSettings())
+    if (!window.confirm('Reset all settings to defaults?')) return
+    resetSettings(); setCfg(loadSettings())
+    setThemeColor('#1e3a5f'); setBrandColor('#f59e0b')
+    localStorage.removeItem('sjt_theme_color'); localStorage.removeItem('sjt_brand_color')
     setToast('Settings reset to defaults.')
     setTimeout(() => setToast(''), 3000)
   }
@@ -93,12 +108,10 @@ export default function Settings() {
 
       {toast && (
         <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-sm text-emerald-700 dark:text-emerald-400 font-medium">
-          <CheckCircle size={15} className="flex-shrink-0" />
-          {toast}
+          <CheckCircle size={15} className="flex-shrink-0" /> {toast}
         </div>
       )}
 
-      {/* ── Business Info ── */}
       <SectionCard icon={Building} title="Business Information">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Business Name"    name="name"    value={cfg.biz.name}    onChange={updateBiz} />
@@ -111,33 +124,31 @@ export default function Settings() {
         <Field label="Address" name="address" value={cfg.biz.address} onChange={updateBiz} type="textarea" rows={2} />
       </SectionCard>
 
-      {/* ── Invoice Settings ── */}
       <SectionCard icon={FileText} title="Invoice Settings">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Field label="Invoice Prefix"    name="prefix"   value={cfg.invoice.prefix}   onChange={updateInv} />
-          <Field label="Currency Symbol"   name="currency" value={cfg.invoice.currency} onChange={updateInv} type="select" options={['Rs.', '₹', 'INR']} />
-          <Field label="Default Bill Type" name="billType" value={cfg.invoice.billType} onChange={updateInv} type="select" options={['Pay Slip only', 'Invoice only', 'Both']} />
+          <Field label="Currency Symbol"   name="currency" value={cfg.invoice.currency} onChange={updateInv} type="select" options={['Rs.','₹','INR']} />
+          <Field label="Default Bill Type" name="billType" value={cfg.invoice.billType} onChange={updateInv} type="select" options={['Pay Slip only','Invoice only','Both']} />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Financial Year Start" name="fyStart"    value={cfg.invoice.fyStart}    onChange={updateInv} type="select" options={['April', 'January']} />
+          <Field label="Financial Year Start" name="fyStart"    value={cfg.invoice.fyStart}    onChange={updateInv} type="select" options={['April','January']} />
           <Field label="Invoice Footer Text"  name="footerText" value={cfg.invoice.footerText} onChange={updateInv} />
         </div>
         <Field label="Terms & Conditions" name="termsText" value={cfg.invoice.termsText} onChange={updateInv} type="textarea" rows={2} />
         <div className="flex items-center justify-between gap-4 py-1">
           <div>
             <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Show GSTIN on invoice</p>
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Display GSTIN number on generated invoices</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Display GSTIN on generated invoices</p>
           </div>
           <Toggle checked={cfg.invoice.showGSTIN} onChange={v => updateInv('showGSTIN', v)} />
         </div>
       </SectionCard>
 
-      {/* ── Notifications ── */}
       <SectionCard icon={Bell} title="Notifications & Automation">
         {[
-          { key: 'whatsapp',    label: 'WhatsApp invoice to customer', sub: 'Auto-send invoice via WA after bill generation' },
-          { key: 'email',       label: 'Email notifications',          sub: 'Send invoice copy to business email'            },
-          { key: 'autoInvoice', label: 'Auto-generate bill',           sub: 'Generate PDF automatically after trip entry'    },
+          { key:'whatsapp',    label:'WhatsApp invoice to customer', sub:'Auto-send invoice via WA after bill generation' },
+          { key:'email',       label:'Email notifications',          sub:'Send invoice copy to business email'            },
+          { key:'autoInvoice', label:'Auto-generate bill',           sub:'Generate PDF automatically after trip entry'    },
         ].map(t => (
           <div key={t.key} className="flex items-center justify-between gap-4 py-1">
             <div>
@@ -149,8 +160,7 @@ export default function Settings() {
         ))}
       </SectionCard>
 
-      {/* ── Appearance ── */}
-      <SectionCard icon={Palette} title="Appearance">
+      <SectionCard icon={Palette} title="Appearance & Theme">
         <div className="flex items-center justify-between gap-4 py-1">
           <div>
             <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Compact mode</p>
@@ -158,32 +168,36 @@ export default function Settings() {
           </div>
           <Toggle checked={cfg.appearance.compactMode} onChange={v => updateAppear('compactMode', v)} />
         </div>
-      </SectionCard>
 
-      {/* ── Data & Storage ── */}
-      <SectionCard icon={Database} title="Data & Storage">
-        <div className="space-y-3">
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            All data is stored locally in your browser. Export CSV from the Reports page to back up data.
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { key: 'sjt_bookings',       label: 'Bookings'   },
-              { key: 'sjt_customers',      label: 'Customers'  },
-              { key: 'sjt_expenses',       label: 'Expenses'   },
-              { key: 'sjt_settlements',    label: 'Payroll'    },
-              { key: 'sjt_audit_log',      label: 'Audit Log'  },
-              { key: 'sjt_trip_timelines', label: 'Timelines'  },
-            ].map(s => {
-              let count = 0
-              try { const r = localStorage.getItem(s.key); count = r ? JSON.parse(r).length : 0 } catch {}
-              return (
-                <div key={s.key} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl px-3 py-2.5 flex justify-between items-center">
-                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{s.label}</span>
-                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{count} records</span>
-                </div>
-              )
-            })}
+        <div>
+          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Theme Color</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mb-2.5">Primary sidebar and nav color</p>
+          <div className="flex gap-2 flex-wrap">
+            {THEME_COLORS.map(c => (
+              <button key={c.value} onClick={() => setThemeColor(c.value)} title={c.label}
+                className={`w-9 h-9 rounded-xl ${c.bg} transition-all ${themeColor === c.value ? 'ring-2 ring-offset-2 ring-slate-400 scale-110' : 'hover:scale-105'}`} />
+            ))}
+            <div className="flex items-center gap-2 ml-1">
+              <input type="color" value={themeColor} onChange={e => setThemeColor(e.target.value)}
+                className="w-9 h-9 rounded-xl border border-slate-200 dark:border-navy-700 cursor-pointer" title="Custom" />
+              <span className="text-xs text-slate-400">Custom</span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Brand / Accent Color</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mb-2.5">Buttons, highlights, and badges</p>
+          <div className="flex gap-2 flex-wrap">
+            {BRAND_COLORS.map(c => (
+              <button key={c.value} onClick={() => setBrandColor(c.value)} title={c.label}
+                className={`w-9 h-9 rounded-xl ${c.bg} transition-all ${brandColor === c.value ? 'ring-2 ring-offset-2 ring-slate-400 scale-110' : 'hover:scale-105'}`} />
+            ))}
+            <div className="flex items-center gap-2 ml-1">
+              <input type="color" value={brandColor} onChange={e => setBrandColor(e.target.value)}
+                className="w-9 h-9 rounded-xl border border-slate-200 dark:border-navy-700 cursor-pointer" title="Custom" />
+              <span className="text-xs text-slate-400">Custom</span>
+            </div>
           </div>
         </div>
       </SectionCard>

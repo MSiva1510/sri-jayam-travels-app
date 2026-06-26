@@ -172,7 +172,7 @@ function ExpenseModal({ expense, onClose, onSave, currentUser, isDriver: isDrv }
             </ESel>
           </div>
 
-          {/* Module 4: Trip reference */}
+          {/* Trip reference */}
           <ESel label="Trip Reference (optional)" field="tripRef" value={form.tripRef} onChange={upd} error={errors.tripRef}>
             <option value="">— No trip linked —</option>
             {loadBookings().map(b => (
@@ -180,16 +180,50 @@ function ExpenseModal({ expense, onClose, onSave, currentUser, isDriver: isDrv }
             ))}
           </ESel>
 
-          {/* Module 5: Receipt attachment (mock) */}
+          {/* Module 4: Dynamic type-specific fields */}
+          {form.type === 'fuel' && (
+            <div className="grid grid-cols-2 gap-3 p-3 bg-orange-50 dark:bg-orange-900/10 rounded-xl border border-orange-100 dark:border-orange-900/30">
+              <EF label="Odometer (KM)"   field="odometerKm"   type="number" placeholder="e.g. 45230"   value={form.odometerKm}   onChange={upd} />
+              <EF label="Litres Filled"   field="litresFilled" type="number" placeholder="e.g. 20"      value={form.litresFilled} onChange={upd} />
+              <EF label="Fuel Station"    field="fuelStation"               placeholder="Station name"   value={form.fuelStation}  onChange={upd} />
+              <EF label="Rate per Litre"  field="fuelRate"     type="number" placeholder="e.g. 102.50"  value={form.fuelRate}     onChange={upd} />
+            </div>
+          )}
+          {form.type === 'parking' && (
+            <div className="grid grid-cols-2 gap-3 p-3 bg-teal-50 dark:bg-teal-900/10 rounded-xl border border-teal-100 dark:border-teal-900/30">
+              <EF label="Parking Location" field="parkingLocation" placeholder="Airport, Mall, etc." value={form.parkingLocation} onChange={upd} />
+              <EF label="Duration (hours)" field="parkingDuration" type="number" placeholder="e.g. 3" value={form.parkingDuration} onChange={upd} />
+            </div>
+          )}
+          {form.type === 'toll' && (
+            <div className="grid grid-cols-2 gap-3 p-3 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-900/30">
+              <EF label="Toll Name/Plaza" field="tollName"  placeholder="e.g. Tindivanam Toll" value={form.tollName}  onChange={upd} />
+              <EF label="Route"           field="tollRoute" placeholder="e.g. ECR Chennai"     value={form.tollRoute} onChange={upd} />
+            </div>
+          )}
+          {form.type === 'bata' && (
+            <div className="grid grid-cols-2 gap-3 p-3 bg-emerald-50 dark:bg-emerald-900/10 rounded-xl border border-emerald-100 dark:border-emerald-900/30">
+              <EF label="Driver Name"    field="bataDriver" placeholder="Driver name" value={form.bataDriver} onChange={upd} />
+              <EF label="Trip Reference" field="bataTrip"   placeholder="BK-XXXX"    value={form.bataTrip}   onChange={upd} />
+            </div>
+          )}
+          {form.type === 'maintenance' && (
+            <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-200 dark:border-slate-700/50">
+              <EF label="Vendor Name"    field="maintenanceVendor"  placeholder="Workshop/Garage name" value={form.maintenanceVendor}  onChange={upd} />
+              <EF label="Invoice Number" field="maintenanceInvoice" placeholder="INV-XXXX"             value={form.maintenanceInvoice} onChange={upd} />
+            </div>
+          )}
+
+          {/* Receipt attachment */}
           <div>
             <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
               Receipt (Mock — future Google Drive)
             </label>
             <div className="flex gap-2">
-              <input type="text" value={form.receiptName || ''} onChange={e => upd({ receiptName: e.target.value })}
+              <input type="text" value={form.receiptName || ''} onChange={e => upd('receiptName', e.target.value)}
                 placeholder="receipt_filename.jpg"
                 className="flex-1 px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
-              <button type="button" onClick={() => upd({ receiptName: `receipt_${form.type}_${form.date}.jpg`, receiptDate: form.date })}
+              <button type="button" onClick={() => upd('receiptName', `receipt_${form.type}_${form.date}.jpg`)}
                 className="px-3 py-2 rounded-lg bg-slate-100 dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-200 dark:hover:bg-navy-700 transition-colors whitespace-nowrap">
                 📎 Attach
               </button>
@@ -205,7 +239,7 @@ function ExpenseModal({ expense, onClose, onSave, currentUser, isDriver: isDrv }
           {/* Notes */}
           <div>
             <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Notes</label>
-            <textarea value={form.notes || ''} onChange={e => upd({ notes: e.target.value })}
+            <textarea value={form.notes || ''} onChange={e => upd('notes', e.target.value)}
               placeholder="Additional details…" rows={2}
               className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25 resize-none transition-all" />
           </div>

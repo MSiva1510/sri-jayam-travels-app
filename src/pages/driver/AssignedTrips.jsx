@@ -149,6 +149,10 @@ export default function AssignedTrips() {
   )
   const [filter, setFilter] = useState('all')
   const [active, setActive] = useState(null)
+  const [odomStart,   setOdomStart]   = useState(null)
+  const [odomEnd,     setOdomEnd]     = useState(null)
+  const [odomStartKm, setOdomStartKm] = useState('')
+  const [odomEndKm,   setOdomEndKm]   = useState('')
 
   // Route recording cleanup ref
   const stopRecording = useRef(null)
@@ -179,25 +183,40 @@ export default function AssignedTrips() {
   }, [])
 
   // ── Start ride ────────────────────────────────────────────
-  const handleStart = useCallback(async (tripId) => {
+  const handleStart = useCallback((tripId) => {
     const trip = trips.find(t => t.tripId === tripId)
     if (!trip || isActive) return
-    // Module 1 (Day 20.5): block trip start with no assigned vehicle
     if (!hasVehicleAssigned) {
       window.alert('No vehicle assigned. Contact your manager before starting a trip.')
       return
     }
+    setOdomStart(tripId)
+    setOdomStartKm('')
+  }, [trips, isActive, hasVehicleAssigned])
+
+  const confirmStartWithKm = useCallback(async () => {
+    const tripId  = odomStart
+    const trip    = trips.find(t => t.tripId === tripId)
+    if (!trip) return
+    const startKm = Number(odomStartKm) || 0
+    setOdomStart(null)
 
     const ride       = startRide({ ...trip, vehicle: assignedVehicleReg }, user?.id)
     const startCoord = await gps.requestCurrent()
 
-    // Persist GPS start
+    if (startKm > 0) {
+      const allBk   = loadBookings()
+      const booking = allBk.find(b => b.id === tripId)
+      if (booking) saveBooking({ ...booking, startKm, updatedAt: new Date().toISOString() })
+    }
+
     const rideGPS = {
       tripId,
       customer:   trip.customer,
       driver:     user?.name,
       startCoord: startCoord || null,
       startTime:  new Date().toISOString(),
+      startKm,
       endCoord:   null,
       endTime:    null,
     }
@@ -205,11 +224,10 @@ export default function AssignedTrips() {
 
     onRideStart(ride)
     syncBookingStatus(trip.bookingId, 'started')
-    setTrips(prev => prev.map(t => t.tripId === tripId ? { ...t, status: 'driving' } : t))
+    setTrips(prev => prev.map(t => t.tripId === tripId ? { ...t, status: 'driving', startKm } : t))
 
-    // ── Day 19/20 integrations ──────────────────────────────
     addAuditEvent('TRIP_STARTED', {
-      description: `${trip.customer} — ${trip.pickup} → ${trip.drop}`,
+      description: `${trip.customer} — ${trip.pickup} → ${trip.drop}${startKm > 0 ? ` | Start KM: ${startKm}` : ''}`,
       tripId,
       driver: user?.name,
     })
@@ -226,7 +244,7 @@ export default function AssignedTrips() {
     // Start recording route every 30 seconds
     if (stopRecording.current) stopRecording.current()
     stopRecording.current = startRouteRecording(tripId, () => gps.requestCurrent(), 15000)
-  }, [trips, isActive, startRide, user, gps, onRideStart, syncBookingStatus, assignedVehicleReg, hasVehicleAssigned])
+  }, [odomStart, odomStartKm, trips, startRide, user, gps, onRideStart, syncBookingStatus, assignedVehicleReg])
 
   // ── Pause (Module 2, Day 20.5: reason required) ────────────
   const [pauseModalOpen, setPauseModalOpen] = useState(false)
@@ -251,11 +269,21 @@ export default function AssignedTrips() {
   }, [resumeRide, onRideResume, activeRide, user])
 
   // ── End ride ──────────────────────────────────────────────
-  const handleEnd = useCallback(async () => {
+  const handleEnd = useCallback(() => {
+    setOdomEnd(activeRide?.tripId || 'current')
+    setOdomEndKm('')
+  }, [activeRide])
+
+  const confirmEndWithKm = useCallback(async () => {
+    const endKm   = Number(odomEndKm) || 0
+    setOdomEnd(null)
+
     const endCoord = await gps.requestCurrent()
     const now      = new Date()
     const saved    = loadActiveRideGPS()
     const tripId   = activeRide?.tripId
+    const startKm  = saved?.startKm || 0
+    const distKm   = endKm > startKm ? endKm - startKm : null
 
     // Build duration string
     const ms  = saved?.startTime ? now.getTime() - new Date(saved.startTime).getTime() : null
@@ -294,7 +322,14 @@ export default function AssignedTrips() {
     const allBookings      = loadBookings()
     const completedBooking = allBookings.find(b => b.id === tripId)
     if (completedBooking) {
-      const updated = { ...completedBooking, status: 'completed', updatedAt: now.toISOString() }
+      const updated = {
+        ...completedBooking,
+        status: 'completed',
+        updatedAt: now.toISOString(),
+        endKm,
+        startKm: startKm || completedBooking.startKm || 0,
+        distanceKm: distKm,
+      }
       saveBooking(updated)
       const payslip = buildTripPayslip(updated, loadPayrollSettings())
       saveTripPayslip(payslip)
@@ -302,7 +337,7 @@ export default function AssignedTrips() {
 
     setTrips(prev => prev.map(t =>
       t.tripId === tripId
-        ? { ...t, status: 'completed', endTime: now.toLocaleTimeString(), duration: result?.duration || dur }
+        ? { ...t, status: 'completed', endTime: now.toLocaleTimeString(), duration: result?.duration || dur, endKm, startKm, distanceKm: distKm }
         : t
     ))
 
@@ -317,7 +352,7 @@ export default function AssignedTrips() {
     markVehicleAvailable(assignedVehicleReg, endCoord?.area || null)
     endTripSession(user?.name, tripId)
 
-  }, [gps, endRide, onRideEnd, activeRide, elapsedFmt, user, assignedVehicleReg])
+  }, [odomEndKm, odomEnd, gps, endRide, onRideEnd, activeRide, elapsedFmt, user, assignedVehicleReg])
 
   // ── Cancel ────────────────────────────────────────────────
   const handleCancel = useCallback(() => {
@@ -620,6 +655,68 @@ export default function AssignedTrips() {
           onConfirm={confirmPause}
           onClose={() => setPauseModalOpen(false)}
         />
+      )}
+
+      {/* Module 14: Start KM modal */}
+      {odomStart && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="w-full sm:w-96 bg-white dark:bg-navy-900 rounded-2xl shadow-2xl overflow-hidden animate-fade-up">
+            <div className="px-5 py-4 border-b border-slate-100 dark:border-navy-700">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Start Trip</p>
+              <h3 className="font-display font-black text-slate-800 dark:text-white text-base">Enter Start Odometer</h3>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <p className="text-sm text-slate-500 dark:text-slate-400">Record the vehicle odometer reading before starting this trip.</p>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Odometer Reading (KM) <span className="text-red-500">*</span></label>
+                <input type="number" value={odomStartKm} onChange={e => setOdomStartKm(e.target.value)}
+                  placeholder="e.g. 45230" autoFocus
+                  className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/25" />
+              </div>
+            </div>
+            <div className="px-5 py-4 border-t border-slate-100 dark:border-navy-700 flex gap-2">
+              <button onClick={() => setOdomStart(null)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">
+                Cancel
+              </button>
+              <button onClick={confirmStartWithKm}
+                className="flex-1 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-sm font-bold transition-all shadow-md active:scale-95">
+                Start Trip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Module 14: End KM modal */}
+      {odomEnd && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="w-full sm:w-96 bg-white dark:bg-navy-900 rounded-2xl shadow-2xl overflow-hidden animate-fade-up">
+            <div className="px-5 py-4 border-b border-slate-100 dark:border-navy-700">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Complete Trip</p>
+              <h3 className="font-display font-black text-slate-800 dark:text-white text-base">Enter End Odometer</h3>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <p className="text-sm text-slate-500 dark:text-slate-400">Record the vehicle odometer reading at trip completion.</p>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Odometer Reading (KM) <span className="text-red-500">*</span></label>
+                <input type="number" value={odomEndKm} onChange={e => setOdomEndKm(e.target.value)}
+                  placeholder="e.g. 45530" autoFocus
+                  className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-red-500/25" />
+              </div>
+            </div>
+            <div className="px-5 py-4 border-t border-slate-100 dark:border-navy-700 flex gap-2">
+              <button onClick={() => setOdomEnd(null)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">
+                Cancel
+              </button>
+              <button onClick={confirmEndWithKm}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-bold transition-all shadow-md active:scale-95">
+                Complete Trip
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

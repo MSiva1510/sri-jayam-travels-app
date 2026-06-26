@@ -5,6 +5,7 @@ import {
   Calendar, Car, User, MapPin,
   CheckCircle, X, Edit2, Trash2, UserCheck,
   ChevronLeft, ChevronRight, AlertTriangle, Navigation, Clock,
+  MessageCircle, IndianRupee,
 } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
 import Avatar     from '../components/ui/Avatar'
@@ -21,7 +22,19 @@ import { addAuditEvent }    from '../data/auditLogData'
 import { loadTripRoute, calcRouteDistanceKm } from '../data/gpsHistoryData'
 import { loadGPSHistory } from '../hooks/useGPS'
 import { addTimelineEvent } from '../data/tripTimelineData'
+import { upsertCustomerFromBooking, findCustomerByMobile, loadCustomers } from '../data/customerData'
 
+function buildWhatsAppUrl(booking, messageType = 'assigned') {
+  const phone = (booking.contact || '').replace(/\D/g, '')
+  const msgs = {
+    assigned:  `Hello ${booking.customer || 'Customer'},\n\nYour trip is confirmed! 🚗\n\n📋 Booking: ${booking.bookingNo}\n📍 Pickup: ${booking.pickup}\n🏁 Drop: ${booking.drop || '—'}\n📅 Date: ${booking.startDate}\n⏰ Time: ${booking.startTime || 'TBD'}\n🚘 Vehicle: ${booking.vehicle || 'TBD'}\n\nThank you — Sri Jayam Travels`,
+    changed:   `Hello ${booking.customer || 'Customer'},\n\nYour trip details have been updated.\n\n📋 Booking: ${booking.bookingNo}\n📅 Date: ${booking.startDate}\n⏰ Time: ${booking.startTime || 'TBD'}\n🚘 Vehicle: ${booking.vehicle || 'TBD'}\n\nPlease confirm your availability. — Sri Jayam Travels`,
+    cancelled: `Hello ${booking.customer || 'Customer'},\n\nBooking ${booking.bookingNo} has been cancelled.\n\nPlease contact us for assistance.\n\nSorry for the inconvenience — Sri Jayam Travels`,
+  }
+  const text = encodeURIComponent(msgs[messageType] || msgs.assigned)
+  if (phone.length >= 10) return `https://wa.me/91${phone.slice(-10)}?text=${text}`
+  return `https://wa.me/?text=${text}`
+}
 // ─────────────────────────────────────────────────────────────
 //  Shared primitives
 // ─────────────────────────────────────────────────────────────
@@ -108,9 +121,40 @@ function BookingModal({ booking, onClose, onSave, userName }) {
     returnDate:'', returnTime:'', notes:'',
     fare:'', status:'draft',
   })
-  const [errors, setErrors] = useState({})
+  const [errors,      setErrors]      = useState({})
+  const [suggestions, setSuggestions] = useState([])
+  const [showSugg,    setShowSugg]    = useState(false)
 
+  const allCustomers = useMemo(() => loadCustomers(), [])
   const upd = patch => setForm(f => ({ ...f, ...patch }))
+
+  const handleCustomerChange = (val) => {
+    upd({ customer: val })
+    if (val.length >= 2) {
+      const matches = allCustomers.filter(c =>
+        c.name.toLowerCase().includes(val.toLowerCase()) ||
+        (c.mobile && c.mobile.includes(val))
+      ).slice(0, 5)
+      setSuggestions(matches)
+      setShowSugg(matches.length > 0)
+    } else {
+      setShowSugg(false)
+    }
+  }
+
+  const handleContactChange = (val) => {
+    const digits = val.replace(/\D/g,'').slice(0,10)
+    upd({ contact: digits })
+    if (digits.length === 10) {
+      const match = findCustomerByMobile(digits)
+      if (match) { upd({ customer: match.name, contact: digits }); setShowSugg(false) }
+    }
+  }
+
+  const selectCustomer = (c) => {
+    upd({ customer: c.name, contact: c.mobile || form.contact })
+    setShowSugg(false)
+  }
 
   const validate = () => {
     const e = {}
@@ -136,6 +180,7 @@ function BookingModal({ booking, onClose, onSave, userName }) {
       driver:    form.driver    || null,
       vehicle:   form.vehicle   || null,
     }
+    upsertCustomerFromBooking({ name: form.customer, mobile: form.contact })
     onSave(saved)
   }
 
@@ -165,14 +210,30 @@ function BookingModal({ booking, onClose, onSave, userName }) {
 
           {/* Customer */}
           <Grid2>
-            <div>
+            <div className="relative">
               <FieldLabel required>Customer Name</FieldLabel>
-              <Input value={form.customer} onChange={e => upd({ customer: e.target.value })} placeholder="Full name or company" required field="customer" />
+              <Input value={form.customer} onChange={e => handleCustomerChange(e.target.value)} placeholder="Full name or company" required field="customer" />
               {errors.customer && <p className="text-xs text-red-500 mt-1">{errors.customer}</p>}
+              {showSugg && (
+                <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white dark:bg-navy-800 border border-slate-200 dark:border-navy-700 rounded-xl shadow-xl overflow-hidden">
+                  {suggestions.map(c => (
+                    <button key={c.id} type="button" onClick={() => selectCustomer(c)}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors text-left">
+                      <div className="w-7 h-7 rounded-full bg-navy-100 dark:bg-navy-700 flex items-center justify-center flex-shrink-0 text-xs font-bold text-navy-700 dark:text-blue-300">
+                        {c.name.charAt(0)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{c.name}</p>
+                        <p className="text-[10px] text-slate-400">{c.mobile || '—'}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div>
               <FieldLabel>Contact</FieldLabel>
-              <Input type="tel" value={form.contact} onChange={e => upd({ contact: e.target.value })} placeholder="10-digit mobile" field="contact" />
+              <Input type="tel" value={form.contact} onChange={e => handleContactChange(e.target.value)} placeholder="10-digit mobile" field="contact" />
             </div>
           </Grid2>
 
@@ -223,6 +284,90 @@ function BookingModal({ booking, onClose, onSave, userName }) {
                 <Input type="time" value={form.returnTime || ''} onChange={e => upd({ returnTime: e.target.value })} />
               </div>
             </Grid2>
+          )}
+
+          {/* Module 5: Local Visit — unlimited stops */}
+          {form.type === 'local_visit' && (
+            <div>
+              <FieldLabel>Area / Stops</FieldLabel>
+              {(form.localStops || ['']).map((stop, i) => (
+                <div key={i} className="flex gap-2 mb-2">
+                  <input value={stop} onChange={e => {
+                    const s = [...(form.localStops || [''])]
+                    s[i] = e.target.value
+                    upd({ localStops: s })
+                  }} placeholder={`Stop ${i + 1}`}
+                    className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500/25" />
+                  {i > 0 && (
+                    <button type="button" onClick={() => upd({ localStops: (form.localStops||['']).filter((_,j)=>j!==i) })}
+                      className="px-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-500 hover:bg-red-100 transition-colors">✕</button>
+                  )}
+                </div>
+              ))}
+              <button type="button" onClick={() => upd({ localStops: [...(form.localStops||['']), ''] })}
+                className="text-xs text-navy-600 dark:text-blue-400 font-bold hover:underline">+ Add Stop</button>
+            </div>
+          )}
+
+          {/* Module 6: Multi Day — multiple destinations */}
+          {form.type === 'multi_day' && (
+            <div>
+              <Grid2>
+                <div>
+                  <FieldLabel>Number of Days</FieldLabel>
+                  <Input type="number" value={form.numberOfDays || ''} onChange={e => upd({ numberOfDays: e.target.value })} placeholder="e.g. 3" />
+                </div>
+                <div>
+                  <FieldLabel>Vehicle Type</FieldLabel>
+                  <Input value={form.vehicleType || ''} onChange={e => upd({ vehicleType: e.target.value })} placeholder="SUV, Sedan..." />
+                </div>
+              </Grid2>
+              <div className="mt-3">
+                <FieldLabel>Destinations per Day</FieldLabel>
+                {(form.multiDayLocations || ['']).map((loc, i) => (
+                  <div key={i} className="flex gap-2 mb-2">
+                    <input value={loc} onChange={e => {
+                      const l = [...(form.multiDayLocations||[''])]
+                      l[i] = e.target.value
+                      upd({ multiDayLocations: l })
+                    }} placeholder={`Day ${i + 1} destination`}
+                      className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500/25" />
+                    {i > 0 && (
+                      <button type="button" onClick={() => upd({ multiDayLocations: (form.multiDayLocations||['']).filter((_,j)=>j!==i) })}
+                        className="px-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-500 hover:bg-red-100 transition-colors">✕</button>
+                    )}
+                  </div>
+                ))}
+                <button type="button" onClick={() => upd({ multiDayLocations: [...(form.multiDayLocations||['']), ''] })}
+                  className="text-xs text-navy-600 dark:text-blue-400 font-bold hover:underline">+ Add Day</button>
+              </div>
+            </div>
+          )}
+
+          {/* Module 7: Self Drive Rental */}
+          {form.type === 'self_drive' && (
+            <div className="space-y-3 p-3 bg-rose-50 dark:bg-rose-900/10 rounded-xl border border-rose-100 dark:border-rose-900/30">
+              <p className="text-[10px] font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider">Self Drive Details</p>
+              <Grid2>
+                <div><FieldLabel>Customer ID Number</FieldLabel><Input value={form.sdCustomerId||''} onChange={e=>upd({sdCustomerId:e.target.value})} placeholder="Aadhaar / PAN / Passport" /></div>
+                <div>
+                  <FieldLabel>ID Type</FieldLabel>
+                  <Select value={form.sdIdType||''} onChange={e=>upd({sdIdType:e.target.value})}>
+                    <option value="">— Select —</option>
+                    {['Aadhaar','PAN Card','Passport','Voter ID'].map(o=><option key={o}>{o}</option>)}
+                  </Select>
+                </div>
+                <div><FieldLabel>Driving Licence Number</FieldLabel><Input value={form.sdDLNumber||''} onChange={e=>upd({sdDLNumber:e.target.value})} placeholder="DL number" /></div>
+                <div><FieldLabel>Licence Expiry Date</FieldLabel><Input type="date" value={form.sdDLExpiry||''} onChange={e=>upd({sdDLExpiry:e.target.value})} /></div>
+                <div><FieldLabel>Number of Days</FieldLabel><Input type="number" value={form.sdDays||''} onChange={e=>upd({sdDays:e.target.value})} placeholder="e.g. 2" /></div>
+                <div><FieldLabel>Start Time</FieldLabel><Input type="time" value={form.sdStartTime||''} onChange={e=>upd({sdStartTime:e.target.value})} /></div>
+                <div><FieldLabel>End Time</FieldLabel><Input type="time" value={form.sdEndTime||''} onChange={e=>upd({sdEndTime:e.target.value})} /></div>
+                <div><FieldLabel>KM at Handover</FieldLabel><Input type="number" value={form.sdKmHandover||''} onChange={e=>upd({sdKmHandover:e.target.value})} placeholder="Odometer reading" /></div>
+                <div><FieldLabel>KM at Return</FieldLabel><Input type="number" value={form.sdKmReturn||''} onChange={e=>upd({sdKmReturn:e.target.value})} placeholder="Odometer reading" /></div>
+                <div><FieldLabel>Vehicle Delivery Location</FieldLabel><Input value={form.sdDeliveryLoc||''} onChange={e=>upd({sdDeliveryLoc:e.target.value})} placeholder="Where customer picks up" /></div>
+                <div><FieldLabel>Vehicle Return Location</FieldLabel><Input value={form.sdReturnLoc||''} onChange={e=>upd({sdReturnLoc:e.target.value})} placeholder="Where customer returns" /></div>
+              </Grid2>
+            </div>
           )}
 
           {/* Fare + Status */}
@@ -448,7 +593,7 @@ function RouteHistoryModal({ booking, onClose }) {
   )
 }
 
-function BookingDetail({ booking, onEdit, onDelete, onAssign, canEdit, canDelete, canAssign }) {
+function BookingDetail({ booking, onEdit, onDelete, onAssign, onWhatsApp, canEdit, canDelete, canAssign }) {
   const typeCfg = TRIP_TYPE_CONFIG[booking.type]
   const [showRoute, setShowRoute] = useState(false)
   return (
@@ -510,12 +655,56 @@ function BookingDetail({ booking, onEdit, onDelete, onAssign, canEdit, canDelete
         </div>
       )}
 
+      {/* Module 8: Detailed Fare Breakdown — manager/admin only */}
+      {canEdit && booking.fare > 0 && (
+        <div className="bg-navy-50 dark:bg-navy-800/40 rounded-xl p-3 border border-navy-200 dark:border-navy-700/50">
+          <p className="text-[9px] font-bold text-navy-700 dark:text-blue-400 uppercase tracking-wider mb-2.5 flex items-center gap-1">
+            <IndianRupee size={10} /> Fare Breakdown
+          </p>
+          <div className="space-y-1.5">
+            {[
+              { label:'Base Fare',     value: booking.fare,               primary: true },
+              { label:'Fuel Estimate', value: booking.fuelCost    || 0 },
+              { label:'Toll Charges',  value: booking.tollCost    || 0 },
+              { label:'Parking',       value: booking.parkingCost || 0 },
+              { label:'Driver Salary', value: booking.driverSalary|| 0 },
+              { label:'Driver Bata',   value: booking.driverBata  || 0 },
+              { label:'Other Charges', value: booking.otherCost   || 0 },
+            ].map(r => (
+              <div key={r.label} className="flex justify-between items-center">
+                <span className={`text-[10px] ${r.primary ? 'font-bold text-navy-800 dark:text-blue-300' : 'text-slate-500 dark:text-slate-400'}`}>{r.label}</span>
+                <span className={`text-[10px] font-bold ${r.primary ? 'text-navy-800 dark:text-blue-300' : r.value > 0 ? 'text-slate-700 dark:text-slate-200' : 'text-slate-300 dark:text-navy-600'}`}>
+                  {r.value > 0 ? `Rs. ${r.value.toLocaleString('en-IN')}` : '—'}
+                </span>
+              </div>
+            ))}
+            <div className="border-t border-navy-200 dark:border-navy-700 pt-1.5 mt-1.5 flex justify-between">
+              <span className="text-[10px] font-black text-navy-800 dark:text-white">Total</span>
+              <span className="text-[10px] font-black text-navy-800 dark:text-blue-300">Rs. {booking.fare.toLocaleString('en-IN')}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Action buttons */}
       <div className="flex gap-2 flex-wrap">
         {canAssign && !['completed','cancelled'].includes(booking.status) && (
-          <button onClick={() => onAssign(booking)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all active:scale-95 shadow-md">
-            <UserCheck size={13} /> Assign
+          booking.driver ? (
+            <button onClick={() => onAssign(booking)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-blue-200 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-900/15 text-blue-700 dark:text-blue-400 text-xs font-bold hover:bg-blue-100 dark:hover:bg-blue-900/25 transition-colors">
+              <UserCheck size={13} /> Change Driver
+            </button>
+          ) : (
+            <button onClick={() => onAssign(booking)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all active:scale-95 shadow-md">
+              <UserCheck size={13} /> Assign Driver
+            </button>
+          )
+        )}
+        {canAssign && booking.driver && !['completed','cancelled'].includes(booking.status) && (
+          <button onClick={() => onWhatsApp && onWhatsApp(booking, 'assigned')}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold transition-all active:scale-95 shadow-md">
+            <MessageCircle size={13} /> WhatsApp
           </button>
         )}
         {canEdit && !['completed','cancelled'].includes(booking.status) && (
@@ -528,6 +717,12 @@ function BookingDetail({ booking, onEdit, onDelete, onAssign, canEdit, canDelete
           <button onClick={() => onDelete(booking.id)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/15 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/25 transition-colors">
             <Trash2 size={13} /> Delete
+          </button>
+        )}
+        {booking.status === 'cancelled' && canAssign && (
+          <button onClick={() => onWhatsApp && onWhatsApp(booking, 'cancelled')}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-500 dark:text-slate-400 text-xs font-bold hover:bg-slate-50 transition-colors">
+            <MessageCircle size={13} /> Notify Customer
           </button>
         )}
       </div>
@@ -750,6 +945,10 @@ export default function Trips() {
     setExpanded(null)
   }
 
+  const handleWhatsApp = (booking, msgType = 'assigned') => {
+    window.open(buildWhatsAppUrl(booking, msgType), '_blank', 'noopener,noreferrer')
+  }
+
   const handleStatusChange = (booking, newStatus) => {
     saveBooking({ ...booking, status: newStatus, updatedAt: new Date().toISOString() })
     const auditMap = { completed: 'TRIP_COMPLETED', cancelled: 'TRIP_CANCELLED', started: 'TRIP_STARTED' }
@@ -934,6 +1133,7 @@ export default function Trips() {
                         onEdit={setEditBooking}
                         onDelete={handleDelete}
                         onAssign={setAssignBooking}
+                        onWhatsApp={handleWhatsApp}
                         canEdit={canEdit}
                         canDelete={canDelete && booking.status !== 'completed'}
                         canAssign={canAssign}
