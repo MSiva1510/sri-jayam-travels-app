@@ -3,6 +3,8 @@ import { autoCheckIn, autoCheckOut } from '../data/attendanceData'
 import { authService } from '../services/authService'
 import { getDatabaseProvider, DATABASE_PROVIDERS } from '../config/database'
 import { isSupabaseConfigured } from '../lib/supabase'
+import { migrateCustomers } from '../services/migration/customerMigration'
+import { migrateDrivers } from '../services/migration/driverMigration'
 
 export const MOCK_USERS = [
   { id:1, name:'Arjun Sharma',  email:'admin@srijayamtravels.in',   username:'admin',        password:'admin123',   role:'admin',   phone:'+91 94423 37470', joined:'Jan 2022' },
@@ -83,6 +85,8 @@ export function AuthProvider({ children }) {
           if (supabaseUser) {
             setUser(supabaseUser)
             writeSession(supabaseUser)
+            // Trigger migrations after successful Supabase session
+            triggerMigrations()
             setInitialized(true)
             return
           }
@@ -185,6 +189,21 @@ export function AuthProvider({ children }) {
     setUser(null)
     clearAllStorage()
   }, [user])
+  
+  // ── Trigger data migrations ────────────────────────────────
+  const triggerMigrations = useCallback(async () => {
+    if (!isSupabaseConfigured() || getDatabaseProvider() !== DATABASE_PROVIDERS.SUPABASE) {
+      return
+    }
+    try {
+      console.log('Starting data migrations...')
+      await migrateCustomers()
+      await migrateDrivers()
+      console.log('Data migrations completed')
+    } catch (error) {
+      console.error('Migration error:', error)
+    }
+  }, [])
 
   // ── Permission helper ──────────────────────────────────────
   const can = useCallback((permission) => {
