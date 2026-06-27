@@ -5,6 +5,7 @@ import { getDatabaseProvider, DATABASE_PROVIDERS } from '../config/database'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { migrateCustomers } from '../services/migration/customerMigration'
 import { migrateDrivers } from '../services/migration/driverMigration'
+import { migrateVehicles } from '../services/migration/vehicleMigration'
 
 export const MOCK_USERS = [
   { id:1, name:'Arjun Sharma',  email:'admin@srijayamtravels.in',   username:'admin',        password:'admin123',   role:'admin',   phone:'+91 94423 37470', joined:'Jan 2022' },
@@ -199,6 +200,7 @@ export function AuthProvider({ children }) {
       console.log('Starting data migrations...')
       await migrateCustomers()
       await migrateDrivers()
+      await migrateVehicles()
       console.log('Data migrations completed')
     } catch (error) {
       console.error('Migration error:', error)
