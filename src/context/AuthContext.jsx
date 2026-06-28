@@ -6,6 +6,12 @@ import { isSupabaseConfigured } from '../lib/supabase'
 import { migrateCustomers } from '../services/migration/customerMigration'
 import { migrateDrivers } from '../services/migration/driverMigration'
 import { migrateVehicles } from '../services/migration/vehicleMigration'
+import { migrateTrips } from '../services/migration/tripMigration'
+import { migrateGPS } from '../services/migration/gpsMigration'
+import { migrateAttendance } from '../services/migration/attendanceMigration'
+import { migrateExpenses } from '../services/migration/expenseMigration'
+import { migratePayroll } from '../services/migration/payrollMigration'
+import { startMigrationTracking, completeMigrationTracking, addModuleMigrationStatus } from '../utils/migrationLogger'
 
 export const MOCK_USERS = [
   { id:1, name:'Arjun Sharma',  email:'admin@srijayamtravels.in',   username:'admin',        password:'admin123',   role:'admin',   phone:'+91 94423 37470', joined:'Jan 2022' },
@@ -198,9 +204,33 @@ export function AuthProvider({ children }) {
     }
     try {
       console.log('Starting data migrations...')
-      await migrateCustomers()
-      await migrateDrivers()
-      await migrateVehicles()
+      startMigrationTracking()
+      
+      const customerResult = await migrateCustomers()
+      addModuleMigrationStatus('customers', customerResult)
+      
+      const driverResult = await migrateDrivers()
+      addModuleMigrationStatus('drivers', driverResult)
+      
+      const vehicleResult = await migrateVehicles()
+      addModuleMigrationStatus('vehicles', vehicleResult)
+      
+      const tripResult = await migrateTrips()
+      addModuleMigrationStatus('trips', tripResult)
+      
+      const gpsResult = await migrateGPS()
+      addModuleMigrationStatus('gps', gpsResult)
+      
+      const attendanceResult = await migrateAttendance()
+      addModuleMigrationStatus('attendance', attendanceResult)
+      
+      const expenseResult = await migrateExpenses()
+      addModuleMigrationStatus('expenses', expenseResult)
+      
+      const payrollResult = await migratePayroll()
+      addModuleMigrationStatus('payroll', payrollResult)
+      
+      completeMigrationTracking()
       console.log('Data migrations completed')
     } catch (error) {
       console.error('Migration error:', error)
