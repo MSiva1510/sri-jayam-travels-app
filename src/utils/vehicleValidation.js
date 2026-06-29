@@ -103,7 +103,7 @@ export function isDocumentExpired(expiryDate) {
  * @param {string} expiryDate
  * @returns {boolean}
  */
-export function isDocumentExpiringsoon(expiryDate) {
+export function isDocumentExpiringSoon(expiryDate) {
   if (!expiryDate) return false
   const expiry = new Date(expiryDate)
   const today = new Date()
@@ -129,7 +129,7 @@ export function formatRegistration(registration) {
 export function getRegistrationState(registration) {
   if (!isValidRegistration(registration)) return null
   const state = registration.substring(0, 2).toUpperCase()
-  
+
   const stateMap = {
     'AP': 'Andhra Pradesh',
     'AR': 'Arunachal Pradesh',
@@ -179,7 +179,7 @@ export default {
   isValidYear,
   isValidDate,
   isDocumentExpired,
-  isDocumentExpiringoon,
+  isDocumentExpiringSoon,
   formatRegistration,
   getRegistrationState,
 }

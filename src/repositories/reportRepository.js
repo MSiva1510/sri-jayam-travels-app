@@ -58,7 +58,7 @@ export class ReportRepository {
 
   _getDashboardStatsFromLocal() {
     const cache = dataService.get(REPORT_CACHE_KEY, {})
-    return Promise.resolve(cache.dashboardStats || {})
+    return Promise.resolve(cache.dashboardStats || { trips: 0, completed: 0, revenue: 0 })
   }
 
   _getRevenueReportFromLocal() {
@@ -81,10 +81,10 @@ export class ReportRepository {
 
   async _getDashboardStatsFromSupabase() {
     try {
-      const bookings = await supabase.from('bookings').select('*')
-      const trips = bookings.data?.length || 0
-      const completed = bookings.data?.filter(b => b.status === 'completed').length || 0
-      const revenue = bookings.data?.reduce((sum, b) => sum + (b.total_fare || 0), 0) || 0
+      const { data: bookings } = await supabase.from('bookings').select('*')
+      const trips = bookings?.length || 0
+      const completed = bookings?.filter(b => b.status === 'completed').length || 0
+      const revenue = bookings?.reduce((sum, b) => sum + (b.total_fare || 0), 0) || 0
 
       return { trips, completed, revenue }
     } catch (error) {
@@ -95,16 +95,14 @@ export class ReportRepository {
 
   async _getRevenueReportFromSupabase(startDate, endDate) {
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('bookings')
         .select('*')
         .gte('created_at', startDate)
         .lte('created_at', endDate)
 
-      if (error) throw error
-
-      const total = data.reduce((sum, b) => sum + (b.total_fare || 0), 0)
-      return { total, trips: data.length, data }
+      const total = data?.reduce((sum, b) => sum + (b.total_fare || 0), 0) || 0
+      return { total, trips: data?.length || 0, data: data || [] }
     } catch (error) {
       return this._getRevenueReportFromLocal()
     }
@@ -112,18 +110,16 @@ export class ReportRepository {
 
   async _getTripsReportFromSupabase(startDate, endDate) {
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('bookings')
         .select('*')
         .gte('created_at', startDate)
         .lte('created_at', endDate)
 
-      if (error) throw error
+      const completed = data?.filter(b => b.status === 'completed').length || 0
+      const cancelled = data?.filter(b => b.status === 'cancelled').length || 0
 
-      const completed = data.filter(b => b.status === 'completed').length
-      const cancelled = data.filter(b => b.status === 'cancelled').length
-
-      return { total: data.length, completed, cancelled, data }
+      return { total: data?.length || 0, completed, cancelled, data: data || [] }
     } catch (error) {
       return this._getTripsReportFromLocal()
     }
@@ -131,11 +127,7 @@ export class ReportRepository {
 
   async _getDriverPerformanceFromSupabase() {
     try {
-      const { data, error } = await supabase
-        .from('drivers')
-        .select('*')
-
-      if (error) throw error
+      const { data } = await supabase.from('drivers').select('*')
       return data || []
     } catch (error) {
       return this._getDriverPerformanceFromLocal()
@@ -144,19 +136,15 @@ export class ReportRepository {
 
   async _getExpenseReportFromSupabase() {
     try {
-      const { data, error } = await supabase
-        .from('expenses')
-        .select('*')
+      const { data } = await supabase.from('expenses').select('*')
 
-      if (error) throw error
-
-      const total = data.reduce((sum, e) => sum + (e.amount || 0), 0)
+      const total = data?.reduce((sum, e) => sum + (e.amount || 0), 0) || 0
       const byCategory = {}
-      data.forEach(e => {
+      data?.forEach(e => {
         byCategory[e.type] = (byCategory[e.type] || 0) + (e.amount || 0)
       })
 
-      return { total, byCategory, data }
+      return { total, byCategory, data: data || [] }
     } catch (error) {
       return this._getExpenseReportFromLocal()
     }

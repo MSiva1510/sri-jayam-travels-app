@@ -1,210 +1,160 @@
-import { useState, useEffect } from 'react'
-import { RotateCcw, Database, Cloud, Shield, HardDrive, AlertCircle, CheckCircle } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Database, CheckCircle, AlertCircle, Loader } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
-import { getDatabaseConfig, isLocalStorage, isSupabaseProvider } from '../../config/database'
-import { isSupabaseConfigured, checkSupabaseHealth } from '../../lib/supabase'
-import { checkDataServiceHealth } from '../../services/dataService'
+import { getDatabaseProvider, DATABASE_PROVIDERS } from '../../config/database'
+import supabase, { isSupabaseConfigured, checkSupabaseHealth, checkDatabaseHealth, checkStorageHealth } from '../../lib/supabase'
+import { customerRepository } from '../../repositories/customerRepository'
+import { driverRepository } from '../../repositories/driverRepository'
+import { vehicleRepository } from '../../repositories/vehicleRepository'
+import { tripRepository } from '../../repositories/tripRepository'
+import { attendanceRepository } from '../../repositories/attendanceRepository'
+import { expenseRepository } from '../../repositories/expenseRepository'
+import { payrollRepository } from '../../repositories/payrollRepository'
 
-function StatusBadge({ isHealthy, label }) {
-  return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-navy-800 border border-slate-200 dark:border-navy-700">
-      {isHealthy ? (
-        <CheckCircle size={16} className="text-emerald-500 flex-shrink-0" />
-      ) : (
-        <AlertCircle size={16} className="text-red-500 flex-shrink-0" />
-      )}
-      <span className={`text-sm font-medium ${isHealthy ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400'}`}>
-        {label}
-      </span>
-    </div>
-  )
-}
-
-function InfoRow({ icon: Icon, label, value, status }) {
-  return (
-    <div className="flex items-center justify-between py-3 px-4 border-b border-slate-100 dark:border-navy-700 last:border-0">
-      <div className="flex items-center gap-3">
-        <Icon size={16} className="text-slate-400 dark:text-slate-500 flex-shrink-0" />
-        <span className="text-sm text-slate-600 dark:text-slate-400">{label}</span>
-      </div>
-      <div className="flex items-center gap-2">
-        {status && <div className={`w-2 h-2 rounded-full ${status === 'healthy' ? 'bg-emerald-500' : status === 'warning' ? 'bg-amber-500' : 'bg-red-500'}`} />}
-        <span className="text-sm font-mono text-slate-800 dark:text-slate-200">{value}</span>
-      </div>
-    </div>
-  )
-}
-
-function SectionCard({ icon: Icon, title, children }) {
-  return (
-    <div className="glass-card rounded-2xl overflow-hidden">
-      <div className="flex items-center gap-2.5 px-5 py-3.5 bg-slate-50/80 dark:bg-navy-800/60 border-b border-slate-100 dark:border-navy-700">
-        <Icon size={16} className="text-navy-700 dark:text-blue-400" />
-        <p className="text-xs font-bold text-navy-800 dark:text-slate-200 uppercase tracking-wider">{title}</p>
-      </div>
-      <div className="p-5 space-y-2">{children}</div>
-    </div>
-  )
-}
-
-export default function DatabaseStatus() {
-  const [dbConfig, setDbConfig] = useState(null)
-  const [supabaseHealth, setSupabaseHealth] = useState(null)
-  const [dataServiceHealth, setDataServiceHealth] = useState(null)
+const DatabaseStatus = () => {
   const [loading, setLoading] = useState(true)
+  const [status, setStatus] = useState(null)
 
   useEffect(() => {
-    const checkStatus = async () => {
-      setLoading(true)
-      
-      // Database config
-      setDbConfig(getDatabaseConfig())
-      
-      // Supabase health
-      if (isSupabaseConfigured()) {
-        const sbHealth = await checkSupabaseHealth()
-        setSupabaseHealth(sbHealth)
-      } else {
-        setSupabaseHealth({
-          isHealthy: false,
-          message: 'Supabase not configured',
-          timestamp: new Date().toISOString()
-        })
-      }
-      
-      // Data service health
-      const dsHealth = checkDataServiceHealth()
-      setDataServiceHealth(dsHealth)
-      
-      setLoading(false)
-    }
-
-    checkStatus()
+    loadStatus()
   }, [])
 
-  const handleRefresh = async () => {
+  const loadStatus = async () => {
     setLoading(true)
-    const sbHealth = await checkSupabaseHealth()
-    setSupabaseHealth(sbHealth)
-    const dsHealth = checkDataServiceHealth()
-    setDataServiceHealth(dsHealth)
-    setLoading(false)
+    try {
+      const provider = getDatabaseProvider()
+      const configured = isSupabaseConfigured()
+
+      let supabaseHealth = { healthy: false }
+      let dbHealth = { healthy: false }
+      let storageHealth = { healthy: false }
+
+      if (configured) {
+        supabaseHealth = await checkSupabaseHealth()
+        dbHealth = await checkDatabaseHealth()
+        storageHealth = await checkStorageHealth()
+      }
+
+      // Get record counts
+      const customers = await customerRepository.getAll()
+      const drivers = await driverRepository.getAll()
+      const vehicles = await vehicleRepository.getAll()
+      const trips = await tripRepository.getAll()
+      const attendance = await attendanceRepository.getAll()
+      const expenses = await expenseRepository.getAll()
+      const payslips = await payrollRepository.getAllPayslips()
+
+      setStatus({
+        provider,
+        configured,
+        supabaseHealth,
+        dbHealth,
+        storageHealth,
+        recordCounts: {
+          customers: customers.length,
+          drivers: drivers.length,
+          vehicles: vehicles.length,
+          trips: trips.length,
+          attendance: attendance.length,
+          expenses: expenses.length,
+          payslips: payslips.length,
+        },
+      })
+    } catch (error) {
+      console.error('Error loading status:', error)
+      setStatus({ error: error.message })
+    } finally {
+      setLoading(false)
+    }
   }
 
-  if (loading || !dbConfig || !dataServiceHealth) {
+  if (loading) {
     return (
-      <div className="space-y-5 animate-fade-up">
-        <PageHeader title="Database Status" subtitle="Loading..." />
-        <div className="flex items-center justify-center py-12">
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 border-2 border-slate-200 dark:border-navy-700 border-t-blue-500 rounded-full animate-spin" />
-            <p className="text-sm text-slate-500 dark:text-slate-400">Checking status...</p>
-          </div>
+      <div className="p-6 flex items-center justify-center">
+        <Loader className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    )
+  }
+
+  if (status?.error) {
+    return (
+      <div className="p-6">
+        <PageHeader title="Database Status" description="Backend system health" />
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+          Error: {status.error}
         </div>
       </div>
     )
   }
 
-  return (
-    <div className="space-y-5 animate-fade-up">
-      <PageHeader
-        title="Database Status"
-        subtitle="Monitor Supabase and storage health"
-        action={
-          <button
-            onClick={handleRefresh}
-            disabled={loading}
-            className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors disabled:opacity-50"
-          >
-            <RotateCcw size={15} />
-            Refresh
-          </button>
-        }
-      />
-
-      {/* Overall Status */}
-      <div className="glass-card rounded-2xl p-5 space-y-4">
-        <h3 className="text-sm font-bold text-slate-800 dark:text-white">Overall Status</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <StatusBadge isHealthy={dbConfig.isLocalStorage} label={`Database: ${dbConfig.provider}`} />
-          <StatusBadge isHealthy={dataServiceHealth?.isHealthy} label="Data Service" />
-          <StatusBadge isHealthy={dbConfig.isSupabaseConfigured} label="Supabase Configured" />
-        </div>
-      </div>
-
-      {/* Configuration */}
-      <SectionCard icon={Database} title="Database Configuration">
-        <InfoRow
-          icon={HardDrive}
-          label="Current Provider"
-          value={dbConfig.provider.toUpperCase()}
-          status={dbConfig.isLocalStorage ? 'healthy' : 'warning'}
-        />
-        <InfoRow
-          icon={Cloud}
-          label="Supabase Configured"
-          value={dbConfig.isSupabaseConfigured ? 'Yes' : 'No'}
-          status={dbConfig.isSupabaseConfigured ? 'healthy' : 'warning'}
-        />
-        <InfoRow
-          icon={Shield}
-          label="Debug Mode"
-          value={dbConfig.debug ? 'Enabled' : 'Disabled'}
-        />
-      </SectionCard>
-
-      {/* Data Service Status */}
-      <SectionCard icon={HardDrive} title="Data Service">
-        <InfoRow
-          icon={Database}
-          label="Service"
-          value={dataServiceHealth.service}
-          status={dataServiceHealth.isHealthy ? 'healthy' : 'warning'}
-        />
-        <div className="py-3 px-4">
-          <p className="text-xs text-slate-600 dark:text-slate-400">
-            {dataServiceHealth.message}
-          </p>
-        </div>
-      </SectionCard>
-
-      {/* Supabase Status */}
-      {isSupabaseConfigured() && (
-        <SectionCard icon={Cloud} title="Supabase Connection">
-          <InfoRow
-            icon={Cloud}
-            label="Status"
-            value={supabaseHealth?.isHealthy ? 'Connected' : 'Disconnected'}
-            status={supabaseHealth?.isHealthy ? 'healthy' : 'warning'}
-          />
-          <div className="py-3 px-4">
-            <p className="text-xs text-slate-600 dark:text-slate-400">
-              {supabaseHealth?.message}
-            </p>
-          </div>
-          <InfoRow
-            icon={RotateCcw}
-            label="Last Check"
-            value={new Date(supabaseHealth?.timestamp).toLocaleTimeString()}
-          />
-        </SectionCard>
+  const StatusBadge = ({ healthy, label }) => (
+    <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+      {healthy ? (
+        <CheckCircle className="w-5 h-5 text-green-600" />
+      ) : (
+        <AlertCircle className="w-5 h-5 text-red-600" />
       )}
+      <span className="text-sm font-medium">{label}</span>
+      <span className={`text-xs font-semibold ml-auto ${healthy ? 'text-green-600' : 'text-red-600'}`}>
+        {healthy ? 'OK' : 'ERROR'}
+      </span>
+    </div>
+  )
 
-      {/* Feature Status */}
-      <SectionCard icon={Shield} title="Feature Status">
-        <InfoRow icon={Shield} label="Authentication" value={isSupabaseConfigured() ? 'Ready' : 'Not configured'} />
-        <InfoRow icon={Database} label="Database Tables" value={isSupabaseConfigured() ? 'Available' : 'Not available'} />
-        <InfoRow icon={Cloud} label="File Storage" value={isSupabaseConfigured() ? 'Available' : 'Not available'} />
-        <InfoRow icon={Shield} label="Row Level Security" value={isSupabaseConfigured() ? 'Enabled' : 'Not applicable'} />
-      </SectionCard>
+  const InfoRow = ({ label, value }) => (
+    <div className="flex justify-between items-center py-2 border-b border-gray-200">
+      <span className="text-sm text-gray-600">{label}</span>
+      <span className="text-sm font-semibold text-gray-900">{value}</span>
+    </div>
+  )
 
-      {/* Notes */}
-      <div className="glass-card rounded-2xl p-5 bg-blue-50/50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-        <p className="text-sm text-blue-700 dark:text-blue-300">
-          <strong>Current Status:</strong> Using <strong>{dbConfig.provider}</strong> storage. 
-          {isLocalStorage() ? ' localStorage is active and Supabase is ready for future migration.' : ' Supabase is the active storage provider.'}
-        </p>
+  const SectionCard = ({ title, children }) => (
+    <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+      <h3 className="font-semibold text-gray-900 mb-3 text-sm">{title}</h3>
+      <div className="space-y-2">{children}</div>
+    </div>
+  )
+
+  return (
+    <div className="p-6">
+      <PageHeader title="Database Status" description="Backend system health" />
+
+      <div className="space-y-4">
+        {/* Current Configuration */}
+        <SectionCard title="Configuration">
+          <InfoRow label="Provider" value={status.provider?.toUpperCase()} />
+          <InfoRow label="Supabase" value={status.configured ? 'Configured' : 'Not Configured'} />
+        </SectionCard>
+
+        {/* Health Checks */}
+        <SectionCard title="Health Checks">
+          <StatusBadge healthy={status.supabaseHealth?.healthy} label="Supabase Auth" />
+          <StatusBadge healthy={status.dbHealth?.healthy} label="Database" />
+          <StatusBadge healthy={status.storageHealth?.healthy} label="Storage" />
+        </SectionCard>
+
+        {/* Record Counts */}
+        <SectionCard title="Record Counts">
+          <InfoRow label="Customers" value={status.recordCounts.customers} />
+          <InfoRow label="Drivers" value={status.recordCounts.drivers} />
+          <InfoRow label="Vehicles" value={status.recordCounts.vehicles} />
+          <InfoRow label="Trips" value={status.recordCounts.trips} />
+          <InfoRow label="Attendance" value={status.recordCounts.attendance} />
+          <InfoRow label="Expenses" value={status.recordCounts.expenses} />
+          <InfoRow label="Payslips" value={status.recordCounts.payslips} />
+        </SectionCard>
+
+        {/* Refresh Button */}
+        <button
+          onClick={loadStatus}
+          disabled={loading}
+          className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        >
+          Refresh Status
+        </button>
       </div>
     </div>
   )
 }
+
+export default DatabaseStatus

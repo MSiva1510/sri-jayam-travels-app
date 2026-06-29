@@ -11,7 +11,11 @@ import { migrateGPS } from '../services/migration/gpsMigration'
 import { migrateAttendance } from '../services/migration/attendanceMigration'
 import { migrateExpenses } from '../services/migration/expenseMigration'
 import { migratePayroll } from '../services/migration/payrollMigration'
-import { startMigrationTracking, completeMigrationTracking, addModuleMigrationStatus } from '../utils/migrationLogger'
+import {
+  startMigrationTracking,
+  completeMigrationTracking,
+  addModuleMigrationStatus,
+} from '../utils/migrationLogger'
 
 export const MOCK_USERS = [
   { id:1, name:'Arjun Sharma',  email:'admin@srijayamtravels.in',   username:'admin',        password:'admin123',   role:'admin',   phone:'+91 94423 37470', joined:'Jan 2022' },

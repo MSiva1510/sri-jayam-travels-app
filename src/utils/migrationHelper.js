@@ -136,7 +136,7 @@ export function getMigrationSummary() {
 
 /**
  * Validate migration data
- * @param {string} type - 'customer' or 'driver'
+ * @param {string} type - 'customer', 'driver', 'vehicle', 'trip', 'expense', 'attendance'
  * @param {Object} item
  * @returns {Object} {valid: boolean, errors: Array}
  */
@@ -151,6 +151,21 @@ export function validateMigrationItem(type, item) {
     if (!item.id) errors.push('Missing id')
     if (!item.name) errors.push('Missing name')
     if (!item.phone) errors.push('Missing phone')
+  } else if (type === 'vehicle') {
+    if (!item.id) errors.push('Missing id')
+    if (!item.registration) errors.push('Missing registration')
+    if (!item.type) errors.push('Missing type')
+  } else if (type === 'trip') {
+    if (!item.id) errors.push('Missing id')
+    if (!item.booking_number) errors.push('Missing booking_number')
+  } else if (type === 'expense') {
+    if (!item.id) errors.push('Missing id')
+    if (!item.type) errors.push('Missing type')
+    if (item.amount === undefined) errors.push('Missing amount')
+  } else if (type === 'attendance') {
+    if (!item.id) errors.push('Missing id')
+    if (!item.driver_id) errors.push('Missing driver_id')
+    if (!item.attendance_date) errors.push('Missing attendance_date')
   }
 
   return {

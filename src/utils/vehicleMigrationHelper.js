@@ -58,7 +58,7 @@ export function isVehicleMigrationComplete() {
 export function getVehicleMigrationSummary() {
   const status = getVehicleMigrationStatus()
   return {
-    isComplete: status?.completed === false,
+    isComplete: status?.completed === true,
     vehicleCount: status?.vehicleCount || 0,
     documentCount: status?.documentCount || 0,
     errors: status?.errors || [],

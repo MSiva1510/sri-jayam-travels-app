@@ -81,6 +81,14 @@ export class PayrollRepository {
     return this._createSettlementInLocal(data)
   }
 
+  async updateSettlement(id, data) {
+    const provider = getDatabaseProvider()
+    if (provider === DATABASE_PROVIDERS.SUPABASE) {
+      return this._updateSettlementInSupabase(id, data)
+    }
+    return this._updateSettlementInLocal(id, data)
+  }
+
   // ── LOCAL METHODS ──────────────────────────────────────────────
 
   _getAllPayslipsFromLocal() {
@@ -123,6 +131,16 @@ export class PayrollRepository {
     items.push(settlement)
     dataService.set(SETTLEMENTS_STORAGE_KEY, items)
     return Promise.resolve(settlement)
+  }
+
+  _updateSettlementInLocal(id, data) {
+    const items = dataService.get(SETTLEMENTS_STORAGE_KEY, [])
+    const index = items.findIndex(s => s.id === id)
+    if (index === -1) return Promise.reject(new Error('Not found'))
+    const updated = { ...items[index], ...data, updated_at: new Date().toISOString() }
+    items[index] = updated
+    dataService.set(SETTLEMENTS_STORAGE_KEY, items)
+    return Promise.resolve(updated)
   }
 
   // ── SUPABASE METHODS ──────────────────────────────────────────
@@ -188,6 +206,21 @@ export class PayrollRepository {
       return created
     } catch (error) {
       return this._createSettlementInLocal(data)
+    }
+  }
+
+  async _updateSettlementInSupabase(id, data) {
+    try {
+      const { data: updated, error } = await supabase
+        .from('settlements')
+        .update({ ...data, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single()
+      if (error) throw error
+      return updated
+    } catch (error) {
+      return this._updateSettlementInLocal(id, data)
     }
   }
 }
