@@ -3,7 +3,7 @@
 // Reads from bookings, driverStatusData, and gpsHistoryData.
 // Auto-refreshes every 30 seconds.
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Car, MapPin, Clock, RefreshCw, Activity, User, Navigation } from 'lucide-react'
 import { DRIVERS, VEHICLES } from '../../data/mockData'
 import { loadBookings } from '../../data/tripTypes'
@@ -11,7 +11,7 @@ import { loadDriverStatuses, getStatusCfg, DRIVER_STATUS_OFFLINE_MS } from '../.
 import { getLatestRoutePoint } from '../../data/gpsHistoryData'
 
 function StatusPill({ statusKey }) {
-  const cfg = getStatusCfg(statusKey)
+  const cfg   = getStatusCfg(statusKey)
   const pulse = statusKey === 'driving' || statusKey === 'passenger_onboard'
   return (
     <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.badge}`}>
@@ -32,15 +32,30 @@ function formatDuration(isoStart) {
 }
 
 export default function LiveFleetBoard() {
-  const [tick, setTick] = useState(0)
+  const [bookings, setBookings] = useState([])
+  const [tick,     setTick]     = useState(0)
 
-  useEffect(() => {
-    const id = setInterval(() => setTick(t => t + 1), 30_000)
-    return () => clearInterval(id)
+  // ── Async data fetch — runs on mount and every 30 s ──────
+  const fetchData = useCallback(async () => {
+    try {
+      const bks = await loadBookings()
+      setBookings(Array.isArray(bks) ? bks : [])
+    } catch (err) {
+      console.error('[LiveFleetBoard] loadBookings failed:', err)
+    }
   }, [])
 
+  useEffect(() => {
+    fetchData()
+    const id = setInterval(() => {
+      setTick(t => t + 1)
+      fetchData()
+    }, 30_000)
+    return () => clearInterval(id)
+  }, [fetchData])
+
+  // ── Synchronous data (still localStorage-backed) ─────────
   const todayISO    = new Date().toISOString().slice(0, 10)
-  const bookings    = loadBookings()
   const allStatuses = loadDriverStatuses()
 
   const rows = DRIVERS.map(driver => {
@@ -54,8 +69,8 @@ export default function LiveFleetBoard() {
     )
 
     // Resolve live status
-    const stored  = allStatuses[driver.name]
-    let   status  = 'offline'
+    const stored = allStatuses[driver.name]
+    let   status = 'offline'
     if (stored?.status) {
       const elapsed = stored.updatedAt
         ? Date.now() - new Date(stored.updatedAt).getTime()
@@ -68,7 +83,7 @@ export default function LiveFleetBoard() {
     }
 
     // Current area — latest GPS point → stored area → fallback
-    const latestGPS  = activeBooking ? getLatestRoutePoint(activeBooking.id) : null
+    const latestGPS   = activeBooking ? getLatestRoutePoint(activeBooking.id) : null
     const currentArea = latestGPS?.area
       || stored?.area
       || (driver.status === 'active' ? 'Puducherry' : '—')
@@ -94,7 +109,7 @@ export default function LiveFleetBoard() {
           </div>
         </div>
         <button
-          onClick={() => setTick(t => t + 1)}
+          onClick={() => { setTick(t => t + 1); fetchData() }}
           className="w-7 h-7 rounded-lg border border-slate-200 dark:border-navy-600 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-navy-700 transition-all"
           title="Refresh now"
         >
@@ -115,7 +130,7 @@ export default function LiveFleetBoard() {
       {/* Rows */}
       <div className="divide-y divide-slate-100 dark:divide-navy-700/60">
         {rows.map(({ driver, vehicle, status, activeBooking, currentArea }) => {
-          const isActive = status === 'driving' || status === 'passenger_onboard'
+          const isActive  = status === 'driving' || status === 'passenger_onboard'
           const startedAt = activeBooking?.updatedAt || null
           const tripId    = activeBooking?.id || null
 

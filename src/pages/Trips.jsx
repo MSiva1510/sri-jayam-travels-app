@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   Plus, Search, ChevronDown, ChevronUp,
@@ -125,7 +125,8 @@ function BookingModal({ booking, onClose, onSave, userName }) {
   const [suggestions, setSuggestions] = useState([])
   const [showSugg,    setShowSugg]    = useState(false)
 
-  const allCustomers = useMemo(() => loadCustomers(), [])
+  const [allCustomers, setAllCustomers] = useState([])
+  useEffect(() => { loadCustomers().then(cs => setAllCustomers(Array.isArray(cs) ? cs.filter(x=>!x._deleted) : [])) }, [])
   const upd = patch => setForm(f => ({ ...f, ...patch }))
 
   const handleCustomerChange = (val) => {
@@ -892,7 +893,7 @@ export default function Trips() {
   const canAssign  = can('trips') && (isAdmin || isManager)
 
   // State
-  const [bookings,     setBookings]    = useState(() => loadBookings())
+  const [bookings, setBookings] = useState([])
   const [tab,          setTab]         = useState('list')   // 'list' | 'calendar'
   const [search,       setSearch]      = useState('')
   const [statusFilter, setStatusFilter]= useState('all')
@@ -916,7 +917,11 @@ export default function Trips() {
   }, [bookings, search, statusFilter, typeFilter, isDriver, user])
 
   // ── Helpers ────────────────────────────────────────────────
-  const reload = () => setBookings(loadBookings())
+  const reload = useCallback(async () => {
+    const b = await loadBookings()
+    setBookings(Array.isArray(b) ? b : [])
+  }, [])
+  useEffect(() => { reload() }, [reload])
 
   const handleSave = (booking) => {
     saveBooking(booking)

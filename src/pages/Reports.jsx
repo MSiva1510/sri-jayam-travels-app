@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import {
   Car, Users, User, IndianRupee, AlertTriangle,
   CheckCircle, Download, BarChart2, FileText,
@@ -152,7 +152,8 @@ function TripReports() {
   const [to, setTo]         = useState(today)
   const [driver, setDriver] = useState('all')
   const [vehicle,setVehicle]= useState('all')
-  const report = useMemo(()=>getTripReport(from,to,driver,vehicle),[from,to,driver,vehicle])
+  const [report, setReport] = useState({ rows:[], totalRevenue:0, totalDistance:0, completed:0, cancelled:0, cancelRate:0 })
+  useEffect(()=>{ getTripReport(from,to,driver,vehicle).then(d=>setReport(d ?? { rows:[], totalRevenue:0, totalDistance:0, completed:0, cancelled:0, cancelRate:0 })) },[from,to,driver,vehicle])
 
   const handleExport = () => exportToCSV(report.rows,[
     {label:'Booking No.',key:'bookingNo'},{label:'Customer',key:'customer'},
@@ -251,7 +252,8 @@ function TripReports() {
 //  Module 3: Driver Performance
 // ─────────────────────────────────────────────────────────────
 function DriverPerformance() {
-  const data     = useMemo(()=>getDriverPerformance(),[])
+  const [data, setData] = useState([])
+  useEffect(()=>{ getDriverPerformance().then(d=>setData(Array.isArray(d)?d:[])) },[])
   const maxTrips = Math.max(...data.map(d=>d.completedTrips),1)
   const handleExport = ()=>exportToCSV(data,[
     {label:'Driver',key:'name'},{label:'Total Trips',key:'totalTrips'},
@@ -305,7 +307,8 @@ function DriverPerformance() {
 //  Module 4: Vehicle Performance
 // ─────────────────────────────────────────────────────────────
 function VehiclePerformance() {
-  const data     = useMemo(()=>getVehiclePerformance(),[])
+  const [data, setData] = useState([])
+  useEffect(()=>{ getVehiclePerformance().then(d=>setData(Array.isArray(d)?d:[])) },[])
   const maxTrips = Math.max(...data.map(v=>v.completedTrips),1)
   const handleExport = ()=>exportToCSV(data,[
     {label:'Vehicle',key:'reg'},{label:'Type',key:'type'},{label:'Model',key:'model'},
@@ -358,7 +361,8 @@ function VehiclePerformance() {
 //  Module 5: Customer Reports
 // ─────────────────────────────────────────────────────────────
 function CustomerReports() {
-  const report   = useMemo(()=>getCustomerReport(),[])
+  const [report, setReport] = useState({ rows:[], totalCustomers:0, repeatCustomers:0, corporateCustomers:0, topByRevenue:[], topByTrips:[] })
+  useEffect(()=>{ getCustomerReport().then(d=>setReport(d ?? { rows:[], totalCustomers:0, repeatCustomers:0, corporateCustomers:0, topByRevenue:[], topByTrips:[] })) },[])
   const maxTrips = Math.max(...report.topByTrips.map(c=>c.totalTrips),1)
   const handleExport = ()=>exportToCSV(report.rows,[
     {label:'Customer',key:'name'},{label:'Type',key:'type'},{label:'City',key:'city'},
@@ -410,7 +414,8 @@ function CustomerReports() {
 //  Module 6: Expense Analytics
 // ─────────────────────────────────────────────────────────────
 function ExpenseAnalytics() {
-  const data     = useMemo(()=>getExpenseAnalytics(),[])
+  const [data, setData] = useState({ months:[], byCategory:[], monthTotal:0, allTimeTotal:0 })
+  useEffect(()=>{ getExpenseAnalytics().then(d=>setData(d ?? { months:[], byCategory:[], monthTotal:0, allTimeTotal:0 })) },[])
   const maxMonth = Math.max(...data.months.map(m=>m.tot),1)
   const handleExport = ()=>exportToCSV(
     data.months.map(m=>({month:m.lbl,total:m.tot})),
@@ -470,7 +475,8 @@ function ExpenseAnalytics() {
 //  Module 7: Payroll Analytics
 // ─────────────────────────────────────────────────────────────
 function PayrollAnalytics() {
-  const data   = useMemo(()=>getPayrollAnalytics(),[])
+  const [data, setData] = useState({ totalPaid:0, pendingCount:0, approvedCount:0, paidCount:0, draftCount:0, totalIncentives:0, byDriver:[] })
+  useEffect(()=>{ getPayrollAnalytics().then(d=>setData(d ?? { totalPaid:0, pendingCount:0, approvedCount:0, paidCount:0, draftCount:0, totalIncentives:0, byDriver:[] })) },[])
   const maxPay = Math.max(...data.byDriver.map(d=>d.paid),1)
   return (
     <div className="space-y-4">
@@ -504,7 +510,8 @@ function PayrollAnalytics() {
 //  Module 8: Operations Monitor
 // ─────────────────────────────────────────────────────────────
 function OperationsMonitor() {
-  const ops = useMemo(()=>getOperationsMonitor(),[])
+  const [ops, setOps] = useState({ drivers:{available:0,onLeave:0}, vehicles:{available:0,maintenance:0,assigned:0}, trips:{scheduled:0,assigned:0,inProgress:0,completed:0,cancelled:0} })
+  useEffect(()=>{ getOperationsMonitor().then(d=>setOps(d ?? { drivers:{available:0,onLeave:0}, vehicles:{available:0,maintenance:0,assigned:0}, trips:{scheduled:0,assigned:0,inProgress:0,completed:0,cancelled:0} })) },[])
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <OpsBlock label="Drivers" items={[
@@ -531,7 +538,8 @@ function OperationsMonitor() {
 //  Module 9: Business Alerts
 // ─────────────────────────────────────────────────────────────
 function BusinessAlerts() {
-  const alerts = useMemo(()=>getBusinessAlerts(),[])
+  const [alerts, setAlerts] = useState([])
+  useEffect(()=>{ setAlerts(getBusinessAlerts()) },[])
   const PC = {
     high:  {badge:'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',         label:'High'},
     medium:{badge:'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', label:'Medium'},
@@ -598,8 +606,10 @@ const TAB_META = {
 export default function Reports() {
   const { isDriver } = useAuth()
   const [tab,    setTab]   = useState('overview')
-  const summary  = useMemo(()=>getExecutiveSummary(),[])
-  const alerts   = useMemo(()=>getBusinessAlerts(),[])
+  const [summary, setSummary] = useState({ trips:{total:0,active:0,completed:0,cancelled:0,assigned:0,scheduled:0}, customers:{total:0,corporate:0,active:0}, vehicles:{total:0,available:0,inUse:0,maintenance:0}, drivers:{total:0,available:0,onLeave:0}, finance:{totalFare:0,totalNet:0,totalKm:0,totalExp:0,monthExpenses:0,paidPayroll:0} })
+  useEffect(()=>{ getExecutiveSummary().then(d=>setSummary(d ?? summary)) },[])
+  const [alerts, setAlerts] = useState([])
+  useEffect(()=>{ setAlerts(getBusinessAlerts()) },[])
 
   if (isDriver) return (
     <div className="glass-card rounded-2xl p-12 text-center">

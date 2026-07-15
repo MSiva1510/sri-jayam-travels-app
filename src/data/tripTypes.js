@@ -1,4 +1,8 @@
 // ─── Trip Type Management — Data, Config & Booking Store ─────
+// Storage: Supabase `bookings` table via tripRepository
+
+import { tripRepository } from '../repositories/tripRepository'
+import { withCache, cacheClear } from '../utils/dataCache'
 
 // ── Trip type definitions ─────────────────────────────────────
 export const TRIP_TYPE_CONFIG = {
@@ -50,15 +54,15 @@ export const TRIP_TYPE_LIST = Object.values(TRIP_TYPE_CONFIG)
 
 // ── Booking status definitions ────────────────────────────────
 export const BOOKING_STATUSES = [
-  { key:'draft',     label:'Draft',      badge:'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',                dot:'bg-slate-400' },
-  { key:'confirmed', label:'Confirmed',  badge:'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',          dot:'bg-violet-500' },
-  { key:'assigned',  label:'Assigned',   badge:'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',                  dot:'bg-blue-500' },
-  { key:'started',   label:'In Progress',badge:'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',              dot:'bg-amber-500 animate-pulse' },
-  { key:'completed', label:'Completed',  badge:'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',      dot:'bg-emerald-500' },
-  { key:'cancelled', label:'Cancelled',  badge:'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',                     dot:'bg-red-500' },
+  { key:'draft',     label:'Draft',       badge:'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',                dot:'bg-slate-400' },
+  { key:'confirmed', label:'Confirmed',   badge:'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',          dot:'bg-violet-500' },
+  { key:'assigned',  label:'Assigned',    badge:'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',                  dot:'bg-blue-500' },
+  { key:'started',   label:'In Progress', badge:'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',              dot:'bg-amber-500 animate-pulse' },
+  { key:'completed', label:'Completed',   badge:'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',      dot:'bg-emerald-500' },
+  { key:'cancelled', label:'Cancelled',   badge:'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',                     dot:'bg-red-500' },
 ]
 
-// Keep legacy TRIP_STATUSES alias for backward compat
+// Keep legacy alias for backward compat
 export const TRIP_STATUSES = BOOKING_STATUSES
 
 export const getStatusCfg = key => BOOKING_STATUSES.find(s => s.key === key) || BOOKING_STATUSES[0]
@@ -73,9 +77,9 @@ export const DRIVER_AVAIL_CFG = {
 
 // ── Vehicle availability config ───────────────────────────────
 export const VEHICLE_AVAIL_CFG = {
-  available:   { label:'Available',  badge:'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', dot:'bg-emerald-500' },
-  assigned:    { label:'Assigned',   badge:'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',             dot:'bg-blue-500' },
-  maintenance: { label:'Service',    badge:'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',                 dot:'bg-red-500' },
+  available:   { label:'Available', badge:'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', dot:'bg-emerald-500' },
+  assigned:    { label:'Assigned',  badge:'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',             dot:'bg-blue-500' },
+  maintenance: { label:'Service',   badge:'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',                 dot:'bg-red-500' },
 }
 
 // ── Booking number generator ──────────────────────────────────
@@ -87,41 +91,56 @@ export function generateBookingNumber() {
   return `BK-${y}${m}-${ts}`
 }
 
-// ── localStorage store ────────────────────────────────────────
-export const BOOKINGS_KEY = 'sjt_bookings'
+// ── Supabase booking store ────────────────────────────────────
+// All functions are async — callers must await them.
 
-export function loadBookings() {
+async function _loadBookings() {
   try {
-    const raw  = localStorage.getItem(BOOKINGS_KEY)
-    const stored = raw ? JSON.parse(raw) : []
-    // Merge stored over mock (stored entries take priority by id)
-    const storedIds = new Set(stored.map(b => b.id))
-    return [...stored, ...MOCK_BOOKINGS.filter(b => !storedIds.has(b.id))]
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-  } catch { return MOCK_BOOKINGS }
+    return await tripRepository.getAll()
+  } catch (err) {
+    console.error('[tripTypes] loadBookings failed:', err)
+    return MOCK_BOOKINGS
+  }
+}
+export const loadBookings = withCache('bookings', _loadBookings)
+
+
+// Alias used in some pages
+export const getBookings = loadBookings
+
+export async function saveBooking(booking) {
+  try {
+    const { id, ...rest } = booking
+    const existing = id ? await tripRepository.getById(id) : null
+    if (existing) {
+      return await tripRepository.update(id, rest)
+    }
+    return await tripRepository.create({ id, ...rest })
+  } catch (err) {
+    console.error('[tripTypes] saveBooking failed:', err)
+    return null
+  }
 }
 
-export function saveBooking(booking) {
+export async function deleteBooking(id) {
   try {
-    const raw    = localStorage.getItem(BOOKINGS_KEY)
-    const stored = raw ? JSON.parse(raw) : []
-    const idx    = stored.findIndex(b => b.id === booking.id)
-    if (idx >= 0) stored[idx] = booking
-    else          stored.unshift(booking)
-    localStorage.setItem(BOOKINGS_KEY, JSON.stringify(stored))
-  } catch {}
+    return await tripRepository.delete(id)
+  } catch (err) {
+    console.error('[tripTypes] deleteBooking failed:', err)
+    return false
+  }
 }
 
-export function deleteBooking(id) {
+export async function getBookingsByStatus(status) {
   try {
-    const raw    = localStorage.getItem(BOOKINGS_KEY)
-    const stored = raw ? JSON.parse(raw) : []
-    localStorage.setItem(BOOKINGS_KEY, JSON.stringify(stored.filter(b => b.id !== id)))
-  } catch {}
+    return await tripRepository.getByStatus(status)
+  } catch (err) {
+    console.error('[tripTypes] getBookingsByStatus failed:', err)
+    return []
+  }
 }
 
 // ── Availability helpers ──────────────────────────────────────
-// A driver is unavailable if they have an active/started/assigned booking on the same date
 export function getDriverAvailability(driverName, date, bookings, mockDriverStatus) {
   if (mockDriverStatus === 'on-leave') return 'leave'
   const conflict = bookings.find(b =>
@@ -144,7 +163,9 @@ export function getVehicleAvailability(vehicleReg, date, bookings, mockVehicleSt
   return 'available'
 }
 
-// ── Mock bookings (seed data) ─────────────────────────────────
+// ── Seed / reference data (NOT merged into live queries) ─────
+// Used only as fallback if Supabase is unreachable, and as
+// documentation of the expected booking shape.
 export const MOCK_BOOKINGS = [
   {
     id:'BK-2605-001', bookingNo:'BK-2605-001', type:'one_way', status:'completed',
@@ -206,5 +227,5 @@ export const MOCK_BOOKINGS = [
   },
 ]
 
-// Keep CREATED_TRIPS as alias pointing to same data shape for backward compat
+// Backward compat alias
 export const CREATED_TRIPS = MOCK_BOOKINGS

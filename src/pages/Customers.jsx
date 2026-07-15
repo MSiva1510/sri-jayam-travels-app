@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Plus, Search, Phone, MapPin, Edit2, Trash2,
@@ -657,45 +657,65 @@ function QuickBookingModal({ customer, onClose }) {
 
 // ─────────────────────────────────────────────────────────────
 //  Main Customers List
-// ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────export default function Customers() {
 export default function Customers() {
   const { user } = useAuth()
   const navigate = useNavigate()
 
-  const [customers, setCustomers] = useState(loadCustomers())
-  const [bookings, setBookings] = useState(loadBookings())
-  const [showAdd, setShowAdd] = useState(false)
+  // ── Async state ────────────────────────────────────────────
+  const [customers,    setCustomers]    = useState([])
+  const [bookings,     setBookings]     = useState([])
+  const [loading,      setLoading]      = useState(true)
+  const [showAdd,      setShowAdd]      = useState(false)
   const [editCustomer, setEditCustomer] = useState(null)
-  const [bookingFor, setBookingFor] = useState(null)
-  const [search, setSearch] = useState('')
-  const [typeFilter, setTypeFilter] = useState('all')
-  const [sortBy, setSortBy] = useState('name')
-  const [expanded, setExpanded] = useState(null)
-  const [toast, setToast] = useState('')
+  const [bookingFor,   setBookingFor]   = useState(null)
+  const [search,       setSearch]       = useState('')
+  const [typeFilter,   setTypeFilter]   = useState('all')
+  const [sortBy,       setSortBy]       = useState('name')
+  const [expanded,     setExpanded]     = useState(null)
+  const [toast,        setToast]        = useState('')
 
   const canAdd    = ['admin', 'manager'].includes(user?.role)
   const canEdit   = ['admin', 'manager'].includes(user?.role)
   const canDelete = user?.role === 'admin'
 
-  const handleSave = (customer) => {
-    const isNew = !customers.find(c => c.id === customer.id)
-    saveCustomer(customer)
-    if (isNew) {
-      addAuditEvent('CUSTOMER_ADDED', { description: `${customer.name} — ${customer.type || 'individual'}` })
+  // ── Load from Supabase on mount ────────────────────────────
+  const reload = useCallback(async () => {
+    try {
+      const [c, b] = await Promise.all([loadCustomers(), loadBookings()])
+      setCustomers(Array.isArray(c) ? c.filter(x => !x._deleted) : [])
+      setBookings(Array.isArray(b) ? b : [])
+    } catch (err) {
+      console.error('[Customers] load failed:', err)
+    } finally {
+      setLoading(false)
     }
-    setCustomers(loadCustomers())
-    setShowAdd(false)
-    setEditCustomer(null)
-    setToast(`${customer.id ? 'Updated' : 'Added'} ${customer.name}`)
+  }, [])
+
+  useEffect(() => { reload() }, [reload])
+
+  const showToast = (msg) => {
+    setToast(msg)
     setTimeout(() => setToast(''), 3000)
   }
 
-  const handleDelete = (id) => {
+  const handleSave = async (customer) => {
+    const isNew = !customers.find(c => c.id === customer.id)
+    await saveCustomer(customer)
+    if (isNew) {
+      addAuditEvent('CUSTOMER_ADDED', { description: `${customer.name} — ${customer.type || 'individual'}` })
+    }
+    await reload()
+    setShowAdd(false)
+    setEditCustomer(null)
+    showToast(`${isNew ? 'Added' : 'Updated'} ${customer.name}`)
+  }
+
+  const handleDelete = async (id) => {
     if (!confirm('Delete this customer? This cannot be undone.')) return
-    deleteCustomer(id)
-    setCustomers(loadCustomers())
-    setToast('Customer deleted')
-    setTimeout(() => setToast(''), 3000)
+    await deleteCustomer(id)
+    await reload()
+    showToast('Customer deleted')
   }
 
   const filtered = useMemo(() => {

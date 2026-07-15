@@ -1,163 +1,48 @@
-// ─────────────────────────────────────────────────────────────────────
-// AUTH SERVICE
-// High-level authentication service
-// ─────────────────────────────────────────────────────────────────────
+// ─── Auth Service ─────────────────────────────────────────────
+// Thin orchestration layer between AuthContext and authRepository.
+// Pure Supabase — no local fallback, no mock users.
 
 import { authRepository } from '../repositories/authRepository'
-import { getDatabaseProvider, DATABASE_PROVIDERS } from '../config/database'
-import { isSupabaseConfigured } from '../lib/supabase'
 
-/**
- * AuthService - Manages authentication operations
- */
-export class AuthService {
-  /**
-   * Login user with email and password
-   * @param {string} email
-   * @param {string} password
-   * @returns {Promise<Object>} User object with profile
-   */
+class AuthService {
   async login(email, password) {
-    // Check if using Supabase
-    if (isSupabaseConfigured() && getDatabaseProvider() === DATABASE_PROVIDERS.SUPABASE) {
-      return this._loginSupabase(email, password)
-    }
-
-    // Fallback to mock (for development)
-    return this._loginLocal(email, password)
+    const { user, session } = await authRepository.signIn({ email, password })
+    const profile = await authRepository.getProfile(user.id)
+    if (!profile) throw new Error('User profile not found. Contact Administrator.')
+    if (profile.status !== 'active') throw new Error('Account deactivated. Contact Administrator.')
+    return { id: user.id, email: user.email, session, ...profile }
   }
 
-  /**
-   * Logout user
-   * @returns {Promise<void>}
-   */
   async logout() {
-    if (isSupabaseConfigured() && getDatabaseProvider() === DATABASE_PROVIDERS.SUPABASE) {
-      await authRepository.signOut()
-    }
+    await authRepository.signOut()
   }
 
-  /**
-   * Get current user
-   * @returns {Promise<Object|null>}
-   */
   async getCurrentUser() {
-    if (isSupabaseConfigured() && getDatabaseProvider() === DATABASE_PROVIDERS.SUPABASE) {
-      const user = await authRepository.getUser()
-      if (!user) return null
-
-      const profile = await authRepository.getUserProfile(user.id)
-      return {
-        id: user.id,
-        email: user.email,
-        ...profile,
-      }
-    }
-
-    return null
+    const authUser = await authRepository.getAuthUser()
+    if (!authUser) return null
+    const profile = await authRepository.getProfile(authUser.id)
+    if (!profile) return null
+    return { id: authUser.id, email: authUser.email, ...profile }
   }
 
-  /**
-   * Restore session
-   * @returns {Promise<Object|null>}
-   */
   async restoreSession() {
-    if (isSupabaseConfigured() && getDatabaseProvider() === DATABASE_PROVIDERS.SUPABASE) {
-      try {
-        const session = await authRepository.restoreSession()
-        if (!session) return null
-
-        const profile = await authRepository.getUserProfile(session.user.id)
-        return {
-          id: session.user.id,
-          email: session.user.email,
-          ...profile,
-        }
-      } catch (error) {
-        console.error('Session restore failed:', error)
-        return null
-      }
-    }
-
-    return null
+    const session = await authRepository.getSession()
+    if (!session?.user) return null
+    const profile = await authRepository.getProfile(session.user.id)
+    if (!profile || profile.status !== 'active') return null
+    return { id: session.user.id, email: session.user.email, ...profile }
   }
 
-  /**
-   * Send password reset email
-   * @param {string} email
-   * @returns {Promise<void>}
-   */
   async sendPasswordReset(email) {
-    if (!isSupabaseConfigured()) {
-      throw new Error('Password reset not available in local mode')
-    }
-
-    await authRepository.sendPasswordResetEmail(email)
+    await authRepository.sendPasswordReset(email)
   }
 
-  /**
-   * Update password
-   * @param {string} newPassword
-   * @returns {Promise<void>}
-   */
   async updatePassword(newPassword) {
-    if (!isSupabaseConfigured()) {
-      throw new Error('Password update not available in local mode')
-    }
-
     await authRepository.updatePassword(newPassword)
   }
 
-  /**
-   * Subscribe to auth state changes
-   * @param {Function} callback
-   * @returns {Function} Unsubscribe function
-   */
   onAuthStateChange(callback) {
-    if (isSupabaseConfigured() && getDatabaseProvider() === DATABASE_PROVIDERS.SUPABASE) {
-      return authRepository.onAuthStateChange(callback)
-    }
-
-    return () => {}
-  }
-
-  /**
-   * Login with Supabase
-   * @private
-   */
-  async _loginSupabase(email, password) {
-    const { user, session } = await authRepository.signIn({ email, password })
-
-    // Fetch user profile
-    let profile = await authRepository.getUserProfile(user.id)
-
-    if (!profile) {
-      // Create default profile if doesn't exist
-      profile = await authRepository.createUserProfile({
-        id: user.id,
-        email: user.email,
-        name: email.split('@')[0],
-        role: 'driver',
-        is_active: true,
-      })
-    }
-
-    return {
-      id: user.id,
-      email: user.email,
-      session,
-      ...profile,
-    }
-  }
-
-  /**
-   * Login with local mock data
-   * @private
-   */
-  async _loginLocal(email, password) {
-    // This is a placeholder for local/mock authentication
-    // Real implementation would use actual mock data
-    throw new Error('Local authentication not implemented')
+    return authRepository.onAuthStateChange(callback)
   }
 }
 

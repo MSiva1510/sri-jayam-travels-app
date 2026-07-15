@@ -1,82 +1,68 @@
+// ─── Auth Context ─────────────────────────────────────────────
+// Single source of truth: Supabase auth.users + public.profiles
+// No MOCK_USERS. No localStorage fallback. No hardcoded credentials.
+
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { autoCheckIn, autoCheckOut } from '../data/attendanceData'
-import { authService } from '../services/authService'
-import { getDatabaseProvider, DATABASE_PROVIDERS } from '../config/database'
-import { isSupabaseConfigured } from '../lib/supabase'
-import { migrateCustomers } from '../services/migration/customerMigration'
-import { migrateDrivers } from '../services/migration/driverMigration'
-import { migrateVehicles } from '../services/migration/vehicleMigration'
-import { migrateTrips } from '../services/migration/tripMigration'
-import { migrateGPS } from '../services/migration/gpsMigration'
-import { migrateAttendance } from '../services/migration/attendanceMigration'
-import { migrateExpenses } from '../services/migration/expenseMigration'
-import { migratePayroll } from '../services/migration/payrollMigration'
-import {
-  startMigrationTracking,
-  completeMigrationTracking,
-  addModuleMigrationStatus,
-} from '../utils/migrationLogger'
-
-export const MOCK_USERS = [
-  { id:1, name:'Arjun Sharma',  email:'admin@srijayamtravels.in',   username:'admin',        password:'admin123',   role:'admin',   phone:'+91 94423 37470', joined:'Jan 2022' },
-  { id:2, name:'Kavitha Rajan', email:'manager@srijayamtravels.in', username:'manager',      password:'manager123', role:'manager', phone:'+91 98765 43210', joined:'Mar 2022' },
-  { id:3, name:'Ramanan',       email:'ramanan@srijayamtravels.in', username:'ramanan',      password:'driver123',  role:'driver',  phone:'8754914315', vehicle:'PY01CY1255', vehicleType:'4+1 Sedan', joined:'Jan 2022' },
-  { id:4, name:'Babu',          email:'babu@srijayamtravels.in',    username:'babu',         password:'driver123',  role:'driver',  phone:'9894403206', vehicle:'PY01DF1255', vehicleType:'4+1 Sedan', joined:'Mar 2021' },
-  { id:5, name:'Rajasekharan',  email:'raja@srijayamtravels.in',    username:'rajasekharan', password:'driver123',  role:'driver',  phone:'6383401383', vehicle:'PY01VF1255', vehicleType:'7+1 SUV',   joined:'Sep 2022' },
-]
+import { authRepository }            from '../repositories/authRepository'
 
 // ── Role permission matrix ─────────────────────────────────────
 export const ROLE_PERMISSIONS = {
   admin: {
-    trips:true, vehicles:true, customers:true, expenses:true, invoices:true,
-    reports:true, settings:true, drivers:true,
-    attendance:true,            // full attendance management
-    revenueDashboard:true, profitReports:true, financialAnalytics:true,
-    expenseReports:true, invoiceManagement:true,
+    trips: true, vehicles: true, customers: true, expenses: true, invoices: true,
+    reports: true, settings: true, drivers: true, attendance: true, userManagement: true,
+    revenueDashboard: true, profitReports: true, financialAnalytics: true,
+    expenseReports: true, invoiceManagement: true,
   },
   manager: {
-    trips:true, vehicles:true, customers:true, expenses:true, invoices:false,
-    reports:false, settings:false, drivers:true,
-    attendance:true,            // can view + mark all driver attendance
-    revenueDashboard:false, profitReports:false, financialAnalytics:false,
-    expenseReports:false, invoiceManagement:false,
+    trips: true, vehicles: true, customers: true, expenses: true, invoices: false,
+    reports: false, settings: false, drivers: true, attendance: true, userManagement: false,
+    revenueDashboard: false, profitReports: false, financialAnalytics: false,
+    expenseReports: false, invoiceManagement: false,
   },
   driver: {
-    trips:false, vehicles:false, customers:false, expenses:false,
-    invoices:false, reports:false, settings:false, drivers:false,
-    attendance:false,
-    revenueDashboard:false, profitReports:false, financialAnalytics:false,
-    expenseReports:false, invoiceManagement:false,
-    viewOwnPayslips:true, viewOwnEarnings:true,
-    viewPayrollDashboard:false, viewExpenseAnalytics:false,
+    trips: false, vehicles: false, customers: false, expenses: false,
+    invoices: false, reports: false, settings: false, drivers: false,
+    attendance: false, userManagement: false,
+    revenueDashboard: false, profitReports: false, financialAnalytics: false,
+    expenseReports: false, invoiceManagement: false,
+    viewOwnPayslips: true, viewOwnEarnings: true,
+    viewPayrollDashboard: false, viewExpenseAnalytics: false,
   },
 }
 
 export const ROLE_ROUTES = {
-  admin:   ['/', '/invoices', '/customers', '/expenses', '/drivers', '/vehicles', '/settings', '/trips', '/create-trip', '/attendance', '/profile', '/payroll', '/reports'],
-  manager: ['/', '/customers', '/expenses', '/drivers', '/vehicles', '/trips', '/create-trip', '/attendance', '/profile', '/payroll'],
-  // Fix 2: /attendance removed from driver allowed routes
-  driver:  ['/driver', '/assigned-trips', '/ride-history', '/driver-profile', '/live-location', '/payslips'],
+  admin:   ['/', '/invoices', '/customers', '/expenses', '/drivers', '/vehicles',
+             '/settings', '/trips', '/create-trip', '/attendance', '/profile',
+             '/payroll', '/reports', '/admin/database-status', '/admin/users'],
+  manager: ['/', '/customers', '/expenses', '/drivers', '/vehicles', '/trips',
+             '/create-trip', '/attendance', '/profile', '/payroll'],
+  driver:  ['/driver', '/assigned-trips', '/ride-history', '/driver-profile',
+             '/live-location', '/payslips'],
 }
 
-export const ROLE_LABELS = { admin:'Administrator', manager:'Manager', driver:'Driver' }
+export const ROLE_LABELS = { admin: 'Administrator', manager: 'Manager', driver: 'Driver' }
 
 export const ROLE_COLORS = {
-  admin:   { bg:'bg-violet-100 dark:bg-violet-900/40', text:'text-violet-700 dark:text-violet-300', dot:'bg-violet-500' },
-  manager: { bg:'bg-blue-100 dark:bg-blue-900/40',     text:'text-blue-700 dark:text-blue-300',     dot:'bg-blue-500'   },
-  driver:  { bg:'bg-teal-100 dark:bg-teal-900/40',     text:'text-teal-700 dark:text-teal-300',     dot:'bg-teal-500'   },
+  admin:   { bg: 'bg-violet-100 dark:bg-violet-900/40', text: 'text-violet-700 dark:text-violet-300', dot: 'bg-violet-500' },
+  manager: { bg: 'bg-blue-100 dark:bg-blue-900/40',     text: 'text-blue-700 dark:text-blue-300',     dot: 'bg-blue-500'   },
+  driver:  { bg: 'bg-teal-100 dark:bg-teal-900/40',     text: 'text-teal-700 dark:text-teal-300',     dot: 'bg-teal-500'   },
 }
 
-const SESSION_KEY = 'sjt_auth_session'
-
-function readStorage() {
-  try { const ss = sessionStorage.getItem(SESSION_KEY); if (ss) return JSON.parse(ss) } catch {}
-  try { const ls = localStorage.getItem(SESSION_KEY);   if (ls) return JSON.parse(ls) } catch {}
-  return null
+// ── Map public.profiles row → app user object ──────────────────
+function profileToUser(authUser, profile) {
+  if (!profile) return null
+  return {
+    id:         profile.id,
+    email:      profile.email || authUser?.email || '',
+    name:       profile.full_name,
+    role:       profile.role,
+    phone:      profile.phone  || '',
+    avatar_url: profile.avatar_url || null,
+    status:     profile.status || 'active',
+    lastLogin:  new Date().toISOString(),
+  }
 }
-function writeSession(user)    { try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(user)) } catch {} }
-function writePersistent(user) { try { localStorage.setItem(SESSION_KEY, JSON.stringify(user))   } catch {} }
-function clearAllStorage()     { try { sessionStorage.removeItem(SESSION_KEY) } catch {}; try { localStorage.removeItem(SESSION_KEY) } catch {} }
 
 const AuthContext = createContext(null)
 
@@ -86,97 +72,95 @@ export function AuthProvider({ children }) {
   const [authLoading, setAuthLoading] = useState(false)
   const [loginError,  setLoginError]  = useState('')
 
-  // ── Restore session on mount ─────────────────────────────
+  // ── Listen to Supabase auth state changes ─────────────────
+  // This fires on: page load (session restore), sign in, sign out, token refresh
   useEffect(() => {
-    const restoreSession = async () => {
-      // Try Supabase if configured and enabled
-      if (isSupabaseConfigured() && getDatabaseProvider() === DATABASE_PROVIDERS.SUPABASE) {
-        try {
-          const supabaseUser = await authService.restoreSession()
-          if (supabaseUser) {
-            setUser(supabaseUser)
-            writeSession(supabaseUser)
-            // Trigger migrations after successful Supabase session
-            triggerMigrations()
-            setInitialized(true)
-            return
+    const unsubscribe = authRepository.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (session?.user) {
+          const profile = await authRepository.getProfile(session.user.id)
+          if (profile && profile.status === 'active') {
+            setUser(profileToUser(session.user, profile))
+          } else if (!profile) {
+            // Profile missing — show error, do not auto-create
+            console.warn('[AuthContext] No profile found for', session.user.email)
+            setUser(null)
+            setLoginError('User profile not found. Please contact Administrator.')
+          } else {
+            // Account deactivated
+            await authRepository.signOut()
+            setUser(null)
+            setLoginError('Your account has been deactivated. Contact Administrator.')
           }
-        } catch (error) {
-          console.warn('Supabase session restore failed:', error)
         }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null)
+      } else if (event === 'INITIAL_SESSION') {
+        // Supabase fires this on first load with existing session
+        if (session?.user) {
+          const profile = await authRepository.getProfile(session.user.id)
+          if (profile && profile.status === 'active') {
+            setUser(profileToUser(session.user, profile))
+          } else {
+            setUser(null)
+          }
+        } else {
+          setUser(null)
+        }
+        setInitialized(true)
       }
 
-      // Fallback to local storage
-      const stored = readStorage()
-      if (stored?.id && stored?.role) {
-        const live = MOCK_USERS.find(u => u.id === stored.id)
-        if (live) {
-          const { password: _p, ...safe } = live
-          setUser({ ...safe, lastLogin: stored.lastLogin })
-          writeSession({ ...safe, lastLogin: stored.lastLogin })
-        } else { clearAllStorage() }
+      if (event !== 'INITIAL_SESSION') {
+        setInitialized(true)
       }
-      setInitialized(true)
-    }
+    })
 
-    restoreSession()
+    return unsubscribe
   }, [])
 
   // ── Login ────────────────────────────────────────────────
-  const login = useCallback(async ({ username, password, remember }) => {
+  const login = useCallback(async ({ email, password }) => {
     setAuthLoading(true)
     setLoginError('')
 
     try {
-      // Try Supabase if configured and enabled
-      if (isSupabaseConfigured() && getDatabaseProvider() === DATABASE_PROVIDERS.SUPABASE) {
-        try {
-          const result = await authService.login(username, password)
-          const sessionUser = {
-            ...result,
-            lastLogin: new Date().toISOString(),
-          }
-          setUser(sessionUser)
-          writeSession(sessionUser)
-          if (remember) writePersistent(sessionUser)
-          setAuthLoading(false)
-          return true
-        } catch (error) {
-          console.error('Supabase login failed:', error)
-          setLoginError('Invalid credentials or Supabase connection error')
-          setAuthLoading(false)
-          return false
-        }
-      }
+      const { user: authUser } = await authRepository.signIn({ email, password })
 
-      // Fallback to local authentication
-      await new Promise(r => setTimeout(r, 700))
-      const found = MOCK_USERS.find(
-        u => (u.username === username.trim().toLowerCase() ||
-              u.email    === username.trim().toLowerCase()) &&
-             u.password  === password
-      )
-      if (!found) {
-        setLoginError('Invalid username or password.')
+      // Fetch profile from public.profiles
+      const profile = await authRepository.getProfile(authUser.id)
+
+      if (!profile) {
+        await authRepository.signOut()
+        setLoginError('User profile not found. Please contact Administrator.')
         setAuthLoading(false)
         return false
       }
-      const { password: _p, ...safeUser } = found
-      const sessionUser = { ...safeUser, lastLogin: new Date().toISOString() }
-      setUser(sessionUser)
-      writeSession(sessionUser)
-      if (remember) writePersistent(sessionUser)
 
-      // Fix 3: auto check-in for drivers on login
-      if (found.role === 'driver') {
-        autoCheckIn(found.name, found.vehicle || '')
+      if (profile.status !== 'active') {
+        await authRepository.signOut()
+        setLoginError('Your account has been deactivated. Contact Administrator.')
+        setAuthLoading(false)
+        return false
       }
 
+      // Auto check-in for drivers
+      if (profile.role === 'driver') {
+        autoCheckIn(profile.full_name, '')
+      }
+
+      const sessionUser = profileToUser(authUser, profile)
+      setUser(sessionUser)
       setAuthLoading(false)
       return true
-    } catch (error) {
-      console.error('Login error:', error)
-      setLoginError('An unexpected error occurred')
+
+    } catch (err) {
+      console.error('[AuthContext] login error:', err)
+      const msg = err.message?.includes('Invalid login credentials')
+        ? 'Invalid email or password.'
+        : err.message?.includes('Email not confirmed')
+        ? 'Email not confirmed. Check your inbox or contact Administrator.'
+        : 'Login failed. Please try again.'
+      setLoginError(msg)
       setAuthLoading(false)
       return false
     }
@@ -184,64 +168,23 @@ export function AuthProvider({ children }) {
 
   // ── Logout ────────────────────────────────────────────────
   const logout = useCallback(async () => {
-    // Logout from Supabase if using it
-    if (isSupabaseConfigured() && getDatabaseProvider() === DATABASE_PROVIDERS.SUPABASE) {
-      try {
-        await authService.logout()
-      } catch (error) {
-        console.error('Supabase logout failed:', error)
-      }
-    }
-
-    // Fix 3: auto check-out for drivers on logout
     if (user?.role === 'driver') {
       autoCheckOut(user.name)
     }
-    setUser(null)
-    clearAllStorage()
-  }, [user])
-  
-  // ── Trigger data migrations ────────────────────────────────
-  const triggerMigrations = useCallback(async () => {
-    if (!isSupabaseConfigured() || getDatabaseProvider() !== DATABASE_PROVIDERS.SUPABASE) {
-      return
-    }
     try {
-      console.log('Starting data migrations...')
-      startMigrationTracking()
-      
-      const customerResult = await migrateCustomers()
-      addModuleMigrationStatus('customers', customerResult)
-      
-      const driverResult = await migrateDrivers()
-      addModuleMigrationStatus('drivers', driverResult)
-      
-      const vehicleResult = await migrateVehicles()
-      addModuleMigrationStatus('vehicles', vehicleResult)
-      
-      const tripResult = await migrateTrips()
-      addModuleMigrationStatus('trips', tripResult)
-      
-      const gpsResult = await migrateGPS()
-      addModuleMigrationStatus('gps', gpsResult)
-      
-      const attendanceResult = await migrateAttendance()
-      addModuleMigrationStatus('attendance', attendanceResult)
-      
-      const expenseResult = await migrateExpenses()
-      addModuleMigrationStatus('expenses', expenseResult)
-      
-      const payrollResult = await migratePayroll()
-      addModuleMigrationStatus('payroll', payrollResult)
-      
-      completeMigrationTracking()
-      console.log('Data migrations completed')
-    } catch (error) {
-      console.error('Migration error:', error)
+      await authRepository.signOut()
+    } catch (err) {
+      console.error('[AuthContext] logout error:', err)
     }
+    setUser(null)
+  }, [user])
+
+  // ── Password reset ─────────────────────────────────────────
+  const sendPasswordReset = useCallback(async (email) => {
+    await authRepository.sendPasswordReset(email)
   }, [])
 
-  // ── Permission helper ──────────────────────────────────────
+  // ── Permission helper ─────────────────────────────────────
   const can = useCallback((permission) => {
     if (!user) return false
     return ROLE_PERMISSIONS[user.role]?.[permission] ?? false
@@ -254,7 +197,7 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       user, initialized, authLoading, loginError, setLoginError,
-      login, logout, can,
+      login, logout, sendPasswordReset, can,
       isAdmin, isManager, isDriver,
     }}>
       {children}

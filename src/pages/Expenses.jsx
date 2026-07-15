@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   Plus, Search, ChevronDown, ChevronUp,
   X, Edit2, Trash2, CheckCircle, AlertTriangle,
@@ -93,13 +93,14 @@ function ESel({ label, field, children, required, value, onChange, error }) {
 }
 
 function ExpenseModal({ expense, onClose, onSave, currentUser, isDriver: isDrv }) {
+  const [bookings, setBookings] = useState([])
+  useEffect(() => { loadBookings().then(b => setBookings(Array.isArray(b) ? b : [])) }, [])
   const isEdit   = !!expense?.id
   const [form,   setForm]   = useState(() => expense || { ...EMPTY, addedBy: currentUser?.name || '' })
   const [errors, setErrors] = useState({})
   const upd = (field, value) => setForm(f => ({ ...f, [field]: value }))
 
   const allowedTypes = isDrv ? EXPENSE_TYPES.filter(t => DRIVER_ALLOWED_TYPES.includes(t.key)) : EXPENSE_TYPES
-  const bookings     = loadBookings()
 
   const validate = () => {
     const e = {}
@@ -175,7 +176,7 @@ function ExpenseModal({ expense, onClose, onSave, currentUser, isDriver: isDrv }
           {/* Trip reference */}
           <ESel label="Trip Reference (optional)" field="tripRef" value={form.tripRef} onChange={upd} error={errors.tripRef}>
             <option value="">— No trip linked —</option>
-            {loadBookings().map(b => (
+            {bookings.map(b => (
               <option key={b.id} value={b.bookingNo}>{b.bookingNo} — {b.customer}</option>
             ))}
           </ESel>
@@ -412,7 +413,7 @@ export default function Expenses() {
   const canDelete  = isAdmin
   const canApprove = isAdmin || isManager
 
-  const [expenses,   setExpenses]  = useState(() => loadExpenses())
+  const [expenses,   setExpenses]  = useState([])
   const [search,     setSearch]    = useState('')
   const [typeFilter, setTypeFilter]= useState('all')
   const [statFilter, setStatFilter]= useState('all')
@@ -425,7 +426,11 @@ export default function Expenses() {
 
   const PAGE_SIZE = 10
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 3000) }
-  const reload    = () => setExpenses(loadExpenses())
+  const reload = async () => {
+    const e = await loadExpenses()
+    setExpenses(Array.isArray(e) ? e : [])
+  }
+  useEffect(() => { reload() }, [])
 
   // Driver sees only their own expenses — Module 7
   const myExpenses = isDriver

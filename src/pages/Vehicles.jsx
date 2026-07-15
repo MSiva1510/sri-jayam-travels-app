@@ -1,27 +1,29 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import {
   Plus, Wrench, Shield, Fuel, Gauge, X, CheckCircle,
   ChevronDown, ChevronUp, AlertTriangle, Car, User,
   Calendar, FileText, Edit2, History, MapPin, Clock,
 } from 'lucide-react'
-import PageHeader from '../components/ui/PageHeader'
-import Avatar     from '../components/ui/Avatar'
-import { useAuth } from '../context/AuthContext'
-import { VEHICLES, TRIPS, DRIVERS } from '../data/mockData'
-import { saveVehicleAssignment, loadVehicleAssignments } from '../data/attendanceData'
-import { docStatus, daysLabel } from '../utils/vehicleUtils'
+import PageHeader   from '../components/ui/PageHeader'
+import Avatar       from '../components/ui/Avatar'
 import ModalOverlay from '../components/ui/ModalOverlay'
-import { getVehicleStatusEntry, getVehicleStatusCfg } from '../data/vehicleStatusData'
-import { fmtAuditTime } from '../data/auditLogData'
+import { useAuth }  from '../context/AuthContext'
+import { vehicleRepository }                       from '../repositories/vehicleRepository'
+import { loadVehicleAssignments, saveVehicleAssignment } from '../data/attendanceData'
+import { docStatus, daysLabel }                    from '../utils/vehicleUtils'
+import { getVehicleStatusEntry, getVehicleStatusCfg }   from '../data/vehicleStatusData'
+import { fmtAuditTime }                            from '../data/auditLogData'
+import { loadBookings }                            from '../data/tripTypes'
+import { withTimeout } from '../utils/withTimeout'
 
 // ─────────────────────────────────────────────────────────────
 //  Status config
 // ─────────────────────────────────────────────────────────────
 const STATUS_CFG = {
-  active:      { label:'Available',   badge:'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', dot:'bg-emerald-500'            },
-  assigned:    { label:'Assigned',    badge:'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',             dot:'bg-blue-500'               },
-  maintenance: { label:'Maintenance', badge:'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',                 dot:'bg-red-500'                },
-  offline:     { label:'Offline',     badge:'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',            dot:'bg-slate-400'              },
+  active:      { label:'Available',   badge:'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', dot:'bg-emerald-500' },
+  assigned:    { label:'Assigned',    badge:'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',             dot:'bg-blue-500'    },
+  maintenance: { label:'Maintenance', badge:'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',                 dot:'bg-red-500'     },
+  offline:     { label:'Offline',     badge:'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',            dot:'bg-slate-400'   },
 }
 function StatusBadge({ status }) {
   const cfg = STATUS_CFG[status] || STATUS_CFG.active
@@ -34,7 +36,7 @@ function StatusBadge({ status }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Document row — single document (ins/permit/FC/PUC)
+//  Document row
 // ─────────────────────────────────────────────────────────────
 function DocRow({ icon: Icon, label, number, expiry }) {
   const st = docStatus(expiry)
@@ -64,21 +66,8 @@ function DocRow({ icon: Icon, label, number, expiry }) {
 
 // ─────────────────────────────────────────────────────────────
 //  Add / Edit Vehicle Modal
+//  Field helpers defined OUTSIDE modal — prevents remount on keystroke
 // ─────────────────────────────────────────────────────────────
-const VEHICLE_STORE_KEY = 'sjt_vehicles_override'
-
-function loadVehicleOverrides() {
-  try { const r = localStorage.getItem(VEHICLE_STORE_KEY); return r ? JSON.parse(r) : [] } catch { return [] }
-}
-function saveVehicleOverride(v) {
-  try {
-    const arr = loadVehicleOverrides()
-    const idx = arr.findIndex(x => x.id === v.id)
-    if (idx >= 0) arr[idx] = v; else arr.push(v)
-    localStorage.setItem(VEHICLE_STORE_KEY, JSON.stringify(arr))
-  } catch {}
-}
-
 const EMPTY_VEHICLE = {
   id: null, reg:'', type:'4+1 Sedan', model:'', year: new Date().getFullYear(),
   km:0, status:'active', fuelType:'Petrol', color:'White', driver:'',
@@ -89,7 +78,6 @@ const EMPTY_VEHICLE = {
   pucNumber:'', pucExpiry:'',
 }
 
-// ── Field components defined OUTSIDE modal so React doesn't remount on every keystroke ──
 function VField({ label, field, type='text', required, value, onChange }) {
   const handleChange = (e) => {
     let v = e.target.value
@@ -97,7 +85,7 @@ function VField({ label, field, type='text', required, value, onChange }) {
     if (field === 'model')        { v = v.slice(0, 40) }
     if (field === 'color')        { v = v.replace(/[^a-zA-Z\s]/g, '').slice(0, 20) }
     if (field === 'year')         { v = v.replace(/\D/g, '').slice(0, 4) }
-    if (field === 'lastServiceKm' || field === 'nextServiceKm' || field === 'km') {
+    if (['lastServiceKm','nextServiceKm','km'].includes(field)) {
       v = v.replace(/\D/g, '').slice(0, 7)
     }
     if (['insNumber','permitNumber','fcNumber','pucNumber'].includes(field)) {
@@ -133,8 +121,28 @@ function VSectionHead({ title }) {
 }
 
 function VehicleModal({ vehicle, onClose, onSave }) {
-  const [form, setForm] = useState(() => vehicle || { ...EMPTY_VEHICLE, id: Date.now() })
+  const [form,   setForm]   = useState(() => vehicle ? { ...vehicle } : { ...EMPTY_VEHICLE, id: `VEH-${Date.now()}` })
+  const [saving, setSaving] = useState(false)
   const upd = (field, value) => setForm(f => ({ ...f, [field]: value }))
+
+  const handleSave = async () => {
+    if (!form.reg) return
+    setSaving(true)
+    try {
+      let result
+      if (vehicle?.id) {
+        result = await vehicleRepository.update(vehicle.id, form)
+      } else {
+        result = await vehicleRepository.create(form)
+      }
+      onSave(result || form)
+    } catch (err) {
+      console.error('VehicleModal save failed:', err)
+      alert('Failed to save. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <ModalOverlay onClose={onClose}>
@@ -150,7 +158,6 @@ function VehicleModal({ vehicle, onClose, onSave }) {
         </div>
 
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
-          {/* Basic */}
           <div className="grid grid-cols-2 gap-3">
             <VField label="Reg. Number" field="reg" required value={form.reg} onChange={upd} />
             <VSelectField label="Type" field="type" options={['4+1 Sedan','7+1 SUV','Tempo Traveller','Mini Van']} value={form.type} onChange={upd} />
@@ -161,39 +168,29 @@ function VehicleModal({ vehicle, onClose, onSave }) {
             <VField label="Color" field="color" value={form.color} onChange={upd} />
             <VSelectField label="Status" field="status" options={['active','maintenance','offline']} value={form.status} onChange={upd} />
           </div>
-
-          {/* Service */}
           <VSectionHead title="Service Tracking" />
           <div className="grid grid-cols-2 gap-3">
             <VField label="Last Service Date" field="lastServiceDate" type="date" value={form.lastServiceDate} onChange={upd} />
-            <VField label="Last Service KM"  field="lastServiceKm"  type="number" value={form.lastServiceKm} onChange={upd} />
+            <VField label="Last Service KM"   field="lastServiceKm"   type="number" value={form.lastServiceKm} onChange={upd} />
             <VField label="Next Service Date" field="nextServiceDate" type="date" value={form.nextServiceDate} onChange={upd} />
-            <VField label="Next Service KM"  field="nextServiceKm"  type="number" value={form.nextServiceKm} onChange={upd} />
+            <VField label="Next Service KM"   field="nextServiceKm"   type="number" value={form.nextServiceKm} onChange={upd} />
           </div>
-
-          {/* Insurance */}
           <VSectionHead title="Insurance" />
           <div className="grid grid-cols-2 gap-3">
             <VField label="Provider"   field="insProvider" value={form.insProvider} onChange={upd} />
-            <VField label="Policy No." field="insNumber" value={form.insNumber} onChange={upd} />
+            <VField label="Policy No." field="insNumber"   value={form.insNumber}   onChange={upd} />
             <div className="col-span-2"><VField label="Expiry Date" field="insExpiry" type="date" value={form.insExpiry} onChange={upd} /></div>
           </div>
-
-          {/* Permit */}
           <VSectionHead title="Permit" />
           <div className="grid grid-cols-2 gap-3">
             <VField label="Permit No." field="permitNumber" value={form.permitNumber} onChange={upd} />
             <VField label="Expiry"     field="permitExpiry" type="date" value={form.permitExpiry} onChange={upd} />
           </div>
-
-          {/* FC */}
           <VSectionHead title="Fitness Certificate (FC)" />
           <div className="grid grid-cols-2 gap-3">
-            <VField label="FC No."  field="fcNumber" value={form.fcNumber} onChange={upd} />
-            <VField label="Expiry"  field="fcExpiry"  type="date" value={form.fcExpiry} onChange={upd} />
+            <VField label="FC No." field="fcNumber" value={form.fcNumber} onChange={upd} />
+            <VField label="Expiry" field="fcExpiry"  type="date" value={form.fcExpiry} onChange={upd} />
           </div>
-
-          {/* PUC */}
           <VSectionHead title="Pollution Certificate (PUC)" />
           <div className="grid grid-cols-2 gap-3">
             <VField label="PUC No." field="pucNumber" value={form.pucNumber} onChange={upd} />
@@ -205,9 +202,9 @@ function VehicleModal({ vehicle, onClose, onSave }) {
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">
             Cancel
           </button>
-          <button onClick={() => { if(!form.reg) return; saveVehicleOverride(form); onSave(form) }}
-            className="flex-1 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-sm font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-md active:scale-95">
-            {vehicle ? 'Save Changes' : 'Add Vehicle'}
+          <button onClick={handleSave} disabled={!form.reg || saving}
+            className="flex-1 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-sm font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-md active:scale-95 disabled:opacity-50">
+            {saving ? 'Saving…' : (vehicle ? 'Save Changes' : 'Add Vehicle')}
           </button>
         </div>
       </div>
@@ -216,13 +213,42 @@ function VehicleModal({ vehicle, onClose, onSave }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Assignment Modal — reused from Day 9, enhanced
+//  Assignment Modal
 // ─────────────────────────────────────────────────────────────
-function AssignmentModal({ vehicle, onClose, onConfirm }) {
+function AssignmentModal({ vehicle, drivers, onClose, onConfirm }) {
   const [selectedDriver, setSelectedDriver] = useState(vehicle.driver || '')
+  const [saving, setSaving] = useState(false)
   const now     = new Date()
   const dateStr = now.toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short', year:'numeric' })
   const timeStr = now.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })
+
+  const handleConfirm = async () => {
+    if (!selectedDriver) return
+    setSaving(true)
+    try {
+      const matched = drivers.find(d => d.name === selectedDriver)
+      const record  = {
+        vehicleReg:   vehicle.reg,
+        vehicleType:  vehicle.type,
+        vehicleModel: vehicle.model,
+        driverId:     matched?.id || null,
+        driverName:   selectedDriver,
+        assignedDate: now.toISOString().slice(0, 10),
+        assignedTime: timeStr,
+        assignedAt:   now.toISOString(),
+        releasedDate: null,
+      }
+      await saveVehicleAssignment(record)
+      // Also update the vehicle's driver field
+      await vehicleRepository.update(vehicle.id, { driver: selectedDriver })
+      onConfirm(record)
+    } catch (err) {
+      console.error('Assignment failed:', err)
+      alert('Failed to assign driver. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <ModalOverlay onClose={onClose}>
@@ -239,15 +265,15 @@ function AssignmentModal({ vehicle, onClose, onConfirm }) {
           </button>
         </div>
         <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3 mb-4 space-y-1">
-          {[['Date', dateStr],['Time', timeStr]].map(([l,v]) => (
+          {[['Date', dateStr], ['Time', timeStr]].map(([l,v]) => (
             <div key={l} className="flex justify-between text-xs">
               <span className="text-slate-500 font-medium">{l}</span>
               <span className="font-bold text-slate-700 dark:text-slate-200">{v}</span>
             </div>
           ))}
         </div>
-        <div className="space-y-2 mb-4">
-          {DRIVERS.map(d => (
+        <div className="space-y-2 mb-4 max-h-52 overflow-y-auto">
+          {drivers.map(d => (
             <button key={d.id} onClick={() => setSelectedDriver(d.name)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all ${
                 selectedDriver === d.name
@@ -257,7 +283,7 @@ function AssignmentModal({ vehicle, onClose, onConfirm }) {
               <Avatar name={d.name} size={28} />
               <div className="flex-1 text-left">
                 <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{d.name}</p>
-                <p className="text-[10px] text-slate-400">{d.vehicle}</p>
+                <p className="text-[10px] text-slate-400">{d.vehicle || 'No vehicle assigned'}</p>
               </div>
               {selectedDriver === d.name && <CheckCircle size={16} className="text-navy-600 dark:text-blue-400 flex-shrink-0" />}
             </button>
@@ -265,20 +291,9 @@ function AssignmentModal({ vehicle, onClose, onConfirm }) {
         </div>
         <div className="flex gap-2">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">Cancel</button>
-          <button onClick={() => {
-            if (!selectedDriver) return
-            const record = {
-              vehicleReg: vehicle.reg, vehicleType: vehicle.type, vehicleModel: vehicle.model,
-              driverId:   DRIVERS.find(d => d.name === selectedDriver)?.id || null,
-              driverName: selectedDriver,
-              assignedDate: now.toISOString().slice(0,10), assignedTime: timeStr,
-              assignedAt:   now.toISOString(), releasedDate: null,
-            }
-            saveVehicleAssignment(record)
-            onConfirm(record)
-          }} disabled={!selectedDriver}
+          <button onClick={handleConfirm} disabled={!selectedDriver || saving}
             className="flex-1 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-sm font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-md disabled:opacity-40 active:scale-95">
-            Confirm
+            {saving ? 'Assigning…' : 'Confirm'}
           </button>
         </div>
       </div>
@@ -287,22 +302,20 @@ function AssignmentModal({ vehicle, onClose, onConfirm }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Vehicle Detail Panel (expanded row)
+//  Vehicle Detail Panel
 // ─────────────────────────────────────────────────────────────
-function VehicleDetail({ v, assignments, onEdit, onAssign, canEdit, canAssign, canDelete, onDelete }) {
-  const vTrips   = TRIPS.filter(t => t.car === v.reg)
+function VehicleDetail({ v, trips, assignments, drivers, onEdit, onAssign, onDelete, canEdit, canAssign, canDelete }) {
+  const vTrips   = trips.filter(t => t.vehicle === v.reg || t.car === v.reg)
   const vHistory = assignments.filter(a => a.vehicleReg === v.reg)
-  const [tab, setTab] = useState('docs')  // docs | service | history
+  const [tab, setTab] = useState('docs')
 
-  // ── Live status & idle location (Day 20.5 — Module 4 & 8) ──
   const statusEntry = getVehicleStatusEntry(v.reg)
-  const statusCfg    = getVehicleStatusCfg(statusEntry.status)
-  const isIdle        = statusEntry.status !== 'in_use'
+  const statusCfg   = getVehicleStatusCfg(statusEntry.status)
+  const isIdle      = statusEntry.status !== 'in_use'
 
   return (
     <div className="border-t border-slate-100 dark:border-navy-700 bg-slate-50/50 dark:bg-navy-800/20">
-
-      {/* ── Live status & location — always visible, not tab-gated ── */}
+      {/* Live status bar */}
       <div className="px-4 pt-4">
         <div className="bg-white dark:bg-navy-800/60 rounded-xl p-3.5 border border-slate-100 dark:border-navy-700 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2.5">
@@ -345,17 +358,17 @@ function VehicleDetail({ v, assignments, onEdit, onAssign, canEdit, canAssign, c
       </div>
 
       <div className="p-4 space-y-3">
-        {/* ── Documents tab ── */}
+        {/* Documents tab */}
         {tab === 'docs' && (
           <div className="bg-white dark:bg-navy-800/60 rounded-xl p-4 border border-slate-100 dark:border-navy-700">
-            <DocRow icon={Shield}   label="Insurance"      number={v.insNumber}    expiry={v.insExpiry}    />
-            <DocRow icon={FileText} label="Permit"         number={v.permitNumber} expiry={v.permitExpiry} />
-            <DocRow icon={FileText} label="Fitness (FC)"   number={v.fcNumber}     expiry={v.fcExpiry}     />
-            <DocRow icon={Fuel}     label="Pollution (PUC)"number={v.pucNumber}    expiry={v.pucExpiry}    />
+            <DocRow icon={Shield}   label="Insurance"       number={v.insNumber}    expiry={v.insExpiry}    />
+            <DocRow icon={FileText} label="Permit"          number={v.permitNumber} expiry={v.permitExpiry} />
+            <DocRow icon={FileText} label="Fitness (FC)"    number={v.fcNumber}     expiry={v.fcExpiry}     />
+            <DocRow icon={Fuel}     label="Pollution (PUC)" number={v.pucNumber}    expiry={v.pucExpiry}    />
           </div>
         )}
 
-        {/* ── Service tab ── */}
+        {/* Service tab */}
         {tab === 'service' && (
           <div className="space-y-2">
             <div className="bg-white dark:bg-navy-800/60 rounded-xl p-4 border border-slate-100 dark:border-navy-700">
@@ -386,7 +399,6 @@ function VehicleDetail({ v, assignments, onEdit, onAssign, canEdit, canAssign, c
                 ))}
               </div>
             </div>
-            {/* KM to service */}
             {v.nextServiceKm && v.km && (
               <div className="bg-white dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700">
                 <div className="flex justify-between text-xs mb-1.5">
@@ -407,7 +419,7 @@ function VehicleDetail({ v, assignments, onEdit, onAssign, canEdit, canAssign, c
           </div>
         )}
 
-        {/* ── Assignment History tab ── */}
+        {/* History tab */}
         {tab === 'history' && (
           <div>
             {vHistory.length === 0 ? (
@@ -427,7 +439,11 @@ function VehicleDetail({ v, assignments, onEdit, onAssign, canEdit, canAssign, c
                         {h.releasedDate ? ` → Released ${h.releasedDate}` : ' · Active'}
                       </p>
                     </div>
-                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${h.releasedDate ? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                      h.releasedDate
+                        ? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                        : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                    }`}>
                       {h.releasedDate ? 'Released' : 'Current'}
                     </span>
                   </div>
@@ -443,7 +459,7 @@ function VehicleDetail({ v, assignments, onEdit, onAssign, canEdit, canAssign, c
                 </div>
                 <div className="bg-white dark:bg-navy-800/60 rounded-xl p-2.5 border border-slate-100 dark:border-navy-700 text-center">
                   <p className="text-lg font-display font-black text-emerald-600 dark:text-emerald-400">
-                    {vTrips.reduce((s,t) => s+t.km, 0).toLocaleString()}
+                    {vTrips.reduce((s,t) => s + (t.km || 0), 0).toLocaleString()}
                   </p>
                   <p className="text-[10px] text-slate-400">Total KM</p>
                 </div>
@@ -482,77 +498,113 @@ function VehicleDetail({ v, assignments, onEdit, onAssign, canEdit, canAssign, c
 //  Main Vehicles Page
 // ─────────────────────────────────────────────────────────────
 export default function Vehicles() {
-  const { isAdmin, isManager, isDriver } = useAuth()
+  const { isAdmin, isManager, isDriver, user } = useAuth()
 
   const canAdd    = isAdmin || isManager
   const canEdit   = isAdmin || isManager
   const canAssign = isAdmin || isManager
   const canDelete = isAdmin
 
-  const [overrides,    setOverrides]   = useState(() => loadVehicleOverrides())
-  const [assignments,  setAssignments] = useState(() => loadVehicleAssignments())
-  const [expanded,     setExpanded]    = useState(null)
-  const [assignModal,  setAssignModal] = useState(null)
-  const [editModal,    setEditModal]   = useState(null)
-  const [showAdd,      setShowAdd]     = useState(false)
-  const [toast,        setToast]       = useState('')
+  const [vehicles,    setVehicles]    = useState([])
+  const [drivers,     setDrivers]     = useState([])
+  const [assignments, setAssignments] = useState([])
+  const [trips,       setTrips]       = useState([])
+  const [loading,     setLoading]     = useState(true)
+  const [loadError,   setLoadError]   = useState('')
+  const [expanded,    setExpanded]    = useState(null)
+  const [assignModal, setAssignModal] = useState(null)
+  const [editModal,   setEditModal]   = useState(null)
+  const [showAdd,     setShowAdd]     = useState(false)
+  const [toast,       setToast]       = useState('')
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
-  // Merge overrides into base VEHICLES
-  const vehicles = useMemo(() => {
-    const overrideMap = Object.fromEntries(overrides.map(o => [o.id, o]))
-    const base = VEHICLES.map(v => overrideMap[v.id] ? { ...v, ...overrideMap[v.id] } : v)
-    // Add any new vehicles from overrides that don't exist in base
-    const newOnes = overrides.filter(o => !VEHICLES.find(v => v.id === o.id))
-    return [...base, ...newOnes]
-  }, [overrides])
-
-  const reload = () => { setOverrides(loadVehicleOverrides()); setAssignments(loadVehicleAssignments()) }
-
-  const handleSave = () => { reload(); setEditModal(null); setShowAdd(false); showToast('Vehicle saved') }
-  const handleAssigned = (record) => { reload(); setAssignModal(null); showToast(`${record.vehicleReg} assigned to ${record.driverName}`) }
-  const handleDelete = (id) => {
-    if (!window.confirm('Delete this vehicle?')) return
+  // ── Load all data from Supabase ───────────────────────────
+  const reload = useCallback(async () => {
+    setLoading(true)
     try {
-      const arr = loadVehicleOverrides().filter(o => o.id !== id)
-      localStorage.setItem(VEHICLE_STORE_KEY, JSON.stringify(arr))
-      // If it's a base vehicle, mark it deleted
-      if (VEHICLES.find(v => v.id === id)) {
-        const del = { ...VEHICLES.find(v => v.id === id), _deleted: true }
-        const withDel = [...arr, del]
-        localStorage.setItem(VEHICLE_STORE_KEY, JSON.stringify(withDel))
-      }
-    } catch {}
-    reload()
-    showToast('Vehicle deleted')
+      const [veh, asgn, bks] = await withTimeout(
+        Promise.all([
+          vehicleRepository.getAll(),
+          loadVehicleAssignments(),
+          loadBookings(),
+        ]),
+        10_000,
+        [[], [], []]
+      )
+      setVehicles(Array.isArray(veh) ? veh : [])
+      setAssignments(Array.isArray(asgn) ? asgn : [])
+      setTrips(Array.isArray(bks) ? bks : [])
+      if (!veh) setLoadError('Supabase unreachable — check your .env and project status')
+      else setLoadError('')
+      // Also load drivers for assignment modal (lazy — low priority)
+      import('../repositories/driverRepository').then(m =>
+        m.driverRepository.getAll().then(d => setDrivers(d || []))
+      )
+    } catch (err) {
+      console.error('Vehicles page load failed:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { reload() }, [reload])
+
+  // ── Handlers ──────────────────────────────────────────────
+  const handleSave = (savedVehicle) => {
+    setVehicles(prev => {
+      const idx = prev.findIndex(v => v.id === savedVehicle.id)
+      if (idx >= 0) { const next = [...prev]; next[idx] = savedVehicle; return next }
+      return [savedVehicle, ...prev]
+    })
+    setEditModal(null)
+    setShowAdd(false)
+    showToast('Vehicle saved')
   }
 
-  // Driver sees only their assigned vehicle
-  const displayVehicles = isDriver
-    ? vehicles.filter(v => v.driver === 'Ramanan') // filtered by auth user in real app
-    : vehicles.filter(v => !v._deleted)
+  const handleAssigned = (record) => {
+    setAssignments(prev => [...prev.filter(a => a.driverName !== record.driverName), record])
+    // Update the vehicle's displayed driver
+    setVehicles(prev => prev.map(v =>
+      v.reg === record.vehicleReg ? { ...v, driver: record.driverName } : v
+    ))
+    setAssignModal(null)
+    showToast(`${record.vehicleReg} assigned to ${record.driverName}`)
+  }
 
-  // Summary counts
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this vehicle?')) return
+    try {
+      await vehicleRepository.delete(id)
+      setVehicles(prev => prev.filter(v => v.id !== id))
+      showToast('Vehicle deleted')
+    } catch (err) {
+      console.error('Delete failed:', err)
+      alert('Failed to delete vehicle.')
+    }
+  }
+
+  // ── Derived data ──────────────────────────────────────────
+  const displayVehicles = isDriver
+    ? vehicles.filter(v => v.driver === user?.name)
+    : vehicles
+
   const counts = {
     total:       displayVehicles.length,
     available:   displayVehicles.filter(v => v.status === 'active').length,
-    assigned:    assignments.length,
+    assigned:    displayVehicles.filter(v => v.driver).length,
     maintenance: displayVehicles.filter(v => v.status === 'maintenance').length,
-    offline:     displayVehicles.filter(v => v.status === 'offline').length,
   }
 
-  // Alerts: docs expiring within 30 days or expired
   const alerts = useMemo(() => {
     const list = []
     displayVehicles.forEach(v => {
-      const docs = [
-        { field:'insExpiry',    label:`${v.reg} Insurance`  },
-        { field:'permitExpiry', label:`${v.reg} Permit`     },
-        { field:'fcExpiry',     label:`${v.reg} FC`         },
-        { field:'pucExpiry',    label:`${v.reg} PUC`        },
-      ]
-      docs.forEach(d => {
+      [
+        { field:'insExpiry',    label:`${v.reg} Insurance` },
+        { field:'permitExpiry', label:`${v.reg} Permit`    },
+        { field:'fcExpiry',     label:`${v.reg} FC`        },
+        { field:'pucExpiry',    label:`${v.reg} PUC`       },
+      ].forEach(d => {
         const st = docStatus(v[d.field])
         if (st.key === 'expired' || st.key === 'soon') {
           list.push({ label: d.label, status: st, expiry: v[d.field] })
@@ -563,6 +615,17 @@ export default function Vehicles() {
   }, [displayVehicles])
 
   const getAssignment = (reg) => assignments.find(a => a.vehicleReg === reg)
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center space-y-2">
+          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-xs text-slate-400">Loading vehicles…</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-5 animate-fade-up">
@@ -576,6 +639,13 @@ export default function Vehicles() {
             </button>
           : null}
       />
+
+      {/* Load error */}
+      {loadError && (
+        <div className="bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-700/30 rounded-xl px-4 py-2.5 flex items-center gap-2">
+          <span className="text-amber-600 dark:text-amber-400 text-sm font-semibold">⚠ {loadError}</span>
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (
@@ -608,14 +678,14 @@ export default function Vehicles() {
         </div>
       )}
 
-      {/* Dashboard widgets */}
+      {/* Stats widgets */}
       {!isDriver && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label:'Total Vehicles',  value: counts.total,       color:'text-navy-800 dark:text-blue-300'       },
-            { label:'Available',       value: counts.available,   color:'text-emerald-600 dark:text-emerald-400' },
-            { label:'Assigned',        value: counts.assigned,    color:'text-blue-600 dark:text-blue-400'       },
-            { label:'Maintenance',     value: counts.maintenance, color:'text-red-600 dark:text-red-400'         },
+            { label:'Total Vehicles', value: counts.total,       color:'text-navy-800 dark:text-blue-300'       },
+            { label:'Available',      value: counts.available,   color:'text-emerald-600 dark:text-emerald-400' },
+            { label:'Assigned',       value: counts.assigned,    color:'text-blue-600 dark:text-blue-400'       },
+            { label:'Maintenance',    value: counts.maintenance, color:'text-red-600 dark:text-red-400'         },
           ].map(s => (
             <div key={s.label} className="glass-card rounded-xl p-4 text-center">
               <p className={`text-2xl font-display font-black ${s.color}`}>{s.value}</p>
@@ -628,18 +698,16 @@ export default function Vehicles() {
       {/* Vehicle list */}
       <div className="space-y-3">
         {displayVehicles.map(v => {
-          const isOpen     = expanded === v.id
-          const assignment = getAssignment(v.reg)
-          const assignedDriver = assignment?.driverName || v.driver
-          const isMaint    = v.status === 'maintenance'
-
-          // Alert count for this vehicle
-          const vAlerts = [v.insExpiry, v.permitExpiry, v.fcExpiry, v.pucExpiry]
+          const isOpen       = expanded === v.id
+          const assignment   = getAssignment(v.reg)
+          const assignedDriver = assignment?.driverName || v.driver || 'Unassigned'
+          const isMaint      = v.status === 'maintenance'
+          const vAlerts      = [v.insExpiry, v.permitExpiry, v.fcExpiry, v.pucExpiry]
             .filter(e => { const st = docStatus(e); return st.key === 'expired' || st.key === 'soon' }).length
 
           return (
             <div key={v.id} className={`glass-card rounded-2xl overflow-hidden hover:shadow-lg transition-all duration-200 ${isMaint ? 'border border-red-200 dark:border-red-900/50' : ''}`}>
-              {/* Card header — dark banner */}
+              {/* Banner */}
               <div className={`p-4 relative overflow-hidden ${isMaint ? 'bg-gradient-to-r from-red-900 to-rose-800' : 'bg-gradient-to-r from-navy-900 to-navy-800'}`}>
                 <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/5" />
                 <div className="relative flex items-start justify-between gap-3">
@@ -662,24 +730,19 @@ export default function Vehicles() {
                 </div>
               </div>
 
-              {/* Card body */}
-              <div
-                className="px-4 py-3.5 flex items-center gap-3 cursor-pointer select-none"
+              {/* Card body — tap to expand */}
+              <div className="px-4 py-3.5 flex items-center gap-3 cursor-pointer select-none"
                 onClick={() => setExpanded(isOpen ? null : v.id)}>
-                {/* Assigned driver */}
                 <Avatar name={assignedDriver} size={34} />
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Assigned Driver</p>
                   <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{assignedDriver}</p>
-                  {assignment && (
-                    <p className="text-[10px] text-slate-400">Since {assignment.assignedDate}</p>
-                  )}
+                  {assignment && <p className="text-[10px] text-slate-400">Since {assignment.assignedDate}</p>}
                 </div>
-                {/* KM */}
                 <div className="text-right flex-shrink-0">
                   <div className="flex items-center gap-1 justify-end text-slate-600 dark:text-slate-300">
                     <Gauge size={12} />
-                    <span className="text-sm font-bold">{Number(v.km).toLocaleString()}</span>
+                    <span className="text-sm font-bold">{Number(v.km || 0).toLocaleString()}</span>
                   </div>
                   <p className="text-[10px] text-slate-400">km</p>
                 </div>
@@ -691,7 +754,9 @@ export default function Vehicles() {
               {isOpen && (
                 <VehicleDetail
                   v={v}
+                  trips={trips}
                   assignments={assignments}
+                  drivers={drivers}
                   onEdit={setEditModal}
                   onAssign={setAssignModal}
                   onDelete={handleDelete}
@@ -703,6 +768,14 @@ export default function Vehicles() {
             </div>
           )
         })}
+
+        {displayVehicles.length === 0 && (
+          <div className="text-center py-16">
+            <Car size={40} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
+            <p className="text-sm font-bold text-slate-500 dark:text-slate-400">No vehicles yet</p>
+            {canAdd && <p className="text-xs text-slate-400 mt-1">Click "Add Vehicle" to get started</p>}
+          </div>
+        )}
       </div>
 
       {/* Modals */}
@@ -716,6 +789,7 @@ export default function Vehicles() {
       {assignModal && (
         <AssignmentModal
           vehicle={assignModal}
+          drivers={drivers}
           onClose={() => setAssignModal(null)}
           onConfirm={handleAssigned}
         />

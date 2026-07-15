@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Plus, X, ChevronDown, ChevronUp, CheckCircle,
   Clock, IndianRupee, User, Calendar, Edit2,
@@ -89,7 +89,8 @@ function FSelect({ label, field, value, onChange, children, required }) {
 //  Module 6: Salary Configuration Panel
 // ─────────────────────────────────────────────────────────────
 function SalaryConfigPanel({ onClose }) {
-  const [cfg, setCfg] = useState(() => loadPayrollSettings())
+  const [cfg, setCfg] = useState(DEFAULT_PAYROLL_SETTINGS)
+  useEffect(() => { loadPayrollSettings().then(s => setCfg(s ?? DEFAULT_PAYROLL_SETTINGS)) }, [])
   const [saved, setSaved] = useState(false)
 
   const updDriver = (name, field, val) => {
@@ -183,9 +184,15 @@ function SalaryConfigPanel({ onClose }) {
 //  Create / Edit Settlement Modal
 // ─────────────────────────────────────────────────────────────
 function SettlementModal({ settlement, onClose, onSave, currentUser }) {
+  const [settings, setSettings] = useState(DEFAULT_PAYROLL_SETTINGS)
+  const [expenses, setExpenses] = useState([])
+  useEffect(() => {
+    Promise.all([loadPayrollSettings(), loadExpenses()]).then(([s, e]) => {
+      setSettings(s ?? DEFAULT_PAYROLL_SETTINGS)
+      setExpenses(Array.isArray(e) ? e : [])
+    })
+  }, [])
   const isEdit   = !!settlement?.id
-  const settings = loadPayrollSettings()
-  const expenses = loadExpenses()
 
   const [form, setForm] = useState(() => settlement || {
     driver: DRIVERS[0]?.name || '',
@@ -611,7 +618,9 @@ function TripPayslipCard({ p }) {
 //  Driver-only payslips portal — per-trip model
 // ─────────────────────────────────────────────────────────────
 function DriverPayslipPortal({ user }) {
-  const mine = loadTripPayslips().filter(p => p.driver === user?.name)
+  const [_allPay, setAllPay] = useState([])
+  useEffect(()=>{ loadTripPayslips().then(p=>setAllPay(Array.isArray(p)?p:[])) },[])
+  const mine = _allPay.filter(p => p.driver === user?.name)
 
   const totalEarned = mine.reduce((s, p) => s + p.net, 0)
   const totalPaid   = mine.filter(p => p.status === 'paid').reduce((s, p) => s + p.net, 0)
@@ -680,8 +689,8 @@ export default function Payroll() {
   const canApprove = isAdmin
 
   const [tab,          setTab]          = useState('settlements') // 'settlements' | 'trip_payslips'
-  const [settlements,  setSettlements]  = useState(() => loadSettlements())
-  const [tripPayslips, setTripPayslips] = useState(() => loadTripPayslips())
+  const [settlements,  setSettlements]  = useState([])
+  const [tripPayslips, setTripPayslips] = useState([])
   const [expanded,     setExpanded]     = useState(null)
   const [showCreate,   setShowCreate]   = useState(false)
   const [editItem,     setEditItem]     = useState(null)
@@ -693,7 +702,12 @@ export default function Payroll() {
   const [toast,        setToast]        = useState('')
 
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 3000) }
-  const reload    = () => { setSettlements(loadSettlements()); setTripPayslips(loadTripPayslips()) }
+  const reload = useCallback(async () => {
+    const [s, p] = await Promise.all([loadSettlements(), loadTripPayslips()])
+    setSettlements(Array.isArray(s) ? s : [])
+    setTripPayslips(Array.isArray(p) ? p : [])
+  }, [])
+  useEffect(() => { reload() }, [reload])
 
   // Driver gets their own portal
   if (isDriver) return (

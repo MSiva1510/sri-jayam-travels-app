@@ -1,4 +1,8 @@
-export const CUSTOMERS_KEY = 'sjt_customers'
+// ─── Customer Data & Storage ──────────────────────────────────
+// Storage: Supabase `customers` table via customerRepository
+
+import { customerRepository } from '../repositories/customerRepository'
+import { withCache, cacheClear } from '../utils/dataCache'
 
 export const CUSTOMER_TYPES = [
   { key:'individual', label:'Individual',   badge:'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',       dot:'bg-blue-500'   },
@@ -12,6 +16,106 @@ export function generateCustomerId() {
   return `CUS-${ts}`
 }
 
+// ── Supabase customer store ───────────────────────────────────
+// All functions are async — callers must await them.
+
+async function _loadCustomers() {
+  try {
+    return await customerRepository.getAll()
+  } catch (err) {
+    console.error('[customerData] loadCustomers failed:', err)
+    return MOCK_CUSTOMERS
+  }
+}
+export const loadCustomers = withCache('customers', _loadCustomers)
+export const getCustomers = loadCustomers
+
+
+
+export async function saveCustomer(customer) {
+  try {
+    const { id, ...rest } = customer
+    const existing = id ? await customerRepository.getById(id) : null
+    if (existing) {
+      return await customerRepository.update(id, { ...rest, updatedAt: new Date().toISOString() })
+    }
+    return await customerRepository.create({ id: id || generateCustomerId(), ...rest })
+  } catch (err) {
+    console.error('[customerData] saveCustomer failed:', err)
+    return null
+  }
+}
+
+export async function deleteCustomer(id) {
+  try {
+    return await customerRepository.delete(id)
+  } catch (err) {
+    console.error('[customerData] deleteCustomer failed:', err)
+    return false
+  }
+}
+
+export async function findCustomerByMobile(mobile) {
+  if (!mobile || mobile.length < 10) return null
+  try {
+    return await customerRepository.searchByMobile(mobile)
+  } catch (err) {
+    console.error('[customerData] findCustomerByMobile failed:', err)
+    return null
+  }
+}
+
+export async function upsertCustomerFromBooking({ name, mobile, address }) {
+  if (!name?.trim()) return null
+  try {
+    const existing = mobile ? await findCustomerByMobile(mobile) : null
+    if (existing) return existing
+    const now = new Date().toISOString()
+    const customer = {
+      id:             generateCustomerId(),
+      type:           'individual',
+      status:         'active',
+      name:           name.trim(),
+      mobile:         mobile || '',
+      altMobile:      '',
+      email:          '',
+      address:        address || '',
+      city:           '',
+      state:          '',
+      gst:            '',
+      companyName:    '',
+      contactPerson:  '',
+      billingAddress: '',
+      notes:          'Auto-created from booking.',
+      createdAt:      now,
+      updatedAt:      now,
+    }
+    return await customerRepository.create(customer)
+  } catch (err) {
+    console.error('[customerData] upsertCustomerFromBooking failed:', err)
+    return null
+  }
+}
+
+// ── Computed stats (no storage — derived from bookings array) ─
+export function getCustomerStats(customerId, customerName, bookings) {
+  const mine = bookings.filter(b => b.customer === customerName)
+  return {
+    totalTrips:     mine.length,
+    completedTrips: mine.filter(b => b.status === 'completed').length,
+    cancelledTrips: mine.filter(b => b.status === 'cancelled').length,
+    activeTrips:    mine.filter(b => ['assigned','started'].includes(b.status)).length,
+    totalRevenue:   mine.reduce((s, b) => s + (b.fare || 0), 0),
+    lastTrip:       mine.sort((a, b) => (b.createdAt||'').localeCompare(a.createdAt||''))[0] || null,
+    upcoming:       mine.filter(b => ['draft','confirmed','assigned'].includes(b.status))
+                        .sort((a, b) => (a.startDate||'').localeCompare(b.startDate||'')),
+    recent:         mine.filter(b => b.status === 'completed')
+                        .sort((a, b) => (b.createdAt||'').localeCompare(a.createdAt||''))
+                        .slice(0, 5),
+  }
+}
+
+// ── Seed / reference data ─────────────────────────────────────
 export const MOCK_CUSTOMERS = [
   {
     id:'CUS-0001', type:'individual', status:'active',
@@ -110,89 +214,3 @@ export const MOCK_CUSTOMERS = [
     createdAt:'2026-04-05T07:00:00Z', updatedAt:'2026-05-17T07:00:00Z',
   },
 ]
-
-export function loadCustomers() {
-  try {
-    const raw    = localStorage.getItem(CUSTOMERS_KEY)
-    const stored = raw ? JSON.parse(raw) : []
-    const storedIds = new Set(stored.map(c => c.id))
-    return [...stored, ...MOCK_CUSTOMERS.filter(c => !storedIds.has(c.id))]
-      .filter(c => !c._deleted)
-      .sort((a, b) => a.name.localeCompare(b.name))
-  } catch { return MOCK_CUSTOMERS }
-}
-
-export function saveCustomer(customer) {
-  try {
-    const raw    = localStorage.getItem(CUSTOMERS_KEY)
-    const stored = raw ? JSON.parse(raw) : []
-    const idx    = stored.findIndex(c => c.id === customer.id)
-    if (idx >= 0) stored[idx] = customer
-    else          stored.unshift(customer)
-    localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(stored))
-  } catch {}
-}
-
-export function deleteCustomer(id) {
-  try {
-    const raw    = localStorage.getItem(CUSTOMERS_KEY)
-    const stored = raw ? JSON.parse(raw) : []
-    const isMock = !!MOCK_CUSTOMERS.find(c => c.id === id)
-    if (isMock) {
-      const withDel = [...stored.filter(c => c.id !== id), { id, _deleted: true }]
-      localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(withDel))
-    } else {
-      localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(stored.filter(c => c.id !== id)))
-    }
-  } catch {}
-}
-
-export function findCustomerByMobile(mobile) {
-  if (!mobile || mobile.length < 10) return null
-  return loadCustomers().find(c => c.mobile === mobile) || null
-}
-
-export function upsertCustomerFromBooking({ name, mobile, address }) {
-  if (!name?.trim()) return null
-  const existing = mobile ? findCustomerByMobile(mobile) : null
-  if (existing) return existing
-  const now = new Date().toISOString()
-  const customer = {
-    id:             generateCustomerId(),
-    type:           'individual',
-    status:         'active',
-    name:           name.trim(),
-    mobile:         mobile || '',
-    altMobile:      '',
-    email:          '',
-    address:        address || '',
-    city:           '',
-    state:          '',
-    gst:            '',
-    companyName:    '',
-    contactPerson:  '',
-    billingAddress: '',
-    notes:          'Auto-created from booking.',
-    createdAt:      now,
-    updatedAt:      now,
-  }
-  saveCustomer(customer)
-  return customer
-}
-
-export function getCustomerStats(customerId, customerName, bookings) {
-  const mine = bookings.filter(b => b.customer === customerName)
-  return {
-    totalTrips:     mine.length,
-    completedTrips: mine.filter(b => b.status === 'completed').length,
-    cancelledTrips: mine.filter(b => b.status === 'cancelled').length,
-    activeTrips:    mine.filter(b => ['assigned','started'].includes(b.status)).length,
-    totalRevenue:   mine.reduce((s, b) => s + (b.fare || 0), 0),
-    lastTrip:       mine.sort((a, b) => (b.createdAt||'').localeCompare(a.createdAt||''))[0] || null,
-    upcoming:       mine.filter(b => ['draft','confirmed','assigned'].includes(b.status))
-                        .sort((a, b) => (a.startDate||'').localeCompare(b.startDate||'')),
-    recent:         mine.filter(b => b.status === 'completed')
-                        .sort((a, b) => (b.createdAt||'').localeCompare(a.createdAt||''))
-                        .slice(0, 5),
-  }
-}

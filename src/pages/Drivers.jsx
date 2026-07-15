@@ -1,30 +1,23 @@
-import { useState, useRef } from 'react'
-import { Plus, Phone, Star, FileText, ChevronRight, TrendingUp, Upload, X } from 'lucide-react'
-import Avatar     from '../components/ui/Avatar'
-import Badge      from '../components/ui/Badge'
-import Button     from '../components/ui/Button'
-import PageHeader from '../components/ui/PageHeader'
-import { DRIVERS }    from '../data/mockData'
-import { loadBookings } from '../data/tripTypes'
-import { loadTripPayslips } from '../data/settlementData'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { Plus, Phone, Star, FileText, TrendingUp, Upload, X } from 'lucide-react'
+import Avatar      from '../components/ui/Avatar'
+import Badge       from '../components/ui/Badge'
+import Button      from '../components/ui/Button'
+import PageHeader  from '../components/ui/PageHeader'
 import ModalOverlay from '../components/ui/ModalOverlay'
+import { driverRepository }  from '../repositories/driverRepository'
+import { loadBookings }       from '../data/tripTypes'
+import { loadTripPayslips }   from '../data/settlementData'
 
-const DRIVERS_KEY = 'sjt_added_drivers'
-function loadAddedDrivers() {
-  try { return JSON.parse(localStorage.getItem(DRIVERS_KEY) || '[]') } catch { return [] }
-}
-function saveAddedDriver(d) {
-  const all = loadAddedDrivers()
-  const idx = all.findIndex(x => x.id === d.id)
-  if (idx >= 0) all[idx] = d; else all.unshift(d)
-  localStorage.setItem(DRIVERS_KEY, JSON.stringify(all))
-}
-
+// ── Status badge colours ──────────────────────────────────────
 const STATUS_COLORS = {
   active:     'badge-active',
   'on-leave': 'badge-pending',
 }
 
+// ── Add Driver Modal ──────────────────────────────────────────
+// Defined OUTSIDE the page component so React never remounts
+// inner elements between keystrokes.
 function AddDriverModal({ onClose, onSaved }) {
   const [form, setForm] = useState({
     name:'', mobile:'', vehicle:'', license:'', vehicleType:'',
@@ -33,6 +26,7 @@ function AddDriverModal({ onClose, onSaved }) {
   const [licenceImg, setLicenceImg] = useState(null)
   const [preview,    setPreview]    = useState(null)
   const [errors,     setErrors]     = useState({})
+  const [saving,     setSaving]     = useState(false)
   const fileRef = useRef()
 
   const upd = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -48,19 +42,32 @@ function AddDriverModal({ onClose, onSaved }) {
 
   const validate = () => {
     const e = {}
-    if (!form.name.trim())                         e.name    = 'Required'
+    if (!form.name.trim())                          e.name    = 'Required'
     if (!form.mobile.trim() || form.mobile.length < 10) e.mobile = '10 digits required'
-    if (!form.license.trim())                      e.license = 'Required'
+    if (!form.license.trim())                       e.license = 'Required'
     return e
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const e = validate()
     if (Object.keys(e).length) { setErrors(e); return }
-    const d = { ...form, id:`DRV-${Date.now()}`, licenceImage: licenceImg || null, createdAt: new Date().toISOString() }
-    saveAddedDriver(d)
-    onSaved(d)
-    onClose()
+    setSaving(true)
+    try {
+      const payload = {
+        ...form,
+        id:           `DRV-${Date.now()}`,
+        licenceImage: licenceImg || null,
+        createdAt:    new Date().toISOString(),
+      }
+      const created = await driverRepository.create(payload)
+      onSaved(created || payload)
+      onClose()
+    } catch (err) {
+      console.error('AddDriver failed:', err)
+      alert('Failed to save driver. Please try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const inp = `w-full px-3 py-2.5 text-sm rounded-xl border bg-white dark:bg-navy-800/60
@@ -141,8 +148,9 @@ function AddDriverModal({ onClose, onSaved }) {
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">
             Cancel
           </button>
-          <button onClick={handleSave} className="flex-1 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-sm font-bold transition-all shadow-md active:scale-95">
-            Add Driver
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-sm font-bold transition-all shadow-md active:scale-95 disabled:opacity-50">
+            {saving ? 'Saving…' : 'Add Driver'}
           </button>
         </div>
       </div>
@@ -150,16 +158,16 @@ function AddDriverModal({ onClose, onSaved }) {
   )
 }
 
+// ── Driver Detail Modal ───────────────────────────────────────
 function DriverModal({ driver, bookings, payslips, onClose }) {
-  const mine     = bookings.filter(b => b.driver === driver.name)
-  const mySlips  = payslips.filter(p => p.driver === driver.name)
+  const mine        = bookings.filter(b => b.driver === driver.name)
+  const mySlips     = payslips.filter(p => p.driver === driver.name)
   const totalEarned = mySlips.reduce((s, p) => s + p.net, 0)
   const pendingPay  = mySlips.filter(p => p.status === 'pending').reduce((s, p) => s + p.net, 0)
 
   return (
     <ModalOverlay center onClose={onClose}>
       <div className="w-full max-w-lg glass-card rounded-3xl overflow-hidden shadow-2xl animate-fade-up" onClick={e => e.stopPropagation()}>
-        {/* Header */}
         <div className="bg-gradient-to-br from-navy-900 to-navy-800 p-6">
           <div className="flex items-center gap-4">
             <Avatar name={driver.name} size={52} />
@@ -177,14 +185,13 @@ function DriverModal({ driver, bookings, payslips, onClose }) {
             <button onClick={onClose} className="w-8 h-8 rounded-xl bg-white/10 text-white/70 flex items-center justify-center hover:bg-white/20 transition-colors text-sm font-bold">✕</button>
           </div>
         </div>
-        {/* Body */}
         <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label:'Mobile',    value: driver.mobile  },
-              { label:'Vehicle',   value: driver.vehicle },
-              { label:'Licence',   value: driver.license },
-              { label:'Joined',    value: driver.joined  },
+              { label:'Mobile',  value: driver.mobile  },
+              { label:'Vehicle', value: driver.vehicle },
+              { label:'Licence', value: driver.license },
+              { label:'Joined',  value: driver.joined  },
             ].map(r => (
               <div key={r.label} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3">
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">{r.label}</p>
@@ -194,9 +201,9 @@ function DriverModal({ driver, bookings, payslips, onClose }) {
           </div>
           <div className="grid grid-cols-3 gap-2">
             {[
-              { label:'Total Trips',    value: mine.length,                                          color:'text-blue-600 dark:text-blue-400' },
-              { label:'Total Earned',   value:`Rs.${(totalEarned/1000).toFixed(1)}k`,               color:'text-emerald-600 dark:text-emerald-400' },
-              { label:'Pending Pay',    value:`Rs.${(pendingPay/1000).toFixed(1)}k`,                color:'text-amber-600 dark:text-amber-400' },
+              { label:'Total Trips',  value: mine.length,                                color:'text-blue-600 dark:text-blue-400'    },
+              { label:'Total Earned', value:`Rs.${(totalEarned/1000).toFixed(1)}k`,      color:'text-emerald-600 dark:text-emerald-400' },
+              { label:'Pending Pay',  value:`Rs.${(pendingPay/1000).toFixed(1)}k`,       color:'text-amber-600 dark:text-amber-400'  },
             ].map(s => (
               <div key={s.label} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3 text-center">
                 <p className={`text-base font-black ${s.color}`}>{s.value}</p>
@@ -204,7 +211,6 @@ function DriverModal({ driver, bookings, payslips, onClose }) {
               </div>
             ))}
           </div>
-          {/* Recent trips */}
           <div>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Recent Trips</p>
             {mine.length === 0 ? (
@@ -232,17 +238,38 @@ function DriverModal({ driver, bookings, payslips, onClose }) {
   )
 }
 
+// ── Main Drivers Page ─────────────────────────────────────────
 export default function Drivers() {
-  const [selected,     setSelected]     = useState(null)
-  const [showAdd,      setShowAdd]      = useState(false)
-  const [addedDrivers, setAddedDrivers] = useState(() => loadAddedDrivers())
-  const bookings = loadBookings()
-  const payslips = loadTripPayslips()
+  const [drivers,  setDrivers]  = useState([])
+  const [bookings, setBookings] = useState([])
+  const [payslips, setPayslips] = useState([])
+  const [loading,  setLoading]  = useState(true)
+  const [selected, setSelected] = useState(null)
+  const [showAdd,  setShowAdd]  = useState(false)
 
-  const allDrivers = [...DRIVERS, ...addedDrivers.filter(d => !DRIVERS.find(x => x.id === d.id))]
+  // ── Load all data from Supabase on mount ──────────────────
+  const reload = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [drs, bks, pys] = await Promise.all([
+        driverRepository.getAll(),
+        loadBookings(),
+        loadTripPayslips(),
+      ])
+      setDrivers(drs  || [])
+      setBookings(bks || [])
+      setPayslips(pys || [])
+    } catch (err) {
+      console.error('Drivers page load failed:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
-  // Compute live stats per driver from real bookings + payslips
-  const driversWithStats = allDrivers.map(d => {
+  useEffect(() => { reload() }, [reload])
+
+  // ── Per-driver computed stats ────────────────────────────
+  const driversWithStats = drivers.map(d => {
     const mine      = bookings.filter(b => b.driver === d.name)
     const mySlips   = payslips.filter(p => p.driver === d.name)
     const completed = mine.filter(b => b.status === 'completed').length
@@ -253,14 +280,31 @@ export default function Drivers() {
 
   const totalAllFare = driversWithStats.reduce((s, d) => s + d.fareCollected, 0) || 1
 
+  // ── Handlers ─────────────────────────────────────────────
+  const handleDriverSaved = (newDriver) => {
+    setDrivers(prev => [newDriver, ...prev.filter(d => d.id !== newDriver.id)])
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center space-y-2">
+          <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-xs text-slate-400">Loading drivers…</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-5 animate-fade-up">
       <PageHeader
         title="Drivers"
-        subtitle={`${allDrivers.length} drivers · fleet management`}
+        subtitle={`${drivers.length} drivers · fleet management`}
         action={<Button icon={Plus} variant="teal" onClick={() => setShowAdd(true)}>Add Driver</Button>}
       />
 
+      {/* Driver cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {driversWithStats.map(d => {
           const farePct = Math.round((d.fareCollected / totalAllFare) * 100)
@@ -296,10 +340,10 @@ export default function Drivers() {
               <div className="p-5">
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   {[
-                    { label: 'Vehicle',     value: d.vehicle },
-                    { label: 'Licence',     value: d.license?.slice(-8) || '—' },
-                    { label: 'Trips Done',  value: d.tripCount },
-                    { label: 'Total Pay',   value: `Rs. ${d.totalPay.toLocaleString('en-IN')}` },
+                    { label:'Vehicle',    value: d.vehicle },
+                    { label:'Licence',    value: d.license?.slice(-8) || '—' },
+                    { label:'Trips Done', value: d.tripCount },
+                    { label:'Total Pay',  value:`Rs. ${d.totalPay.toLocaleString('en-IN')}` },
                   ].map(s => (
                     <div key={s.label} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3">
                       <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold tracking-wide">{s.label}</p>
@@ -315,7 +359,7 @@ export default function Drivers() {
                     <span className="font-bold text-teal-600 dark:text-teal-400">{farePct}% — Rs. {d.fareCollected.toLocaleString('en-IN')}</span>
                   </div>
                   <div className="h-2 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-teal-500 to-cyan-400 rounded-full transition-all" style={{ width: `${farePct}%` }} />
+                    <div className="h-full bg-gradient-to-r from-teal-500 to-cyan-400 rounded-full transition-all" style={{ width:`${farePct}%` }} />
                   </div>
                 </div>
 
@@ -329,7 +373,7 @@ export default function Drivers() {
         })}
       </div>
 
-      {/* Live Bata Ledger — from real bookings + payslips */}
+      {/* Bata Ledger */}
       <div>
         <h3 className="font-display font-black text-slate-800 dark:text-white text-lg mb-3">Bata Ledger</h3>
         <div className="glass-card rounded-2xl overflow-hidden">
@@ -391,7 +435,7 @@ export default function Drivers() {
       {showAdd && (
         <AddDriverModal
           onClose={() => setShowAdd(false)}
-          onSaved={d => setAddedDrivers(prev => [d, ...prev.filter(x => x.id !== d.id)])}
+          onSaved={handleDriverSaved}
         />
       )}
     </div>

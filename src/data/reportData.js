@@ -21,11 +21,11 @@ export function thisMonthStr() { return new Date().toISOString().slice(0,7) }
 export function todayStr()     { return new Date().toISOString().slice(0,10) }
 
 // ── Module 1: Executive summary ───────────────────────────────
-export function getExecutiveSummary() {
-  const bookings    = loadBookings()
-  const customers   = loadCustomers().filter(c => !c._deleted)
-  const expenses    = loadExpenses()
-  const settlements = loadSettlements()
+export async function getExecutiveSummary() {
+  const bookings    = await loadBookings()
+  const customers   = (await loadCustomers()).filter(c => !c._deleted)
+  const expenses    = await loadExpenses()
+  const settlements = await loadSettlements()
 
   // Finance — computed from live data, not hardcoded mock
   const liveTotalFare = bookings.reduce((s, b) => s + (b.fare || 0), 0)
@@ -50,7 +50,7 @@ export function getExecutiveSummary() {
     vehicles: {
       total:       VEHICLES.length,
       available:   VEHICLES.filter(v => v.status==='active').length,
-      inUse:       loadVehicleAssignments().length,
+      inUse:       await loadVehicleAssignments().length,
       maintenance: VEHICLES.filter(v => v.status==='maintenance').length,
     },
     drivers: {
@@ -70,8 +70,9 @@ export function getExecutiveSummary() {
 }
 
 // ── Module 2: Trip report ─────────────────────────────────────
-export function getTripReport(from, to, driverFilter='all', vehicleFilter='all') {
-  const rows = loadBookings().filter(b => {
+export async function getTripReport(from, to, driverFilter='all', vehicleFilter='all') {
+  const _allTrips = await loadBookings()
+  const rows = _allTrips.filter(b => {
     const matchDate   = inRange(b.startDate, from, to)
     const matchDriver = driverFilter  ==='all' || b.driver  ===driverFilter
     const matchVeh    = vehicleFilter ==='all' || b.vehicle ===vehicleFilter
@@ -86,10 +87,10 @@ export function getTripReport(from, to, driverFilter='all', vehicleFilter='all')
 }
 
 // ── Module 3: Driver performance ──────────────────────────────
-export function getDriverPerformance() {
-  const bookings    = loadBookings()
-  const attendance  = loadAttendance()
-  const settlements = loadSettlements()
+export async function getDriverPerformance() {
+  const bookings    = await loadBookings()
+  const attendance  = await loadAttendance()
+  const settlements = await loadSettlements()
   const monthKey    = thisMonthStr()
   return DRIVERS.map(d => {
     const dTrips      = bookings.filter(b=>b.driver===d.name)
@@ -109,9 +110,9 @@ export function getDriverPerformance() {
 }
 
 // ── Module 4: Vehicle performance ────────────────────────────
-export function getVehiclePerformance() {
-  const bookings = loadBookings()
-  const expenses = loadExpenses()
+export async function getVehiclePerformance() {
+  const bookings = await loadBookings()
+  const expenses = await loadExpenses()
   return VEHICLES.map(v => {
     const vTrips    = bookings.filter(b=>b.vehicle===v.reg)
     const completed = vTrips.filter(b=>b.status==='completed').length
@@ -123,9 +124,9 @@ export function getVehiclePerformance() {
 }
 
 // ── Module 5: Customer reports ────────────────────────────────
-export function getCustomerReport() {
-  const customers = loadCustomers().filter(c=>!c._deleted)
-  const bookings  = loadBookings()
+export async function getCustomerReport() {
+  const customers = (await loadCustomers()).filter(c=>!c._deleted)
+  const bookings  = await loadBookings()
   const enriched  = customers
     .map(c=>({ ...c, ...getCustomerStats(c.id,c.name,bookings) }))
     .sort((a,b)=>b.totalRevenue-a.totalRevenue)
@@ -140,8 +141,8 @@ export function getCustomerReport() {
 }
 
 // ── Module 6: Expense analytics ───────────────────────────────
-export function getExpenseAnalytics() {
-  const expenses = loadExpenses()
+export async function getExpenseAnalytics() {
+  const expenses = await loadExpenses()
   const months = []
   for (let i=5;i>=0;i--) {
     const d   = new Date(); d.setMonth(d.getMonth()-i)
@@ -159,8 +160,8 @@ export function getExpenseAnalytics() {
 }
 
 // ── Module 7: Payroll analytics ───────────────────────────────
-export function getPayrollAnalytics() {
-  const settlements = loadSettlements()
+export async function getPayrollAnalytics() {
+  const settlements = await loadSettlements()
   return {
     totalPaid:       settlements.filter(s=>s.status==='paid').reduce((s,p)=>s+p.netAmount,0),
     pendingCount:    settlements.filter(s=>s.status==='pending').length,
@@ -177,9 +178,9 @@ export function getPayrollAnalytics() {
 }
 
 // ── Module 8: Operations monitor ─────────────────────────────
-export function getOperationsMonitor() {
-  const bookings    = loadBookings()
-  const assignments = loadVehicleAssignments()
+export async function getOperationsMonitor() {
+  const bookings    = await loadBookings()
+  const assignments = await loadVehicleAssignments()
   return {
     drivers:  {
       available: DRIVERS.filter(d=>d.status==='active').length,

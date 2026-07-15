@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   CalendarCheck, Clock, UserCheck, UserX,
   ChevronDown, ChevronUp, Calendar, Car,
@@ -45,7 +45,8 @@ function HoursBar({ hours }) {
 //  Driver View — own attendance
 // ─────────────────────────────────────────────────────────────
 function DriverAttendanceView({ user }) {
-  const all        = loadAttendance()
+  const [all, setAll] = useState([])
+  useEffect(() => { loadAttendance().then(d => setAll(Array.isArray(d) ? d : [])) }, [])
   const myRecords  = all.filter(a => a.driverId === user.id || a.driver === user.name)
                        .sort((a,b) => b.date.localeCompare(a.date))
   const today      = new Date().toISOString().slice(0,10)
@@ -167,7 +168,8 @@ function AdminAttendanceView({ isAdmin }) {
   const [editRecord, setEditRecord] = useState(null)
   const [, forceUpdate] = useState(0)
 
-  const allRecords = loadAttendance()
+  const [allRecords, setAllRecords] = useState([])
+  useEffect(()=>{ loadAttendance().then(d=>setAllRecords(Array.isArray(d)?d:[])) },[])
   const dateRecords = allRecords.filter(r => r.date === selectedDate)
 
   const DRIVERS = ['Ramanan', 'Babu', 'Rajasekharan']

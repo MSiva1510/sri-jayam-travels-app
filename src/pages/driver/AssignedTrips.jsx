@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Phone, CheckCircle, Navigation,
@@ -114,32 +114,35 @@ export default function AssignedTrips() {
 
   const todayISO = new Date().toISOString().slice(0, 10)
 
-  const base = useMemo(() => {
-    const all = loadBookings()
-    return all
-      .filter(b =>
-        b.driver?.toLowerCase() === user?.name?.toLowerCase() &&
-        b.startDate === todayISO &&
-        b.status !== 'cancelled'
-      )
-      .map(b => ({
-        tripId:        b.id,
-        customer:      b.customer,
-        contact:       b.contact || '',
-        pickup:        b.pickup  || '',
-        drop:          b.drop    || '',
-        tripType:      b.type    || 'one_way',
-        scheduledTime: b.startTime
-          ? new Date(`${b.startDate}T${b.startTime}`).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          : '—',
-        status:  b.status === 'started' ? 'driving'
-               : b.status === 'completed' ? 'completed'
-               : 'pending',
-        fare:    b.fare  || 0,
-        km:      b.km    || 0,
-        notes:   b.notes || '',
-        bookingId: b.id,
-      }))
+  const [base, setBase] = useState([])
+  useEffect(() => {
+    loadBookings().then(all => {
+      const _all = Array.isArray(all) ? all : []
+      return all
+            .filter(b =>
+              b.driver?.toLowerCase() === user?.name?.toLowerCase() &&
+              b.startDate === todayISO &&
+              b.status !== 'cancelled'
+            )
+            .map(b => ({
+              tripId:        b.id,
+              customer:      b.customer,
+              contact:       b.contact || '',
+              pickup:        b.pickup  || '',
+              drop:          b.drop    || '',
+              tripType:      b.type    || 'one_way',
+              scheduledTime: b.startTime
+                ? new Date(`${b.startDate}T${b.startTime}`).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : '—',
+              status:  b.status === 'started' ? 'driving'
+                     : b.status === 'completed' ? 'completed'
+                     : 'pending',
+              fare:    b.fare  || 0,
+              km:      b.km    || 0,
+              notes:   b.notes || '',
+              bookingId: b.id,
+            }))
+    })
   }, [user, todayISO])
 
   const [trips,  setTrips]  = useState(() =>
@@ -175,11 +178,11 @@ export default function AssignedTrips() {
   const doneCount  = trips.filter(t => t.status === 'completed').length
 
   // ── Sync booking status helper ────────────────────────────
-  const syncBookingStatus = useCallback((bookingId, newStatus) => {
-    const all     = loadBookings()
-    const booking = all.find(b => b.id === bookingId)
+  const syncBookingStatus = useCallback(async (bookingId, newStatus) => {
+    const raw     = await loadBookings()
+    const booking = (Array.isArray(raw) ? raw : []).find(b => b.id === bookingId)
     if (!booking) return
-    saveBooking({ ...booking, status: newStatus, updatedAt: new Date().toISOString() })
+    await saveBooking({ ...booking, status: newStatus, updatedAt: new Date().toISOString() })
   }, [])
 
   // ── Start ride ────────────────────────────────────────────
@@ -205,9 +208,9 @@ export default function AssignedTrips() {
     const startCoord = await gps.requestCurrent()
 
     if (startKm > 0) {
-      const allBk   = loadBookings()
-      const booking = allBk.find(b => b.id === tripId)
-      if (booking) saveBooking({ ...booking, startKm, updatedAt: new Date().toISOString() })
+      const _allBk  = await loadBookings()
+      const booking = (Array.isArray(_allBk) ? _allBk : []).find(b => b.id === tripId)
+      if (booking) await saveBooking({ ...booking, startKm, updatedAt: new Date().toISOString() })
     }
 
     const rideGPS = {
@@ -319,7 +322,7 @@ export default function AssignedTrips() {
     onRideEnd(activeRide)
 
     // Update booking + auto-payslip
-    const allBookings      = loadBookings()
+    const allBookings = await loadBookings()
     const completedBooking = allBookings.find(b => b.id === tripId)
     if (completedBooking) {
       const updated = {
@@ -331,7 +334,7 @@ export default function AssignedTrips() {
         distanceKm: distKm,
       }
       saveBooking(updated)
-      const payslip = buildTripPayslip(updated, loadPayrollSettings())
+      const payslip = buildTripPayslip(updated, await loadPayrollSettings())
       saveTripPayslip(payslip)
     }
 

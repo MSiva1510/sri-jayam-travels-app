@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Plus, Printer, Eye } from 'lucide-react'
 import Avatar        from '../components/ui/Avatar'
 import Button        from '../components/ui/Button'
@@ -25,9 +25,15 @@ function StatusBadge({ status }) {
 }
 
 export default function Invoices() {
+  const [bookings, setBookings] = useState([])
+  const reloadBookings = useCallback(async () => {
+    const b = await loadBookings()
+    setBookings(Array.isArray(b) ? b : [])
+  }, [])
+  useEffect(() => { reloadBookings() }, [reloadBookings])
+
   const [filter,   setFilter]   = useState('all')
   const [selected, setSelected] = useState(null)   // booking shown in InvoiceModal
-  const bookings = loadBookings()
 
   const filtered = filter === 'all'
     ? bookings

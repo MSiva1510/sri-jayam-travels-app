@@ -198,6 +198,11 @@ function AreaWidget({ label, area, gradient, icon: Icon }) {
 //  Main DriverDashboard
 // ─────────────────────────────────────────────────────────────
 export default function DriverDashboard() {
+  const [bookings, setBookings] = useState([])
+  useEffect(() => {
+    loadBookings().then(b => setBookings(Array.isArray(b) ? b : []))
+  }, [])
+
   const { user }     = useAuth()
   const navigate     = useNavigate()
   const gps          = useGPS()
@@ -234,13 +239,12 @@ export default function DriverDashboard() {
   }, [vehicleAckKey])
 
   // Load today's trips from real bookings (same logic as AssignedTrips)
-  const todayISO = new Date().toISOString().slice(0, 10)
-  const todayBase = loadBookings()
-    .filter(b =>
-      b.driver?.toLowerCase() === driverName.toLowerCase() &&
-      b.startDate === todayISO &&
-      b.status !== 'cancelled'
-    )
+  const todayISO  = new Date().toISOString().slice(0, 10)
+  const todayBase = bookings.filter(b =>
+    b.driver?.toLowerCase() === driverName.toLowerCase() &&
+    b.startDate === todayISO &&
+    b.status !== 'cancelled'
+  )
     .map(b => ({
       tripId:        b.id,
       customer:      b.customer,

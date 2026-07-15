@@ -1,25 +1,24 @@
 // ─── Expense Data & Storage ───────────────────────────────────
-// Same localStorage-merge pattern as tripTypes.js / customerData.js
+// Storage: Supabase `expenses` table via expenseRepository
 
-export const EXPENSES_KEY = 'sjt_expenses_v2'
+import { expenseRepository } from '../repositories/expenseRepository'
+import { withCache, cacheClear } from '../utils/dataCache'
 
-// ── Expense type config ───────────────────────────────────────
 export const EXPENSE_TYPES = [
-  { key:'fuel',        label:'Fuel',         icon:'⛽', color:'from-orange-500 to-amber-500',  badge:'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',  dot:'bg-orange-500'  },
-  { key:'toll',        label:'Toll',         icon:'🛣',  color:'from-blue-500 to-indigo-500',   badge:'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',           dot:'bg-blue-500'    },
-  { key:'parking',     label:'Parking',      icon:'🅿',  color:'from-teal-500 to-cyan-500',     badge:'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',           dot:'bg-teal-500'    },
-  { key:'bata',        label:'Driver Bata',  icon:'💵', color:'from-emerald-600 to-green-500', badge:'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',dot:'bg-emerald-500' },
-  { key:'food',        label:'Food',         icon:'🍽',  color:'from-rose-500 to-pink-500',     badge:'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',           dot:'bg-rose-500'    },
-  { key:'maintenance', label:'Maintenance',  icon:'🔧', color:'from-slate-500 to-slate-600',   badge:'bg-slate-100 text-slate-700 dark:bg-slate-700/50 dark:text-slate-300',       dot:'bg-slate-500'   },
-  { key:'repair',      label:'Repair',       icon:'🔩', color:'from-red-500 to-rose-600',      badge:'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',               dot:'bg-red-500'     },
-  { key:'permit',      label:'Permit',       icon:'📋', color:'from-violet-500 to-purple-600', badge:'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',   dot:'bg-violet-500'  },
-  { key:'insurance',   label:'Insurance',    icon:'🛡',  color:'from-sky-500 to-blue-600',      badge:'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',              dot:'bg-sky-500'     },
-  { key:'misc',        label:'Miscellaneous',icon:'📦', color:'from-amber-500 to-yellow-500',  badge:'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',       dot:'bg-amber-500'   },
+  { key:'fuel',        label:'Fuel',          icon:'⛽', color:'from-orange-500 to-amber-500',  badge:'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',  dot:'bg-orange-500'  },
+  { key:'toll',        label:'Toll',          icon:'🛣',  color:'from-blue-500 to-indigo-500',   badge:'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',           dot:'bg-blue-500'    },
+  { key:'parking',     label:'Parking',       icon:'🅿',  color:'from-teal-500 to-cyan-500',     badge:'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',           dot:'bg-teal-500'    },
+  { key:'bata',        label:'Driver Bata',   icon:'💵', color:'from-emerald-600 to-green-500', badge:'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',dot:'bg-emerald-500' },
+  { key:'food',        label:'Food',          icon:'🍽',  color:'from-rose-500 to-pink-500',     badge:'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',           dot:'bg-rose-500'    },
+  { key:'maintenance', label:'Maintenance',   icon:'🔧', color:'from-slate-500 to-slate-600',   badge:'bg-slate-100 text-slate-700 dark:bg-slate-700/50 dark:text-slate-300',       dot:'bg-slate-500'   },
+  { key:'repair',      label:'Repair',        icon:'🔩', color:'from-red-500 to-rose-600',      badge:'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',               dot:'bg-red-500'     },
+  { key:'permit',      label:'Permit',        icon:'📋', color:'from-violet-500 to-purple-600', badge:'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',   dot:'bg-violet-500'  },
+  { key:'insurance',   label:'Insurance',     icon:'🛡',  color:'from-sky-500 to-blue-600',      badge:'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',              dot:'bg-sky-500'     },
+  { key:'misc',        label:'Miscellaneous', icon:'📦', color:'from-amber-500 to-yellow-500',  badge:'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',       dot:'bg-amber-500'   },
 ]
 
 export const getExpTypeCfg = key => EXPENSE_TYPES.find(t => t.key === key) || EXPENSE_TYPES[EXPENSE_TYPES.length - 1]
 
-// ── Approval status config ────────────────────────────────────
 export const APPROVAL_STATUSES = [
   { key:'draft',     label:'Draft',     badge:'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',                dot:'bg-slate-400'   },
   { key:'submitted', label:'Submitted', badge:'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',                  dot:'bg-blue-500'    },
@@ -28,7 +27,6 @@ export const APPROVAL_STATUSES = [
 ]
 export const getApprovalCfg = key => APPROVAL_STATUSES.find(s => s.key === key) || APPROVAL_STATUSES[0]
 
-// ── ID generator ──────────────────────────────────────────────
 export function generateExpenseId() {
   const d  = new Date()
   const y  = d.getFullYear().toString().slice(-2)
@@ -37,11 +35,77 @@ export function generateExpenseId() {
   return `EXP-${y}${m}-${ts}`
 }
 
-// ── Driver-submittable types ──────────────────────────────────
 export const DRIVER_ALLOWED_TYPES = ['toll','parking','food','bata']
 
-// ── Mock seed data ────────────────────────────────────────────
-// Seeds are enriched from existing mockData.js EXPENSES and TRIPS
+// ── Supabase expense store ────────────────────────────────────
+// All functions are async — callers must await them.
+
+async function _loadExpenses() {
+  try {
+    return await expenseRepository.getAll()
+  } catch (err) {
+    console.error('[expenseData] loadExpenses failed:', err)
+    return MOCK_EXPENSES
+  }
+}
+export const loadExpenses = withCache('expenses', _loadExpenses)
+export const getExpenses = loadExpenses
+
+
+
+export async function saveExpense(expense) {
+  try {
+    const { id, ...rest } = expense
+    const existing = id ? await expenseRepository.getById(id) : null
+    if (existing) {
+      return await expenseRepository.update(id, { ...rest, updatedAt: new Date().toISOString() })
+    }
+    return await expenseRepository.create({ id: id || generateExpenseId(), ...rest })
+  } catch (err) {
+    console.error('[expenseData] saveExpense failed:', err)
+    return null
+  }
+}
+
+export async function deleteExpense(id) {
+  try {
+    return await expenseRepository.delete(id)
+  } catch (err) {
+    console.error('[expenseData] deleteExpense failed:', err)
+    return false
+  }
+}
+
+// ── Date range helpers ────────────────────────────────────────
+export function isToday(dateStr) {
+  return dateStr === new Date().toISOString().slice(0, 10)
+}
+export function isThisWeek(dateStr) {
+  const d   = new Date(dateStr + 'T00:00:00')
+  const now = new Date()
+  const startOfWeek = new Date(now)
+  startOfWeek.setDate(now.getDate() - now.getDay())
+  startOfWeek.setHours(0,0,0,0)
+  return d >= startOfWeek
+}
+export function isThisMonth(dateStr) {
+  return dateStr.startsWith(new Date().toISOString().slice(0, 7))
+}
+
+// ── Category summary (computed — no storage) ──────────────────
+export function summariseByType(expenses) {
+  return EXPENSE_TYPES.map(t => ({
+    ...t,
+    total: expenses.filter(e => e.type === t.key).reduce((s, e) => s + (e.amount || 0), 0),
+    count: expenses.filter(e => e.type === t.key).length,
+  })).filter(t => t.total > 0).sort((a, b) => b.total - a.total)
+}
+
+export function getTripExpenses(tripRef, expenses) {
+  return expenses.filter(e => e.tripRef === tripRef)
+}
+
+// ── Seed / reference data ─────────────────────────────────────
 export const MOCK_EXPENSES = [
   {
     id:'EXP-2605-001', type:'maintenance', status:'approved',
@@ -92,7 +156,6 @@ export const MOCK_EXPENSES = [
     receiptName:'', receiptDate:'',
     notes:'Festival advance', createdAt:'2026-04-12T10:00:00Z', updatedAt:'2026-04-12T10:00:00Z',
   },
-  // Driver-submitted entries pending approval
   {
     id:'EXP-2606-008', type:'fuel', status:'submitted',
     date:'2026-06-01', amount:2200, description:'Fuel fill — Ramanan trip to Bangalore',
@@ -115,94 +178,3 @@ export const MOCK_EXPENSES = [
     notes:'4 hours parking', createdAt:'2026-06-02T14:00:00Z', updatedAt:'2026-06-02T14:00:00Z',
   },
 ]
-
-// ── localStorage helpers ──────────────────────────────────────
-
-// One-time migration: copy any records from the old v1 key into v2
-const EXPENSES_KEY_V1 = 'sjt_expenses'
-function migrateExpensesV1() {
-  try {
-    const old = localStorage.getItem(EXPENSES_KEY_V1)
-    if (!old) return
-    const oldRecords = JSON.parse(old)
-    if (!Array.isArray(oldRecords) || oldRecords.length === 0) {
-      localStorage.removeItem(EXPENSES_KEY_V1)
-      return
-    }
-    const existing    = localStorage.getItem(EXPENSES_KEY)
-    const existingArr = existing ? JSON.parse(existing) : []
-    const existingIds = new Set(existingArr.map(e => e.id))
-    const merged      = [...existingArr, ...oldRecords.filter(e => !existingIds.has(e.id))]
-    localStorage.setItem(EXPENSES_KEY, JSON.stringify(merged))
-    localStorage.removeItem(EXPENSES_KEY_V1)
-  } catch { /* silent — migration is best-effort */ }
-}
-
-export function loadExpenses() {
-  migrateExpensesV1()
-  try {
-    const raw    = localStorage.getItem(EXPENSES_KEY)
-    const stored = raw ? JSON.parse(raw) : []
-    const storedIds = new Set(stored.map(e => e.id))
-    return [...stored, ...MOCK_EXPENSES.filter(e => !storedIds.has(e.id) && !e._deleted)]
-      .filter(e => !e._deleted)
-      .sort((a, b) => b.date.localeCompare(a.date))
-  } catch { return MOCK_EXPENSES }
-}
-
-export function saveExpense(expense) {
-  try {
-    const raw    = localStorage.getItem(EXPENSES_KEY)
-    const stored = raw ? JSON.parse(raw) : []
-    const idx    = stored.findIndex(e => e.id === expense.id)
-    if (idx >= 0) stored[idx] = expense
-    else          stored.unshift(expense)
-    localStorage.setItem(EXPENSES_KEY, JSON.stringify(stored))
-  } catch {}
-}
-
-export function deleteExpense(id) {
-  try {
-    const raw    = localStorage.getItem(EXPENSES_KEY)
-    const stored = raw ? JSON.parse(raw) : []
-    const isMock = MOCK_EXPENSES.find(e => e.id === id)
-    if (isMock) {
-      // Mark deleted so it doesn't re-appear from seed merge
-      const updated = stored.filter(e => e.id !== id)
-      updated.push({ id, _deleted: true })
-      localStorage.setItem(EXPENSES_KEY, JSON.stringify(updated))
-    } else {
-      localStorage.setItem(EXPENSES_KEY, JSON.stringify(stored.filter(e => e.id !== id)))
-    }
-  } catch {}
-}
-
-// ── Date range helpers ────────────────────────────────────────
-export function isToday(dateStr) {
-  return dateStr === new Date().toISOString().slice(0, 10)
-}
-export function isThisWeek(dateStr) {
-  const d   = new Date(dateStr + 'T00:00:00')
-  const now = new Date()
-  const startOfWeek = new Date(now)
-  startOfWeek.setDate(now.getDate() - now.getDay())
-  startOfWeek.setHours(0,0,0,0)
-  return d >= startOfWeek
-}
-export function isThisMonth(dateStr) {
-  return dateStr.startsWith(new Date().toISOString().slice(0, 7))
-}
-
-// ── Category summary ──────────────────────────────────────────
-export function summariseByType(expenses) {
-  return EXPENSE_TYPES.map(t => ({
-    ...t,
-    total: expenses.filter(e => e.type === t.key).reduce((s, e) => s + (e.amount || 0), 0),
-    count: expenses.filter(e => e.type === t.key).length,
-  })).filter(t => t.total > 0).sort((a, b) => b.total - a.total)
-}
-
-// ── Trip expense summary ──────────────────────────────────────
-export function getTripExpenses(tripRef, expenses) {
-  return expenses.filter(e => e.tripRef === tripRef)
-}

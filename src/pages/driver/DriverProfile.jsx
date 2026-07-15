@@ -25,6 +25,17 @@ function InfoRow({ icon: Icon, label, value, highlight }) {
 }
 
 export default function DriverProfile() {
+  const [bookings,    setBookings]    = useState([])
+  const [settlements, setSettlements] = useState([])
+  const [payslips,    setPayslips]    = useState([])
+  useEffect(() => {
+    Promise.all([loadBookings(), loadSettlements(), loadTripPayslips()]).then(([b,s,p]) => {
+      setBookings(Array.isArray(b) ? b : [])
+      setSettlements(Array.isArray(s) ? s : [])
+      setPayslips(Array.isArray(p) ? p : [])
+    })
+  }, [])
+
   const { user }  = useAuth()
   const navigate  = useNavigate()
   const profile   = getDriverProfile(user?.name)
@@ -176,7 +187,7 @@ export default function DriverProfile() {
 
       {/* Module 11: Payroll strip */}
       {(() => {
-        const settlements = loadSettlements().filter(s => s.driver === user?.name)
+        const mySettlements = settlements.filter(s => s.driver === user?.name)
         if (settlements.length === 0) return null
         const latest   = settlements[0]
         const current  = settlements.find(s => {

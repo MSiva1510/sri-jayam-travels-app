@@ -1,24 +1,22 @@
 // ─── Settlement & Payroll Data Layer ─────────────────────────
-// Follows the same localStorage-merge pattern as tripTypes.js etc.
+// Storage: Supabase `settlements` + `trip_payslips` + `settings`
+//          tables via payrollRepository and supabase client
 
-export const SETTLEMENTS_KEY      = 'sjt_settlements'
-export const PAYSLIPS_KEY         = 'sjt_payslips'
-export const TRIP_PAYSLIPS_KEY    = 'sjt_trip_payslips'
-export const PAYROLL_SETTINGS_KEY = 'sjt_payroll_settings'
+import { payrollRepository } from '../repositories/payrollRepository'
+import supabase               from '../lib/supabase'
+import { withCache, cacheClear } from '../utils/dataCache'
 
 // ── Settlement status config ──────────────────────────────────
 export const SETTLEMENT_STATUSES = [
-  { key:'draft',    label:'Draft',            badge:'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',                  dot:'bg-slate-400'   },
-  { key:'pending',  label:'Pending Approval', badge:'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',                    dot:'bg-blue-500'    },
-  { key:'approved', label:'Approved',         badge:'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',            dot:'bg-violet-500'  },
-  { key:'paid',     label:'Paid',             badge:'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',        dot:'bg-emerald-500' },
+  { key:'draft',    label:'Draft',            badge:'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',               dot:'bg-slate-400'   },
+  { key:'pending',  label:'Pending Approval', badge:'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',                 dot:'bg-blue-500'    },
+  { key:'approved', label:'Approved',         badge:'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',         dot:'bg-violet-500'  },
+  { key:'paid',     label:'Paid',             badge:'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',     dot:'bg-emerald-500' },
 ]
 export const getSettlementStatusCfg = key => SETTLEMENT_STATUSES.find(s => s.key === key) || SETTLEMENT_STATUSES[0]
 
-// ── Payment methods ───────────────────────────────────────────
 export const PAYMENT_METHODS = ['Cash','Bank Transfer','UPI']
 
-// ── Deduction types ───────────────────────────────────────────
 export const DEDUCTION_TYPES = [
   { key:'advance',  label:'Advance Salary' },
   { key:'penalty',  label:'Penalty'        },
@@ -26,7 +24,6 @@ export const DEDUCTION_TYPES = [
   { key:'misc',     label:'Miscellaneous'  },
 ]
 
-// ── Default payroll settings ──────────────────────────────────
 export const DEFAULT_PAYROLL_SETTINGS = {
   drivers: {
     Ramanan:      { baseSalary: 18000, dailyBata: 300, perTripIncentive: 0 },
@@ -34,26 +31,45 @@ export const DEFAULT_PAYROLL_SETTINGS = {
     Rajasekharan: { baseSalary: 16000, dailyBata: 300, perTripIncentive: 0 },
   },
   incentiveRules: [
-    { minTrips: 1,  maxTrips: 20, bonus: 0    },
-    { minTrips: 21, maxTrips: 40, bonus: 500  },
-    { minTrips: 41, maxTrips: 60, bonus: 1000 },
-    { minTrips: 61, maxTrips: 999,bonus: 2000 },
+    { minTrips: 1,   maxTrips: 20,  bonus: 0    },
+    { minTrips: 21,  maxTrips: 40,  bonus: 500  },
+    { minTrips: 41,  maxTrips: 60,  bonus: 1000 },
+    { minTrips: 61,  maxTrips: 999, bonus: 2000 },
   ],
   updatedAt: null,
 }
 
-// ── localStorage helpers ──────────────────────────────────────
-export function loadPayrollSettings() {
+// ── Supabase payroll settings ─────────────────────────────────
+// Stored in `settings` table: { key: 'payroll_settings', value: JSON }
+
+export async function loadPayrollSettings() {
   try {
-    const raw = localStorage.getItem(PAYROLL_SETTINGS_KEY)
-    return raw ? JSON.parse(raw) : DEFAULT_PAYROLL_SETTINGS
-  } catch { return DEFAULT_PAYROLL_SETTINGS }
-}
-export function savePayrollSettings(cfg) {
-  try { localStorage.setItem(PAYROLL_SETTINGS_KEY, JSON.stringify({ ...cfg, updatedAt: new Date().toISOString() })) } catch {}
+    const { data, error } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'payroll_settings')
+      .single()
+    if (error && error.code === 'PGRST116') return DEFAULT_PAYROLL_SETTINGS
+    if (error) throw error
+    return data?.value || DEFAULT_PAYROLL_SETTINGS
+  } catch (err) {
+    console.error('[settlementData] loadPayrollSettings failed:', err)
+    return DEFAULT_PAYROLL_SETTINGS
+  }
 }
 
-// ── Incentive calculation (Module 7) ──────────────────────────
+export async function savePayrollSettings(cfg) {
+  const value = { ...cfg, updatedAt: new Date().toISOString() }
+  try {
+    await supabase
+      .from('settings')
+      .upsert({ key: 'payroll_settings', value }, { onConflict: 'key' })
+  } catch (err) {
+    console.error('[settlementData] savePayrollSettings failed:', err)
+  }
+}
+
+// ── Incentive calculation ─────────────────────────────────────
 export function calculateIncentive(completedTrips, rules) {
   const sorted = [...rules].sort((a, b) => b.minTrips - a.minTrips)
   for (const rule of sorted) {
@@ -62,8 +78,7 @@ export function calculateIncentive(completedTrips, rules) {
   return 0
 }
 
-// ── Build settlement from inputs + expense data ───────────────
-// Module 12: reads bata/fuel/parking from expenseData automatically
+// ── Build settlement (pure computation — no storage) ──────────
 export function buildSettlement({
   driver, month, year, workingDays,
   completedTrips, totalTrips,
@@ -72,41 +87,38 @@ export function buildSettlement({
   bonus = 0, notes = '',
   addedBy = '',
 }, expenses, settings) {
-  const driverCfg = settings?.drivers?.[driver] || { baseSalary: 15000, dailyBata: 250 }
-
-  // Module 12: sum from approved expenses for this driver in this month
+  const driverCfg   = settings?.drivers?.[driver] || { baseSalary: 15000, dailyBata: 250 }
   const monthKey    = `${year}-${String(month).padStart(2,'0')}`
-  const driverExps  = expenses.filter(e =>
+  const driverExps  = (expenses || []).filter(e =>
     e.driver === driver &&
     e.date?.startsWith(monthKey) &&
     e.status === 'approved'
   )
-  const expBata     = driverExps.filter(e => e.type === 'bata').reduce((s,e) => s+e.amount, 0)
-  const expFuel     = driverExps.filter(e => e.type === 'fuel').reduce((s,e) => s+e.amount, 0)
-  const expParking  = driverExps.filter(e => e.type === 'parking').reduce((s,e) => s+e.amount, 0)
+  const expBata    = driverExps.filter(e => e.type === 'bata').reduce((s,e) => s+e.amount, 0)
+  const expFuel    = driverExps.filter(e => e.type === 'fuel').reduce((s,e) => s+e.amount, 0)
+  const expParking = driverExps.filter(e => e.type === 'parking').reduce((s,e) => s+e.amount, 0)
 
-  const bataAmt     = expBata     || manualBata
-  const fuelAmt     = expFuel     || manualFuel
-  const parkingAmt  = expParking  || manualParking
+  const bataAmt    = expBata    || manualBata
+  const fuelAmt    = expFuel    || manualFuel
+  const parkingAmt = expParking || manualParking
 
-  const baseSalary  = driverCfg.baseSalary || 15000
-  const incentive   = calculateIncentive(completedTrips, settings?.incentiveRules || DEFAULT_PAYROLL_SETTINGS.incentiveRules)
+  const baseSalary      = driverCfg.baseSalary || 15000
+  const incentive       = calculateIncentive(completedTrips, settings?.incentiveRules || DEFAULT_PAYROLL_SETTINGS.incentiveRules)
   const totalDeductions = deductions.reduce((s,d) => s + (d.amount || 0), 0)
-
-  const grossAmount = baseSalary + bataAmt + fuelAmt + parkingAmt + incentive + bonus
-  const netAmount   = Math.max(0, grossAmount - totalDeductions)
+  const grossAmount     = baseSalary + bataAmt + fuelAmt + parkingAmt + incentive + bonus
+  const netAmount       = Math.max(0, grossAmount - totalDeductions)
 
   return {
     baseSalary, bataAmt, fuelAmt, parkingAmt,
     incentive, bonus,
     grossAmount, totalDeductions, netAmount,
     deductions,
-    expBata, expFuel, expParking,   // breakdown of what came from expenses
+    expBata, expFuel, expParking,
     notes,
   }
 }
 
-// ── ID generator ──────────────────────────────────────────────
+// ── ID generators ─────────────────────────────────────────────
 export function generateSettlementId() {
   const d  = new Date()
   const y  = d.getFullYear().toString().slice(-2)
@@ -115,12 +127,156 @@ export function generateSettlementId() {
   return `STL-${y}${m}-${ts}`
 }
 
+export function generateTripPayslipId() {
+  const d  = new Date()
+  const y  = d.getFullYear().toString().slice(-2)
+  const m  = String(d.getMonth() + 1).padStart(2, '0')
+  const ts = Date.now().toString().slice(-5)
+  return `TPS-${y}${m}-${ts}`
+}
+
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 export function monthLabel(month, year) {
   return `${MONTHS[(month||1)-1]} ${year}`
 }
 
-// ── Mock seed data ────────────────────────────────────────────
+// ── Supabase settlements store ────────────────────────────────
+
+async function _loadSettlements() {
+  try {
+    return await payrollRepository.getAllSettlements()
+  } catch (err) {
+    console.error('[settlementData] loadSettlements failed:', err)
+    return MOCK_SETTLEMENTS
+  }
+}
+export const loadSettlements = withCache('settlements', _loadSettlements)
+
+
+export async function saveSettlement(settlement) {
+  try {
+    const { id, ...rest } = settlement
+    const existing = id ? await payrollRepository.getSettlementById?.(id) : null
+    if (existing) {
+      return await payrollRepository.updateSettlement(id, { ...rest, updatedAt: new Date().toISOString() })
+    }
+    return await payrollRepository.createSettlement({ id: id || generateSettlementId(), ...rest })
+  } catch (err) {
+    console.error('[settlementData] saveSettlement failed:', err)
+    return null
+  }
+}
+
+export async function deleteSettlement(id) {
+  try {
+    const { error } = await supabase.from('settlements').delete().eq('id', id)
+    if (error) throw error
+    return true
+  } catch (err) {
+    console.error('[settlementData] deleteSettlement failed:', err)
+    return false
+  }
+}
+
+export async function settlementExists(driver, month, year) {
+  try {
+    const all = await payrollRepository.getAllSettlements()
+    return all.some(s => s.driver === driver && s.month === month && s.year === year)
+  } catch {
+    return false
+  }
+}
+
+// ── Monthly payslips (summary snapshots) ─────────────────────
+
+async function _loadPayslips() {
+  try {
+    return await payrollRepository.getAllPayslips()
+  } catch (err) {
+    console.error('[settlementData] loadPayslips failed:', err)
+    return []
+  }
+}
+export const loadPayslips = withCache('payslips', _loadPayslips)
+
+
+export async function savePayslip(payslip) {
+  try {
+    const existing = await payrollRepository.getPayslipsByDriver?.(payslip.settlementId)
+    if (existing?.find?.(p => p.settlement_id === payslip.settlementId)) {
+      const { error } = await supabase
+        .from('trip_payslips')
+        .update(payslip)
+        .eq('id', payslip.id)
+      if (error) throw error
+      return payslip
+    }
+    return await payrollRepository.createPayslip(payslip)
+  } catch (err) {
+    console.error('[settlementData] savePayslip failed:', err)
+    return null
+  }
+}
+
+// ── Per-trip payslips ─────────────────────────────────────────
+
+async function _loadTripPayslips() {
+  try {
+    return await payrollRepository.getAllPayslips()
+  } catch (err) {
+    console.error('[settlementData] loadTripPayslips failed:', err)
+    return []
+  }
+}
+export const loadTripPayslips = withCache('tripPayslips', _loadTripPayslips)
+
+
+export async function saveTripPayslip(payslip) {
+  try {
+    const { id, ...rest } = payslip
+    // Try upsert by id
+    const { data, error } = await supabase
+      .from('trip_payslips')
+      .upsert({ id: id || generateTripPayslipId(), ...rest })
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  } catch (err) {
+    console.error('[settlementData] saveTripPayslip failed:', err)
+    return null
+  }
+}
+
+// ── Build a per-trip payslip from a completed booking ────────
+export function buildTripPayslip(booking, settings) {
+  const driverCfg = settings?.drivers?.[booking.driver] || {}
+  const bata      = driverCfg.dailyBata || 0
+  const fare      = booking.fare || 0
+  const net       = fare + bata
+  return {
+    id:        generateTripPayslipId(),
+    bookingId: booking.id,
+    bookingNo: booking.bookingNo || booking.id,
+    driver:    booking.driver || '',
+    vehicle:   booking.vehicle || '',
+    customer:  booking.customer || '',
+    pickup:    booking.pickup || '',
+    drop:      booking.drop || '',
+    date:      booking.startDate || new Date().toISOString().slice(0, 10),
+    fare,
+    bata,
+    fuel:      0,
+    parking:   0,
+    net,
+    status:    'pending',
+    paidAt:    null,
+    paidBy:    null,
+    createdAt: new Date().toISOString(),
+  }
+}
+
+// ── Seed / reference data ─────────────────────────────────────
 export const MOCK_SETTLEMENTS = [
   {
     id:'STL-2604-001', driver:'Ramanan', month:4, year:2026,
@@ -183,117 +339,3 @@ export const MOCK_SETTLEMENTS = [
     notes:'On leave for 8 days',
   },
 ]
-
-export function loadSettlements() {
-  try {
-    const raw    = localStorage.getItem(SETTLEMENTS_KEY)
-    const stored = raw ? JSON.parse(raw) : []
-    const storedIds = new Set(stored.map(s => s.id))
-    return [...stored, ...MOCK_SETTLEMENTS.filter(s => !storedIds.has(s.id) && !s._deleted)]
-      .filter(s => !s._deleted)
-      .sort((a,b) => {
-        const dateA = `${a.year}-${String(a.month).padStart(2,'0')}`
-        const dateB = `${b.year}-${String(b.month).padStart(2,'0')}`
-        return dateB.localeCompare(dateA)
-      })
-  } catch { return MOCK_SETTLEMENTS }
-}
-
-export function saveSettlement(settlement) {
-  try {
-    const raw    = localStorage.getItem(SETTLEMENTS_KEY)
-    const stored = raw ? JSON.parse(raw) : []
-    const idx    = stored.findIndex(s => s.id === settlement.id)
-    if (idx >= 0) stored[idx] = settlement
-    else          stored.unshift(settlement)
-    localStorage.setItem(SETTLEMENTS_KEY, JSON.stringify(stored))
-  } catch {}
-}
-
-export function deleteSettlement(id) {
-  try {
-    const raw    = localStorage.getItem(SETTLEMENTS_KEY)
-    const stored = raw ? JSON.parse(raw) : []
-    const isMock = MOCK_SETTLEMENTS.find(s => s.id === id)
-    if (isMock) {
-      const updated = stored.filter(s => s.id !== id)
-      updated.push({ id, _deleted: true })
-      localStorage.setItem(SETTLEMENTS_KEY, JSON.stringify(updated))
-    } else {
-      localStorage.setItem(SETTLEMENTS_KEY, JSON.stringify(stored.filter(s => s.id !== id)))
-    }
-  } catch {}
-}
-
-// Payslips (generated snapshots)
-export function loadPayslips() {
-  try { const r = localStorage.getItem(PAYSLIPS_KEY); return r ? JSON.parse(r) : [] } catch { return [] }
-}
-export function savePayslip(payslip) {
-  try {
-    const arr = loadPayslips()
-    const idx = arr.findIndex(p => p.settlementId === payslip.settlementId)
-    if (idx >= 0) arr[idx] = payslip; else arr.unshift(payslip)
-    localStorage.setItem(PAYSLIPS_KEY, JSON.stringify(arr))
-  } catch {}
-}
-
-// Duplicate prevention
-export function settlementExists(driver, month, year) {
-  return loadSettlements().some(s => s.driver === driver && s.month === month && s.year === year && !s._deleted)
-}
-
-// ── Per-trip payslips ─────────────────────────────────────────
-// A trip payslip is generated immediately when a trip is completed.
-// Shape: { id, bookingId, bookingNo, driver, vehicle, customer,
-//          pickup, drop, date, fare, bata, fuel, parking, net,
-//          status: 'pending'|'paid', paidAt, paidBy, createdAt }
-
-export function loadTripPayslips() {
-  try { const r = localStorage.getItem(TRIP_PAYSLIPS_KEY); return r ? JSON.parse(r) : [] } catch { return [] }
-}
-
-export function saveTripPayslip(payslip) {
-  try {
-    const arr = loadTripPayslips()
-    const idx = arr.findIndex(p => p.id === payslip.id)
-    if (idx >= 0) arr[idx] = payslip; else arr.unshift(payslip)
-    localStorage.setItem(TRIP_PAYSLIPS_KEY, JSON.stringify(arr))
-  } catch {}
-}
-
-export function generateTripPayslipId() {
-  const d  = new Date()
-  const y  = d.getFullYear().toString().slice(-2)
-  const m  = String(d.getMonth() + 1).padStart(2, '0')
-  const ts = Date.now().toString().slice(-5)
-  return `TPS-${y}${m}-${ts}`
-}
-
-// Build a trip payslip from a completed booking + payroll settings
-export function buildTripPayslip(booking, settings) {
-  const driverCfg = settings?.drivers?.[booking.driver] || {}
-  const bata      = driverCfg.dailyBata || 0
-  const fare      = booking.fare || 0
-  const net       = fare + bata
-  return {
-    id:        generateTripPayslipId(),
-    bookingId: booking.id,
-    bookingNo: booking.bookingNo || booking.id,
-    driver:    booking.driver || '',
-    vehicle:   booking.vehicle || '',
-    customer:  booking.customer || '',
-    pickup:    booking.pickup || '',
-    drop:      booking.drop || '',
-    date:      booking.startDate || new Date().toISOString().slice(0, 10),
-    fare,
-    bata,
-    fuel:      0,
-    parking:   0,
-    net,
-    status:    'pending',
-    paidAt:    null,
-    paidBy:    null,
-    createdAt: new Date().toISOString(),
-  }
-}

@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from 'react'
 import {
   TrendingUp, TrendingDown, IndianRupee, Car, Receipt,
   CheckCircle, Clock, Users, Fuel, Plus, FileText,
@@ -11,16 +12,15 @@ import Badge      from '../components/ui/Badge'
 import Button     from '../components/ui/Button'
 import PageHeader from '../components/ui/PageHeader'
 import { useAuth } from '../context/AuthContext'
-import {
-  DRIVERS, VEHICLES,
-} from '../data/mockData'
-import { loadAttendanceToday } from '../data/attendanceData'
-import { loadCustomers } from '../data/customerData'
-import { loadExpenses, summariseByType, isThisMonth } from '../data/expenseData'
+import { DRIVERS, VEHICLES } from '../data/mockData'
+import { loadAttendanceToday }                         from '../data/attendanceData'
+import { loadCustomers }                               from '../data/customerData'
+import { loadExpenses, summariseByType, isThisMonth }  from '../data/expenseData'
 import { loadBookings, getStatusCfg, TRIP_TYPE_CONFIG } from '../data/tripTypes'
-import { docStatus, daysLabel } from '../utils/vehicleUtils'
-import LiveFleetBoard      from '../components/fleet/LiveFleetBoard'
-import { loadRecentActivity, fmtAuditTime } from '../data/auditLogData'
+import { loadSettlements }                             from '../data/settlementData'
+import { docStatus, daysLabel }                        from '../utils/vehicleUtils'
+import LiveFleetBoard                                  from '../components/fleet/LiveFleetBoard'
+import { loadRecentActivity, fmtAuditTime }            from '../data/auditLogData'
 
 // ── Blocked section placeholder ───────────────────────────────
 function AccessBlocked({ label }) {
@@ -72,12 +72,43 @@ export default function Dashboard() {
   const { can, isAdmin, isManager } = useAuth()
   const navigate = useNavigate()
 
-  const todayAttendance = loadAttendanceToday()
-  const presentCount    = todayAttendance.filter(a => a.status === 'present' || a.status === 'half-day').length
-  const absentCount     = todayAttendance.filter(a => a.status === 'absent').length
+  // ── Async state ───────────────────────────────────────────
+  const [bookings,    setBookings]    = useState([])
+  const [customers,   setCustomers]   = useState([])
+  const [allExpenses, setAllExpenses] = useState([])
+  const [settlements, setSettlements] = useState([])
+  const [todayAttendance, setTodayAttendance] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  // ── Booking data ──────────────────────────────────────────
-  const bookings         = loadBookings()
+  const reload = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [bks, cust, exps, stls, att] = await Promise.all([
+        loadBookings(),
+        loadCustomers(),
+        loadExpenses(),
+        loadSettlements(),
+        loadAttendanceToday(),
+      ])
+      setBookings(    Array.isArray(bks)  ? bks  : [])
+      setCustomers(   Array.isArray(cust) ? cust.filter(c => !c._deleted) : [])
+      setAllExpenses( Array.isArray(exps) ? exps : [])
+      setSettlements( Array.isArray(stls) ? stls : [])
+      setTodayAttendance(Array.isArray(att) ? att : [])
+    } catch (err) {
+      console.error('[Dashboard] load failed:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { reload() }, [reload])
+
+  // ── Attendance derived ────────────────────────────────────
+  const presentCount = todayAttendance.filter(a => a.status === 'present' || a.status === 'half-day').length
+  const absentCount  = todayAttendance.filter(a => a.status === 'absent').length
+
+  // ── Booking derived ───────────────────────────────────────
   const todayStr         = new Date().toISOString().slice(0, 10)
   const bookingToday     = bookings.filter(b => b.startDate === todayStr)
   const bookingActive    = bookings.filter(b => b.status === 'started')
@@ -85,10 +116,10 @@ export default function Dashboard() {
   const bookingCancelled = bookings.filter(b => b.status === 'cancelled')
   const bookingPending   = bookings.filter(b => ['draft','confirmed','assigned'].includes(b.status))
 
-  // ── Vehicle data ──────────────────────────────────────────
+  // ── Vehicle derived (still from static mockData) ──────────
   const availableVehicles   = VEHICLES.filter(v => v.status === 'active').length
   const maintenanceVehicles = VEHICLES.filter(v => v.status === 'maintenance').length
-  const vehicleDocAlerts = VEHICLES.flatMap(v =>
+  const vehicleDocAlerts    = VEHICLES.flatMap(v =>
     [
       { label:`${v.reg} Insurance`,  expiry: v.insExpiry    },
       { label:`${v.reg} Permit`,     expiry: v.permitExpiry },
@@ -98,37 +129,39 @@ export default function Dashboard() {
      .map(d => ({ ...d, st: docStatus(d.expiry) }))
   )
 
-  // ── Customer data ─────────────────────────────────────────
-  const customers         = loadCustomers().filter(c => !c._deleted)
-  const thisMonthStr      = new Date().toISOString().slice(0, 7)
-  const newCustomersMonth = customers.filter(c => c.createdAt?.startsWith(thisMonthStr)).length
-  const corporateCustomers= customers.filter(c => c.type === 'corporate' || c.type === 'agent').length
+  // ── Customer derived ──────────────────────────────────────
+  const thisMonthStr       = new Date().toISOString().slice(0, 7)
+  const newCustomersMonth  = customers.filter(c => c.createdAt?.startsWith(thisMonthStr)).length
+  const corporateCustomers = customers.filter(c => c.type === 'corporate' || c.type === 'agent').length
 
-  // ── Expense data ─────────────────────────────────────────
-  const allExpenses        = loadExpenses()
-  const monthExpenses      = allExpenses.filter(e => isThisMonth(e.date))
-  const monthExpTotal      = monthExpenses.reduce((s,e) => s + e.amount, 0)
-  const pendingApprovals   = allExpenses.filter(e => e.status === 'submitted').length
-  const expByCategory      = summariseByType(monthExpenses).slice(0, 3)
+  // ── Expense derived ───────────────────────────────────────
+  const monthExpenses    = allExpenses.filter(e => isThisMonth(e.date))
+  const monthExpTotal    = monthExpenses.reduce((s, e) => s + e.amount, 0)
+  const pendingApprovals = allExpenses.filter(e => e.status === 'submitted').length
+  const expByCategory    = summariseByType(monthExpenses).slice(0, 3)
 
-  // ── Live KPI totals — derived from real bookings/expenses,  ─
-  //    NOT static mockData constants (Day 20.5 fix: these used  ─
-  //    to be frozen at module-load time and never reflected     ─
-  //    trips/expenses created at runtime) ────────────────────
-  const totalFare    = bookings.reduce((s, b) => s + (b.fare || 0), 0)
-  const totalKm       = bookings.reduce((s, b) => s + (b.km   || 0), 0)
-  const totalExp       = allExpenses.reduce((s, e) => s + (e.amount || 0), 0)
-  const totalNet       = totalFare - totalExp
-  const doneTrips      = bookingCompleted.length
-  const pendingTrips   = bookingPending.length
+  // ── Settlement derived ────────────────────────────────────
+  const totalPayrollPaid = settlements
+    .filter(s => s.status === 'paid')
+    .reduce((sum, s) => sum + (s.netAmount || 0), 0)
+  const settledPending  = settlements.filter(s => s.status === 'pending').length
+  const settledApproved = settlements.filter(s => s.status === 'approved').length
 
-  // Live monthly fare trend (last 6 calendar months incl. current)
+  // ── Revenue KPIs ──────────────────────────────────────────
+  const totalFare = bookings.reduce((s, b) => s + (b.fare  || 0), 0)
+  const totalKm   = bookings.reduce((s, b) => s + (b.km    || 0), 0)
+  const totalExp  = allExpenses.reduce((s, e) => s + (e.amount || 0), 0)
+  const totalNet  = totalFare - totalExp
+  const doneTrips    = bookingCompleted.length
+  const pendingTrips = bookingPending.length
+
+  // ── Monthly fare trend ────────────────────────────────────
   const monthlyFare = (() => {
     const now = new Date()
     const months = []
     for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const key   = d.toISOString().slice(0, 7)            // YYYY-MM
+      const d     = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const key   = d.toISOString().slice(0, 7)
       const label = d.toLocaleDateString('en-IN', { month: 'short' })
       const fare  = bookings
         .filter(b => b.startDate?.startsWith(key))
@@ -138,11 +171,9 @@ export default function Dashboard() {
     return months
   })()
 
-  // Live recent trips — replaces TRIPS.slice(0,7) mock rows.
-  // Maps real booking fields (pickup/drop/startDate) onto the
-  // shape the table below expects (source/destination/date/net).
+  // ── Recent trips ──────────────────────────────────────────
   const recentTrips = [...bookings]
-    .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
+    .sort((a, b) => (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || ''))
     .slice(0, 7)
     .map(b => ({
       id:          b.id,
@@ -151,11 +182,23 @@ export default function Dashboard() {
       source:      b.pickup,
       destination: b.drop,
       driver:      b.driver || '—',
-      km:          b.km || 0,
+      km:          b.km  || 0,
       fare:        b.fare || 0,
-      net:         (b.fare || 0) - (b.toll||0) - (b.bata||0) - (b.petrol||0) - (b.parking||0) - (b.extras||0),
+      net:         (b.fare||0) - (b.toll||0) - (b.bata||0) - (b.petrol||0) - (b.parking||0) - (b.extras||0),
       status:      b.status,
     }))
+
+  // ── Loading screen ────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center space-y-3">
+          <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm font-bold text-slate-500 dark:text-slate-400">Loading dashboard…</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6 animate-fade-up">
