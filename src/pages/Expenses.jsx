@@ -14,7 +14,7 @@ import {
   EXPENSE_TYPES, APPROVAL_STATUSES, DRIVER_ALLOWED_TYPES,
   getExpTypeCfg, getApprovalCfg,
   isToday, isThisWeek, isThisMonth,
-  summariseByType, getTripExpenses,
+  summariseByType, getTripExpenses, getExpenseDate,
 } from '../data/expenseData'
 import { DRIVERS, VEHICLES } from '../data/mockData'
 import { loadBookings } from '../data/tripTypes'
@@ -298,7 +298,7 @@ function TrendBars({ expenses }) {
     d.setMonth(d.getMonth() - i)
     const key = d.toISOString().slice(0, 7)
     const lbl = d.toLocaleString('en-IN', { month: 'short' })
-    const tot = expenses.filter(e => e.date.startsWith(key)).reduce((s,e) => s+(e.amount||0), 0)
+    const tot = expenses.filter(e => (getExpenseDate(e) || '').startsWith(key)).reduce((s,e) => s+(e.amount||0), 0)
     months.push({ key, lbl, tot })
   }
   const max = Math.max(...months.map(m => m.tot), 1)
@@ -439,9 +439,9 @@ export default function Expenses() {
 
   // Date range filter
   const rangeFiltered = useMemo(() => myExpenses.filter(e => {
-    if (dateRange === 'today') return isToday(e.date)
-    if (dateRange === 'week')  return isThisWeek(e.date)
-    if (dateRange === 'month') return isThisMonth(e.date)
+    if (dateRange === 'today') return isToday(e)
+    if (dateRange === 'week')  return isThisWeek(e)
+    if (dateRange === 'month') return isThisMonth(e)
     return true
   }), [myExpenses, dateRange])
 
@@ -592,7 +592,7 @@ export default function Expenses() {
           <div className="mt-3 pt-3 border-t border-slate-100 dark:border-navy-700 flex justify-between text-xs">
             <span className="text-slate-500">This month</span>
             <span className="font-bold text-amber-600 dark:text-amber-400">
-              Rs. {myExpenses.filter(e=>isThisMonth(e.date)).reduce((s,e)=>s+e.amount,0).toLocaleString('en-IN')}
+              Rs. {myExpenses.filter(e=>isThisMonth(e)).reduce((s,e)=>s+e.amount,0).toLocaleString('en-IN')}
             </span>
           </div>
         </div>

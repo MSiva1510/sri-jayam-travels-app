@@ -144,13 +144,41 @@ export function monthLabel(month, year) {
 
 async function _loadSettlements() {
   try {
-    return await payrollRepository.getAllSettlements()
+    const rows = await payrollRepository.getAllSettlements()
+    return (Array.isArray(rows) ? rows : []).map(normalizeSettlement)
   } catch (err) {
     console.error('[settlementData] loadSettlements failed:', err)
     return MOCK_SETTLEMENTS
   }
 }
 export const loadSettlements = withCache('settlements', _loadSettlements)
+
+export function normalizeSettlement(row = {}) {
+  const deductionsArray = Array.isArray(row.deductions) ? row.deductions : []
+  const totalDeductions = Array.isArray(row.deductions)
+    ? row.deductions.reduce((s, d) => s + (Number(d.amount) || 0), 0)
+    : Number(row.totalDeductions ?? row.deductions ?? 0)
+  const baseSalary = Number(row.baseSalary ?? row.basic_pay ?? 0)
+  const incentive = Number(row.incentive ?? 0)
+  const bonus = Number(row.bonus ?? 0)
+  const grossAmount = Number(row.grossAmount ?? row.gross_amount ?? (baseSalary + incentive + bonus))
+  return {
+    ...row,
+    id: row.id || row.settlement_id,
+    driver: row.driver ?? row.driver_name ?? row.driver_id ?? '',
+    baseSalary,
+    incentive,
+    bonus,
+    grossAmount,
+    totalDeductions,
+    netAmount: Number(row.netAmount ?? row.net_amount ?? Math.max(0, grossAmount - totalDeductions)),
+    deductions: deductionsArray,
+    paymentDate: row.paymentDate ?? row.payment_date ?? null,
+    paymentMethod: row.paymentMethod ?? row.payment_method ?? '',
+    createdAt: row.createdAt ?? row.created_at ?? '',
+    updatedAt: row.updatedAt ?? row.updated_at ?? row.created_at ?? '',
+  }
+}
 
 
 export async function saveSettlement(settlement) {
@@ -191,7 +219,8 @@ export async function settlementExists(driver, month, year) {
 
 async function _loadPayslips() {
   try {
-    return await payrollRepository.getAllPayslips()
+    const rows = await payrollRepository.getAllPayslips()
+    return (Array.isArray(rows) ? rows : []).map(normalizeTripPayslip)
   } catch (err) {
     console.error('[settlementData] loadPayslips failed:', err)
     return []
@@ -222,13 +251,31 @@ export async function savePayslip(payslip) {
 
 async function _loadTripPayslips() {
   try {
-    return await payrollRepository.getAllPayslips()
+    const rows = await payrollRepository.getAllPayslips()
+    return (Array.isArray(rows) ? rows : []).map(normalizeTripPayslip)
   } catch (err) {
     console.error('[settlementData] loadTripPayslips failed:', err)
     return []
   }
 }
 export const loadTripPayslips = withCache('tripPayslips', _loadTripPayslips)
+
+export function normalizeTripPayslip(row = {}) {
+  return {
+    ...row,
+    id: row.id || row.payslip_id,
+    bookingId: row.bookingId ?? row.booking_id ?? '',
+    bookingNo: row.bookingNo ?? row.booking_number ?? row.booking_id ?? '',
+    driver: row.driver ?? row.driver_name ?? row.driver_id ?? '',
+    fare: Number(row.fare ?? row.base_amount ?? 0),
+    bata: Number(row.bata ?? row.incentive_amount ?? 0),
+    fuel: Number(row.fuel ?? 0),
+    parking: Number(row.parking ?? 0),
+    net: Number(row.net ?? row.net_amount ?? 0),
+    paidAt: row.paidAt ?? row.paid_at ?? null,
+    createdAt: row.createdAt ?? row.created_at ?? row.generated_at ?? '',
+  }
+}
 
 
 export async function saveTripPayslip(payslip) {

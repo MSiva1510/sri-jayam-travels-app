@@ -135,7 +135,7 @@ export default function Dashboard() {
   const corporateCustomers = customers.filter(c => c.type === 'corporate' || c.type === 'agent').length
 
   // ── Expense derived ───────────────────────────────────────
-  const monthExpenses    = allExpenses.filter(e => isThisMonth(e.date))
+  const monthExpenses    = allExpenses.filter(e => isThisMonth(e))
   const monthExpTotal    = monthExpenses.reduce((s, e) => s + e.amount, 0)
   const pendingApprovals = allExpenses.filter(e => e.status === 'submitted').length
   const expByCategory    = summariseByType(monthExpenses).slice(0, 3)

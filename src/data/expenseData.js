@@ -42,7 +42,8 @@ export const DRIVER_ALLOWED_TYPES = ['toll','parking','food','bata']
 
 async function _loadExpenses() {
   try {
-    return await expenseRepository.getAll()
+    const rows = await expenseRepository.getAll()
+    return (Array.isArray(rows) ? rows : []).map(normalizeExpense)
   } catch (err) {
     console.error('[expenseData] loadExpenses failed:', err)
     return MOCK_EXPENSES
@@ -50,6 +51,25 @@ async function _loadExpenses() {
 }
 export const loadExpenses = withCache('expenses', _loadExpenses)
 export const getExpenses = loadExpenses
+
+export function normalizeExpense(row = {}) {
+  return {
+    ...row,
+    id: row.id || row.expense_id,
+    date: row.date ?? row.expense_date ?? '',
+    amount: Number(row.amount ?? 0),
+    description: row.description ?? row.notes ?? row.location ?? '',
+    tripRef: row.tripRef ?? row.booking_id ?? '',
+    driver: row.driver ?? row.driver_name ?? row.driver_id ?? '',
+    vehicle: row.vehicle ?? row.vehicle_registration ?? row.vehicle_id ?? '',
+    addedBy: row.addedBy ?? row.created_by ?? '',
+    receiptName: row.receiptName ?? row.bill_image_url ?? '',
+    receiptDate: row.receiptDate ?? row.expense_date ?? '',
+    status: row.status ?? 'draft',
+    createdAt: row.createdAt ?? row.created_at ?? '',
+    updatedAt: row.updatedAt ?? row.updated_at ?? row.created_at ?? '',
+  }
+}
 
 
 
@@ -77,32 +97,58 @@ export async function deleteExpense(id) {
 }
 
 // ── Date range helpers ────────────────────────────────────────
-export function isToday(dateStr) {
-  return dateStr === new Date().toISOString().slice(0, 10)
+// ── Date extraction — field-name-agnostic ─────────────────────
+// Accepts a full expense object OR a raw date string.
+// Supabase may return expense_date, date, created_at, or createdAt.
+export function getExpenseDate(expenseOrStr) {
+  if (!expenseOrStr) return null
+  if (typeof expenseOrStr === 'string') return expenseOrStr.slice(0, 10)
+  // Object: try known field names in priority order
+  const raw = expenseOrStr.expense_date
+    ?? expenseOrStr.date
+    ?? expenseOrStr.created_at
+    ?? expenseOrStr.createdAt
+    ?? null
+  if (!raw) return null
+  return typeof raw === 'string' ? raw.slice(0, 10) : null
 }
-export function isThisWeek(dateStr) {
-  const d   = new Date(dateStr + 'T00:00:00')
-  const now = new Date()
+
+// ── Null-safe date helpers ─────────────────────────────────────
+// Each accepts an expense object OR a date string — never crashes.
+export function isToday(expenseOrDateStr) {
+  const d = getExpenseDate(expenseOrDateStr)
+  if (!d) return false
+  return d === new Date().toISOString().slice(0, 10)
+}
+
+export function isThisWeek(expenseOrDateStr) {
+  const d = getExpenseDate(expenseOrDateStr)
+  if (!d) return false
+  const expDate     = new Date(d + 'T00:00:00')
+  const now         = new Date()
   const startOfWeek = new Date(now)
   startOfWeek.setDate(now.getDate() - now.getDay())
-  startOfWeek.setHours(0,0,0,0)
-  return d >= startOfWeek
+  startOfWeek.setHours(0, 0, 0, 0)
+  return expDate >= startOfWeek
 }
-export function isThisMonth(dateStr) {
-  return dateStr.startsWith(new Date().toISOString().slice(0, 7))
+
+export function isThisMonth(expenseOrDateStr) {
+  const d = getExpenseDate(expenseOrDateStr)
+  if (!d) return false
+  return d.startsWith(new Date().toISOString().slice(0, 7))
 }
 
 // ── Category summary (computed — no storage) ──────────────────
 export function summariseByType(expenses) {
   return EXPENSE_TYPES.map(t => ({
     ...t,
-    total: expenses.filter(e => e.type === t.key).reduce((s, e) => s + (e.amount || 0), 0),
-    count: expenses.filter(e => e.type === t.key).length,
+    total: (expenses ?? []).filter(e => e.type === t.key).reduce((s, e) => s + (e.amount || 0), 0),
+    count: (expenses ?? []).filter(e => e.type === t.key).length,
   })).filter(t => t.total > 0).sort((a, b) => b.total - a.total)
 }
 
 export function getTripExpenses(tripRef, expenses) {
-  return expenses.filter(e => e.tripRef === tripRef)
+  return (expenses ?? []).filter(e => e.tripRef === tripRef)
 }
 
 // ── Seed / reference data ─────────────────────────────────────

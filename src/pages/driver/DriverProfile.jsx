@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Phone, Mail, Car, Star,
@@ -6,7 +7,8 @@ import {
 import { useAuth } from '../../context/AuthContext'
 import { getDriverProfile, getDriverVehicle, getDriverHistory, getTodayStats } from '../../data/driverData'
 import Avatar from '../../components/ui/Avatar'
-import { loadSettlements, monthLabel, getSettlementStatusCfg } from '../../data/settlementData'
+import { loadSettlements, loadTripPayslips, monthLabel, getSettlementStatusCfg } from '../../data/settlementData'
+import { loadBookings } from '../../data/tripTypes'
 
 function InfoRow({ icon: Icon, label, value, highlight }) {
   return (

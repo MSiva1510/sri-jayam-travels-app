@@ -96,7 +96,8 @@ export function generateBookingNumber() {
 
 async function _loadBookings() {
   try {
-    return await tripRepository.getAll()
+    const rows = await tripRepository.getAll()
+    return (Array.isArray(rows) ? rows : []).map(normalizeBooking)
   } catch (err) {
     console.error('[tripTypes] loadBookings failed:', err)
     return MOCK_BOOKINGS
@@ -107,6 +108,30 @@ export const loadBookings = withCache('bookings', _loadBookings)
 
 // Alias used in some pages
 export const getBookings = loadBookings
+
+export function normalizeBooking(row = {}) {
+  const typeData = row.type_data && typeof row.type_data === 'object' ? row.type_data : {}
+  return {
+    ...typeData,
+    ...row,
+    id: row.id || row.booking_id,
+    bookingNo: row.bookingNo ?? row.booking_number ?? row.booking_id ?? row.id ?? '',
+    customer: row.customer ?? row.customer_name ?? '',
+    contact: row.contact ?? row.customer_contact ?? '',
+    driver: row.driver ?? row.driver_name ?? row.driver_id ?? '',
+    vehicle: row.vehicle ?? row.vehicle_registration ?? row.vehicle_id ?? '',
+    pickup: row.pickup ?? row.pickup_location ?? '',
+    drop: row.drop ?? row.drop_location ?? '',
+    startDate: row.startDate ?? row.start_date ?? '',
+    startTime: row.startTime ?? row.start_time ?? '',
+    returnDate: row.returnDate ?? row.end_date ?? '',
+    returnTime: row.returnTime ?? row.end_time ?? '',
+    km: Number(row.km ?? row.total_km ?? 0),
+    fare: Number(row.fare ?? row.total_fare ?? row.base_fare ?? 0),
+    createdAt: row.createdAt ?? row.created_at ?? '',
+    updatedAt: row.updatedAt ?? row.updated_at ?? row.created_at ?? '',
+  }
+}
 
 export async function saveBooking(booking) {
   try {
@@ -143,7 +168,7 @@ export async function getBookingsByStatus(status) {
 // ── Availability helpers ──────────────────────────────────────
 export function getDriverAvailability(driverName, date, bookings, mockDriverStatus) {
   if (mockDriverStatus === 'on-leave') return 'leave'
-  const conflict = bookings.find(b =>
+  const conflict = (bookings ?? []).find(b =>
     b.driver === driverName &&
     b.startDate === date &&
     ['assigned','started'].includes(b.status)
@@ -154,7 +179,7 @@ export function getDriverAvailability(driverName, date, bookings, mockDriverStat
 
 export function getVehicleAvailability(vehicleReg, date, bookings, mockVehicleStatus) {
   if (mockVehicleStatus === 'maintenance') return 'maintenance'
-  const conflict = bookings.find(b =>
+  const conflict = (bookings ?? []).find(b =>
     b.vehicle === vehicleReg &&
     b.startDate === date &&
     ['assigned','started'].includes(b.status)

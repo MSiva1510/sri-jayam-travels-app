@@ -723,13 +723,13 @@ export default function Customers() {
       .filter(c => typeFilter === 'all' || c.type === typeFilter)
       .filter(c =>
         !search ||
-        c.name.toLowerCase().includes(search.toLowerCase()) ||
-        c.mobile.includes(search) ||
-        c.city?.toLowerCase().includes(search.toLowerCase()) ||
-        c.email?.toLowerCase().includes(search.toLowerCase())
+        (c.name ?? '').toLowerCase().includes((search ?? '').toLowerCase()) ||
+        (c.mobile ?? '').includes(search) ||
+        (c.city ?? '').toLowerCase().includes((search ?? '').toLowerCase()) ||
+        (c.email ?? '').toLowerCase().includes((search ?? '').toLowerCase())
       )
       .sort((a, b) =>
-        sortBy === 'name'   ? a.name.localeCompare(b.name) :
+        sortBy === 'name'   ? (a.name ?? '').localeCompare(b.name ?? '') :
         sortBy === 'city'   ? (a.city || '').localeCompare(b.city || '') :
         sortBy === 'recent' ? (b.updatedAt || '').localeCompare(a.updatedAt || '') :
         0

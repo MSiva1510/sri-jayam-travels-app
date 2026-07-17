@@ -50,7 +50,7 @@ export async function getExecutiveSummary() {
     vehicles: {
       total:       VEHICLES.length,
       available:   VEHICLES.filter(v => v.status==='active').length,
-      inUse:       await loadVehicleAssignments().length,
+      inUse:       (await loadVehicleAssignments()).length,
       maintenance: VEHICLES.filter(v => v.status==='maintenance').length,
     },
     drivers: {
@@ -63,7 +63,7 @@ export async function getExecutiveSummary() {
       totalNet:      liveTotalNet,
       totalKm:       liveTotalKm,
       totalExp:      liveTotalExp,
-      monthExpenses: expenses.filter(e=>isThisMonth(e.date)).reduce((s,e)=>s+e.amount,0),
+      monthExpenses: expenses.filter(e=>isThisMonth(e)).reduce((s,e)=>s+e.amount,0),
       paidPayroll:   settlements.filter(s=>s.status==='paid').reduce((s,p)=>s+p.netAmount,0),
     },
   }
@@ -154,7 +154,7 @@ export async function getExpenseAnalytics() {
   return {
     months,
     byCategory:   summariseByType(expenses),
-    monthTotal:   expenses.filter(e=>isThisMonth(e.date)).reduce((s,e)=>s+e.amount,0),
+    monthTotal:   expenses.filter(e=>isThisMonth(e)).reduce((s,e)=>s+e.amount,0),
     allTimeTotal: expenses.reduce((s,e)=>s+e.amount,0),
   }
 }

@@ -158,7 +158,7 @@ export function getDriverHistory(driverName) {
   const name = driverName?.toLowerCase()
   // Pull from existing TRIPS dataset filtered by driver
   const fromTrips = TRIPS
-    .filter(t => t.driver.toLowerCase() === name)
+    .filter(t => (t.driver ?? '').toLowerCase() === name)
     .map(t => ({
       tripId:    t.invNo,
       date:      t.date,
@@ -232,7 +232,7 @@ export function getDriverVehicle(vehicleReg) {
 
 // ── DRIVER PROFILE from DRIVERS array ───────────────────────
 export function getDriverProfile(driverName) {
-  return DRIVERS.find(d => d.name.toLowerCase() === driverName?.toLowerCase()) || null
+  return DRIVERS.find(d => (d.name ?? '').toLowerCase() === driverName?.toLowerCase()) || null
 }
 
 // ── TRIP STATUS config ────────────────────────────────────────

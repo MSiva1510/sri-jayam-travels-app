@@ -1,27 +1,23 @@
 // ─── Auth Repository ──────────────────────────────────────────
 // Source of truth: auth.users (Supabase Auth) + public.profiles
-// Never reads from public.users — that table is retired.
 
 import supabase from '../lib/supabase'
 
 class AuthRepository {
 
-  // ── Sign in ────────────────────────────────────────────────
   async signIn({ email, password }) {
     if (!supabase) throw new Error('Supabase not configured')
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
-    return data   // { user, session }
+    return data
   }
 
-  // ── Sign out ───────────────────────────────────────────────
   async signOut() {
     if (!supabase) throw new Error('Supabase not configured')
     const { error } = await supabase.auth.signOut()
     if (error) throw error
   }
 
-  // ── Get current auth user ──────────────────────────────────
   async getAuthUser() {
     if (!supabase) return null
     const { data, error } = await supabase.auth.getUser()
@@ -29,7 +25,6 @@ class AuthRepository {
     return data.user
   }
 
-  // ── Get current session ────────────────────────────────────
   async getSession() {
     if (!supabase) return null
     const { data, error } = await supabase.auth.getSession()
@@ -37,7 +32,8 @@ class AuthRepository {
     return data.session
   }
 
-  // ── Fetch profile from public.profiles ─────────────────────
+  // ── public.profiles CRUD ───────────────────────────────────
+
   async getProfile(userId) {
     if (!supabase) return null
     const { data, error } = await supabase
@@ -45,13 +41,11 @@ class AuthRepository {
       .select('id, email, full_name, role, phone, avatar_url, status, created_at, updated_at')
       .eq('id', userId)
       .single()
-
-    if (error?.code === 'PGRST116') return null   // not found — not an error
+    if (error?.code === 'PGRST116') return null
     if (error) { console.error('[authRepository] getProfile:', error.message); return null }
     return data
   }
 
-  // ── List all profiles (admin use) ──────────────────────────
   async listProfiles() {
     if (!supabase) return []
     const { data, error } = await supabase
@@ -62,26 +56,17 @@ class AuthRepository {
     return data || []
   }
 
-  // ── Create profile record (called after auth.signUp) ────────
   async createProfile({ id, email, full_name, role = 'driver', phone = null }) {
     if (!supabase) throw new Error('Supabase not configured')
     const { data, error } = await supabase
       .from('profiles')
-      .insert([{
-        id,
-        email,
-        full_name,
-        role,
-        phone,
-        status: 'active',
-      }])
+      .insert([{ id, email, full_name, role, phone, status: 'active' }])
       .select()
       .single()
     if (error) throw error
     return data
   }
 
-  // ── Update profile ─────────────────────────────────────────
   async updateProfile(userId, updates) {
     if (!supabase) throw new Error('Supabase not configured')
     const { data, error } = await supabase
@@ -94,36 +79,47 @@ class AuthRepository {
     return data
   }
 
-  // ── Create new auth user + profile (admin action) ──────────
-  // Uses signUp — Disable "Confirm email" in Supabase Auth Settings
-  // for immediate access without email verification.
+  // ── Admin: create new user without losing admin session ────
+  // supabase.auth.signUp() replaces the current session.
+  // We save the admin's tokens first, create the user, then
+  // restore the admin session so the admin stays logged in.
+
   async adminCreateUser({ email, password, full_name, role = 'driver', phone = null }) {
     if (!supabase) throw new Error('Supabase not configured')
 
-    // Step 1: Create auth.users record
-    const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { emailRedirectTo: undefined },
-    })
-    if (signUpErr) throw signUpErr
+    // Step 1: Save current admin session tokens
+    const { data: sessionData } = await supabase.auth.getSession()
+    const adminSession = sessionData?.session
 
-    const authUser = signUpData.user
-    if (!authUser) throw new Error('User creation returned no user object')
+    try {
+      // Step 2: Create the new auth user
+      const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+        email,
+        password,
+      })
+      if (signUpErr) throw signUpErr
 
-    // Step 2: Insert matching profile
-    const profile = await this.createProfile({
-      id: authUser.id,
-      email,
-      full_name,
-      role,
-      phone,
-    })
+      const newUser = signUpData.user
+      if (!newUser) throw new Error('User creation failed — no user returned')
 
-    return { authUser, profile }
+      // Step 3: Insert profile record
+      const profile = await this.createProfile({ id: newUser.id, email, full_name, role, phone })
+
+      return { userId: newUser.id, email, profile }
+
+    } finally {
+      // Step 4: Restore admin session regardless of success or failure
+      if (adminSession?.access_token && adminSession?.refresh_token) {
+        await supabase.auth.setSession({
+          access_token:  adminSession.access_token,
+          refresh_token: adminSession.refresh_token,
+        })
+      }
+    }
   }
 
-  // ── Send password reset email ──────────────────────────────
+  // ── Password utilities ─────────────────────────────────────
+
   async sendPasswordReset(email) {
     if (!supabase) throw new Error('Supabase not configured')
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -132,14 +128,14 @@ class AuthRepository {
     if (error) throw error
   }
 
-  // ── Update auth user password ──────────────────────────────
   async updatePassword(newPassword) {
     if (!supabase) throw new Error('Supabase not configured')
     const { error } = await supabase.auth.updateUser({ password: newPassword })
     if (error) throw error
   }
 
-  // ── Subscribe to auth state changes ───────────────────────
+  // ── Auth state listener ────────────────────────────────────
+
   onAuthStateChange(callback) {
     if (!supabase) return () => {}
     const { data: { subscription } } = supabase.auth.onAuthStateChange(callback)

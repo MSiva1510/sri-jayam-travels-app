@@ -133,7 +133,7 @@ function BookingModal({ booking, onClose, onSave, userName }) {
     upd({ customer: val })
     if (val.length >= 2) {
       const matches = allCustomers.filter(c =>
-        c.name.toLowerCase().includes(val.toLowerCase()) ||
+        (c.name ?? '').toLowerCase().includes((val ?? '').toLowerCase()) ||
         (c.mobile && c.mobile.includes(val))
       ).slice(0, 5)
       setSuggestions(matches)
@@ -221,7 +221,7 @@ function BookingModal({ booking, onClose, onSave, userName }) {
                     <button key={c.id} type="button" onClick={() => selectCustomer(c)}
                       className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors text-left">
                       <div className="w-7 h-7 rounded-full bg-navy-100 dark:bg-navy-700 flex items-center justify-center flex-shrink-0 text-xs font-bold text-navy-700 dark:text-blue-300">
-                        {c.name.charAt(0)}
+                        {(c.name ?? '').charAt(0)}
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{c.name}</p>
