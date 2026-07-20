@@ -1,113 +1,56 @@
-// ─── Driver Status Engine ─────────────────────────────────────
-// Manages live driver statuses with localStorage persistence.
-// Auto-goes Offline if no GPS update in 10 minutes.
+// ─── Driver Status Data — Supabase driver_status table ────────
+// Columns: id, driver_id (UUID FK→drivers), status, current_trip_id,
+//          latitude, longitude, last_heartbeat, updated_at
 
-export const DRIVER_STATUS_KEY             = 'sjt_driver_statuses'
-export const DRIVER_STATUS_OFFLINE_MS      = 10 * 60 * 1000   // 10 minutes
+import supabase from '../lib/supabase'
+
+export const DRIVER_STATUS_OFFLINE_MS = 10 * 60 * 1000   // 10 min
 
 export const STATUS_CONFIG = {
-  available: {
-    key:   'available',
-    label: 'Available',
-    dot:   'bg-emerald-500',
-    badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
-    icon:  '🟢',
-  },
-  driving: {
-    key:   'driving',
-    label: 'Driving',
-    dot:   'bg-blue-500',
-    badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-    icon:  '🚗',
-  },
-  reached_pickup: {
-    key:   'reached_pickup',
-    label: 'Reached Pickup',
-    dot:   'bg-teal-500',
-    badge: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
-    icon:  '📍',
-  },
-  passenger_onboard: {
-    key:   'passenger_onboard',
-    label: 'Passenger Onboard',
-    dot:   'bg-indigo-500',
-    badge: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
-    icon:  '👤',
-  },
-  waiting: {
-    key:   'waiting',
-    label: 'Waiting',
-    dot:   'bg-amber-500',
-    badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-    icon:  '⏳',
-  },
-  completed: {
-    key:   'completed',
-    label: 'Completed',
-    dot:   'bg-violet-500',
-    badge: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
-    icon:  '✅',
-  },
-  offline: {
-    key:   'offline',
-    label: 'Offline',
-    dot:   'bg-slate-400',
-    badge: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
-    icon:  '⚫',
-  },
+  available:         { label: 'Available',         badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', dot: 'bg-emerald-500' },
+  driving:           { label: 'Driving',           badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',         dot: 'bg-amber-500 animate-pulse' },
+  passenger_onboard: { label: 'Passenger Onboard', badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',             dot: 'bg-blue-500 animate-pulse' },
+  break:             { label: 'On Break',          badge: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',     dot: 'bg-violet-500' },
+  offline:           { label: 'Offline',           badge: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',            dot: 'bg-slate-400' },
 }
 
-// ── Ride-state → driver-status mapping ───────────────────────
-export function getStatusFromRideState(rideState) {
-  const map = {
-    started:   'driving',
-    paused:    'waiting',
-    resumed:   'driving',
-    completed: 'available',
-    cancelled: 'available',
-  }
-  return map[rideState] || null
+export function getStatusCfg(status) {
+  return STATUS_CONFIG[status] || STATUS_CONFIG.offline
 }
 
-// ── Persistence ───────────────────────────────────────────────
-export function loadDriverStatuses() {
-  try {
-    const raw = localStorage.getItem(DRIVER_STATUS_KEY)
-    return raw ? JSON.parse(raw) : {}
-  } catch { return {} }
+// Fetch all driver statuses (keyed by driver_id)
+export async function loadDriverStatuses() {
+  if (!supabase) return {}
+  const { data } = await supabase
+    .from('driver_status')
+    .select('driver_id, status, last_heartbeat, latitude, longitude, current_trip_id, updated_at')
+  if (!data) return {}
+  return Object.fromEntries(data.map(d => [d.driver_id, d]))
 }
 
-export function saveDriverStatus(driverName, status, area = null) {
-  if (!driverName) return
-  const all = loadDriverStatuses()
-  all[driverName] = { status, area, updatedAt: new Date().toISOString() }
-  try { localStorage.setItem(DRIVER_STATUS_KEY, JSON.stringify(all)) } catch {}
+// Save / upsert driver status by driver UUID
+export async function saveDriverStatus(driverUUID, status, extra = {}) {
+  if (!supabase || !driverUUID) return
+  const { latitude, longitude, currentTripId } = extra
+  await supabase.from('driver_status').upsert({
+    driver_id:       driverUUID,
+    status,
+    latitude:        latitude        || null,
+    longitude:       longitude       || null,
+    current_trip_id: currentTripId   || null,
+    last_heartbeat:  new Date().toISOString(),
+    updated_at:      new Date().toISOString(),
+  }, { onConflict: 'driver_id' })
 }
 
-export function getDriverStatus(driverName) {
-  if (!driverName) return 'offline'
-  const all   = loadDriverStatuses()
-  const entry = all[driverName]
-  if (!entry) return 'offline'
-  // Auto-offline after 10 minutes with no update
-  if (entry.updatedAt) {
-    const elapsed = Date.now() - new Date(entry.updatedAt).getTime()
-    if (elapsed > DRIVER_STATUS_OFFLINE_MS) return 'offline'
-  }
-  return entry.status || 'offline'
-}
-
-export function getDriverStatusEntry(driverName) {
-  const all = loadDriverStatuses()
-  return all[driverName] || { status: 'offline', area: null, updatedAt: null }
-}
-
-export function clearDriverStatus(driverName) {
-  const all = loadDriverStatuses()
-  delete all[driverName]
-  try { localStorage.setItem(DRIVER_STATUS_KEY, JSON.stringify(all)) } catch {}
-}
-
-export function getStatusCfg(statusKey) {
-  return STATUS_CONFIG[statusKey] || STATUS_CONFIG.offline
+// Get driver UUID from name (helper for hooks that use name strings)
+export async function getDriverUUIDByName(driverName) {
+  if (!supabase || !driverName) return null
+  const { data } = await supabase
+    .from('drivers')
+    .select('id')
+    .ilike('name', driverName)
+    .limit(1)
+    .single()
+  return data?.id || null
 }

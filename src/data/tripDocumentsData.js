@@ -1,111 +1,76 @@
-// ─── Trip Document Uploads ────────────────────────────────────
-// Stores trip-related receipt/document images locally (base64)
-// keyed by tripId. Module 5 (Day 20.5).
+// ─── Trip Document Data — Supabase trip_documents table ────────
+// Columns: id, trip_id (UUID), document_type, file_url, file_name,
+//          file_size, uploaded_by, uploaded_at, notes, created_at
 //
-// NOTE: localStorage has a ~5MB quota shared across the whole
-// origin, so images are stored as compressed base64 JPEG/PNG at
-// a capped resolution (see compressImageFile below) to avoid
-// blowing the quota with a handful of phone-camera photos.
+// Note: file_url stores a base64 data URL for receipt photos.
+// For production, replace with Supabase Storage + signed URLs.
 
-export const TRIP_DOCS_KEY = 'sjt_trip_documents'
+import supabase from '../lib/supabase'
 
-export const DOC_TYPES = {
-  parking_ticket: { key: 'parking_ticket', label: 'Parking Ticket', icon: '🅿️' },
-  toll_receipt:   { key: 'toll_receipt',   label: 'Toll Receipt',   icon: '🛣️' },
-  fuel_receipt:   { key: 'fuel_receipt',   label: 'Fuel Receipt',   icon: '⛽' },
-  misc_expense:   { key: 'misc_expense',   label: 'Misc Expense',   icon: '🧾' },
+export const DOC_TYPES = [
+  { key: 'parking_ticket', label: 'Parking Ticket', icon: '🅿' },
+  { key: 'toll_receipt',   label: 'Toll Receipt',   icon: '🛣' },
+  { key: 'fuel_receipt',   label: 'Fuel Receipt',   icon: '⛽' },
+  { key: 'misc_receipt',   label: 'Misc Receipt',   icon: '📄' },
+]
+
+export function getDocTypeCfg(key) {
+  return DOC_TYPES.find(d => d.key === key) || DOC_TYPES[DOC_TYPES.length - 1]
 }
 
-// ── Load all documents for a trip ──────────────────────────────
-export function loadTripDocuments(tripId) {
-  if (!tripId) return []
-  try {
-    const all = loadAllTripDocuments()
-    return all[tripId] || []
-  } catch { return [] }
+export async function loadTripDocuments(tripId) {
+  if (!supabase || !tripId) return []
+  const { data, error } = await supabase
+    .from('trip_documents')
+    .select('id, document_type, file_url, file_name, file_size, uploaded_by, uploaded_at, notes')
+    .eq('trip_id', tripId)
+    .order('created_at', { ascending: true })
+  if (error) return []
+  return (data || []).map(d => ({
+    id:           d.id,
+    tripId,
+    docType:      d.document_type,
+    fileUrl:      d.file_url,
+    fileName:     d.file_name,
+    fileSize:     d.file_size,
+    uploadedBy:   d.uploaded_by,
+    uploadedAt:   d.uploaded_at,
+    notes:        d.notes,
+  }))
 }
 
-export function loadAllTripDocuments() {
-  try {
-    const raw = localStorage.getItem(TRIP_DOCS_KEY)
-    return raw ? JSON.parse(raw) : {}
-  } catch { return {} }
-}
-
-// ── Save a document — { tripId, docType, dataUrl, fileName, uploadedBy } ─
-export function saveTripDocument(doc) {
-  if (!doc?.tripId || !doc?.dataUrl) return null
-  const all     = loadAllTripDocuments()
-  const list    = all[doc.tripId] || []
-  const entry = {
-    id:         `DOC-${Date.now()}-${Math.random().toString(36).slice(2,6).toUpperCase()}`,
-    tripId:     doc.tripId,
-    docType:    doc.docType || 'misc_expense',
-    dataUrl:    doc.dataUrl,
-    fileName:   doc.fileName || 'receipt.jpg',
-    uploadedBy: doc.uploadedBy || null,
-    uploadedAt: new Date().toISOString(),
+export async function saveTripDocument(tripId, doc) {
+  if (!supabase || !tripId) return null
+  const payload = {
+    trip_id:       tripId,
+    document_type: doc.docType     || doc.document_type || 'misc_receipt',
+    file_url:      doc.fileUrl     || doc.file_url      || null,
+    file_name:     doc.fileName    || doc.file_name     || null,
+    file_size:     doc.fileSize    || doc.file_size     || null,
+    uploaded_by:   doc.uploadedBy  || doc.uploaded_by   || null,
+    notes:         doc.notes       || null,
+    uploaded_at:   new Date().toISOString(),
   }
-  list.push(entry)
-  all[doc.tripId] = list
-  try {
-    localStorage.setItem(TRIP_DOCS_KEY, JSON.stringify(all))
-    return entry
-  } catch (e) {
-    // Likely quota exceeded — surface to caller so UI can warn the user
-    return null
+  if (doc.id) {
+    const { data } = await supabase.from('trip_documents').update(payload).eq('id', doc.id).select().single()
+    return data
   }
+  const { data } = await supabase.from('trip_documents').insert([payload]).select().single()
+  return data
 }
 
-// ── Delete a single document ─────────────────────────────────
-export function deleteTripDocument(tripId, docId) {
-  if (!tripId || !docId) return
-  const all  = loadAllTripDocuments()
-  const list = (all[tripId] || []).filter(d => d.id !== docId)
-  all[tripId] = list
-  try { localStorage.setItem(TRIP_DOCS_KEY, JSON.stringify(all)) } catch {}
+export async function deleteTripDocument(tripId, docId) {
+  if (!supabase || !docId) return
+  await supabase.from('trip_documents').delete().eq('id', docId)
 }
 
-// ── Clear all documents for a trip ────────────────────────────
-export function clearTripDocuments(tripId) {
-  if (!tripId) return
-  const all = loadAllTripDocuments()
-  delete all[tripId]
-  try { localStorage.setItem(TRIP_DOCS_KEY, JSON.stringify(all)) } catch {}
-}
-
-// ── Compress an image File down to a small base64 JPEG ────────
-// Keeps localStorage usage sane — caps the longest edge at
-// maxDim px and re-encodes as JPEG at the given quality.
-export function compressImageFile(file, maxDim = 900, quality = 0.6) {
+// Compress image file to base64 data URL
+export async function compressImageFile(file) {
+  if (!file) return null
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
-    reader.onerror = () => reject(new Error('Could not read file'))
-    reader.onload = () => {
-      const img = new Image()
-      img.onerror = () => reject(new Error('Could not load image'))
-      img.onload = () => {
-        let { width, height } = img
-        if (width > height && width > maxDim) {
-          height = Math.round(height * (maxDim / width))
-          width  = maxDim
-        } else if (height > maxDim) {
-          width  = Math.round(width * (maxDim / height))
-          height = maxDim
-        }
-        const canvas = document.createElement('canvas')
-        canvas.width = width
-        canvas.height = height
-        const ctx = canvas.getContext('2d')
-        ctx.drawImage(img, 0, 0, width, height)
-        resolve(canvas.toDataURL('image/jpeg', quality))
-      }
-      img.src = reader.result
-    }
+    reader.onload  = e => resolve(e.target.result)
+    reader.onerror = reject
     reader.readAsDataURL(file)
   })
-}
-
-export function getDocTypeCfg(docType) {
-  return DOC_TYPES[docType] || DOC_TYPES.misc_expense
 }

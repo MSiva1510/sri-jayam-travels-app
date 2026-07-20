@@ -566,7 +566,7 @@ export default function DriverDashboard() {
           </div>
           <div className="text-right flex-shrink-0">
             <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 justify-end">
-              <Gauge size={12} /><span>{vehicle.km.toLocaleString()} km</span>
+              <Gauge size={12} /><span>{(vehicle?.km ?? 0).toLocaleString()} km</span>
             </div>
             <p className={`text-[10px] font-bold mt-0.5 ${vehicle.status === 'active' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
               {vehicle.status === 'active' ? '● Ready' : '⚠ Service'}

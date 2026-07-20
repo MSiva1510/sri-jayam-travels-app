@@ -493,7 +493,7 @@ export default function AssignedTrips() {
                   </div>
                   <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                     <StatusPill status={trip.status} />
-                    <p className="text-sm font-black text-navy-800 dark:text-blue-300">Rs. {trip.fare.toLocaleString('en-IN')}</p>
+                    <p className="text-sm font-black text-navy-800 dark:text-blue-300">Rs. {(trip?.fare ?? 0).toLocaleString('en-IN')}</p>
                   </div>
                 </div>
 
@@ -527,7 +527,7 @@ export default function AssignedTrips() {
                         { label: 'Scheduled', value: trip.scheduledTime           },
                         { label: 'Trip Type', value: typeLabel                    },
                         { label: 'Distance',  value: `${trip.km} km`             },
-                        { label: 'Fare',      value: `Rs. ${trip.fare.toLocaleString('en-IN')}`, hi: true },
+                        { label: 'Fare',      value: `Rs. ${(trip?.fare ?? 0).toLocaleString('en-IN')}`, hi: true },
                         { label: 'Contact',   value: trip.contact                 },
                         ...(trip.status === 'completed' ? [
                           { label: 'End Time',  value: trip.endTime               },

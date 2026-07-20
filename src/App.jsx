@@ -1,3 +1,4 @@
+import ErrorBoundary from './components/ErrorBoundary'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AppProvider }           from './context/AppContext'
 import { AuthProvider }          from './context/AuthContext'
@@ -44,6 +45,7 @@ function DriverShell({ children }) {
 
 export default function App() {
   return (
+    <ErrorBoundary>
     <AppProvider>
       <AuthProvider>
         <Routes>
@@ -88,5 +90,6 @@ export default function App() {
         </Routes>
       </AuthProvider>
     </AppProvider>
+    </ErrorBoundary>
   )
 }

@@ -1,85 +1,71 @@
-// ─── Vehicle Status Engine ────────────────────────────────────
-// Tracks live vehicle status (In Use / Available / Maintenance / Idle)
-// Mirrors driverStatusData.js — keeps vehicle state in its own
-// localStorage key so Dashboard/LiveFleetBoard/Vehicles page can
-// all read a single source of truth for "is this vehicle busy".
+// ─── Vehicle Status Data — Supabase vehicle_status table ──────
+// Columns: id, vehicle_id (UUID FK→vehicles), status,
+//          assigned_driver_id, current_trip_id, last_km_reading,
+//          fuel_level, updated_at
 
-export const VEHICLE_STATUS_KEY = 'sjt_vehicle_statuses'
+import supabase from '../lib/supabase'
 
-export const VEHICLE_STATUS_CONFIG = {
-  available: {
-    key:   'available',
-    label: 'Available',
-    dot:   'bg-emerald-500',
-    badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
-  },
-  in_use: {
-    key:   'in_use',
-    label: 'In Use',
-    dot:   'bg-blue-500',
-    badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-  },
-  maintenance: {
-    key:   'maintenance',
-    label: 'Maintenance',
-    dot:   'bg-amber-500',
-    badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-  },
-  idle: {
-    key:   'idle',
-    label: 'Idle',
-    dot:   'bg-slate-400',
-    badge: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
-  },
+const STATUS_CFG = {
+  available:   { label: 'Available',   badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', dot: 'bg-emerald-500' },
+  in_use:      { label: 'In Use',      badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',             dot: 'bg-blue-500 animate-pulse' },
+  maintenance: { label: 'Maintenance', badge: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',                 dot: 'bg-red-500' },
+  offline:     { label: 'Offline',     badge: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',            dot: 'bg-slate-400' },
 }
 
-// ── Persistence ───────────────────────────────────────────────
-export function loadVehicleStatuses() {
-  try {
-    const raw = localStorage.getItem(VEHICLE_STATUS_KEY)
-    return raw ? JSON.parse(raw) : {}
-  } catch { return {} }
+// In-memory cache for current session
+const _cache = {}
+
+export function getVehicleStatusCfg(status) {
+  return STATUS_CFG[status] || STATUS_CFG.available
 }
 
-// area/driverName optional context for idle-location display
-export function saveVehicleStatus(vehicleReg, status, area = null, driverName = null) {
-  if (!vehicleReg) return
-  const all = loadVehicleStatuses()
-  all[vehicleReg] = {
-    status,
-    area,
-    driver:    driverName,
-    updatedAt: new Date().toISOString(),
-  }
-  try { localStorage.setItem(VEHICLE_STATUS_KEY, JSON.stringify(all)) } catch {}
-}
-
-export function getVehicleStatus(vehicleReg) {
-  if (!vehicleReg) return 'idle'
-  const all = loadVehicleStatuses()
-  return all[vehicleReg]?.status || 'idle'
-}
-
+// Get status entry for a vehicle registration
+// Returns cached value — pre-load with loadAllVehicleStatuses()
 export function getVehicleStatusEntry(vehicleReg) {
-  const all = loadVehicleStatuses()
-  return all[vehicleReg] || { status: 'idle', area: null, driver: null, updatedAt: null }
+  return _cache[vehicleReg] || {
+    status: 'available', driver: null, area: null, tripId: null, updatedAt: null,
+  }
 }
 
-export function clearVehicleStatus(vehicleReg) {
-  const all = loadVehicleStatuses()
-  delete all[vehicleReg]
-  try { localStorage.setItem(VEHICLE_STATUS_KEY, JSON.stringify(all)) } catch {}
+// Load all vehicle statuses from Supabase into cache
+export async function loadAllVehicleStatuses() {
+  if (!supabase) return
+  const { data } = await supabase
+    .from('vehicle_status')
+    .select('vehicle_id, status, assigned_driver_id, current_trip_id, last_km_reading, updated_at, vehicles(registration)')
+  if (!data) return
+  for (const row of data) {
+    const reg = row.vehicles?.registration
+    if (reg) _cache[reg] = {
+      status:    row.status,
+      driver:    row.assigned_driver_id || null,
+      tripId:    row.current_trip_id    || null,
+      area:      null,
+      updatedAt: row.updated_at,
+    }
+  }
 }
 
-export function getVehicleStatusCfg(statusKey) {
-  return VEHICLE_STATUS_CONFIG[statusKey] || VEHICLE_STATUS_CONFIG.idle
+// Mark a vehicle as in-use
+export async function markVehicleInUse(vehicleUUID, { driverUUID, tripUUID } = {}) {
+  if (!supabase || !vehicleUUID) return
+  await supabase.from('vehicle_status').upsert({
+    vehicle_id:          vehicleUUID,
+    status:              'in_use',
+    assigned_driver_id:  driverUUID || null,
+    current_trip_id:     tripUUID   || null,
+    updated_at:          new Date().toISOString(),
+  }, { onConflict: 'vehicle_id' })
 }
 
-// ── Mark vehicle in_use when trip starts, available when trip ends ─
-export function markVehicleInUse(vehicleReg, driverName, area = null) {
-  saveVehicleStatus(vehicleReg, 'in_use', area, driverName)
-}
-
-export function markVehicleAvailable(vehicleReg, area = null) {
-  saveVehicleStatus(vehicleReg, 'available', area, null)
+// Mark a vehicle as available
+export async function markVehicleAvailable(vehicleUUID) {
+  if (!supabase || !vehicleUUID) return
+  await supabase.from('vehicle_status').upsert({
+    vehicle_id:          vehicleUUID,
+    status:              'available',
+    assigned_driver_id:  null,
+    current_trip_id:     null,
+    updated_at:          new Date().toISOString(),
+  }, { onConflict: 'vehicle_id' })
 }

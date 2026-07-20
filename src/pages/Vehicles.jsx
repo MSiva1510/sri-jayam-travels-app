@@ -742,7 +742,7 @@ export default function Vehicles() {
                 <div className="text-right flex-shrink-0">
                   <div className="flex items-center gap-1 justify-end text-slate-600 dark:text-slate-300">
                     <Gauge size={12} />
-                    <span className="text-sm font-bold">{Number(v.km || 0).toLocaleString()}</span>
+                    <span className="text-sm font-bold">{(Number(v?.km) || 0).toLocaleString()}</span>
                   </div>
                   <p className="text-[10px] text-slate-400">km</p>
                 </div>
