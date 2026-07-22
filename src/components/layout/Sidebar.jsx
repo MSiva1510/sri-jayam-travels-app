@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { useApp }  from '../../context/AppContext'
 import { useAuth, ROLE_LABELS, ROLE_COLORS } from '../../context/AuthContext'
-import { BIZ }     from '../../data/mockData'
+import { BIZ }     from '../../config/business'
 import Avatar      from '../ui/Avatar'
 
 // Fix 3: Nav items with granular role + permission guards

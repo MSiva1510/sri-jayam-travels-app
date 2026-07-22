@@ -22,10 +22,23 @@ function useClickOutside(ref, handler) {
 export default function NotificationCenter() {
   const [open, setOpen] = useState(false)
   const [tab,  setTab]  = useState('alerts')
+  const [alerts, setAlerts] = useState([])
   const wrapRef = useRef()
   useClickOutside(wrapRef, () => setOpen(false))
 
-  const alerts   = getBusinessAlerts()
+  useEffect(() => {
+    let alive = true
+    getBusinessAlerts()
+      .then(data => {
+        if (alive) setAlerts(Array.isArray(data) ? data : [])
+      })
+      .catch(err => {
+        console.error('[NotificationCenter] alerts load failed:', err)
+        if (alive) setAlerts([])
+      })
+    return () => { alive = false }
+  }, [])
+
   const activity = loadRecentActivity(8)
   const highCount = alerts.filter(a => a.priority === 'high').length
 

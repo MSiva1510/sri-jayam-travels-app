@@ -99,11 +99,16 @@ export default function PublicBooking() {
   const [sdReturn,    setSdReturn]    = useState('')
   const [bookingRef,  setBookingRef]  = useState('')
 
-  const handleMobileBlur = () => {
+  const handleMobileBlur = async () => {
     if (mobile.length === 10) {
-      const found = findCustomerByMobile(mobile)
-      if (found) { setName(found.name); setMatched(found) }
-      else setMatched(null)
+      try {
+        const found = await findCustomerByMobile(mobile)
+        if (found) { setName(found.name); setMatched(found) }
+        else setMatched(null)
+      } catch (err) {
+        console.error('[PublicBooking] customer lookup failed:', err)
+        setMatched(null)
+      }
     }
   }
 
@@ -118,7 +123,10 @@ export default function PublicBooking() {
 
   const goToDetails = (type) => { setTripType(type); setStep('details') }
 
-  const handleSubmit = () => {
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+
+  const handleSubmit = async () => {
     const e = {}
     if (!vehicleType) e.vehicleType = 'Select vehicle type'
     if (!date)        e.date        = 'Select travel date'
@@ -128,10 +136,11 @@ export default function PublicBooking() {
     if (['multi_day','self_drive'].includes(tripType) && !numDays) e.numDays = 'Enter number of days'
     if (Object.keys(e).length) { setErrors(e); return }
     setErrors({})
+    setSubmitError('')
+    setSubmitting(true)
 
     const ref = genRef()
     const now = new Date().toISOString()
-    upsertCustomerFromBooking({ name, mobile })
     const booking = {
       id:         generateBookingNumber(),
       bookingNo:  ref,
@@ -156,9 +165,20 @@ export default function PublicBooking() {
       source:     'public_portal',
       createdAt:  now, updatedAt: now, createdBy: 'public',
     }
-    saveBooking(booking)
-    setBookingRef(ref)
-    setStep('done')
+
+    try {
+      await saveBooking(booking)
+      // Customer upsert failure shouldn't block a confirmed booking
+      try { await upsertCustomerFromBooking({ name, mobile }) }
+      catch (err) { console.error('[PublicBooking] customer upsert failed:', err) }
+      setBookingRef(ref)
+      setStep('done')
+    } catch (err) {
+      console.error('[PublicBooking] booking save failed:', err)
+      setSubmitError('Could not submit your booking. Please check your connection and try again, or call us directly.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const reset = () => {
@@ -419,10 +439,13 @@ export default function PublicBooking() {
                 </div>
               </div>
 
-              <div className="px-5 pb-5">
-                <button onClick={handleSubmit}
-                  className="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-black text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-95">
-                  Submit Booking <ChevronRight size={15} />
+              <div className="px-5 pb-5 space-y-2">
+                {submitError && (
+                  <p className="text-xs text-red-600 font-semibold bg-red-50 border border-red-200 rounded-lg px-3 py-2">{submitError}</p>
+                )}
+                <button onClick={handleSubmit} disabled={submitting}
+                  className="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-black text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-95">
+                  {submitting ? 'Submitting…' : <>Submit Booking <ChevronRight size={15} /></>}
                 </button>
               </div>
             </div>

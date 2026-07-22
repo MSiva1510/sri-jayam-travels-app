@@ -46,7 +46,7 @@ async function _loadExpenses() {
     return (Array.isArray(rows) ? rows : []).map(normalizeExpense)
   } catch (err) {
     console.error('[expenseData] loadExpenses failed:', err)
-    return MOCK_EXPENSES
+    throw err
   }
 }
 export const loadExpenses = withCache('expenses', _loadExpenses)
@@ -74,26 +74,19 @@ export function normalizeExpense(row = {}) {
 
 
 export async function saveExpense(expense) {
-  try {
-    const { id, ...rest } = expense
-    const existing = id ? await expenseRepository.getById(id) : null
-    if (existing) {
-      return await expenseRepository.update(id, { ...rest, updatedAt: new Date().toISOString() })
-    }
-    return await expenseRepository.create({ id: id || generateExpenseId(), ...rest })
-  } catch (err) {
-    console.error('[expenseData] saveExpense failed:', err)
-    return null
-  }
+  const { id, ...rest } = expense
+  const existing = id ? await expenseRepository.getById(id) : null
+  const result = existing
+    ? await expenseRepository.update(id, { ...rest, updatedAt: new Date().toISOString() })
+    : await expenseRepository.create({ id: id || generateExpenseId(), ...rest })
+  cacheClear('expenses')
+  return result
 }
 
 export async function deleteExpense(id) {
-  try {
-    return await expenseRepository.delete(id)
-  } catch (err) {
-    console.error('[expenseData] deleteExpense failed:', err)
-    return false
-  }
+  const result = await expenseRepository.delete(id)
+  cacheClear('expenses')
+  return result
 }
 
 // ── Date range helpers ────────────────────────────────────────
@@ -152,75 +145,3 @@ export function getTripExpenses(tripRef, expenses) {
 }
 
 // ── Seed / reference data ─────────────────────────────────────
-export const MOCK_EXPENSES = [
-  {
-    id:'EXP-2605-001', type:'maintenance', status:'approved',
-    date:'2026-05-15', amount:4800, description:'Tyre replacement — PY01CY1255',
-    tripRef:'', driver:'Ramanan', vehicle:'PY01CY1255', addedBy:'admin',
-    receiptName:'receipt_tyre_may15.jpg', receiptDate:'2026-05-15',
-    notes:'Front two tyres replaced', createdAt:'2026-05-15T10:00:00Z', updatedAt:'2026-05-15T14:00:00Z',
-  },
-  {
-    id:'EXP-2605-002', type:'maintenance', status:'approved',
-    date:'2026-05-10', amount:1800, description:'Engine oil service — PY01DF1255',
-    tripRef:'', driver:'Babu', vehicle:'PY01DF1255', addedBy:'manager',
-    receiptName:'receipt_service_may10.jpg', receiptDate:'2026-05-10',
-    notes:'45,000 km service', createdAt:'2026-05-10T09:00:00Z', updatedAt:'2026-05-10T16:00:00Z',
-  },
-  {
-    id:'EXP-2605-003', type:'misc', status:'approved',
-    date:'2026-05-08', amount:2000, description:'FASTag recharge — all 3 vehicles',
-    tripRef:'', driver:'', vehicle:'', addedBy:'admin',
-    receiptName:'', receiptDate:'',
-    notes:'Prepaid toll wallet', createdAt:'2026-05-08T08:00:00Z', updatedAt:'2026-05-08T08:00:00Z',
-  },
-  {
-    id:'EXP-2605-004', type:'misc', status:'approved',
-    date:'2026-05-05', amount:1200, description:'GPRS tracking subscription',
-    tripRef:'', driver:'', vehicle:'', addedBy:'admin',
-    receiptName:'receipt_gprs_may.pdf', receiptDate:'2026-05-05',
-    notes:'Monthly renewal', createdAt:'2026-05-05T07:00:00Z', updatedAt:'2026-05-05T07:00:00Z',
-  },
-  {
-    id:'EXP-2604-005', type:'insurance', status:'approved',
-    date:'2026-04-28', amount:12500, description:'Insurance renewal — PY01VF1255',
-    tripRef:'', driver:'Rajasekharan', vehicle:'PY01VF1255', addedBy:'admin',
-    receiptName:'policy_ertiga_2026.pdf', receiptDate:'2026-04-28',
-    notes:'Annual premium', createdAt:'2026-04-28T09:00:00Z', updatedAt:'2026-04-28T09:00:00Z',
-  },
-  {
-    id:'EXP-2604-006', type:'repair', status:'approved',
-    date:'2026-04-20', amount:3200, description:'Brake pads + disc — PY01DF1255',
-    tripRef:'', driver:'Babu', vehicle:'PY01DF1255', addedBy:'manager',
-    receiptName:'receipt_brakes_apr.jpg', receiptDate:'2026-04-20',
-    notes:'Front axle', createdAt:'2026-04-20T08:00:00Z', updatedAt:'2026-04-20T08:00:00Z',
-  },
-  {
-    id:'EXP-2604-007', type:'bata', status:'approved',
-    date:'2026-04-12', amount:2000, description:'Driver advance — Babu',
-    tripRef:'', driver:'Babu', vehicle:'PY01DF1255', addedBy:'manager',
-    receiptName:'', receiptDate:'',
-    notes:'Festival advance', createdAt:'2026-04-12T10:00:00Z', updatedAt:'2026-04-12T10:00:00Z',
-  },
-  {
-    id:'EXP-2606-008', type:'fuel', status:'submitted',
-    date:'2026-06-01', amount:2200, description:'Fuel fill — Ramanan trip to Bangalore',
-    tripRef:'BK-2605-002', driver:'Ramanan', vehicle:'PY01CY1255', addedBy:'ramanan',
-    receiptName:'fuel_bunk_june1.jpg', receiptDate:'2026-06-01',
-    notes:'Full tank at HP bunk, Hosur', createdAt:'2026-06-01T09:30:00Z', updatedAt:'2026-06-01T09:30:00Z',
-  },
-  {
-    id:'EXP-2606-009', type:'toll', status:'submitted',
-    date:'2026-06-01', amount:340, description:'Toll charges — Puducherry to Bangalore',
-    tripRef:'BK-2605-002', driver:'Ramanan', vehicle:'PY01CY1255', addedBy:'ramanan',
-    receiptName:'', receiptDate:'',
-    notes:'3 toll plazas', createdAt:'2026-06-01T10:00:00Z', updatedAt:'2026-06-01T10:00:00Z',
-  },
-  {
-    id:'EXP-2606-010', type:'parking', status:'draft',
-    date:'2026-06-02', amount:120, description:'Parking at Bangalore airport',
-    tripRef:'BK-2605-002', driver:'Ramanan', vehicle:'PY01CY1255', addedBy:'ramanan',
-    receiptName:'', receiptDate:'',
-    notes:'4 hours parking', createdAt:'2026-06-02T14:00:00Z', updatedAt:'2026-06-02T14:00:00Z',
-  },
-]

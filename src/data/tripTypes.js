@@ -100,7 +100,7 @@ async function _loadBookings() {
     return (Array.isArray(rows) ? rows : []).map(normalizeBooking)
   } catch (err) {
     console.error('[tripTypes] loadBookings failed:', err)
-    return MOCK_BOOKINGS
+    throw err
   }
 }
 export const loadBookings = withCache('bookings', _loadBookings)
@@ -134,26 +134,19 @@ export function normalizeBooking(row = {}) {
 }
 
 export async function saveBooking(booking) {
-  try {
-    const { id, ...rest } = booking
-    const existing = id ? await tripRepository.getById(id) : null
-    if (existing) {
-      return await tripRepository.update(id, rest)
-    }
-    return await tripRepository.create({ id, ...rest })
-  } catch (err) {
-    console.error('[tripTypes] saveBooking failed:', err)
-    return null
-  }
+  const { id, ...rest } = booking
+  const existing = id ? await tripRepository.getById(id) : null
+  const result = existing
+    ? await tripRepository.update(id, rest)
+    : await tripRepository.create({ id, ...rest })
+  cacheClear('bookings')
+  return result
 }
 
 export async function deleteBooking(id) {
-  try {
-    return await tripRepository.delete(id)
-  } catch (err) {
-    console.error('[tripTypes] deleteBooking failed:', err)
-    return false
-  }
+  const result = await tripRepository.delete(id)
+  cacheClear('bookings')
+  return result
 }
 
 export async function getBookingsByStatus(status) {
@@ -191,66 +184,4 @@ export function getVehicleAvailability(vehicleReg, date, bookings, mockVehicleSt
 // ── Seed / reference data (NOT merged into live queries) ─────
 // Used only as fallback if Supabase is unreachable, and as
 // documentation of the expected booking shape.
-export const MOCK_BOOKINGS = [
-  {
-    id:'BK-2605-001', bookingNo:'BK-2605-001', type:'one_way', status:'completed',
-    customer:'Rajan Kumar', contact:'9876543210',
-    pickup:'Hotel Atithi, Puducherry', drop:'Chennai International Airport',
-    startDate:'2026-05-28', startTime:'06:30', notes:'Carry name board',
-    driver:'Ramanan', vehicle:'PY01CY1255', fare:3200, km:145,
-    createdAt:'2026-05-26T10:00:00Z', createdBy:'manager',
-  },
-  {
-    id:'BK-2605-002', bookingNo:'BK-2605-002', type:'round_trip', status:'assigned',
-    customer:'Meena Devi', contact:'9123456789',
-    pickup:'Puducherry Bus Stand', drop:'Bangalore',
-    startDate:'2026-06-02', startTime:'08:00',
-    returnDate:'2026-06-04', returnTime:'18:00',
-    notes:'Corporate client',
-    driver:'Babu', vehicle:'PY01DF1255', fare:14000, km:620,
-    createdAt:'2026-05-27T09:15:00Z', createdBy:'admin',
-  },
-  {
-    id:'BK-2605-003', bookingNo:'BK-2605-003', type:'local_visit', status:'confirmed',
-    customer:'Suresh Pillai', contact:'9988776655',
-    pickup:'Puducherry', drop:'Auroville · Paradise Beach · Chunnambar',
-    startDate:'2026-06-01', startTime:'10:00', notes:'Family of 6',
-    driver:null, vehicle:null, fare:2500, km:80,
-    createdAt:'2026-05-28T11:30:00Z', createdBy:'manager',
-  },
-  {
-    id:'BK-2605-004', bookingNo:'BK-2605-004', type:'multi_day', status:'draft',
-    customer:'Ananya Singh', contact:'9012345678',
-    pickup:'Puducherry', drop:'Tirupati – Bangalore – Mysore',
-    startDate:'2026-06-05', startTime:'07:00', notes:'Pilgrimage + tourism',
-    driver:null, vehicle:null, fare:28000, km:1200,
-    createdAt:'2026-05-29T08:00:00Z', createdBy:'admin',
-  },
-  {
-    id:'BK-2605-005', bookingNo:'BK-2605-005', type:'rental_with_driver', status:'started',
-    customer:'Vikram Nair', contact:'8765432109',
-    pickup:'Puducherry', drop:'City Tour',
-    startDate:'2026-05-29', startTime:'09:00', notes:'Full day city rental',
-    driver:'Babu', vehicle:'PY01DF1255', fare:4500, km:null,
-    createdAt:'2026-05-29T07:00:00Z', createdBy:'manager',
-  },
-  {
-    id:'BK-2605-006', bookingNo:'BK-2605-006', type:'one_way', status:'draft',
-    customer:'Kavitha Selvan', contact:'9444123456',
-    pickup:'Puducherry Railway Station', drop:'Chennai Central',
-    startDate:'2026-06-03', startTime:'14:00', notes:'2 large bags',
-    driver:null, vehicle:null, fare:3000, km:148,
-    createdAt:'2026-05-30T14:00:00Z', createdBy:'manager',
-  },
-  {
-    id:'BK-2605-007', bookingNo:'BK-2605-007', type:'one_way', status:'cancelled',
-    customer:'Murugan Pillai', contact:'9876000111',
-    pickup:'Auroville', drop:'Villupuram',
-    startDate:'2026-05-31', startTime:'11:00', notes:'Cancelled by customer',
-    driver:null, vehicle:null, fare:1200, km:55,
-    createdAt:'2026-05-30T09:00:00Z', createdBy:'manager',
-  },
-]
-
 // Backward compat alias
-export const CREATED_TRIPS = MOCK_BOOKINGS

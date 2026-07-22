@@ -16,7 +16,7 @@ import {
   getStatusCfg, getDriverAvailability, getVehicleAvailability,
   generateBookingNumber, loadBookings, saveBooking, deleteBooking,
 } from '../data/tripTypes'
-import { DRIVERS, VEHICLES } from '../data/mockData'
+import { driverRepository, vehicleRepository } from '../repositories'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import { addAuditEvent }    from '../data/auditLogData'
 import { loadTripRoute, calcRouteDistanceKm } from '../data/gpsHistoryData'
@@ -411,16 +411,16 @@ function BookingModal({ booking, onClose, onSave, userName }) {
 // ─────────────────────────────────────────────────────────────
 //  Assignment Modal
 // ─────────────────────────────────────────────────────────────
-function AssignModal({ booking, bookings, onClose, onAssign }) {
+function AssignModal({ booking, bookings, drivers, vehicles, onClose, onAssign }) {
   const [driver,  setDriver]  = useState(booking.driver  || '')
   const [vehicle, setVehicle] = useState(booking.vehicle || '')
 
-  const driverAvail  = DRIVERS.map(d => ({
+  const driverAvail  = (drivers || []).map(d => ({
     ...d,
     avail: getDriverAvailability(d.name, booking.startDate, bookings,
       d.status === 'on-leave' ? 'on-leave' : 'available')
   }))
-  const vehicleAvail = VEHICLES.map(v => ({
+  const vehicleAvail = (vehicles || []).map(v => ({
     ...v,
     avail: getVehicleAvailability(v.reg, booking.startDate, bookings, v.status)
   }))
@@ -894,6 +894,9 @@ export default function Trips() {
 
   // State
   const [bookings, setBookings] = useState([])
+  const [drivers,  setDrivers]  = useState([])
+  const [vehicles, setVehicles] = useState([])
+  const [loadError, setLoadError] = useState(null)
   const [tab,          setTab]         = useState('list')   // 'list' | 'calendar'
   const [search,       setSearch]      = useState('')
   const [statusFilter, setStatusFilter]= useState('all')
@@ -918,36 +921,64 @@ export default function Trips() {
 
   // ── Helpers ────────────────────────────────────────────────
   const reload = useCallback(async () => {
-    const b = await loadBookings()
-    setBookings(Array.isArray(b) ? b : [])
+    const [b, d, v] = await Promise.allSettled([
+      loadBookings(),
+      driverRepository.getAll(),
+      vehicleRepository.getAll(),
+    ])
+    setBookings(b.status === 'fulfilled' && Array.isArray(b.value) ? b.value : [])
+    setDrivers( d.status === 'fulfilled' && Array.isArray(d.value) ? d.value : [])
+    setVehicles(v.status === 'fulfilled' && Array.isArray(v.value) ? v.value : [])
+    const failed = [b, d, v].some(r => r.status === 'rejected')
+    if (failed) {
+      [b, d, v].forEach(r => { if (r.status === 'rejected') console.error('[Trips] load failed:', r.reason) })
+      setLoadError('Some trip data failed to load. Try refreshing.')
+    } else {
+      setLoadError(null)
+    }
   }, [])
   useEffect(() => { reload() }, [reload])
 
-  const handleSave = (booking) => {
-    saveBooking(booking)
-    reload()
-    setShowCreate(false)
-    setEditBooking(null)
+  const handleSave = async (booking) => {
+    try {
+      await saveBooking(booking)
+      await reload()
+      setShowCreate(false)
+      setEditBooking(null)
+    } catch (err) {
+      console.error('[Trips] save failed:', err)
+      window.alert('Could not save this booking. Please check your connection and try again.')
+    }
   }
 
-  const handleAssign = ({ driver, vehicle }) => {
+  const handleAssign = async ({ driver, vehicle }) => {
     if (!assignBooking) return
     const updated = { ...assignBooking, driver, vehicle, status: 'assigned', updatedAt: new Date().toISOString() }
-    saveBooking(updated)
-    addAuditEvent('TRIP_ASSIGNED', {
-      description: `${updated.customer} assigned to ${driver} (${vehicle})`,
-      tripId: updated.id, driver,
-    })
-    addTimelineEvent(updated.id, 'assigned', `Assigned to ${driver}`)
-    reload()
-    setAssignBooking(null)
+    try {
+      await saveBooking(updated)
+      addAuditEvent('TRIP_ASSIGNED', {
+        description: `${updated.customer} assigned to ${driver} (${vehicle})`,
+        tripId: updated.id, driver,
+      })
+      addTimelineEvent(updated.id, 'assigned', `Assigned to ${driver}`)
+      await reload()
+      setAssignBooking(null)
+    } catch (err) {
+      console.error('[Trips] assign failed:', err)
+      window.alert('Could not assign driver/vehicle. Please try again.')
+    }
   }
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (!window.confirm('Delete this booking? This cannot be undone.')) return
-    deleteBooking(id)
-    reload()
-    setExpanded(null)
+    try {
+      await deleteBooking(id)
+      await reload()
+      setExpanded(null)
+    } catch (err) {
+      console.error('[Trips] delete failed:', err)
+      window.alert('Could not delete this booking. Please try again.')
+    }
   }
 
   const handleWhatsApp = (booking, msgType = 'assigned') => {
@@ -994,6 +1025,20 @@ export default function Trips() {
             ) : null
         }
       />
+
+      {loadError && (
+        <div className="bg-red-50 dark:bg-red-900/15 border border-red-200 dark:border-red-800/30 rounded-2xl p-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={15} className="text-red-600 dark:text-red-400 flex-shrink-0" />
+            <p className="text-sm font-bold text-red-700 dark:text-red-400">{loadError}</p>
+          </div>
+          <button onClick={reload}
+            className="px-3 py-1.5 rounded-xl bg-red-500 hover:bg-red-400 text-white text-xs font-bold transition-all active:scale-95 shadow-md flex-shrink-0">
+            Retry
+          </button>
+        </div>
+      )}
+
 
       {/* ── Summary strip (admin/manager only) ── */}
       {!isDriver && (
@@ -1165,6 +1210,8 @@ export default function Trips() {
         <AssignModal
           booking={assignBooking}
           bookings={bookings}
+          drivers={drivers}
+          vehicles={vehicles}
           onClose={() => setAssignBooking(null)}
           onAssign={handleAssign}
         />

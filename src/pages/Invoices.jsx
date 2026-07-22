@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Printer, Eye } from 'lucide-react'
+import { Plus, Printer, Eye, AlertTriangle } from 'lucide-react'
 import Avatar        from '../components/ui/Avatar'
 import Button        from '../components/ui/Button'
 import PageHeader    from '../components/ui/PageHeader'
@@ -26,9 +26,16 @@ function StatusBadge({ status }) {
 
 export default function Invoices() {
   const [bookings, setBookings] = useState([])
+  const [loadError, setLoadError] = useState(null)
   const reloadBookings = useCallback(async () => {
-    const b = await loadBookings()
-    setBookings(Array.isArray(b) ? b : [])
+    try {
+      const b = await loadBookings()
+      setBookings(Array.isArray(b) ? b : [])
+      setLoadError(null)
+    } catch (err) {
+      console.error('[Invoices] load failed:', err)
+      setLoadError('Could not load bookings. Try refreshing.')
+    }
   }, [])
   useEffect(() => { reloadBookings() }, [reloadBookings])
 
@@ -54,6 +61,19 @@ export default function Invoices() {
         subtitle="Trip bills, pay slips &amp; invoice management"
         action={<Button icon={Plus} variant="primary">New Invoice</Button>}
       />
+
+      {loadError && (
+        <div className="bg-red-50 dark:bg-red-900/15 border border-red-200 dark:border-red-800/30 rounded-2xl p-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={15} className="text-red-600 dark:text-red-400 flex-shrink-0" />
+            <p className="text-sm font-bold text-red-700 dark:text-red-400">{loadError}</p>
+          </div>
+          <button onClick={reloadBookings}
+            className="px-3 py-1.5 rounded-xl bg-red-500 hover:bg-red-400 text-white text-xs font-bold transition-all active:scale-95 shadow-md flex-shrink-0">
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Summary chips */}
       <div className="flex gap-3 flex-wrap">

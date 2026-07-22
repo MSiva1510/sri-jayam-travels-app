@@ -2,10 +2,10 @@
 // Printable, WhatsApp-shareable trip invoice.
 // Reads business config from settingsData (persisted in localStorage).
 
-import { useRef } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { X, Printer, Share2, MapPin, Phone, Mail, Globe } from 'lucide-react'
 import ModalOverlay from '../ui/ModalOverlay'
-import { getBizInfo, getInvoiceSettings } from '../../data/settingsData'
+import { getBizInfo, getInvoiceSettings, DEFAULT_SETTINGS } from '../../data/settingsData'
 
 function fmtDate(iso) {
   if (!iso) return '—'
@@ -18,8 +18,12 @@ function fmtMoney(amount, cur) {
 
 export default function InvoiceModal({ booking, onClose }) {
   const printRef    = useRef()
-  const biz         = getBizInfo()
-  const invSettings = getInvoiceSettings()
+  const [biz,         setBiz]         = useState(DEFAULT_SETTINGS.biz)
+  const [invSettings, setInvSettings] = useState(DEFAULT_SETTINGS.invoice)
+  useEffect(() => {
+    getBizInfo().then(setBiz).catch(err => console.error('[InvoiceModal] load biz info failed:', err))
+    getInvoiceSettings().then(setInvSettings).catch(err => console.error('[InvoiceModal] load invoice settings failed:', err))
+  }, [])
   const cur         = invSettings.currency
 
   // Expense items

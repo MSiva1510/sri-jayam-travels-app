@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Clock, Car, ChevronDown, ChevronUp,
@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { getDriverHistory, TRIP_TYPES } from '../../data/driverData'
+import { loadBookings } from '../../data/tripTypes'
 import { loadGPSHistory } from '../../hooks/useGPS'
 import { loadRideHistory, RIDE_STATE_CFG, formatElapsed } from '../../hooks/useRideLifecycle'
 import LocationPinCard from '../../components/gps/LocationPinCard'
@@ -20,8 +21,8 @@ const TYPE_COLORS = {
   roundtrip:  'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
 }
 
-// Merge GPS + lifecycle data into trip history
-function buildMergedHistory(mockTrips, lifecycleHistory, gpsHistory) {
+// Merge completed Supabase bookings with locally captured lifecycle/GPS metadata.
+function buildMergedHistory(bookingTrips, lifecycleHistory, gpsHistory) {
   // Start with lifecycle history (real completed rides)
   const lcItems = lifecycleHistory.map(lc => ({
     source:       'lifecycle',
@@ -46,12 +47,11 @@ function buildMergedHistory(mockTrips, lifecycleHistory, gpsHistory) {
     tripType:     lc.tripType || 'local',
   }))
 
-  // Fallback: mock history for trips not in lifecycle
   const lcIds = new Set(lcItems.map(i => i.tripId))
-  const mockItems = mockTrips
+  const bookingItems = bookingTrips
     .filter(t => !lcIds.has(t.tripId))
     .map(t => ({
-      source:    'mock',
+      source:    'booking',
       tripId:    t.tripId,
       customer:  t.customer,
       pickup:    t.pickup,
@@ -72,17 +72,43 @@ function buildMergedHistory(mockTrips, lifecycleHistory, gpsHistory) {
       tripType:  t.tripType || 'local',
     }))
 
-  return [...lcItems, ...mockItems]
+  return [...lcItems, ...bookingItems]
 }
 
 export default function RideHistory() {
   const { user }      = useAuth()
   const navigate      = useNavigate()
 
-  const mockHistory      = getDriverHistory(user?.name)
+  const [bookings, setBookings] = useState([])
+  const [loadError, setLoadError] = useState(null)
+  useEffect(() => {
+    loadBookings()
+      .then(bks => { setBookings(Array.isArray(bks) ? bks : []); setLoadError(null) })
+      .catch(err => { console.error('[RideHistory] load bookings failed:', err); setLoadError('Could not load your ride history.') })
+  }, [])
+
+  const normalizedBookings = bookings
+    .filter(b => b.status === 'completed')
+    .map(b => ({
+      tripId:   b.id,
+      customer: b.customer,
+      pickup:   b.pickup,
+      drop:     b.drop,
+      date:     b.startDate,
+      duration: '—',
+      status:   b.status,
+      fare:     b.fare || 0,
+      km:       b.km || 0,
+      earnings: b.fare ? Math.round(b.fare * 0.12) : 0,
+      tripType: b.type || 'local',
+      driver:   b.driver,
+      driver_name: b.driver,
+    }))
+
+  const driverHistory    = getDriverHistory(user?.name, normalizedBookings)
   const lifecycleHistory = loadRideHistory()
   const gpsHistory       = loadGPSHistory()
-  const history          = buildMergedHistory(mockHistory, lifecycleHistory, gpsHistory)
+  const history          = buildMergedHistory(driverHistory, lifecycleHistory, gpsHistory)
 
   const [expanded,   setExpanded]   = useState(null)
   const [filter,     setFilter]     = useState('all')
@@ -119,6 +145,12 @@ export default function RideHistory() {
           <p className="text-xs text-slate-500 dark:text-slate-400">{history.length} trips · May 2026</p>
         </div>
       </div>
+
+      {loadError && (
+        <div className="bg-red-50 dark:bg-red-900/15 border border-red-200 dark:border-red-800/30 rounded-2xl p-3 flex items-center gap-2">
+          <p className="text-xs font-bold text-red-700 dark:text-red-400">{loadError}</p>
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-2.5">

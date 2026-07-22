@@ -45,7 +45,8 @@ export class ExpenseRepository extends BaseRepository {
         if (error) throw error
         return data || []
       } catch (error) {
-        return this._getByDriverLocal(driverId)
+        console.error(error)
+        throw error
       }
     }
     return this._getByDriverLocal(driverId)
@@ -62,7 +63,8 @@ export class ExpenseRepository extends BaseRepository {
         if (error) throw error
         return data || []
       } catch (error) {
-        return this._getByTripLocal(tripId)
+        console.error(error)
+        throw error
       }
     }
     return this._getByTripLocal(tripId)
@@ -79,7 +81,8 @@ export class ExpenseRepository extends BaseRepository {
         if (error) throw error
         return data || []
       } catch (error) {
-        return this._getByStatusLocal(status)
+        console.error(error)
+        throw error
       }
     }
     return this._getByStatusLocal(status)
@@ -175,7 +178,8 @@ export class ExpenseRepository extends BaseRepository {
       if (error) throw error
       return data || []
     } catch (error) {
-      return this._getAllFromLocal()
+      console.error(error)
+      throw error
     }
   }
 
@@ -190,7 +194,8 @@ export class ExpenseRepository extends BaseRepository {
       if (error) throw error
       return data || null
     } catch (error) {
-      return this._getByIdFromLocal(id)
+      console.error(error)
+      throw error
     }
   }
 
@@ -210,7 +215,8 @@ export class ExpenseRepository extends BaseRepository {
       if (error) throw error
       return created
     } catch (error) {
-      return this._createInLocal(data)
+      console.error(error)
+      throw error
     }
   }
 
@@ -225,7 +231,8 @@ export class ExpenseRepository extends BaseRepository {
       if (error) throw error
       return updated
     } catch (error) {
-      return this._updateInLocal(id, data)
+      console.error(error)
+      throw error
     }
   }
 
@@ -235,7 +242,8 @@ export class ExpenseRepository extends BaseRepository {
       if (error) throw error
       return true
     } catch (error) {
-      return this._deleteFromLocal(id)
+      console.error(error)
+      throw error
     }
   }
 }

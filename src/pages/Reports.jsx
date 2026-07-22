@@ -13,7 +13,7 @@ import {
   getPayrollAnalytics, getOperationsMonitor, getBusinessAlerts,
   exportToCSV, todayStr, thisMonthStr,
 } from '../data/reportData'
-import { DRIVERS, VEHICLES } from '../data/mockData'
+import { driverRepository, vehicleRepository } from '../repositories'
 import { getStatusCfg } from '../data/tripTypes'
 
 // ─────────────────────────────────────────────────────────────
@@ -153,7 +153,13 @@ function TripReports() {
   const [driver, setDriver] = useState('all')
   const [vehicle,setVehicle]= useState('all')
   const [report, setReport] = useState({ rows:[], totalRevenue:0, totalDistance:0, completed:0, cancelled:0, cancelRate:0 })
+  const [drivers, setDrivers] = useState([])
+  const [vehicles, setVehicles] = useState([])
   useEffect(()=>{ getTripReport(from,to,driver,vehicle).then(d=>setReport(d ?? { rows:[], totalRevenue:0, totalDistance:0, completed:0, cancelled:0, cancelRate:0 })) },[from,to,driver,vehicle])
+  useEffect(() => {
+    driverRepository.getAll().then(d => setDrivers(Array.isArray(d) ? d : [])).catch(err => console.error('[Reports] load drivers failed:', err))
+    vehicleRepository.getAll().then(v => setVehicles(Array.isArray(v) ? v : [])).catch(err => console.error('[Reports] load vehicles failed:', err))
+  }, [])
 
   const handleExport = () => exportToCSV(report.rows,[
     {label:'Booking No.',key:'bookingNo'},{label:'Customer',key:'customer'},
@@ -182,14 +188,14 @@ function TripReports() {
             <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Driver</label>
             <select value={driver} onChange={e=>setDriver(e.target.value)} className={sel}>
               <option value="all">All Drivers</option>
-              {DRIVERS.map(d=><option key={d.id} value={d.name}>{d.name}</option>)}
+              {drivers.map(d=><option key={d.id} value={d.name}>{d.name}</option>)}
             </select>
           </div>
           <div className="flex-1 min-w-[110px]">
             <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Vehicle</label>
             <select value={vehicle} onChange={e=>setVehicle(e.target.value)} className={sel}>
               <option value="all">All Vehicles</option>
-              {VEHICLES.map(v=><option key={v.id} value={v.reg}>{v.reg}</option>)}
+              {vehicles.map(v=><option key={v.id} value={v.reg}>{v.reg}</option>)}
             </select>
           </div>
         </div>
@@ -539,7 +545,7 @@ function OperationsMonitor() {
 // ─────────────────────────────────────────────────────────────
 function BusinessAlerts() {
   const [alerts, setAlerts] = useState([])
-  useEffect(()=>{ setAlerts(getBusinessAlerts()) },[])
+  useEffect(()=>{ getBusinessAlerts().then(setAlerts).catch(err=>console.error('[Reports] alerts load failed:',err)) },[])
   const PC = {
     high:  {badge:'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',         label:'High'},
     medium:{badge:'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', label:'Medium'},
@@ -609,7 +615,7 @@ export default function Reports() {
   const [summary, setSummary] = useState({ trips:{total:0,active:0,completed:0,cancelled:0,assigned:0,scheduled:0}, customers:{total:0,corporate:0,active:0}, vehicles:{total:0,available:0,inUse:0,maintenance:0}, drivers:{total:0,available:0,onLeave:0}, finance:{totalFare:0,totalNet:0,totalKm:0,totalExp:0,monthExpenses:0,paidPayroll:0} })
   useEffect(()=>{ getExecutiveSummary().then(d=>setSummary(d ?? summary)) },[])
   const [alerts, setAlerts] = useState([])
-  useEffect(()=>{ setAlerts(getBusinessAlerts()) },[])
+  useEffect(()=>{ getBusinessAlerts().then(setAlerts).catch(err=>console.error('[Reports] alerts load failed:',err)) },[])
 
   if (isDriver) return (
     <div className="glass-card rounded-2xl p-12 text-center">

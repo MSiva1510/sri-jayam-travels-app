@@ -66,7 +66,7 @@ export class DriverRepository extends BaseRepository {
         return data || []
       } catch (error) {
         console.error('Search driver by name failed:', error)
-        return this._searchByNameLocal(name)
+        throw error
       }
     }
 
@@ -92,7 +92,7 @@ export class DriverRepository extends BaseRepository {
         return data || []
       } catch (error) {
         console.error('Search driver by phone failed:', error)
-        return this._searchByPhoneLocal(phone)
+        throw error
       }
     }
 
@@ -320,7 +320,7 @@ export class DriverRepository extends BaseRepository {
       return data || []
     } catch (error) {
       console.error('Error fetching drivers from Supabase:', error)
-      return this._getAllFromLocal()
+      throw error
     }
   }
 
@@ -340,7 +340,7 @@ export class DriverRepository extends BaseRepository {
       return data || null
     } catch (error) {
       console.error('Error fetching driver from Supabase:', error)
-      return this._getByIdFromLocal(id)
+      throw error
     }
   }
 
@@ -363,7 +363,7 @@ export class DriverRepository extends BaseRepository {
       return created
     } catch (error) {
       console.error('Error creating driver in Supabase:', error)
-      return this._createInLocal(data)
+      throw error
     }
   }
 
@@ -383,7 +383,7 @@ export class DriverRepository extends BaseRepository {
       return updated
     } catch (error) {
       console.error('Error updating driver in Supabase:', error)
-      return this._updateInLocal(id, data)
+      throw error
     }
   }
 
@@ -398,7 +398,7 @@ export class DriverRepository extends BaseRepository {
       return true
     } catch (error) {
       console.error('Error deleting driver from Supabase:', error)
-      return this._deleteFromLocal(id)
+      throw error
     }
   }
 }

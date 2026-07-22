@@ -19,7 +19,7 @@ import {
   loadTripPayslips, saveTripPayslip,
 } from '../data/settlementData'
 import { loadExpenses } from '../data/expenseData'
-import { DRIVERS } from '../data/mockData'
+import { driverRepository } from '../repositories'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import { addAuditEvent } from '../data/auditLogData'
 
@@ -88,10 +88,11 @@ function FSelect({ label, field, value, onChange, children, required }) {
 // ─────────────────────────────────────────────────────────────
 //  Module 6: Salary Configuration Panel
 // ─────────────────────────────────────────────────────────────
-function SalaryConfigPanel({ onClose }) {
+function SalaryConfigPanel({ drivers, onClose }) {
   const [cfg, setCfg] = useState(DEFAULT_PAYROLL_SETTINGS)
   useEffect(() => { loadPayrollSettings().then(s => setCfg(s ?? DEFAULT_PAYROLL_SETTINGS)) }, [])
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   const updDriver = (name, field, val) => {
     setCfg(prev => ({
@@ -105,7 +106,16 @@ function SalaryConfigPanel({ onClose }) {
       incentiveRules: prev.incentiveRules.map((r, idx) => idx === i ? { ...r, [field]: Number(val) } : r)
     }))
   }
-  const handleSave = () => { savePayrollSettings(cfg); setSaved(true); setTimeout(() => setSaved(false), 2000) }
+  const handleSave = async () => {
+    try {
+      await savePayrollSettings(cfg)
+      setSaveError('')
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch (err) {
+      setSaveError('Could not save settings. Please try again.')
+    }
+  }
 
   return (
     <ModalOverlay onClose={onClose}>
@@ -123,7 +133,7 @@ function SalaryConfigPanel({ onClose }) {
           {/* Per-driver settings */}
           <div>
             <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Driver Salary Settings</p>
-            {DRIVERS.map(d => (
+            {(drivers || []).map(d => (
               <div key={d.id} className="mb-4 p-3 bg-slate-50 dark:bg-navy-800/50 rounded-xl">
                 <div className="flex items-center gap-2 mb-3">
                   <Avatar name={d.name} size={26} />
@@ -169,11 +179,14 @@ function SalaryConfigPanel({ onClose }) {
             </div>
           </div>
         </div>
-        <div className="px-5 py-4 border-t border-slate-100 dark:border-navy-700 flex gap-2 flex-shrink-0">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">Cancel</button>
-          <button onClick={handleSave} className={`flex-1 py-2.5 rounded-xl text-white text-sm font-bold transition-all shadow-md active:scale-95 ${saved ? 'bg-emerald-600' : 'bg-navy-900 dark:bg-blue-700 hover:bg-navy-800 dark:hover:bg-blue-600'}`}>
-            {saved ? '✓ Saved' : 'Save Settings'}
-          </button>
+        <div className="px-5 py-4 border-t border-slate-100 dark:border-navy-700 flex-shrink-0 space-y-2">
+          {saveError && <p className="text-xs font-semibold text-red-600 dark:text-red-400">{saveError}</p>}
+          <div className="flex gap-2">
+            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">Cancel</button>
+            <button onClick={handleSave} className={`flex-1 py-2.5 rounded-xl text-white text-sm font-bold transition-all shadow-md active:scale-95 ${saved ? 'bg-emerald-600' : 'bg-navy-900 dark:bg-blue-700 hover:bg-navy-800 dark:hover:bg-blue-600'}`}>
+              {saved ? '✓ Saved' : 'Save Settings'}
+            </button>
+          </div>
         </div>
       </div>
     </ModalOverlay>
@@ -183,7 +196,7 @@ function SalaryConfigPanel({ onClose }) {
 // ─────────────────────────────────────────────────────────────
 //  Create / Edit Settlement Modal
 // ─────────────────────────────────────────────────────────────
-function SettlementModal({ settlement, onClose, onSave, currentUser }) {
+function SettlementModal({ settlement, drivers, onClose, onSave, currentUser }) {
   const [settings, setSettings] = useState(DEFAULT_PAYROLL_SETTINGS)
   const [expenses, setExpenses] = useState([])
   useEffect(() => {
@@ -195,7 +208,7 @@ function SettlementModal({ settlement, onClose, onSave, currentUser }) {
   const isEdit   = !!settlement?.id
 
   const [form, setForm] = useState(() => settlement || {
-    driver: DRIVERS[0]?.name || '',
+    driver: drivers?.[0]?.name || '',
     month: CUR_MONTH, year: CUR_YEAR,
     workingDays: 26, completedTrips: 0, totalTrips: 0,
     bonus: 0, deductions: [], notes: '',
@@ -216,13 +229,16 @@ function SettlementModal({ settlement, onClose, onSave, currentUser }) {
   }))
   const removeDeduction = i => setForm(f => ({ ...f, deductions: f.deductions.filter((_,idx) => idx !== i) }))
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.driver) { setError('Select a driver'); return }
     if (!form.month || !form.year) { setError('Select month and year'); return }
     // Duplicate prevention
-    if (!isEdit && settlementExists(form.driver, Number(form.month), Number(form.year))) {
-      setError(`Settlement for ${form.driver} — ${monthLabel(form.month, form.year)} already exists.`)
-      return
+    if (!isEdit) {
+      const exists = await settlementExists(form.driver, Number(form.month), Number(form.year))
+      if (exists) {
+        setError(`Settlement for ${form.driver} — ${monthLabel(form.month, form.year)} already exists.`)
+        return
+      }
     }
     const now  = new Date().toISOString()
     const full = {
@@ -268,7 +284,7 @@ function SettlementModal({ settlement, onClose, onSave, currentUser }) {
           {/* Basic */}
           <div className="grid grid-cols-2 gap-3">
             <FSelect label="Driver" field="driver" value={form.driver} onChange={upd} required>
-              {DRIVERS.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+              {(drivers || []).map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
             </FSelect>
             <FSelect label="Month" field="month" value={form.month} onChange={upd} required>
               {MONTHS.map((m,i) => <option key={i+1} value={i+1}>{m}</option>)}
@@ -700,12 +716,22 @@ export default function Payroll() {
   const [driverFilter, setDriverFilter] = useState('all')
   const [statFilter,   setStatFilter]   = useState('all')
   const [toast,        setToast]        = useState('')
+  const [drivers,      setDrivers]      = useState([])
+  const [loadError,    setLoadError]    = useState(null)
 
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 3000) }
   const reload = useCallback(async () => {
-    const [s, p] = await Promise.all([loadSettlements(), loadTripPayslips()])
-    setSettlements(Array.isArray(s) ? s : [])
-    setTripPayslips(Array.isArray(p) ? p : [])
+    const [s, p, d] = await Promise.allSettled([loadSettlements(), loadTripPayslips(), driverRepository.getAll()])
+    setSettlements( s.status === 'fulfilled' && Array.isArray(s.value) ? s.value : [])
+    setTripPayslips(p.status === 'fulfilled' && Array.isArray(p.value) ? p.value : [])
+    setDrivers(     d.status === 'fulfilled' && Array.isArray(d.value) ? d.value : [])
+    const failed = [s, p, d].some(r => r.status === 'rejected')
+    if (failed) {
+      [s, p, d].forEach(r => { if (r.status === 'rejected') console.error('[Payroll] load failed:', r.reason) })
+      setLoadError('Some payroll data failed to load. Try refreshing.')
+    } else {
+      setLoadError(null)
+    }
   }, [])
   useEffect(() => { reload() }, [reload])
 
@@ -731,13 +757,38 @@ export default function Payroll() {
   const paidCount     = settlements.filter(s => s.status === 'paid').length
 
   // Actions
-  const handleSave = s => { saveSettlement(s); reload(); setShowCreate(false); setEditItem(null); showToast(editItem ? 'Settlement updated' : 'Settlement created') }
-  const handleDelete = id => { if (!window.confirm('Delete this settlement?')) return; deleteSettlement(id); reload(); setExpanded(null); showToast('Deleted') }
-  const handleSubmit = s => { saveSettlement({ ...s, status:'pending', updatedAt: new Date().toISOString() }); reload(); showToast(`${s.id} submitted for approval`) }
-  const handleApprove = s => { saveSettlement({ ...s, status:'approved', approvedBy: user?.name, updatedAt: new Date().toISOString() }); reload(); showToast(`${s.id} approved`) }
-  const handleMarkPaid = s => {
-    saveSettlement(s)
-    reload()
+  const handleSave = async s => {
+    const result = await saveSettlement(s)
+    if (!result) { showToast('Could not save settlement. Please try again.'); return }
+    await reload()
+    setShowCreate(false)
+    setEditItem(null)
+    showToast(editItem ? 'Settlement updated' : 'Settlement created')
+  }
+  const handleDelete = async id => {
+    if (!window.confirm('Delete this settlement?')) return
+    const ok = await deleteSettlement(id)
+    if (!ok) { showToast('Could not delete settlement. Please try again.'); return }
+    await reload()
+    setExpanded(null)
+    showToast('Deleted')
+  }
+  const handleSubmit = async s => {
+    const result = await saveSettlement({ ...s, status:'pending', updatedAt: new Date().toISOString() })
+    if (!result) { showToast('Could not submit settlement. Please try again.'); return }
+    await reload()
+    showToast(`${s.id} submitted for approval`)
+  }
+  const handleApprove = async s => {
+    const result = await saveSettlement({ ...s, status:'approved', approvedBy: user?.name, updatedAt: new Date().toISOString() })
+    if (!result) { showToast('Could not approve settlement. Please try again.'); return }
+    await reload()
+    showToast(`${s.id} approved`)
+  }
+  const handleMarkPaid = async s => {
+    const result = await saveSettlement(s)
+    if (!result) { showToast('Could not mark settlement as paid. Please try again.'); return }
+    await reload()
     setMarkPaidItem(null)
     showToast(`${s.id} marked as paid`)
     addAuditEvent('PAYROLL_SETTLED', {
@@ -768,6 +819,19 @@ export default function Payroll() {
           </div>
         }
       />
+
+      {loadError && (
+        <div className="bg-red-50 dark:bg-red-900/15 border border-red-200 dark:border-red-800/30 rounded-2xl p-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={15} className="text-red-600 dark:text-red-400 flex-shrink-0" />
+            <p className="text-sm font-bold text-red-700 dark:text-red-400">{loadError}</p>
+          </div>
+          <button onClick={reload}
+            className="px-3 py-1.5 rounded-xl bg-red-500 hover:bg-red-400 text-white text-xs font-bold transition-all active:scale-95 shadow-md flex-shrink-0">
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1 w-fit">
@@ -819,7 +883,7 @@ export default function Payroll() {
             <select value={driverFilter} onChange={e => setDriverFilter(e.target.value)}
               className="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
               <option value="all">All Drivers</option>
-              {DRIVERS.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+              {drivers.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
             </select>
             {/* List */}
             {filteredTP.length === 0 ? (
@@ -906,7 +970,7 @@ export default function Payroll() {
         <select value={driverFilter} onChange={e => setDriverFilter(e.target.value)}
           className="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
           <option value="all">All Drivers</option>
-          {DRIVERS.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+          {drivers.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
         </select>
         <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1">
           {[['all','All'], ...SETTLEMENT_STATUSES.map(s => [s.key, s.label])].map(([k,l]) => (
@@ -999,6 +1063,7 @@ export default function Payroll() {
       {(showCreate || editItem) && (
         <SettlementModal
           settlement={editItem}
+          drivers={drivers}
           onClose={() => { setShowCreate(false); setEditItem(null) }}
           onSave={handleSave}
           currentUser={user}
@@ -1006,7 +1071,7 @@ export default function Payroll() {
       )}
       {payslipItem  && <PayslipView    settlement={payslipItem}  onClose={() => setPayslipItem(null)}  />}
       {markPaidItem && <MarkPaidModal  settlement={markPaidItem} onClose={() => setMarkPaidItem(null)} onSave={handleMarkPaid} />}
-      {showConfig   && <SalaryConfigPanel onClose={() => setShowConfig(false)} />}
+      {showConfig   && <SalaryConfigPanel drivers={drivers} onClose={() => setShowConfig(false)} />}
     </div>
   )
 }

@@ -99,9 +99,13 @@ export default function AssignedTrips() {
   const gps       = useGPS()
 
   // ── Module 1 (Day 20.5): resolve REAL manager assignment.
-  //    Falls back to the static mock vehicle only when no live
-  //    assignment record exists yet (keeps demo accounts working).
-  const liveAssignment     = getCurrentVehicleForDriver(user?.name)
+  const [liveAssignment, setLiveAssignment] = useState(null)
+  useEffect(() => {
+    if (!user?.name) return
+    getCurrentVehicleForDriver(user.name)
+      .then(setLiveAssignment)
+      .catch(err => console.error('[AssignedTrips] load vehicle assignment failed:', err))
+  }, [user?.name])
   const assignedVehicleReg = liveAssignment?.vehicleReg || user?.vehicle || null
   const hasVehicleAssigned = !!assignedVehicleReg
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Plus, Minus, ChevronRight,
@@ -9,7 +9,7 @@ import {
 import { TRIP_TYPE_LIST, TRIP_TYPE_CONFIG, saveBooking, generateBookingNumber } from '../data/tripTypes'
 import { addAuditEvent }   from '../data/auditLogData'
 import { addTimelineEvent } from '../data/tripTimelineData'
-import { DRIVERS, VEHICLES } from '../data/mockData'
+import { driverRepository, vehicleRepository } from '../repositories'
 import PageHeader from '../components/ui/PageHeader'
 import { validateField, sanitizeInput } from '../utils/formValidation'
 
@@ -408,6 +408,15 @@ export default function CreateTrip() {
   const [typeData,   setTypeData]   = useState({})
   const [submitted,  setSubmitted]  = useState(false)
   const [errors,     setErrors]     = useState({})
+  const [drivers,    setDrivers]    = useState([])
+  const [vehicles,   setVehicles]   = useState([])
+
+  useEffect(() => {
+    driverRepository.getAll().then(d => setDrivers(Array.isArray(d) ? d : []))
+      .catch(err => console.error('[CreateTrip] load drivers failed:', err))
+    vehicleRepository.getAll().then(v => setVehicles(Array.isArray(v) ? v : []))
+      .catch(err => console.error('[CreateTrip] load vehicles failed:', err))
+  }, [])
 
   const cfg = tripType ? TRIP_TYPE_CONFIG[tripType] : null
 
@@ -652,7 +661,7 @@ export default function CreateTrip() {
                 required
               >
                 <option value="">— Select vehicle —</option>
-                {VEHICLES.map(v => (
+                {vehicles.map(v => (
                   <option key={v.id} value={v.reg} disabled={v.status !== 'active'}>
                     {v.reg} — {v.type} ({v.model}){v.status !== 'active' ? ' ⚠ Service' : ''}
                   </option>
@@ -670,7 +679,7 @@ export default function CreateTrip() {
                 required={!isSelfDrive}
               >
                 <option value="">— Select driver —</option>
-                {!isSelfDrive && DRIVERS.map(d => (
+                {!isSelfDrive && drivers.map(d => (
                   <option key={d.id} value={d.name}>
                     {d.name} — {d.vehicle}
                   </option>

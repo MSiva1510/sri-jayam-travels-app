@@ -66,7 +66,7 @@ export class CustomerRepository extends BaseRepository {
         return data || []
       } catch (error) {
         console.error('Search by mobile failed:', error)
-        return this._searchByMobileLocal(mobile)
+        throw error
       }
     }
 
@@ -92,7 +92,7 @@ export class CustomerRepository extends BaseRepository {
         return data || []
       } catch (error) {
         console.error('Search by name failed:', error)
-        return this._searchByNameLocal(name)
+        throw error
       }
     }
 
@@ -261,7 +261,7 @@ export class CustomerRepository extends BaseRepository {
       return data || []
     } catch (error) {
       console.error('Error fetching customers from Supabase:', error)
-      return this._getAllFromLocal()
+      throw error
     }
   }
 
@@ -281,7 +281,7 @@ export class CustomerRepository extends BaseRepository {
       return data || null
     } catch (error) {
       console.error('Error fetching customer from Supabase:', error)
-      return this._getByIdFromLocal(id)
+      throw error
     }
   }
 
@@ -304,7 +304,7 @@ export class CustomerRepository extends BaseRepository {
       return created
     } catch (error) {
       console.error('Error creating customer in Supabase:', error)
-      return this._createInLocal(data)
+      throw error
     }
   }
 
@@ -324,7 +324,7 @@ export class CustomerRepository extends BaseRepository {
       return updated
     } catch (error) {
       console.error('Error updating customer in Supabase:', error)
-      return this._updateInLocal(id, data)
+      throw error
     }
   }
 
@@ -339,7 +339,7 @@ export class CustomerRepository extends BaseRepository {
       return true
     } catch (error) {
       console.error('Error deleting customer from Supabase:', error)
-      return this._deleteFromLocal(id)
+      throw error
     }
   }
 }

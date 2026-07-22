@@ -60,12 +60,12 @@ export async function loadPayrollSettings() {
 
 export async function savePayrollSettings(cfg) {
   const value = { ...cfg, updatedAt: new Date().toISOString() }
-  try {
-    await supabase
-      .from('settings')
-      .upsert({ key: 'payroll_settings', value }, { onConflict: 'key' })
-  } catch (err) {
-    console.error('[settlementData] savePayrollSettings failed:', err)
+  const { error } = await supabase
+    .from('settings')
+    .upsert({ key: 'payroll_settings', value }, { onConflict: 'key' })
+  if (error) {
+    console.error('[settlementData] savePayrollSettings failed:', error)
+    throw error
   }
 }
 
@@ -148,7 +148,7 @@ async function _loadSettlements() {
     return (Array.isArray(rows) ? rows : []).map(normalizeSettlement)
   } catch (err) {
     console.error('[settlementData] loadSettlements failed:', err)
-    return MOCK_SETTLEMENTS
+    throw err
   }
 }
 export const loadSettlements = withCache('settlements', _loadSettlements)
@@ -185,10 +185,11 @@ export async function saveSettlement(settlement) {
   try {
     const { id, ...rest } = settlement
     const existing = id ? await payrollRepository.getSettlementById?.(id) : null
-    if (existing) {
-      return await payrollRepository.updateSettlement(id, { ...rest, updatedAt: new Date().toISOString() })
-    }
-    return await payrollRepository.createSettlement({ id: id || generateSettlementId(), ...rest })
+    const result = existing
+      ? await payrollRepository.updateSettlement(id, { ...rest, updatedAt: new Date().toISOString() })
+      : await payrollRepository.createSettlement({ id: id || generateSettlementId(), ...rest })
+    cacheClear('settlements')
+    return result
   } catch (err) {
     console.error('[settlementData] saveSettlement failed:', err)
     return null
@@ -199,6 +200,7 @@ export async function deleteSettlement(id) {
   try {
     const { error } = await supabase.from('settlements').delete().eq('id', id)
     if (error) throw error
+    cacheClear('settlements')
     return true
   } catch (err) {
     console.error('[settlementData] deleteSettlement failed:', err)
@@ -323,66 +325,4 @@ export function buildTripPayslip(booking, settings) {
   }
 }
 
-// ── Seed / reference data ─────────────────────────────────────
-export const MOCK_SETTLEMENTS = [
-  {
-    id:'STL-2604-001', driver:'Ramanan', month:4, year:2026,
-    status:'paid', workingDays:26, completedTrips:38, totalTrips:40,
-    baseSalary:18000, bataAmt:2800, fuelAmt:1200, parkingAmt:0,
-    incentive:500, bonus:0, grossAmount:22500, totalDeductions:0, netAmount:22500,
-    deductions:[],
-    paymentDate:'2026-05-02', paymentMethod:'Bank Transfer', paymentRemarks:'April salary paid',
-    createdBy:'manager', approvedBy:'admin', createdAt:'2026-05-01T09:00:00Z', updatedAt:'2026-05-02T10:00:00Z',
-    notes:'Good performance month',
-  },
-  {
-    id:'STL-2604-002', driver:'Babu', month:4, year:2026,
-    status:'paid', workingDays:25, completedTrips:34, totalTrips:36,
-    baseSalary:17000, bataAmt:2600, fuelAmt:980, parkingAmt:120,
-    incentive:500, bonus:0, grossAmount:21200, totalDeductions:1000, netAmount:20200,
-    deductions:[{ type:'advance', label:'Advance Salary', amount:1000 }],
-    paymentDate:'2026-05-02', paymentMethod:'Bank Transfer', paymentRemarks:'April salary — advance deducted',
-    createdBy:'manager', approvedBy:'admin', createdAt:'2026-05-01T09:30:00Z', updatedAt:'2026-05-02T10:30:00Z',
-    notes:'',
-  },
-  {
-    id:'STL-2604-003', driver:'Rajasekharan', month:4, year:2026,
-    status:'paid', workingDays:22, completedTrips:28, totalTrips:30,
-    baseSalary:16000, bataAmt:2400, fuelAmt:0, parkingAmt:0,
-    incentive:500, bonus:500, grossAmount:19400, totalDeductions:0, netAmount:19400,
-    deductions:[],
-    paymentDate:'2026-05-03', paymentMethod:'Cash', paymentRemarks:'April salary',
-    createdBy:'manager', approvedBy:'admin', createdAt:'2026-05-01T10:00:00Z', updatedAt:'2026-05-03T09:00:00Z',
-    notes:'',
-  },
-  {
-    id:'STL-2605-004', driver:'Ramanan', month:5, year:2026,
-    status:'approved', workingDays:27, completedTrips:42, totalTrips:44,
-    baseSalary:18000, bataAmt:3100, fuelAmt:2200, parkingAmt:340,
-    incentive:1000, bonus:0, grossAmount:24640, totalDeductions:0, netAmount:24640,
-    deductions:[],
-    paymentDate:null, paymentMethod:'', paymentRemarks:'',
-    createdBy:'manager', approvedBy:'admin', createdAt:'2026-06-01T09:00:00Z', updatedAt:'2026-06-01T14:00:00Z',
-    notes:'Bangalore trip expense included',
-  },
-  {
-    id:'STL-2605-005', driver:'Babu', month:5, year:2026,
-    status:'pending', workingDays:26, completedTrips:36, totalTrips:38,
-    baseSalary:17000, bataAmt:2700, fuelAmt:1800, parkingAmt:120,
-    incentive:500, bonus:0, grossAmount:22120, totalDeductions:0, netAmount:22120,
-    deductions:[],
-    paymentDate:null, paymentMethod:'', paymentRemarks:'',
-    createdBy:'manager', approvedBy:null, createdAt:'2026-06-01T10:00:00Z', updatedAt:'2026-06-01T10:00:00Z',
-    notes:'',
-  },
-  {
-    id:'STL-2605-006', driver:'Rajasekharan', month:5, year:2026,
-    status:'draft', workingDays:20, completedTrips:24, totalTrips:26,
-    baseSalary:16000, bataAmt:2200, fuelAmt:0, parkingAmt:0,
-    incentive:500, bonus:0, grossAmount:18700, totalDeductions:500, netAmount:18200,
-    deductions:[{ type:'penalty', label:'Penalty', amount:500 }],
-    paymentDate:null, paymentMethod:'', paymentRemarks:'',
-    createdBy:'manager', approvedBy:null, createdAt:'2026-06-01T11:00:00Z', updatedAt:'2026-06-01T11:00:00Z',
-    notes:'On leave for 8 days',
-  },
-]
+// ── Seed / reference data ───────────────────────────────────── 

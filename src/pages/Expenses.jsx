@@ -16,7 +16,7 @@ import {
   isToday, isThisWeek, isThisMonth,
   summariseByType, getTripExpenses, getExpenseDate,
 } from '../data/expenseData'
-import { DRIVERS, VEHICLES } from '../data/mockData'
+import { driverRepository, vehicleRepository } from '../repositories'
 import { loadBookings } from '../data/tripTypes'
 import { addAuditEvent } from '../data/auditLogData'
 
@@ -92,7 +92,7 @@ function ESel({ label, field, children, required, value, onChange, error }) {
   )
 }
 
-function ExpenseModal({ expense, onClose, onSave, currentUser, isDriver: isDrv }) {
+function ExpenseModal({ expense, drivers, vehicles, onClose, onSave, currentUser, isDriver: isDrv }) {
   const [bookings, setBookings] = useState([])
   useEffect(() => { loadBookings().then(b => setBookings(Array.isArray(b) ? b : [])) }, [])
   const isEdit   = !!expense?.id
@@ -162,14 +162,14 @@ function ExpenseModal({ expense, onClose, onSave, currentUser, isDriver: isDrv }
             {!isDrv ? (
               <ESel label="Driver" field="driver" value={form.driver} onChange={upd} error={errors.driver}>
                 <option value="">— None —</option>
-                {DRIVERS.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+                {(drivers||[]).map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
               </ESel>
             ) : (
               <EF label="Driver" field="driver" placeholder={currentUser?.name} value={form.driver} onChange={upd} error={errors.driver} />
             )}
             <ESel label="Vehicle" field="vehicle" value={form.vehicle} onChange={upd} error={errors.vehicle}>
               <option value="">— None —</option>
-              {VEHICLES.map(v => <option key={v.id} value={v.reg}>{v.reg} — {v.type}</option>)}
+              {(vehicles||[]).map(v => <option key={v.id} value={v.reg}>{v.reg} — {v.type}</option>)}
             </ESel>
           </div>
 
@@ -414,6 +414,8 @@ export default function Expenses() {
   const canApprove = isAdmin || isManager
 
   const [expenses,   setExpenses]  = useState([])
+  const [drivers,    setDrivers]   = useState([])
+  const [vehicles,   setVehicles]  = useState([])
   const [search,     setSearch]    = useState('')
   const [typeFilter, setTypeFilter]= useState('all')
   const [statFilter, setStatFilter]= useState('all')
@@ -426,9 +428,20 @@ export default function Expenses() {
 
   const PAGE_SIZE = 10
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 3000) }
+  const [loadError, setLoadError] = useState(null)
   const reload = async () => {
-    const e = await loadExpenses()
-    setExpenses(Array.isArray(e) ? e : [])
+    const [e, d, v] = await Promise.allSettled([
+      loadExpenses(), driverRepository.getAll(), vehicleRepository.getAll(),
+    ])
+    setExpenses(e.status === 'fulfilled' && Array.isArray(e.value) ? e.value : [])
+    setDrivers( d.status === 'fulfilled' && Array.isArray(d.value) ? d.value : [])
+    setVehicles(v.status === 'fulfilled' && Array.isArray(v.value) ? v.value : [])
+    if (e.status === 'rejected') {
+      console.error('[Expenses] load failed:', e.reason)
+      setLoadError('Could not load expenses. Try refreshing.')
+    } else {
+      setLoadError(null)
+    }
   }
   useEffect(() => { reload() }, [])
 
@@ -472,37 +485,57 @@ export default function Expenses() {
   const parkAmt      = rangeFiltered.filter(e=>e.type==='parking').reduce((s,e)=>s+e.amount,0)
   const pendingCount = rangeFiltered.filter(e=>e.status==='submitted').length
 
-  const handleSave = (exp) => {
-    saveExpense(exp)
-    addAuditEvent('EXPENSE_ADDED', {
-      description: `${exp.type} — Rs. ${(exp.amount||0).toLocaleString('en-IN')} by ${exp.driver || 'Staff'}`,
-      driver: exp.driver,
-    })
-    reload()
-    setShowAdd(false)
-    setEditExp(null)
-    showToast(editExp ? 'Expense updated' : 'Expense added')
-    setPage(1)
+  const handleSave = async (exp) => {
+    try {
+      await saveExpense(exp)
+      addAuditEvent('EXPENSE_ADDED', {
+        description: `${exp.type} — Rs. ${(exp.amount||0).toLocaleString('en-IN')} by ${exp.driver || 'Staff'}`,
+        driver: exp.driver,
+      })
+      await reload()
+      setShowAdd(false)
+      setEditExp(null)
+      showToast(editExp ? 'Expense updated' : 'Expense added')
+      setPage(1)
+    } catch (err) {
+      console.error('[Expenses] save failed:', err)
+      showToast('Could not save expense. Please try again.')
+    }
   }
 
-  const handleDelete = id => {
+  const handleDelete = async id => {
     if (!window.confirm('Delete this expense?')) return
-    deleteExpense(id)
-    reload()
-    setExpanded(null)
-    showToast('Expense deleted')
+    try {
+      await deleteExpense(id)
+      await reload()
+      setExpanded(null)
+      showToast('Expense deleted')
+    } catch (err) {
+      console.error('[Expenses] delete failed:', err)
+      showToast('Could not delete expense. Please try again.')
+    }
   }
 
-  const handleApprove = exp => {
-    saveExpense({ ...exp, status: 'approved', updatedAt: new Date().toISOString() })
-    reload()
-    showToast(`${exp.id} approved`)
+  const handleApprove = async exp => {
+    try {
+      await saveExpense({ ...exp, status: 'approved', updatedAt: new Date().toISOString() })
+      await reload()
+      showToast(`${exp.id} approved`)
+    } catch (err) {
+      console.error('[Expenses] approve failed:', err)
+      showToast('Could not approve expense. Please try again.')
+    }
   }
 
-  const handleReject = exp => {
-    saveExpense({ ...exp, status: 'rejected', updatedAt: new Date().toISOString() })
-    reload()
-    showToast(`${exp.id} rejected`)
+  const handleReject = async exp => {
+    try {
+      await saveExpense({ ...exp, status: 'rejected', updatedAt: new Date().toISOString() })
+      await reload()
+      showToast(`${exp.id} rejected`)
+    } catch (err) {
+      console.error('[Expenses] reject failed:', err)
+      showToast('Could not reject expense. Please try again.')
+    }
   }
 
   return (
@@ -517,6 +550,19 @@ export default function Expenses() {
           </button>
         }
       />
+
+      {loadError && (
+        <div className="bg-red-50 dark:bg-red-900/15 border border-red-200 dark:border-red-800/30 rounded-2xl p-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={15} className="text-red-600 dark:text-red-400 flex-shrink-0" />
+            <p className="text-sm font-bold text-red-700 dark:text-red-400">{loadError}</p>
+          </div>
+          <button onClick={reload}
+            className="px-3 py-1.5 rounded-xl bg-red-500 hover:bg-red-400 text-white text-xs font-bold transition-all active:scale-95 shadow-md flex-shrink-0">
+            Retry
+          </button>
+        </div>
+      )}
 
       {toast && (
         <div className="flex items-center gap-2.5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 rounded-xl px-4 py-2.5">
@@ -752,6 +798,8 @@ export default function Expenses() {
       {(showAdd || editExp) && (
         <ExpenseModal
           expense={editExp}
+          drivers={drivers}
+          vehicles={vehicles}
           onClose={() => { setShowAdd(false); setEditExp(null) }}
           onSave={handleSave}
           currentUser={user}

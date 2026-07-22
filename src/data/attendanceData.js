@@ -27,7 +27,7 @@ async function _loadAttendance() {
     return await attendanceRepository.getAll()
   } catch (err) {
     console.error('[attendanceData] loadAttendance failed:', err)
-    return MOCK_ATTENDANCE
+    throw err
   }
 }
 export const loadAttendance = withCache('attendance', _loadAttendance)
@@ -39,18 +39,21 @@ export async function saveAttendanceRecord(record) {
     const today = new Date().toISOString().slice(0, 10)
     // Check for existing record by driver + date
     const existing = id ? await attendanceRepository.getById(id) : null
+    let result
     if (existing || id) {
-      return await attendanceRepository.update(id, rest)
+      result = await attendanceRepository.update(id, rest)
+    } else {
+      // Try to find by driver name + date to avoid duplicates
+      const todayRecs = await attendanceRepository.getByDate(rest.date || today)
+      const match = todayRecs.find(r =>
+        r.driver === rest.driver || r.driver_name === rest.driver
+      )
+      result = match
+        ? await attendanceRepository.update(match.id, rest)
+        : await attendanceRepository.create(rest)
     }
-    // Try to find by driver name + date to avoid duplicates
-    const todayRecs = await attendanceRepository.getByDate(rest.date || today)
-    const match = todayRecs.find(r =>
-      r.driver === rest.driver || r.driver_name === rest.driver
-    )
-    if (match) {
-      return await attendanceRepository.update(match.id, rest)
-    }
-    return await attendanceRepository.create(rest)
+    cacheClear('attendance')
+    return result
   } catch (err) {
     console.error('[attendanceData] saveAttendanceRecord failed:', err)
     return null
@@ -324,27 +327,3 @@ function daysAgo(n) {
   const d = new Date(TODAY); d.setDate(d.getDate() - n)
   return d.toISOString().slice(0,10)
 }
-
-export const MOCK_ATTENDANCE = [
-  { id:1,  driver:'Ramanan',      driverId:3, date:daysAgo(0), status:'present',  checkIn:'08:05', checkOut:null,    vehicle:'PY01CY1255', workingHours:null       },
-  { id:2,  driver:'Ramanan',      driverId:3, date:daysAgo(1), status:'present',  checkIn:'07:55', checkOut:'20:10', vehicle:'PY01CY1255', workingHours:'12h 15m'  },
-  { id:3,  driver:'Ramanan',      driverId:3, date:daysAgo(2), status:'present',  checkIn:'08:30', checkOut:'19:45', vehicle:'PY01CY1255', workingHours:'11h 15m'  },
-  { id:4,  driver:'Ramanan',      driverId:3, date:daysAgo(3), status:'absent',   checkIn:null,    checkOut:null,    vehicle:null,          workingHours:null       },
-  { id:5,  driver:'Ramanan',      driverId:3, date:daysAgo(4), status:'present',  checkIn:'08:00', checkOut:'21:00', vehicle:'PY01CY1255', workingHours:'13h 00m'  },
-  { id:6,  driver:'Ramanan',      driverId:3, date:daysAgo(5), status:'leave',    checkIn:null,    checkOut:null,    vehicle:null,          workingHours:null       },
-  { id:7,  driver:'Ramanan',      driverId:3, date:daysAgo(6), status:'present',  checkIn:'07:50', checkOut:'20:30', vehicle:'PY01CY1255', workingHours:'12h 40m'  },
-  { id:8,  driver:'Babu',         driverId:4, date:daysAgo(0), status:'present',  checkIn:'07:30', checkOut:null,    vehicle:'PY01DF1255', workingHours:null       },
-  { id:9,  driver:'Babu',         driverId:4, date:daysAgo(1), status:'present',  checkIn:'07:45', checkOut:'21:15', vehicle:'PY01DF1255', workingHours:'13h 30m'  },
-  { id:10, driver:'Babu',         driverId:4, date:daysAgo(2), status:'half-day', checkIn:'08:00', checkOut:'13:00', vehicle:'PY01DF1255', workingHours:'5h 00m'   },
-  { id:11, driver:'Babu',         driverId:4, date:daysAgo(3), status:'present',  checkIn:'08:10', checkOut:'20:00', vehicle:'PY01DF1255', workingHours:'11h 50m'  },
-  { id:12, driver:'Babu',         driverId:4, date:daysAgo(4), status:'present',  checkIn:'07:55', checkOut:'19:30', vehicle:'PY01DF1255', workingHours:'11h 35m'  },
-  { id:13, driver:'Babu',         driverId:4, date:daysAgo(5), status:'present',  checkIn:'08:20', checkOut:'20:45', vehicle:'PY01DF1255', workingHours:'12h 25m'  },
-  { id:14, driver:'Babu',         driverId:4, date:daysAgo(6), status:'absent',   checkIn:null,    checkOut:null,    vehicle:null,          workingHours:null       },
-  { id:15, driver:'Rajasekharan', driverId:5, date:daysAgo(0), status:'present',  checkIn:'09:00', checkOut:null,    vehicle:'PY01VF1255', workingHours:null       },
-  { id:16, driver:'Rajasekharan', driverId:5, date:daysAgo(1), status:'present',  checkIn:'08:45', checkOut:'22:00', vehicle:'PY01VF1255', workingHours:'13h 15m'  },
-  { id:17, driver:'Rajasekharan', driverId:5, date:daysAgo(2), status:'present',  checkIn:'08:00', checkOut:'20:30', vehicle:'PY01VF1255', workingHours:'12h 30m'  },
-  { id:18, driver:'Rajasekharan', driverId:5, date:daysAgo(3), status:'leave',    checkIn:null,    checkOut:null,    vehicle:null,          workingHours:null       },
-  { id:19, driver:'Rajasekharan', driverId:5, date:daysAgo(4), status:'present',  checkIn:'07:40', checkOut:'20:10', vehicle:'PY01VF1255', workingHours:'12h 30m'  },
-  { id:20, driver:'Rajasekharan', driverId:5, date:daysAgo(5), status:'present',  checkIn:'08:30', checkOut:'19:00', vehicle:'PY01VF1255', workingHours:'10h 30m'  },
-  { id:21, driver:'Rajasekharan', driverId:5, date:daysAgo(6), status:'present',  checkIn:'08:00', checkOut:'21:30', vehicle:'PY01VF1255', workingHours:'13h 30m'  },
-]

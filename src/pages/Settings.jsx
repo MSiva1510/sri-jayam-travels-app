@@ -1,8 +1,8 @@
-import { useState } from 'react'
-import { Save, Building, FileText, Bell, Palette, CheckCircle, RotateCcw } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Save, Building, FileText, Bell, Palette, CheckCircle, RotateCcw, AlertTriangle } from 'lucide-react'
 import Button     from '../components/ui/Button'
 import PageHeader from '../components/ui/PageHeader'
-import { loadSettings, saveSettings, resetSettings } from '../data/settingsData'
+import { loadSettings, saveSettings, resetSettings, DEFAULT_SETTINGS } from '../data/settingsData'
 
 function Toggle({ checked, onChange }) {
   return (
@@ -64,34 +64,63 @@ const BRAND_COLORS = [
 ]
 
 export default function Settings() {
-  const [cfg,        setCfg]        = useState(() => loadSettings())
+  const [cfg,        setCfg]        = useState(DEFAULT_SETTINGS)
+  const [loading,    setLoading]    = useState(true)
   const [saved,      setSaved]      = useState(false)
   const [toast,      setToast]      = useState('')
+  const [loadError,  setLoadError]  = useState(null)
   const [themeColor, setThemeColor] = useState(() => localStorage.getItem('sjt_theme_color') || '#1e3a5f')
   const [brandColor, setBrandColor] = useState(() => localStorage.getItem('sjt_brand_color') || '#f59e0b')
+
+  const fetchSettings = () => {
+    setLoading(true)
+    loadSettings()
+      .then(s => { setCfg(s); setLoadError(null) })
+      .catch(err => { console.error('[Settings] load failed:', err); setLoadError('Could not load settings. Try refreshing.') })
+      .finally(() => setLoading(false))
+  }
+  useEffect(() => { fetchSettings() }, [])
 
   const updateBiz    = (k, v) => setCfg(c => ({ ...c, biz:           { ...c.biz,           [k]: v } }))
   const updateInv    = (k, v) => setCfg(c => ({ ...c, invoice:       { ...c.invoice,       [k]: v } }))
   const updateNotif  = (k, v) => setCfg(c => ({ ...c, notifications: { ...c.notifications, [k]: v } }))
   const updateAppear = (k, v) => setCfg(c => ({ ...c, appearance:    { ...c.appearance,    [k]: v } }))
 
-  function handleSave() {
-    const ok = saveSettings(cfg)
-    localStorage.setItem('sjt_theme_color', themeColor)
-    localStorage.setItem('sjt_brand_color', brandColor)
-    if (ok) {
+  async function handleSave() {
+    try {
+      await saveSettings(cfg)
+      localStorage.setItem('sjt_theme_color', themeColor)
+      localStorage.setItem('sjt_brand_color', brandColor)
       setSaved(true); setToast('Settings saved successfully!')
       setTimeout(() => { setSaved(false); setToast('') }, 3000)
+    } catch (err) {
+      setToast('Could not save settings. Please try again.')
+      setTimeout(() => setToast(''), 3000)
     }
   }
 
-  function handleReset() {
+  async function handleReset() {
     if (!window.confirm('Reset all settings to defaults?')) return
-    resetSettings(); setCfg(loadSettings())
-    setThemeColor('#1e3a5f'); setBrandColor('#f59e0b')
-    localStorage.removeItem('sjt_theme_color'); localStorage.removeItem('sjt_brand_color')
-    setToast('Settings reset to defaults.')
-    setTimeout(() => setToast(''), 3000)
+    try {
+      await resetSettings()
+      fetchSettings()
+      setThemeColor('#1e3a5f'); setBrandColor('#f59e0b')
+      localStorage.removeItem('sjt_theme_color'); localStorage.removeItem('sjt_brand_color')
+      setToast('Settings reset to defaults.')
+      setTimeout(() => setToast(''), 3000)
+    } catch (err) {
+      setToast('Could not reset settings. Please try again.')
+      setTimeout(() => setToast(''), 3000)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-5 animate-fade-up max-w-3xl">
+        <PageHeader title="Settings" subtitle="Business configuration and app preferences" />
+        <div className="glass-card rounded-2xl p-10 text-center text-slate-400 text-sm font-medium">Loading settings…</div>
+      </div>
+    )
   }
 
   return (
@@ -105,6 +134,19 @@ export default function Settings() {
           </Button>
         }
       />
+
+      {loadError && (
+        <div className="bg-red-50 dark:bg-red-900/15 border border-red-200 dark:border-red-800/30 rounded-2xl p-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={15} className="text-red-600 dark:text-red-400 flex-shrink-0" />
+            <p className="text-sm font-bold text-red-700 dark:text-red-400">{loadError}</p>
+          </div>
+          <button onClick={fetchSettings}
+            className="px-3 py-1.5 rounded-xl bg-red-500 hover:bg-red-400 text-white text-xs font-bold transition-all active:scale-95 shadow-md flex-shrink-0">
+            Retry
+          </button>
+        </div>
+      )}
 
       {toast && (
         <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-sm text-emerald-700 dark:text-emerald-400 font-medium">

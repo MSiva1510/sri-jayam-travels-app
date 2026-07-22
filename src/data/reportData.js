@@ -1,7 +1,7 @@
 // ─── Report Data Aggregator ───────────────────────────────────
 // Reads from all existing data modules. No new localStorage keys.
 
-import { TRIPS, DRIVERS, VEHICLES } from './mockData'
+import { driverRepository, vehicleRepository }           from '../repositories'
 import { loadBookings, getStatusCfg }                    from './tripTypes'
 import { loadCustomers, getCustomerStats }               from './customerData'
 import { loadExpenses, EXPENSE_TYPES, summariseByType,
@@ -26,6 +26,8 @@ export async function getExecutiveSummary() {
   const customers   = (await loadCustomers()).filter(c => !c._deleted)
   const expenses    = await loadExpenses()
   const settlements = await loadSettlements()
+  const vehicles    = await vehicleRepository.getAll()
+  const drivers     = await driverRepository.getAll()
 
   // Finance — computed from live data, not hardcoded mock
   const liveTotalFare = bookings.reduce((s, b) => s + (b.fare || 0), 0)
@@ -48,15 +50,15 @@ export async function getExecutiveSummary() {
       active:    customers.filter(c => c.status==='active').length,
     },
     vehicles: {
-      total:       VEHICLES.length,
-      available:   VEHICLES.filter(v => v.status==='active').length,
+      total:       vehicles.length,
+      available:   vehicles.filter(v => v.status==='active').length,
       inUse:       (await loadVehicleAssignments()).length,
-      maintenance: VEHICLES.filter(v => v.status==='maintenance').length,
+      maintenance: vehicles.filter(v => v.status==='maintenance').length,
     },
     drivers: {
-      total:     DRIVERS.length,
-      available: DRIVERS.filter(d => d.status==='active').length,
-      onLeave:   DRIVERS.filter(d => d.status==='on-leave').length,
+      total:     drivers.length,
+      available: drivers.filter(d => d.status==='active').length,
+      onLeave:   drivers.filter(d => d.status==='on-leave').length,
     },
     finance: {
       totalFare:     liveTotalFare,
@@ -91,12 +93,13 @@ export async function getDriverPerformance() {
   const bookings    = await loadBookings()
   const attendance  = await loadAttendance()
   const settlements = await loadSettlements()
+  const drivers     = await driverRepository.getAll()
   const monthKey    = thisMonthStr()
-  return DRIVERS.map(d => {
+  return drivers.map(d => {
     const dTrips      = bookings.filter(b=>b.driver===d.name)
     const completed   = dTrips.filter(b=>b.status==='completed').length
     const revenue     = dTrips.reduce((s,b)=>s+(b.fare||0),0)
-    const myAtt       = attendance.filter(a=>a.driver===d.name&&a.date.startsWith(monthKey))
+    const myAtt       = attendance.filter(a=>a.driver===d.name&&a.date?.startsWith(monthKey))
     const presentDays = myAtt.filter(a=>['present','half-day'].includes(a.status)).length
     const totalMin    = myAtt.reduce((s,a)=>{
       if(!a.workingHours) return s
@@ -113,7 +116,8 @@ export async function getDriverPerformance() {
 export async function getVehiclePerformance() {
   const bookings = await loadBookings()
   const expenses = await loadExpenses()
-  return VEHICLES.map(v => {
+  const vehicles = await vehicleRepository.getAll()
+  return vehicles.map(v => {
     const vTrips    = bookings.filter(b=>b.vehicle===v.reg)
     const completed = vTrips.filter(b=>b.status==='completed').length
     const distance  = vTrips.reduce((s,b)=>s+(b.km||0),0)
@@ -162,6 +166,7 @@ export async function getExpenseAnalytics() {
 // ── Module 7: Payroll analytics ───────────────────────────────
 export async function getPayrollAnalytics() {
   const settlements = await loadSettlements()
+  const drivers      = await driverRepository.getAll()
   return {
     totalPaid:       settlements.filter(s=>s.status==='paid').reduce((s,p)=>s+p.netAmount,0),
     pendingCount:    settlements.filter(s=>s.status==='pending').length,
@@ -169,7 +174,7 @@ export async function getPayrollAnalytics() {
     paidCount:       settlements.filter(s=>s.status==='paid').length,
     draftCount:      settlements.filter(s=>s.status==='draft').length,
     totalIncentives: settlements.reduce((s,p)=>s+(p.incentive||0),0),
-    byDriver: DRIVERS.map(d=>({
+    byDriver: drivers.map(d=>({
       name:  d.name,
       paid:  settlements.filter(s=>s.driver===d.name&&s.status==='paid').reduce((s,p)=>s+p.netAmount,0),
       count: settlements.filter(s=>s.driver===d.name).length,
@@ -181,14 +186,16 @@ export async function getPayrollAnalytics() {
 export async function getOperationsMonitor() {
   const bookings    = await loadBookings()
   const assignments = await loadVehicleAssignments()
+  const drivers     = await driverRepository.getAll()
+  const vehicles    = await vehicleRepository.getAll()
   return {
     drivers:  {
-      available: DRIVERS.filter(d=>d.status==='active').length,
-      onLeave:   DRIVERS.filter(d=>d.status==='on-leave').length,
+      available: drivers.filter(d=>d.status==='active').length,
+      onLeave:   drivers.filter(d=>d.status==='on-leave').length,
     },
     vehicles: {
-      available:   VEHICLES.filter(v=>v.status==='active').length,
-      maintenance: VEHICLES.filter(v=>v.status==='maintenance').length,
+      available:   vehicles.filter(v=>v.status==='active').length,
+      maintenance: vehicles.filter(v=>v.status==='maintenance').length,
       assigned:    assignments.length,
     },
     trips: {
@@ -202,10 +209,11 @@ export async function getOperationsMonitor() {
 }
 
 // ── Module 9: Business alerts ─────────────────────────────────
-export function getBusinessAlerts() {
+export async function getBusinessAlerts() {
   const alerts = []
   const today  = new Date(); today.setHours(0,0,0,0)
-  VEHICLES.forEach(v => {
+  const vehicles = await vehicleRepository.getAll()
+  vehicles.forEach(v => {
     [
       { label:`${v.reg} Insurance`, expiry:v.insExpiry,    type:'insurance' },
       { label:`${v.reg} Permit`,    expiry:v.permitExpiry, type:'permit'    },

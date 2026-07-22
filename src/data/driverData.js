@@ -87,25 +87,33 @@ export const TRIP_STATUS_CFG = {
 // Fetch driver profile from Supabase drivers table by name
 export async function getDriverProfile(driverName) {
   if (!supabase || !driverName) return null
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('drivers')
     .select('id, name, phone, vehicle_registration, vehicle_type, rating, is_active, joined_date, driver_id')
     .ilike('name', driverName)
     .limit(1)
     .single()
-  return data || { name: driverName, rating: 5.0 }
+  if (error && error.code !== 'PGRST116') {
+    console.error('[driverData] getDriverProfile failed:', error)
+    throw error
+  }
+  return data || null
 }
 
 // Fetch vehicle record from Supabase vehicles table by registration
 export async function getDriverVehicle(vehicleReg) {
   if (!supabase || !vehicleReg) return null
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('vehicles')
     .select('id, registration, vehicle_type, model, year, color, fuel_type, status, current_km')
     .eq('registration', vehicleReg)
     .limit(1)
     .single()
-  return data || { registration: vehicleReg }
+  if (error && error.code !== 'PGRST116') {
+    console.error('[driverData] getDriverVehicle failed:', error)
+    throw error
+  }
+  return data || null
 }
 
 // Compute today stats from bookings array (already loaded in component)

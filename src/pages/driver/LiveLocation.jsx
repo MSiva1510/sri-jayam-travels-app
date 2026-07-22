@@ -7,7 +7,7 @@ import {
 import { useGPS, loadActiveRideGPS } from '../../hooks/useGPS'
 import GPSStatusCard   from '../../components/gps/GPSStatusCard'
 import LocationPinCard from '../../components/gps/LocationPinCard'
-import { loadTripRoute } from '../../data/gpshistory'
+import { loadTripRoute } from '../../data/gpsHistoryData'
 
 function VehicleMap({ coord, startCoord, routePoints = [], status }) {
   const W = 340, H = 220, pad = 24

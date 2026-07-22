@@ -12,7 +12,6 @@ import { useAuth } from '../context/AuthContext'
 import {
   loadCustomers, saveCustomer, deleteCustomer, generateCustomerId,
   CUSTOMER_TYPES, getCustomerTypeCfg, getCustomerStats,
-  MOCK_CUSTOMERS,
 } from '../data/customerData'
 import { loadBookings, TRIP_TYPE_CONFIG, getStatusCfg } from '../data/tripTypes'
 import ModalOverlay from '../components/ui/ModalOverlay'
@@ -674,6 +673,7 @@ export default function Customers() {
   const [sortBy,       setSortBy]       = useState('name')
   const [expanded,     setExpanded]     = useState(null)
   const [toast,        setToast]        = useState('')
+  const [loadError,    setLoadError]    = useState(null)
 
   const canAdd    = ['admin', 'manager'].includes(user?.role)
   const canEdit   = ['admin', 'manager'].includes(user?.role)
@@ -685,8 +685,10 @@ export default function Customers() {
       const [c, b] = await Promise.all([loadCustomers(), loadBookings()])
       setCustomers(Array.isArray(c) ? c.filter(x => !x._deleted) : [])
       setBookings(Array.isArray(b) ? b : [])
+      setLoadError(null)
     } catch (err) {
       console.error('[Customers] load failed:', err)
+      setLoadError('Could not load customers. Try refreshing.')
     } finally {
       setLoading(false)
     }
@@ -701,21 +703,31 @@ export default function Customers() {
 
   const handleSave = async (customer) => {
     const isNew = !customers.find(c => c.id === customer.id)
-    await saveCustomer(customer)
-    if (isNew) {
-      addAuditEvent('CUSTOMER_ADDED', { description: `${customer.name} — ${customer.type || 'individual'}` })
+    try {
+      await saveCustomer(customer)
+      if (isNew) {
+        addAuditEvent('CUSTOMER_ADDED', { description: `${customer.name} — ${customer.type || 'individual'}` })
+      }
+      await reload()
+      setShowAdd(false)
+      setEditCustomer(null)
+      showToast(`${isNew ? 'Added' : 'Updated'} ${customer.name}`)
+    } catch (err) {
+      console.error('[Customers] save failed:', err)
+      showToast('Could not save customer. Please try again.')
     }
-    await reload()
-    setShowAdd(false)
-    setEditCustomer(null)
-    showToast(`${isNew ? 'Added' : 'Updated'} ${customer.name}`)
   }
 
   const handleDelete = async (id) => {
     if (!confirm('Delete this customer? This cannot be undone.')) return
-    await deleteCustomer(id)
-    await reload()
-    showToast('Customer deleted')
+    try {
+      await deleteCustomer(id)
+      await reload()
+      showToast('Customer deleted')
+    } catch (err) {
+      console.error('[Customers] delete failed:', err)
+      showToast('Could not delete customer. Please try again.')
+    }
   }
 
   const filtered = useMemo(() => {
@@ -767,6 +779,19 @@ export default function Customers() {
             </button>
           : null}
       />
+
+      {loadError && (
+        <div className="bg-red-50 dark:bg-red-900/15 border border-red-200 dark:border-red-800/30 rounded-2xl p-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={15} className="text-red-600 dark:text-red-400 flex-shrink-0" />
+            <p className="text-sm font-bold text-red-700 dark:text-red-400">{loadError}</p>
+          </div>
+          <button onClick={reload}
+            className="px-3 py-1.5 rounded-xl bg-red-500 hover:bg-red-400 text-white text-xs font-bold transition-all active:scale-95 shadow-md flex-shrink-0">
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (

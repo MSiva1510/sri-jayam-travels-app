@@ -3,7 +3,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { Eye, EyeOff, LogIn, AlertCircle, Lock, Mail, ChevronRight } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useApp }  from '../context/AppContext'
-import { BIZ }     from '../data/mockData'
+import { BIZ }     from '../config/business'
 
 export default function Login() {
   const { login, authLoading, loginError, setLoginError, user, sendPasswordReset } = useAuth()

@@ -3,7 +3,7 @@
 
 import supabase from '../lib/supabase'
 
-class AuthRepository {
+export class AuthRepository {
 
   async signIn({ email, password }) {
     if (!supabase) throw new Error('Supabase not configured')

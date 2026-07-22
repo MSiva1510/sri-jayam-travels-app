@@ -46,7 +46,7 @@ export class TripRepository extends BaseRepository {
         return data || []
       } catch (error) {
         console.error('Get by status failed:', error)
-        return this._getByStatusLocal(status)
+        throw error
       }
     }
     return this._getByStatusLocal(status)
@@ -64,7 +64,7 @@ export class TripRepository extends BaseRepository {
         return data || []
       } catch (error) {
         console.error('Get by driver failed:', error)
-        return this._getByDriverLocal(driverId)
+        throw error
       }
     }
     return this._getByDriverLocal(driverId)
@@ -82,7 +82,7 @@ export class TripRepository extends BaseRepository {
         return data || []
       } catch (error) {
         console.error('Get by customer failed:', error)
-        return this._getByCustomerLocal(customerId)
+        throw error
       }
     }
     return this._getByCustomerLocal(customerId)
@@ -188,7 +188,7 @@ export class TripRepository extends BaseRepository {
       return data || []
     } catch (error) {
       console.error('Error fetching trips from Supabase:', error)
-      return this._getAllFromLocal()
+      throw error
     }
   }
 
@@ -206,7 +206,7 @@ export class TripRepository extends BaseRepository {
       return data || null
     } catch (error) {
       console.error('Error fetching trip from Supabase:', error)
-      return this._getByIdFromLocal(id)
+      throw error
     }
   }
 
@@ -227,7 +227,7 @@ export class TripRepository extends BaseRepository {
       return created
     } catch (error) {
       console.error('Error creating trip in Supabase:', error)
-      return this._createInLocal(data)
+      throw error
     }
   }
 
@@ -246,7 +246,7 @@ export class TripRepository extends BaseRepository {
       return updated
     } catch (error) {
       console.error('Error updating trip in Supabase:', error)
-      return this._updateInLocal(id, data)
+      throw error
     }
   }
 
@@ -260,7 +260,7 @@ export class TripRepository extends BaseRepository {
       return true
     } catch (error) {
       console.error('Error deleting trip from Supabase:', error)
-      return this._deleteFromLocal(id)
+      throw error
     }
   }
 }

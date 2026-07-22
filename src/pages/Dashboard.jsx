@@ -12,7 +12,7 @@ import Badge      from '../components/ui/Badge'
 import Button     from '../components/ui/Button'
 import PageHeader from '../components/ui/PageHeader'
 import { useAuth } from '../context/AuthContext'
-import { DRIVERS, VEHICLES } from '../data/mockData'
+import { driverRepository, vehicleRepository }         from '../repositories'
 import { loadAttendanceToday }                         from '../data/attendanceData'
 import { loadCustomers }                               from '../data/customerData'
 import { loadExpenses, summariseByType, isThisMonth }  from '../data/expenseData'
@@ -78,28 +78,45 @@ export default function Dashboard() {
   const [allExpenses, setAllExpenses] = useState([])
   const [settlements, setSettlements] = useState([])
   const [todayAttendance, setTodayAttendance] = useState([])
+  const [drivers,     setDrivers]     = useState([])
+  const [vehicles,    setVehicles]    = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadErrors, setLoadErrors] = useState([])
 
+  // Each source loads independently — one failing table/query must not
+  // blank out the rest of the dashboard. Failures are surfaced in
+  // loadErrors instead of being masked with mock/local fallback data.
   const reload = useCallback(async () => {
     setLoading(true)
-    try {
-      const [bks, cust, exps, stls, att] = await Promise.all([
-        loadBookings(),
-        loadCustomers(),
-        loadExpenses(),
-        loadSettlements(),
-        loadAttendanceToday(),
-      ])
-      setBookings(    Array.isArray(bks)  ? bks  : [])
-      setCustomers(   Array.isArray(cust) ? cust.filter(c => !c._deleted) : [])
-      setAllExpenses( Array.isArray(exps) ? exps : [])
-      setSettlements( Array.isArray(stls) ? stls : [])
-      setTodayAttendance(Array.isArray(att) ? att : [])
-    } catch (err) {
-      console.error('[Dashboard] load failed:', err)
-    } finally {
-      setLoading(false)
-    }
+    const results = await Promise.allSettled([
+      loadBookings(),
+      loadCustomers(),
+      loadExpenses(),
+      loadSettlements(),
+      loadAttendanceToday(),
+      driverRepository.getAll(),
+      vehicleRepository.getAll(),
+    ])
+    const [bks, cust, exps, stls, att, drv, veh] = results
+    const errors = []
+
+    setBookings(    bks.status === 'fulfilled' && Array.isArray(bks.value)  ? bks.value  : [])
+    setCustomers(   cust.status === 'fulfilled' && Array.isArray(cust.value) ? cust.value.filter(c => !c._deleted) : [])
+    setAllExpenses( exps.status === 'fulfilled' && Array.isArray(exps.value) ? exps.value : [])
+    setSettlements( stls.status === 'fulfilled' && Array.isArray(stls.value) ? stls.value : [])
+    setTodayAttendance(att.status === 'fulfilled' && Array.isArray(att.value) ? att.value : [])
+    setDrivers(     drv.status === 'fulfilled' && Array.isArray(drv.value)  ? drv.value  : [])
+    setVehicles(    veh.status === 'fulfilled' && Array.isArray(veh.value)  ? veh.value  : [])
+
+    results.forEach((r, i) => {
+      if (r.status === 'rejected') {
+        const labels = ['bookings','customers','expenses','settlements','attendance','drivers','vehicles']
+        console.error(`[Dashboard] failed to load ${labels[i]}:`, r.reason)
+        errors.push(labels[i])
+      }
+    })
+    setLoadErrors(errors)
+    setLoading(false)
   }, [])
 
   useEffect(() => { reload() }, [reload])
@@ -117,9 +134,9 @@ export default function Dashboard() {
   const bookingPending   = bookings.filter(b => ['draft','confirmed','assigned'].includes(b.status))
 
   // ── Vehicle derived (still from static mockData) ──────────
-  const availableVehicles   = VEHICLES.filter(v => v.status === 'active').length
-  const maintenanceVehicles = VEHICLES.filter(v => v.status === 'maintenance').length
-  const vehicleDocAlerts    = VEHICLES.flatMap(v =>
+  const availableVehicles   = vehicles.filter(v => v.status === 'active').length
+  const maintenanceVehicles = vehicles.filter(v => v.status === 'maintenance').length
+  const vehicleDocAlerts    = vehicles.flatMap(v =>
     [
       { label:`${v.reg} Insurance`,  expiry: v.insExpiry    },
       { label:`${v.reg} Permit`,     expiry: v.permitExpiry },
@@ -207,6 +224,21 @@ export default function Dashboard() {
         subtitle="Overview — May 2026"
         action={can('trips') ? <Button icon={Plus} variant="primary" onClick={() => navigate('/trips')}>New Booking</Button> : null}
       />
+
+      {loadErrors.length > 0 && (
+        <div className="bg-red-50 dark:bg-red-900/15 border border-red-200 dark:border-red-800/30 rounded-2xl p-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={15} className="text-red-600 dark:text-red-400 flex-shrink-0" />
+            <p className="text-sm font-bold text-red-700 dark:text-red-400">
+              Couldn't load {loadErrors.join(', ')}. Showing partial data — try refreshing.
+            </p>
+          </div>
+          <button onClick={reload}
+            className="px-3 py-1.5 rounded-xl bg-red-500 hover:bg-red-400 text-white text-xs font-bold transition-all active:scale-95 shadow-md flex-shrink-0">
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* ── KPI Stats ── */}
       {can('revenueDashboard') ? (
@@ -338,7 +370,7 @@ export default function Dashboard() {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { label:'Total Vehicles',  value: VEHICLES.length,       icon: Car,       color:'text-navy-800 dark:text-blue-300',         bg:'bg-navy-50 dark:bg-navy-800/60'        },
+              { label:'Total Vehicles',  value: vehicles.length,       icon: Car,       color:'text-navy-800 dark:text-blue-300',         bg:'bg-navy-50 dark:bg-navy-800/60'        },
               { label:'Available',       value: availableVehicles,      icon: CheckCircle,color:'text-emerald-600 dark:text-emerald-400',  bg:'bg-emerald-50 dark:bg-emerald-900/20'  },
               { label:'Maintenance',     value: maintenanceVehicles,    icon: Wrench,    color:'text-red-600 dark:text-red-400',           bg:'bg-red-50 dark:bg-red-900/20'          },
               { label:'Doc Alerts',      value: vehicleDocAlerts.length,icon: AlertTriangle, color:'text-amber-600 dark:text-amber-400',  bg:'bg-amber-50 dark:bg-amber-900/20'      },
@@ -397,8 +429,8 @@ export default function Dashboard() {
         {[
           { label:'Bills Done',    value: doneTrips,       icon: CheckCircle, color:'text-emerald-500', bg:'bg-emerald-50 dark:bg-emerald-900/20' },
           { label:'Pending Bills', value: pendingTrips,    icon: Clock,       color:'text-amber-500',   bg:'bg-amber-50 dark:bg-amber-900/20'     },
-          { label:'Drivers',       value: DRIVERS.length,  icon: Users,       color:'text-blue-500',    bg:'bg-blue-50 dark:bg-blue-900/20'       },
-          { label:'Vehicles',      value: VEHICLES.length, icon: Fuel,        color:'text-violet-500',  bg:'bg-violet-50 dark:bg-violet-900/20'   },
+          { label:'Drivers',       value: drivers.length,  icon: Users,       color:'text-blue-500',    bg:'bg-blue-50 dark:bg-blue-900/20'       },
+          { label:'Vehicles',      value: vehicles.length, icon: Fuel,        color:'text-violet-500',  bg:'bg-violet-50 dark:bg-violet-900/20'   },
         ].map(s => (
           <div key={s.label} className="glass-card rounded-2xl p-4 flex items-center gap-3 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5">
             <div className={`w-10 h-10 rounded-xl ${s.bg} flex items-center justify-center flex-shrink-0`}>
@@ -665,9 +697,10 @@ export default function Dashboard() {
             <p className="text-lg font-display font-black text-slate-800 dark:text-white">Pay summary</p>
           </div>
           <div className="space-y-4">
-            {DRIVERS.map(d => {
+            {drivers.map(d => {
               const driverTrips = bookings.filter(t => t.driver === d.name)
               const farePct     = totalFare > 0 ? Math.round((driverTrips.reduce((s,t) => s+(t.fare||0),0) / totalFare) * 100) : 0
+              const driverCost  = allExpenses.filter(e => e.driver === d.name).reduce((s, e) => s + (e.amount || 0), 0)
               return (
                 <div key={d.id}>
                   <div className="flex items-center gap-2.5 mb-1.5">
@@ -677,7 +710,7 @@ export default function Dashboard() {
                       <p className="text-[10px] text-slate-400">{driverTrips.length} trips</p>
                     </div>
                     {can('financialAnalytics') && (
-                      <p className="text-xs font-bold text-red-500">Rs. {(d.totalBata+d.totalExp).toLocaleString('en-IN')}</p>
+                      <p className="text-xs font-bold text-red-500">Rs. {driverCost.toLocaleString('en-IN')}</p>
                     )}
                   </div>
                   <div className="h-1.5 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden">

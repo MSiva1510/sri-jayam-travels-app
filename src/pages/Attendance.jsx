@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   CalendarCheck, Clock, UserCheck, UserX,
-  ChevronDown, ChevronUp, Calendar, Car,
+  ChevronDown, ChevronUp, Calendar, Car, AlertTriangle,
 } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
 import Avatar     from '../components/ui/Avatar'
 import { useAuth } from '../context/AuthContext'
+import { driverRepository } from '../repositories'
 import {
   loadAttendance, saveAttendanceRecord,
   ATTENDANCE_TYPES, getAttendanceCfg,
@@ -46,14 +47,19 @@ function HoursBar({ hours }) {
 // ─────────────────────────────────────────────────────────────
 function DriverAttendanceView({ user }) {
   const [all, setAll] = useState([])
-  useEffect(() => { loadAttendance().then(d => setAll(Array.isArray(d) ? d : [])) }, [])
+  const [loadError, setLoadError] = useState(null)
+  useEffect(() => {
+    loadAttendance()
+      .then(d => { setAll(Array.isArray(d) ? d : []); setLoadError(null) })
+      .catch(err => { console.error('[Attendance] load failed:', err); setLoadError('Could not load your attendance history.') })
+  }, [])
   const myRecords  = all.filter(a => a.driverId === user.id || a.driver === user.name)
-                       .sort((a,b) => b.date.localeCompare(a.date))
+                       .sort((a,b) => (b.date || '').localeCompare(a.date || ''))
   const today      = new Date().toISOString().slice(0,10)
   const todayRec   = myRecords.find(r => r.date === today)
 
   // Monthly summary
-  const thisMonth  = myRecords.filter(r => r.date.startsWith(today.slice(0,7)))
+  const thisMonth  = myRecords.filter(r => r.date?.startsWith(today.slice(0,7)))
   const presentDays = thisMonth.filter(r => r.status === 'present' || r.status === 'half-day').length
   const absentDays  = thisMonth.filter(r => r.status === 'absent').length
   const leaveDays   = thisMonth.filter(r => r.status === 'leave').length
@@ -69,6 +75,12 @@ function DriverAttendanceView({ user }) {
 
   return (
     <div className="space-y-5">
+      {loadError && (
+        <div className="bg-red-50 dark:bg-red-900/15 border border-red-200 dark:border-red-800/30 rounded-2xl p-4 flex items-center gap-2">
+          <AlertTriangle size={15} className="text-red-600 dark:text-red-400 flex-shrink-0" />
+          <p className="text-sm font-bold text-red-700 dark:text-red-400">{loadError}</p>
+        </div>
+      )}
       {/* Today card */}
       <div className="glass-card rounded-2xl p-5">
         <div className="flex items-center justify-between mb-4">
@@ -134,9 +146,9 @@ function DriverAttendanceView({ user }) {
           {myRecords.slice(0, 14).map((r, i) => (
             <div key={i} className="glass-card rounded-xl px-4 py-3 flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-navy-900 dark:bg-navy-800 flex flex-col items-center justify-center flex-shrink-0">
-                <span className="text-[8px] font-bold text-blue-400 uppercase leading-none">{r.date.slice(5,7)}/{r.date.slice(8,10)}</span>
+                <span className="text-[8px] font-bold text-blue-400 uppercase leading-none">{r.date ? `${r.date.slice(5,7)}/${r.date.slice(8,10)}` : '—'}</span>
                 <span className="text-xs font-black text-white leading-tight">
-                  {new Date(r.date + 'T00:00:00').toLocaleDateString('en-IN', { weekday:'short' })}
+                  {r.date ? new Date(r.date + 'T00:00:00').toLocaleDateString('en-IN', { weekday:'short' }) : '—'}
                 </span>
               </div>
               <div className="flex-1 min-w-0">
@@ -166,16 +178,32 @@ function AdminAttendanceView({ isAdmin }) {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0,10))
   const [expandedDriver, setExpandedDriver] = useState(null)
   const [editRecord, setEditRecord] = useState(null)
-  const [, forceUpdate] = useState(0)
 
   const [allRecords, setAllRecords] = useState([])
-  useEffect(()=>{ loadAttendance().then(d=>setAllRecords(Array.isArray(d)?d:[])) },[])
+  const [drivers, setDrivers] = useState([])
+  const [loadError, setLoadError] = useState(null)
+
+  const reload = useCallback(async () => {
+    const [rec, drv] = await Promise.allSettled([loadAttendance(), driverRepository.getAll()])
+    setAllRecords(rec.status === 'fulfilled' && Array.isArray(rec.value) ? rec.value : [])
+    setDrivers(   drv.status === 'fulfilled' && Array.isArray(drv.value) ? drv.value : [])
+    const failed = rec.status === 'rejected' || drv.status === 'rejected'
+    if (failed) {
+      if (rec.status === 'rejected') console.error('[Attendance] load records failed:', rec.reason)
+      if (drv.status === 'rejected') console.error('[Attendance] load drivers failed:', drv.reason)
+      setLoadError('Could not load attendance data. Try refreshing.')
+    } else {
+      setLoadError(null)
+    }
+  }, [])
+  useEffect(() => { reload() }, [reload])
+
   const dateRecords = allRecords.filter(r => r.date === selectedDate)
 
-  const DRIVERS = ['Ramanan', 'Babu', 'Rajasekharan']
-  const driverRows = DRIVERS.map(name => ({
-    name,
-    record: dateRecords.find(r => r.driver === name) || null,
+  const driverRows = drivers.map(d => ({
+    name: d.name,
+    id: d.id,
+    record: dateRecords.find(r => r.driver === d.name) || null,
   }))
 
   const presentCount  = driverRows.filter(d => ['present','half-day'].includes(d.record?.status)).length
@@ -183,12 +211,13 @@ function AdminAttendanceView({ isAdmin }) {
   const leaveCount    = driverRows.filter(d => d.record?.status === 'leave').length
   const unknownCount  = driverRows.filter(d => !d.record).length
 
-  const handleMarkAttendance = (driverName, status) => {
+  const handleMarkAttendance = async (driverName, status) => {
     const existing = dateRecords.find(r => r.driver === driverName)
+    const driverMeta = drivers.find(d => d.name === driverName)
     const record = {
       id:           existing?.id || Date.now(),
       driver:       driverName,
-      driverId:     { Ramanan:3, Babu:4, Rajasekharan:5 }[driverName],
+      driverId:     driverMeta?.id,
       date:         selectedDate,
       status,
       checkIn:      existing?.checkIn  || null,
@@ -196,12 +225,30 @@ function AdminAttendanceView({ isAdmin }) {
       vehicle:      existing?.vehicle  || null,
       workingHours: existing?.workingHours || null,
     }
-    saveAttendanceRecord(record)
-    forceUpdate(n => n + 1)
+    try {
+      await saveAttendanceRecord(record)
+      await reload()
+    } catch (err) {
+      console.error('[Attendance] mark attendance failed:', err)
+      window.alert('Could not save attendance. Please try again.')
+    }
   }
 
   return (
     <div className="space-y-5">
+      {loadError && (
+        <div className="bg-red-50 dark:bg-red-900/15 border border-red-200 dark:border-red-800/30 rounded-2xl p-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={15} className="text-red-600 dark:text-red-400 flex-shrink-0" />
+            <p className="text-sm font-bold text-red-700 dark:text-red-400">{loadError}</p>
+          </div>
+          <button onClick={reload}
+            className="px-3 py-1.5 rounded-xl bg-red-500 hover:bg-red-400 text-white text-xs font-bold transition-all active:scale-95 shadow-md flex-shrink-0">
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Date selector */}
       <div className="glass-card rounded-2xl p-4 flex items-center gap-3 flex-wrap">
         <Calendar size={16} className="text-navy-700 dark:text-blue-400 flex-shrink-0" />
@@ -315,7 +362,7 @@ function AdminAttendanceView({ isAdmin }) {
           <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Monthly Overview — All Drivers</p>
           {['Ramanan','Babu','Rajasekharan'].map(name => {
             const dRecords = allRecords.filter(r => r.driver === name)
-            const thisMonth = dRecords.filter(r => r.date.startsWith(new Date().toISOString().slice(0,7)))
+            const thisMonth = dRecords.filter(r => r.date?.startsWith(new Date().toISOString().slice(0,7)))
             const p = thisMonth.filter(r => ['present','half-day'].includes(r.status)).length
             const a = thisMonth.filter(r => r.status === 'absent').length
             const l = thisMonth.filter(r => r.status === 'leave').length

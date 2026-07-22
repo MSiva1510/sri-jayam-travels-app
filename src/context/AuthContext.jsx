@@ -143,9 +143,10 @@ export function AuthProvider({ children }) {
         return false
       }
 
-      // Auto check-in for drivers
+      // Auto check-in for drivers (non-blocking — don't hold up login)
       if (profile.role === 'driver') {
-        autoCheckIn(profile.full_name, '')
+        autoCheckIn(profile.full_name, '').catch(err =>
+          console.error('[AuthContext] auto check-in failed:', err))
       }
 
       const sessionUser = profileToUser(authUser, profile)
@@ -169,7 +170,8 @@ export function AuthProvider({ children }) {
   // ── Logout ────────────────────────────────────────────────
   const logout = useCallback(async () => {
     if (user?.role === 'driver') {
-      autoCheckOut(user.name)
+      autoCheckOut(user.name).catch(err =>
+        console.error('[AuthContext] auto check-out failed:', err))
     }
     try {
       await authRepository.signOut()

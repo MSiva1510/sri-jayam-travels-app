@@ -66,7 +66,7 @@ export class VehicleRepository extends BaseRepository {
         return data || []
       } catch (error) {
         console.error('Search by registration failed:', error)
-        return this._searchByRegistrationLocal(registration)
+        throw error
       }
     }
 
@@ -92,7 +92,7 @@ export class VehicleRepository extends BaseRepository {
         return data || []
       } catch (error) {
         console.error('Search by model failed:', error)
-        return this._searchByModelLocal(model)
+        throw error
       }
     }
 
@@ -118,7 +118,7 @@ export class VehicleRepository extends BaseRepository {
         return data || []
       } catch (error) {
         console.error('Get by status failed:', error)
-        return this._getByStatusLocal(status)
+        throw error
       }
     }
 
@@ -144,7 +144,7 @@ export class VehicleRepository extends BaseRepository {
         return data || []
       } catch (error) {
         console.error('Get by driver failed:', error)
-        return this._getByDriverLocal(driverId)
+        throw error
       }
     }
 
@@ -342,7 +342,7 @@ export class VehicleRepository extends BaseRepository {
       return data || []
     } catch (error) {
       console.error('Error fetching vehicles from Supabase:', error)
-      return this._getAllFromLocal()
+      throw error
     }
   }
 
@@ -362,7 +362,7 @@ export class VehicleRepository extends BaseRepository {
       return data || null
     } catch (error) {
       console.error('Error fetching vehicle from Supabase:', error)
-      return this._getByIdFromLocal(id)
+      throw error
     }
   }
 
@@ -385,7 +385,7 @@ export class VehicleRepository extends BaseRepository {
       return created
     } catch (error) {
       console.error('Error creating vehicle in Supabase:', error)
-      return this._createInLocal(data)
+      throw error
     }
   }
 
@@ -405,7 +405,7 @@ export class VehicleRepository extends BaseRepository {
       return updated
     } catch (error) {
       console.error('Error updating vehicle in Supabase:', error)
-      return this._updateInLocal(id, data)
+      throw error
     }
   }
 
@@ -420,7 +420,7 @@ export class VehicleRepository extends BaseRepository {
       return true
     } catch (error) {
       console.error('Error deleting vehicle from Supabase:', error)
-      return this._deleteFromLocal(id)
+      throw error
     }
   }
 }

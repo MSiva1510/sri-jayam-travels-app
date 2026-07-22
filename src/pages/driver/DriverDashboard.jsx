@@ -217,15 +217,33 @@ export default function DriverDashboard() {
 
   const driverKey  = user?.username?.toLowerCase() || ''
   const driverName = user?.name || ''
-  const profile    = getDriverProfile(driverName)
+
+  const [profile, setProfile] = useState(null)
+  useEffect(() => {
+    if (!driverName) return
+    getDriverProfile(driverName)
+      .then(setProfile)
+      .catch(err => console.error('[DriverDashboard] load profile failed:', err))
+  }, [driverName])
 
   // ── Module 1 (Day 20.5): resolve REAL manager assignment first.
-  //    Falls back to the static mock vehicle only when no live
-  //    assignment record exists yet (keeps demo accounts working).
-  const liveAssignment   = getCurrentVehicleForDriver(driverName)
+  const [liveAssignment, setLiveAssignment] = useState(null)
+  useEffect(() => {
+    if (!driverName) return
+    getCurrentVehicleForDriver(driverName)
+      .then(setLiveAssignment)
+      .catch(err => console.error('[DriverDashboard] load vehicle assignment failed:', err))
+  }, [driverName])
   const assignedVehicleReg = liveAssignment?.vehicleReg || user?.vehicle || null
   const hasVehicleAssigned = !!assignedVehicleReg
-  const vehicle    = getDriverVehicle(assignedVehicleReg)
+
+  const [vehicle, setVehicle] = useState(null)
+  useEffect(() => {
+    if (!assignedVehicleReg) { setVehicle(null); return }
+    getDriverVehicle(assignedVehicleReg)
+      .then(setVehicle)
+      .catch(err => console.error('[DriverDashboard] load vehicle failed:', err))
+  }, [assignedVehicleReg])
 
   // Confirmation prompt: shown once per fresh assignment, ack'd via localStorage
   const vehicleAckKey = `sjt_vehicle_ack_${driverKey}_${liveAssignment?.assignedAt || ''}`

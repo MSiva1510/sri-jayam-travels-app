@@ -34,7 +34,8 @@ export class PayrollRepository {
         if (error) throw error
         return data || []
       } catch (error) {
-        return this._getPayslipsByDriverLocal(driverId)
+        console.error('Error fetching payslips by driver:', error)
+        throw error
       }
     }
     return this._getPayslipsByDriverLocal(driverId)
@@ -67,7 +68,8 @@ export class PayrollRepository {
         if (error) throw error
         return data || []
       } catch (error) {
-        return this._getSettlementsByDriverLocal(driverId)
+        console.error('Error fetching settlements by driver:', error)
+        throw error
       }
     }
     return this._getSettlementsByDriverLocal(driverId)
@@ -154,7 +156,8 @@ export class PayrollRepository {
       if (error) throw error
       return data || []
     } catch (error) {
-      return this._getAllPayslipsFromLocal()
+      console.error('Error fetching payslips:', error)
+      throw error
     }
   }
 
@@ -173,7 +176,8 @@ export class PayrollRepository {
       if (error) throw error
       return created
     } catch (error) {
-      return this._createPayslipInLocal(data)
+      console.error('Error creating payslip:', error)
+      throw error
     }
   }
 
@@ -186,7 +190,8 @@ export class PayrollRepository {
       if (error) throw error
       return data || []
     } catch (error) {
-      return this._getAllSettlementsFromLocal()
+      console.error('Error fetching settlements:', error)
+      throw error
     }
   }
 
@@ -205,7 +210,8 @@ export class PayrollRepository {
       if (error) throw error
       return created
     } catch (error) {
-      return this._createSettlementInLocal(data)
+      console.error('Error creating settlement:', error)
+      throw error
     }
   }
 
@@ -220,7 +226,8 @@ export class PayrollRepository {
       if (error) throw error
       return updated
     } catch (error) {
-      return this._updateSettlementInLocal(id, data)
+      console.error('Error updating settlement:', error)
+      throw error
     }
   }
 }

@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Car, MapPin, Clock, RefreshCw, Activity, User, Navigation } from 'lucide-react'
-import { DRIVERS, VEHICLES } from '../../data/mockData'
+import { driverRepository, vehicleRepository } from '../../repositories'
 import { loadBookings } from '../../data/tripTypes'
 import { loadDriverStatuses, getStatusCfg, DRIVER_STATUS_OFFLINE_MS } from '../../data/driverStatusData'
 import { getLatestRoutePoint } from '../../data/gpsHistoryData'
@@ -33,16 +33,27 @@ function formatDuration(isoStart) {
 
 export default function LiveFleetBoard() {
   const [bookings, setBookings] = useState([])
+  const [drivers,  setDrivers]  = useState([])
+  const [vehicles, setVehicles] = useState([])
+  const [statuses, setStatuses] = useState({})
   const [tick,     setTick]     = useState(0)
 
   // ── Async data fetch — runs on mount and every 30 s ──────
   const fetchData = useCallback(async () => {
-    try {
-      const bks = await loadBookings()
-      setBookings(Array.isArray(bks) ? bks : [])
-    } catch (err) {
-      console.error('[LiveFleetBoard] loadBookings failed:', err)
-    }
+    const [bk, dr, ve, st] = await Promise.allSettled([
+      loadBookings(),
+      driverRepository.getAll(),
+      vehicleRepository.getAll(),
+      loadDriverStatuses(),
+    ])
+    if (bk.status === 'fulfilled') setBookings(Array.isArray(bk.value) ? bk.value : [])
+    else console.error('[LiveFleetBoard] loadBookings failed:', bk.reason)
+    if (dr.status === 'fulfilled') setDrivers(Array.isArray(dr.value) ? dr.value : [])
+    else console.error('[LiveFleetBoard] load drivers failed:', dr.reason)
+    if (ve.status === 'fulfilled') setVehicles(Array.isArray(ve.value) ? ve.value : [])
+    else console.error('[LiveFleetBoard] load vehicles failed:', ve.reason)
+    if (st.status === 'fulfilled') setStatuses(st.value || {})
+    else console.error('[LiveFleetBoard] load driver statuses failed:', st.reason)
   }, [])
 
   useEffect(() => {
@@ -54,12 +65,10 @@ export default function LiveFleetBoard() {
     return () => clearInterval(id)
   }, [fetchData])
 
-  // ── Synchronous data (still localStorage-backed) ─────────
-  const todayISO    = new Date().toISOString().slice(0, 10)
-  const allStatuses = loadDriverStatuses()
+  const todayISO = new Date().toISOString().slice(0, 10)
 
-  const rows = DRIVERS.map(driver => {
-    const vehicle = VEHICLES.find(v => v.reg === driver.vehicle)
+  const rows = drivers.map(driver => {
+    const vehicle = vehicles.find(v => v.reg === driver.vehicle)
 
     // Active booking for this driver today
     const activeBooking = bookings.find(b =>
@@ -68,12 +77,12 @@ export default function LiveFleetBoard() {
       ['started', 'assigned', 'confirmed'].includes(b.status)
     )
 
-    // Resolve live status
-    const stored = allStatuses[driver.name]
+    // Resolve live status — keyed by driver UUID, matching driver_status.driver_id
+    const stored = statuses[driver.id]
     let   status = 'offline'
     if (stored?.status) {
-      const elapsed = stored.updatedAt
-        ? Date.now() - new Date(stored.updatedAt).getTime()
+      const elapsed = stored.updated_at
+        ? Date.now() - new Date(stored.updated_at).getTime()
         : Infinity
       status = elapsed > DRIVER_STATUS_OFFLINE_MS ? 'offline' : stored.status
     } else if (activeBooking?.status === 'started') {
@@ -85,7 +94,6 @@ export default function LiveFleetBoard() {
     // Current area — latest GPS point → stored area → fallback
     const latestGPS   = activeBooking ? getLatestRoutePoint(activeBooking.id) : null
     const currentArea = latestGPS?.area
-      || stored?.area
       || (driver.status === 'active' ? 'Puducherry' : '—')
 
     return { driver, vehicle, status, activeBooking, currentArea }

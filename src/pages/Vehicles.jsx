@@ -9,6 +9,7 @@ import Avatar       from '../components/ui/Avatar'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import { useAuth }  from '../context/AuthContext'
 import { vehicleRepository }                       from '../repositories/vehicleRepository'
+import { driverRepository }                        from '../repositories/driverRepository'
 import { loadVehicleAssignments, saveVehicleAssignment } from '../data/attendanceData'
 import { docStatus, daysLabel }                    from '../utils/vehicleUtils'
 import { getVehicleStatusEntry, getVehicleStatusCfg }   from '../data/vehicleStatusData'
@@ -523,26 +524,31 @@ export default function Vehicles() {
   const reload = useCallback(async () => {
     setLoading(true)
     try {
-      const [veh, asgn, bks] = await withTimeout(
+      const result = await withTimeout(
         Promise.all([
           vehicleRepository.getAll(),
           loadVehicleAssignments(),
           loadBookings(),
         ]),
         10_000,
-        [[], [], []]
+        null
       )
-      setVehicles(Array.isArray(veh) ? veh : [])
-      setAssignments(Array.isArray(asgn) ? asgn : [])
-      setTrips(Array.isArray(bks) ? bks : [])
-      if (!veh) setLoadError('Supabase unreachable — check your .env and project status')
-      else setLoadError('')
+      if (result === null) {
+        setVehicles([]); setAssignments([]); setTrips([])
+        setLoadError('Request timed out — check your connection and try again.')
+      } else {
+        const [veh, asgn, bks] = result
+        setVehicles(Array.isArray(veh) ? veh : [])
+        setAssignments(Array.isArray(asgn) ? asgn : [])
+        setTrips(Array.isArray(bks) ? bks : [])
+        setLoadError('')
+      }
       // Also load drivers for assignment modal (lazy — low priority)
-      import('../repositories/driverRepository').then(m =>
-        m.driverRepository.getAll().then(d => setDrivers(d || []))
-      )
+      driverRepository.getAll().then(d => setDrivers(d || []))
+        .catch(err => console.error('[Vehicles] load drivers failed:', err))
     } catch (err) {
       console.error('Vehicles page load failed:', err)
+      setLoadError('Could not load vehicle data. Try refreshing.')
     } finally {
       setLoading(false)
     }
