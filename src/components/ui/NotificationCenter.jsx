@@ -1,175 +1,322 @@
-// ─── Notification Center ─────────────────────────────────────
-// Bell icon with live dropdown.
-// Alerts tab: vehicle document expiry (from reportData.getBusinessAlerts)
-// Activity tab: operations audit log (from auditLogData)
+// ─── Notification Center ──────────────────────────────────────
+// 4-tab panel: Inbox · Alerts · Activity · Archived
+// Backed by notificationService (Supabase + localStorage fallback)
 
-import { useState, useRef, useEffect } from 'react'
-import { Bell, X, CheckCircle, AlertTriangle, Clock } from 'lucide-react'
-import { loadRecentActivity, fmtAuditTime } from '../../data/auditLogData'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import {
+  Bell, X, Check, CheckCircle, AlertTriangle,
+  Clock, Archive, Trash2, BookOpen, BellOff,
+} from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
+import {
+  loadNotifications, markRead, markAllRead,
+  archiveNotification, dismissNotification,
+  NOTIFICATION_TYPES,
+} from '../../services/notificationService'
 import { getBusinessAlerts } from '../../data/reportData'
+import { loadRecentActivity, fmtAuditTime } from '../../data/auditLogData'
 
+// ── Helpers ───────────────────────────────────────────────────
 function useClickOutside(ref, handler) {
   useEffect(() => {
-    function onDown(e) {
-      if (!ref.current || ref.current.contains(e.target)) return
-      handler()
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
+    const fn = e => { if (!ref.current || ref.current.contains(e.target)) return; handler() }
+    document.addEventListener('mousedown', fn)
+    return () => document.removeEventListener('mousedown', fn)
   }, [ref, handler])
 }
 
+function fmtTime(ts) {
+  if (!ts) return ''
+  const diff = Math.floor((Date.now() - new Date(ts)) / 1000)
+  if (diff < 60)   return 'just now'
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+  if (diff < 86400)return `${Math.floor(diff / 3600)}h ago`
+  return new Date(ts).toLocaleDateString('en-IN', { day:'numeric', month:'short' })
+}
+
+const PRIORITY_BORDER = {
+  urgent:'border-l-2 border-red-500',
+  high:  'border-l-2 border-amber-500',
+  normal:'',
+  low:   '',
+}
+
+const CAT_COLOR = {
+  booking:   'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  trip:      'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  expense:   'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
+  payroll:   'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  document:  'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
+  vehicle:   'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+  attendance:'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
+  general:   'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
+}
+
+// ── Sub-components ────────────────────────────────────────────
+function EmptyState({ icon, text }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-10 gap-2">
+      {icon}
+      <p className="text-xs text-slate-400 dark:text-slate-500">{text}</p>
+    </div>
+  )
+}
+
+function NotifRow({ n, onRead, onArchive, onDismiss, archived = false }) {
+  const isUnread    = n.status === 'unread'
+  const borderClass = PRIORITY_BORDER[n.priority] || ''
+  const catClass    = CAT_COLOR[n.category] || CAT_COLOR.general
+  const icon        = n.icon || NOTIFICATION_TYPES[n.type]?.icon || '🔔'
+
+  return (
+    <div className={`group flex items-start gap-3 px-4 py-3 transition-colors hover:bg-slate-50 dark:hover:bg-navy-800/40 ${isUnread ? 'bg-blue-50/30 dark:bg-blue-900/5' : ''} ${borderClass}`}>
+      <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-navy-800 flex items-center justify-center flex-shrink-0 mt-0.5 text-sm">
+        {icon}
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-0.5">
+          <p className={`text-xs font-bold truncate ${isUnread ? 'text-slate-800 dark:text-white' : 'text-slate-600 dark:text-slate-300'}`}>
+            {n.title}
+          </p>
+          {isUnread && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />}
+        </div>
+        {n.message && (
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">{n.message}</p>
+        )}
+        <div className="flex items-center gap-2 mt-1">
+          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${catClass}`}>
+            {n.category || 'general'}
+          </span>
+          <span className="text-[10px] text-slate-400">{fmtTime(n.created_at)}</span>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        {!archived && isUnread && onRead && (
+          <button onClick={e => { e.stopPropagation(); onRead() }}
+            className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+            title="Mark read">
+            <BookOpen size={11} />
+          </button>
+        )}
+        {!archived && onArchive && (
+          <button onClick={e => { e.stopPropagation(); onArchive() }}
+            className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors"
+            title="Archive">
+            <Archive size={11} />
+          </button>
+        )}
+        {onDismiss && (
+          <button onClick={e => { e.stopPropagation(); onDismiss() }}
+            className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            title="Dismiss">
+            <Trash2 size={11} />
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function AlertRow({ alert: a }) {
+  const isExpired = a.status?.key === 'expired'
+  return (
+    <div className={`flex items-start gap-3 px-4 py-3 ${a.priority === 'high' ? 'bg-red-50/40 dark:bg-red-900/5' : ''}`}>
+      <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${
+        isExpired ? 'bg-red-100 dark:bg-red-900/40' : 'bg-amber-100 dark:bg-amber-900/40'
+      }`}>
+        <AlertTriangle size={13} className={isExpired ? 'text-red-500' : 'text-amber-500'} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{a.label}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${a.status?.badge || ''}`}>
+            {a.status?.label || ''}
+          </span>
+          {a.days != null && (
+            <span className="text-[10px] text-slate-400 dark:text-slate-500">
+              {a.days < 0 ? `${Math.abs(a.days)}d overdue` : a.days === 0 ? 'Today' : `${a.days}d left`}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────
 export default function NotificationCenter() {
-  const [open, setOpen] = useState(false)
-  const [tab,  setTab]  = useState('alerts')
-  const [alerts, setAlerts] = useState([])
+  const { user } = useAuth()
+  const [open, setOpen]   = useState(false)
+  const [tab,  setTab]    = useState('inbox')
+  const [notifs, setNotifs]   = useState([])
+  const [alerts, setAlerts]   = useState([])
+  const [activity, setActivity] = useState([])
+  const [loading, setLoading] = useState(false)
   const wrapRef = useRef()
   useClickOutside(wrapRef, () => setOpen(false))
 
-  useEffect(() => {
-    let alive = true
-    getBusinessAlerts()
-      .then(data => {
-        if (alive) setAlerts(Array.isArray(data) ? data : [])
-      })
-      .catch(err => {
-        console.error('[NotificationCenter] alerts load failed:', err)
-        if (alive) setAlerts([])
-      })
-    return () => { alive = false }
-  }, [])
+  const reload = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [ns, as] = await Promise.allSettled([
+        loadNotifications(user?.id, { limit: 50 }),
+        getBusinessAlerts(),
+      ])
+      setNotifs(ns.status === 'fulfilled' ? ns.value : [])
+      setAlerts(as.status === 'fulfilled' ? as.value : [])
+      setActivity(loadRecentActivity(12))
+    } catch {}
+    setLoading(false)
+  }, [user?.id])
 
-  const activity = loadRecentActivity(8)
-  const highCount = alerts.filter(a => a.priority === 'high').length
+  useEffect(() => { if (open) reload() }, [open, reload])
+
+  const inbox    = notifs.filter(n => ['unread','read'].includes(n.status))
+  const archived = notifs.filter(n => n.status === 'archived')
+  const unread   = notifs.filter(n => n.status === 'unread')
+  const badgeNum = unread.length + alerts.filter(a => a.priority === 'high').length
+
+  const doMarkRead    = async id => { await markRead(id); setNotifs(prev => prev.map(n => n.id === id ? { ...n, status:'read', is_read:true } : n)) }
+  const doMarkAll     = async () => { await markAllRead(user?.id); setNotifs(prev => prev.map(n => n.status === 'unread' ? { ...n, status:'read', is_read:true } : n)) }
+  const doArchive     = async id => { await archiveNotification(id); setNotifs(prev => prev.map(n => n.id === id ? { ...n, status:'archived' } : n)) }
+  const doDismiss     = async id => { await dismissNotification(id); setNotifs(prev => prev.filter(n => n.id !== id)) }
+
+  const TABS = [
+    { key:'inbox',    label:'Inbox',    badge: unread.length,                                    count: inbox.length    },
+    { key:'alerts',   label:'Alerts',   badge: alerts.filter(a=>a.priority==='high').length,     count: alerts.length   },
+    { key:'activity', label:'Activity', badge: 0,                                                count: activity.length },
+    { key:'archived', label:'Archived', badge: 0,                                                count: archived.length },
+  ]
 
   return (
     <div ref={wrapRef} className="relative">
-
-      {/* Bell button */}
+      {/* Bell */}
       <button
         onClick={() => setOpen(o => !o)}
         className="relative w-9 h-9 rounded-xl border border-slate-200 dark:border-navy-600 bg-white/60 dark:bg-navy-800/60 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-navy-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-navy-700 transition-all"
-        title="Notifications"
-      >
+        title="Notifications">
         <Bell size={16} />
-        {highCount > 0 && (
+        {badgeNum > 0 && (
           <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center border-2 border-white dark:border-navy-900 leading-none">
-            {highCount > 9 ? '9+' : highCount}
+            {badgeNum > 9 ? '9+' : badgeNum}
           </span>
         )}
       </button>
 
-      {/* Dropdown */}
+      {/* Panel */}
       {open && (
-        <div className="absolute right-0 top-11 w-80 bg-white dark:bg-navy-900 rounded-2xl shadow-2xl border border-slate-100 dark:border-navy-700 overflow-hidden z-50 animate-fade-up">
-
+        <div className="absolute right-0 top-11 w-96 bg-white dark:bg-navy-900 rounded-2xl shadow-2xl border border-slate-100 dark:border-navy-700 overflow-hidden z-50 animate-fade-up">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-navy-700">
             <h3 className="font-display font-black text-slate-800 dark:text-white text-sm">Notifications</h3>
-            <button onClick={() => setOpen(false)}
-              className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
-              <X size={13} />
-            </button>
+            <div className="flex items-center gap-1.5">
+              {unread.length > 0 && (
+                <button onClick={doMarkAll}
+                  className="flex items-center gap-1 text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline px-2 py-1 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+                  <Check size={11} /> Mark all read
+                </button>
+              )}
+              <button onClick={() => setOpen(false)}
+                className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+                <X size={13} />
+              </button>
+            </div>
           </div>
 
           {/* Tabs */}
-          <div className="flex border-b border-slate-100 dark:border-navy-700">
-            {[
-              { key: 'alerts',   label: 'Alerts',   count: alerts.length   },
-              { key: 'activity', label: 'Activity',  count: activity.length },
-            ].map(t => (
+          <div className="flex border-b border-slate-100 dark:border-navy-700 overflow-x-auto no-scrollbar">
+            {TABS.map(t => (
               <button key={t.key} onClick={() => setTab(t.key)}
-                className={`flex-1 py-2.5 text-xs font-bold transition-colors relative ${
-                  tab === t.key
-                    ? 'text-blue-600 dark:text-blue-400'
-                    : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
+                className={`flex-shrink-0 py-2.5 px-3 text-[11px] font-bold transition-colors relative ${
+                  tab === t.key ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
                 }`}>
                 {t.label}
-                <span className={`ml-1.5 text-[9px] px-1.5 py-0.5 rounded-full ${
-                  tab === t.key
-                    ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400'
-                    : 'bg-slate-100 dark:bg-navy-700 text-slate-400'
-                }`}>{t.count}</span>
-                {tab === t.key && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t" />
+                {(t.badge > 0 || t.count > 0) && (
+                  <span className={`ml-1.5 text-[9px] px-1.5 py-0.5 rounded-full ${
+                    t.badge > 0
+                      ? 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400'
+                      : tab === t.key
+                      ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400'
+                      : 'bg-slate-100 dark:bg-navy-700 text-slate-400'
+                  }`}>
+                    {t.badge > 0 ? t.badge : t.count}
+                  </span>
                 )}
+                {tab === t.key && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t" />}
               </button>
             ))}
           </div>
 
-          {/* Content */}
-          <div className="max-h-72 overflow-y-auto">
-            {tab === 'alerts' && (
-              alerts.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 gap-2">
-                  <CheckCircle size={24} className="text-emerald-400" />
-                  <p className="text-xs text-slate-400 dark:text-slate-500">All documents up to date</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-50 dark:divide-navy-800">
-                  {alerts.map((a, i) => (
-                    <div key={i} className={`flex items-start gap-3 px-4 py-3 ${a.priority === 'high' ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}>
-                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                        a.status?.key === 'expired'
-                          ? 'bg-red-100 dark:bg-red-900/40'
-                          : 'bg-amber-100 dark:bg-amber-900/40'
-                      }`}>
-                        <AlertTriangle size={13} className={a.status?.key === 'expired' ? 'text-red-500' : 'text-amber-500'} />
+          {/* Body */}
+          <div className="max-h-80 overflow-y-auto">
+            {loading ? (
+              <div className="flex items-center justify-center py-10">
+                <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : (
+              <>
+                {tab === 'inbox' && (
+                  inbox.length === 0
+                    ? <EmptyState icon={<BellOff size={24} className="text-slate-300 dark:text-slate-600" />} text="No notifications" />
+                    : <div className="divide-y divide-slate-50 dark:divide-navy-800">
+                        {inbox.map(n => (
+                          <NotifRow key={n.id} n={n}
+                            onRead={n.status==='unread' ? () => doMarkRead(n.id) : null}
+                            onArchive={() => doArchive(n.id)}
+                            onDismiss={() => doDismiss(n.id)} />
+                        ))}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{a.label}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${a.status?.badge || ''}`}>
-                            {a.status?.label || ''}
-                          </span>
-                          {a.days != null && (
-                            <span className="text-[10px] text-slate-400 dark:text-slate-500">
-                              {a.days < 0 ? `${Math.abs(a.days)}d overdue` : a.days === 0 ? 'Today' : `${a.days}d left`}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )
-            )}
+                )}
 
-            {tab === 'activity' && (
-              activity.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 gap-2">
-                  <Clock size={24} className="text-slate-300 dark:text-slate-600" />
-                  <p className="text-xs text-slate-400 dark:text-slate-500">No recent activity</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-50 dark:divide-navy-800">
-                  {activity.map(ev => (
-                    <div key={ev.id} className="flex items-center gap-3 px-4 py-2.5">
-                      <span className="text-base flex-shrink-0">{ev.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{ev.label}</p>
-                        {ev.description && (
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{ev.description}</p>
-                        )}
+                {tab === 'alerts' && (
+                  alerts.length === 0
+                    ? <EmptyState icon={<CheckCircle size={24} className="text-emerald-400" />} text="All documents up to date" />
+                    : <div className="divide-y divide-slate-50 dark:divide-navy-800">
+                        {alerts.map((a, i) => <AlertRow key={i} alert={a} />)}
                       </div>
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500 flex-shrink-0 whitespace-nowrap">
-                        {fmtAuditTime(ev.timestamp)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )
+                )}
+
+                {tab === 'activity' && (
+                  activity.length === 0
+                    ? <EmptyState icon={<Clock size={24} className="text-slate-300 dark:text-slate-600" />} text="No recent activity" />
+                    : <div className="divide-y divide-slate-50 dark:divide-navy-800">
+                        {activity.map(ev => (
+                          <div key={ev.id} className="flex items-center gap-3 px-4 py-2.5">
+                            <span className="text-base flex-shrink-0">{ev.icon}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{ev.label}</p>
+                              {ev.description && <p className="text-[10px] text-slate-400 truncate">{ev.description}</p>}
+                            </div>
+                            <span className="text-[10px] text-slate-400 whitespace-nowrap">{fmtAuditTime(ev.timestamp)}</span>
+                          </div>
+                        ))}
+                      </div>
+                )}
+
+                {tab === 'archived' && (
+                  archived.length === 0
+                    ? <EmptyState icon={<Archive size={24} className="text-slate-300 dark:text-slate-600" />} text="Nothing archived" />
+                    : <div className="divide-y divide-slate-50 dark:divide-navy-800">
+                        {archived.map(n => (
+                          <NotifRow key={n.id} n={n} archived onDismiss={() => doDismiss(n.id)} />
+                        ))}
+                      </div>
+                )}
+              </>
             )}
           </div>
 
-          {/* Footer hint */}
-          {tab === 'alerts' && alerts.length > 0 && (
-            <div className="px-4 py-2 border-t border-slate-100 dark:border-navy-700 bg-slate-50/50 dark:bg-navy-800/30">
-              <p className="text-[10px] text-slate-400 dark:text-slate-500">
-                Go to Vehicles page to renew documents
-              </p>
-            </div>
-          )}
+          {/* Footer */}
+          <div className="px-4 py-2 border-t border-slate-100 dark:border-navy-700 bg-slate-50/50 dark:bg-navy-800/30 flex items-center justify-between">
+            <p className="text-[10px] text-slate-400 dark:text-slate-500">
+              {unread.length > 0 ? `${unread.length} unread` : 'All caught up'}
+            </p>
+            {tab === 'alerts' && alerts.length > 0 && (
+              <p className="text-[10px] text-slate-400">→ Go to Vehicles to renew</p>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Menu, Sun, Moon, Search, ChevronRight, LogOut, User, Settings, ChevronDown } from 'lucide-react'
+import { Menu, Sun, Moon, ChevronRight, LogOut, User, Settings, ChevronDown } from 'lucide-react'
 import { useApp }  from '../../context/AppContext'
 import { useAuth, ROLE_LABELS, ROLE_COLORS } from '../../context/AuthContext'
 import Avatar from '../ui/Avatar'
 import NotificationCenter from '../ui/NotificationCenter'
+import GlobalSearch       from '../ui/GlobalSearch'
 
 const PAGE_TITLES = {
   '/':                { label: 'Dashboard',       sub: 'Overview for May 2026'          },
@@ -70,12 +71,8 @@ export default function Topbar() {
       {/* Right controls */}
       <div className="flex items-center gap-2 flex-shrink-0">
 
-        {/* Search */}
-        <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-slate-50/80 dark:bg-navy-800/60 w-44">
-          <Search size={14} className="text-slate-400 dark:text-slate-500 flex-shrink-0" />
-          <input type="text" placeholder="Search…"
-            className="bg-transparent text-sm text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 outline-none w-full font-body" />
-        </div>
+        {/* Global Search */}
+        <GlobalSearch />
 
         {/* Dark mode */}
         <button onClick={() => setDarkMode(!darkMode)}

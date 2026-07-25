@@ -365,89 +365,230 @@ function SettlementModal({ settlement, drivers, onClose, onSave, currentUser }) 
 //  Module 4: Payslip View
 // ─────────────────────────────────────────────────────────────
 function PayslipView({ settlement, onClose }) {
-  const cfg = getSettlementStatusCfg(settlement.status)
+  const tripAllowance  = Number(settlement.trip_allowance  || settlement.bataAmt  || 0)
+  const nightAllowance = Number(settlement.night_allowance || 0)
+  const fuelIncentive  = Number(settlement.fuel_incentive  || settlement.fuelAmt  || 0)
+  const perfBonus      = Number(settlement.performance_bonus || settlement.bonus  || 0)
+  const penalty        = Number(settlement.penalty  || 0)
+  const advance        = Number(settlement.advance  || 0)
+  const baseSalary     = Number(settlement.baseSalary || 0)
+  const parking        = Number(settlement.parkingAmt || 0)
+  const incentive      = Number(settlement.incentive  || 0)
+  const totalEarnings  = baseSalary + tripAllowance + nightAllowance + fuelIncentive + perfBonus + parking + incentive
+  const totalDeductions= Number(settlement.totalDeductions || 0) + penalty + advance
+  const netSalary      = totalEarnings - totalDeductions
+
+  const handlePrint = () => {
+    const tableRow = (l, v) => `<tr><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9">${l}</td><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700">Rs. ${Number(v||0).toLocaleString('en-IN')}</td></tr>`
+    const html = `<!DOCTYPE html><html><head><title>Payslip – ${settlement.driver} – ${monthLabel(settlement.month,settlement.year)}</title>
+    <style>body{font-family:Arial,sans-serif;max-width:480px;margin:24px auto;color:#111;font-size:13px}.header{background:#0d1b4b;color:white;padding:20px;border-radius:8px 8px 0 0}.net{background:#065f46;color:white;padding:12px;border-radius:8px;text-align:center;margin-top:12px}.footer{text-align:center;font-size:10px;color:#94a3b8;margin-top:12px}table{width:100%;border-collapse:collapse}th{background:#f8fafc;padding:8px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase}</style>
+    </head><body><div class="header"><div style="font-size:10px;opacity:.6;text-transform:uppercase">Sri Jayam Travels</div><h2 style="margin:4px 0">Monthly Payslip</h2><p style="margin:0;opacity:.6">${monthLabel(settlement.month,settlement.year)} · ${settlement.driver}</p></div>
+    <div style="border:1px solid #e2e8f0;border-top:none;padding:16px;border-radius:0 0 8px 8px">
+    <table><thead><tr><th>Attendance</th><th style="text-align:right"></th></tr></thead><tbody>
+    <tr><td style="padding:6px 4px">Working Days</td><td style="padding:6px 4px;text-align:right;font-weight:700">${settlement.workingDays||0}</td></tr>
+    <tr><td style="padding:6px 4px">Total Trips</td><td style="padding:6px 4px;text-align:right;font-weight:700">${settlement.totalTrips||0}</td></tr>
+    <tr><td style="padding:6px 4px">Completed Trips</td><td style="padding:6px 4px;text-align:right;font-weight:700">${settlement.completedTrips||0}</td></tr>
+    </tbody></table>
+    <table style="margin-top:12px"><thead><tr><th>Earnings</th><th></th></tr></thead><tbody>
+    ${tableRow('Base Salary',baseSalary)}
+    ${tripAllowance?tableRow('Trip Allowance',tripAllowance):''}${nightAllowance?tableRow('Night Allowance',nightAllowance):''}
+    ${fuelIncentive?tableRow('Fuel Incentive',fuelIncentive):''}${parking?tableRow('Parking',parking):''}
+    ${incentive?tableRow('Trip Incentive',incentive):''}${perfBonus?tableRow('Performance Bonus',perfBonus):''}
+    <tr style="font-weight:900;background:#f8fafc"><td style="padding:8px 4px">Gross Earnings</td><td style="padding:8px 4px;text-align:right">Rs. ${totalEarnings.toLocaleString('en-IN')}</td></tr>
+    </tbody></table>
+    ${totalDeductions>0?`<table style="margin-top:12px"><thead><tr><th>Deductions</th><th></th></tr></thead><tbody>
+    ${penalty?tableRow('Penalty',penalty):''}${advance?tableRow('Advance Recovery',advance):''}
+    ${(settlement.deductions||[]).map(d=>`<tr><td style="padding:6px 4px">${d.type}</td><td style="padding:6px 4px;text-align:right;font-weight:700;color:#dc2626">- Rs. ${Number(d.amount).toLocaleString('en-IN')}</td></tr>`).join('')}
+    <tr style="color:#dc2626;font-weight:900"><td style="padding:8px 4px">Total Deductions</td><td style="padding:8px 4px;text-align:right">- Rs. ${totalDeductions.toLocaleString('en-IN')}</td></tr>
+    </tbody></table>`:''}
+    <div class="net"><div style="font-size:11px;opacity:.7;text-transform:uppercase">Net Salary</div><div style="font-size:28px;font-weight:900">Rs. ${netSalary.toLocaleString('en-IN')}</div><div style="font-size:10px;opacity:.6;margin-top:2px">${monthLabel(settlement.month,settlement.year)}</div></div>
+    ${settlement.status==='paid'&&settlement.paymentDate?`<p style="text-align:center;color:#059669;font-size:11px;margin-top:10px">✓ Paid ${settlement.paymentDate} via ${settlement.paymentMethod||''}</p>`:''}
+    <p class="footer">Generated by Sri Jayam Travels ERP · ${new Date().toLocaleDateString('en-IN')}</p></div></body></html>`
+    const w = window.open('','_blank','width=560,height=700')
+    w.document.write(html); w.document.close(); w.focus(); setTimeout(()=>{w.print();w.close()},350)
+  }
+
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="relative w-full sm:w-[400px] max-h-[92vh] sm:max-h-[85vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
+      <div className="relative w-full sm:w-[420px] max-h-[92vh] sm:max-h-[88vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
         <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
-
-        {/* Payslip header */}
         <div className="bg-gradient-to-r from-navy-900 to-navy-800 rounded-t-3xl p-5 flex-shrink-0">
           <div className="flex items-start justify-between gap-3 mb-3">
             <div>
               <p className="text-white/50 text-[10px] font-bold uppercase tracking-widest">Sri Jayam Travels</p>
-              <h3 className="font-display font-black text-white text-lg">Payslip</h3>
+              <h3 className="font-display font-black text-white text-lg">Monthly Payslip</h3>
               <p className="text-white/60 text-xs">{monthLabel(settlement.month, settlement.year)}</p>
             </div>
-            <button onClick={onClose} className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-white/60 hover:bg-white/20"><X size={15} /></button>
+            <div className="flex items-center gap-1.5">
+              <button onClick={handlePrint} title="Print / Download"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition-colors">
+                <Printer size={12} /> Print
+              </button>
+              <button onClick={onClose} className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-white/60 hover:bg-white/20"><X size={15} /></button>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <Avatar name={settlement.driver} size={36} />
-            <div>
-              <p className="font-bold text-white">{settlement.driver}</p>
-              <p className="text-white/50 text-xs">{settlement.id}</p>
-            </div>
+            <div><p className="font-bold text-white">{settlement.driver}</p><p className="text-white/50 text-xs">{settlement.id}</p></div>
             <div className="ml-auto"><StatusBadge status={settlement.status} /></div>
           </div>
         </div>
 
-        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-1">
-          <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-4 border border-slate-100 dark:border-navy-700">
-            <AmtRow label="Working Days"  value={settlement.workingDays} />
-            <AmtRow label="Total Trips"   value={settlement.totalTrips}  />
-            <AmtRow label="Completed"     value={settlement.completedTrips} />
+        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
+          {/* Attendance */}
+          <div className="grid grid-cols-3 gap-2">
+            {[{label:'Work Days',value:settlement.workingDays||0},{label:'Trips',value:settlement.totalTrips||0},{label:'Completed',value:settlement.completedTrips||0}].map(s=>(
+              <div key={s.label} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-2.5 text-center border border-slate-100 dark:border-navy-700">
+                <p className="text-base font-black text-slate-700 dark:text-slate-200">{s.value}</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500">{s.label}</p>
+              </div>
+            ))}
           </div>
 
-          <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-4 border border-slate-100 dark:border-navy-700 mt-3">
+          {/* Earnings */}
+          <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700">
             <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-2">Earnings</p>
-            <AmtRow label="Base Salary"          value={settlement.baseSalary}  />
-            <AmtRow label="Driver Bata"           value={settlement.bataAmt}     sub />
-            <AmtRow label="Fuel Reimbursement"    value={settlement.fuelAmt}     sub />
-            <AmtRow label="Parking"               value={settlement.parkingAmt}  sub />
-            <AmtRow label="Trip Incentive"         value={settlement.incentive}   sub />
-            {settlement.bonus > 0 && <AmtRow label="Bonus"           value={settlement.bonus}      sub />}
+            <AmtRow label="Base Salary"       value={baseSalary}    />
+            {tripAllowance  > 0 && <AmtRow label="Trip Allowance"    value={tripAllowance}  sub />}
+            {nightAllowance > 0 && <AmtRow label="Night Allowance"   value={nightAllowance} sub />}
+            {fuelIncentive  > 0 && <AmtRow label="Fuel Incentive"    value={fuelIncentive}  sub />}
+            {parking        > 0 && <AmtRow label="Parking Reimb."    value={parking}        sub />}
+            {incentive      > 0 && <AmtRow label="Trip Incentive"    value={incentive}      sub />}
+            {perfBonus      > 0 && <AmtRow label="Performance Bonus" value={perfBonus}      sub />}
             <div className="flex justify-between pt-2 mt-1 border-t border-slate-200 dark:border-navy-700">
-              <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Gross Amount</span>
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Rs. {settlement.grossAmount.toLocaleString('en-IN')}</span>
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Gross Earnings</span>
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Rs. {totalEarnings.toLocaleString('en-IN')}</span>
             </div>
           </div>
 
-          {(settlement.deductions||[]).length > 0 && (
-            <div className="bg-red-50 dark:bg-red-900/15 rounded-xl p-4 border border-red-100 dark:border-red-800/30 mt-3">
+          {/* Deductions */}
+          {(totalDeductions > 0 || (settlement.deductions||[]).length > 0) && (
+            <div className="bg-red-50 dark:bg-red-900/15 rounded-xl p-3 border border-red-100 dark:border-red-800/30">
               <p className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-2">Deductions</p>
-              {settlement.deductions.map((d,i) => (
+              {penalty > 0 && <AmtRow label="Penalty"          value={penalty} deduct />}
+              {advance > 0 && <AmtRow label="Advance Recovery" value={advance} deduct />}
+              {(settlement.deductions||[]).map((d,i) => (
                 <div key={i} className="flex justify-between text-xs py-1">
-                  <span className="text-red-700 dark:text-red-400 font-medium">{DEDUCTION_TYPES.find(t=>t.key===d.type)?.label || d.type}</span>
+                  <span className="text-red-700 dark:text-red-400 font-medium">{DEDUCTION_TYPES.find(t=>t.key===d.type)?.label||d.type}</span>
                   <span className="font-bold text-red-600 dark:text-red-400">− Rs. {Number(d.amount).toLocaleString('en-IN')}</span>
                 </div>
               ))}
+              {totalDeductions > 0 && (
+                <div className="flex justify-between pt-2 mt-1 border-t border-red-200 dark:border-red-800/40">
+                  <span className="text-xs font-bold text-red-700 dark:text-red-400">Total Deductions</span>
+                  <span className="text-xs font-bold text-red-600 dark:text-red-400">− Rs. {totalDeductions.toLocaleString('en-IN')}</span>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Net salary hero */}
-          <div className="bg-gradient-to-r from-emerald-600 to-teal-500 rounded-2xl p-4 mt-3 text-center shadow-lg">
+          {/* Net hero */}
+          <div className="bg-gradient-to-r from-emerald-600 to-teal-500 rounded-2xl p-4 text-center shadow-lg">
             <p className="text-white/70 text-xs font-bold uppercase tracking-wider mb-1">Net Salary</p>
-            <p className="font-display font-black text-white text-3xl">Rs. {settlement.netAmount.toLocaleString('en-IN')}</p>
+            <p className="font-display font-black text-white text-3xl">Rs. {netSalary.toLocaleString('en-IN')}</p>
             <p className="text-white/60 text-[10px] mt-1">{monthLabel(settlement.month, settlement.year)}</p>
           </div>
 
-          {/* Module 10: Payment info */}
           {settlement.status === 'paid' && settlement.paymentDate && (
-            <div className="flex items-center gap-3 bg-emerald-50 dark:bg-emerald-900/15 rounded-xl p-3 border border-emerald-200 dark:border-emerald-800/30 mt-3">
+            <div className="flex items-center gap-3 bg-emerald-50 dark:bg-emerald-900/15 rounded-xl p-3 border border-emerald-200 dark:border-emerald-800/30">
               <Wallet size={16} className="text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
               <div>
                 <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Paid on {settlement.paymentDate}</p>
-                <p className="text-[10px] text-emerald-600 dark:text-emerald-500">{settlement.paymentMethod} {settlement.paymentRemarks ? '· ' + settlement.paymentRemarks : ''}</p>
+                <p className="text-[10px] text-emerald-600 dark:text-emerald-500">{settlement.paymentMethod}{settlement.paymentRemarks?` · ${settlement.paymentRemarks}`:''}</p>
               </div>
             </div>
           )}
-
-          {settlement.notes && (
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 italic">{settlement.notes}</p>
-          )}
+          {settlement.notes && <p className="text-xs text-slate-500 dark:text-slate-400 italic">{settlement.notes}</p>}
         </div>
       </div>
     </ModalOverlay>
+  )
+}
+
+// ── Salary History Panel (Module 5) ──────────────────────────
+function SalaryHistoryPanel({ settlements, onViewPayslip }) {
+  const [driverFilter, setDriverFilter] = useState('all')
+  const drivers = useMemo(() => [...new Set(settlements.map(s=>s.driver).filter(Boolean))].sort(), [settlements])
+  const filtered = useMemo(() => {
+    const items = driverFilter==='all' ? settlements : settlements.filter(s=>s.driver===driverFilter)
+    return [...items].sort((a,b) => b.year!==a.year ? b.year-a.year : b.month-a.month)
+  }, [settlements, driverFilter])
+  const driverTotals = useMemo(() => {
+    const map = {}
+    settlements.forEach(s => {
+      if (!map[s.driver]) map[s.driver] = { driver:s.driver, count:0, total:0, paid:0 }
+      map[s.driver].count++
+      map[s.driver].total += Number(s.netAmount||0)
+      if (s.status==='paid') map[s.driver].paid += Number(s.netAmount||0)
+    })
+    return Object.values(map).sort((a,b)=>b.total-a.total)
+  }, [settlements])
+  const MN = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  return (
+    <div className="space-y-4">
+      {driverTotals.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Driver Summary</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {driverTotals.map(d => (
+              <div key={d.driver} onClick={() => setDriverFilter(driverFilter===d.driver?'all':d.driver)}
+                className={`glass-card rounded-xl p-3 cursor-pointer hover:shadow-md transition-all ${driverFilter===d.driver?'ring-2 ring-navy-500/30':''}`}>
+                <div className="flex items-center gap-2.5">
+                  <Avatar name={d.driver} size={32} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{d.driver}</p>
+                    <p className="text-[10px] text-slate-400">{d.count} settlements</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-black text-emerald-600 dark:text-emerald-400">Rs. {d.total.toLocaleString('en-IN')}</p>
+                    <p className="text-[10px] text-slate-400">Rs. {d.paid.toLocaleString('en-IN')} paid</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="flex items-center gap-2">
+        <select value={driverFilter} onChange={e=>setDriverFilter(e.target.value)}
+          className="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none">
+          <option value="all">All Drivers</option>
+          {drivers.map(d => <option key={d} value={d}>{d}</option>)}
+        </select>
+        <p className="text-xs text-slate-400">{filtered.length} records</p>
+      </div>
+      {filtered.length === 0 ? (
+        <div className="glass-card rounded-2xl p-10 text-center">
+          <IndianRupee size={32} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
+          <p className="text-slate-400 text-sm">No salary history yet.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map(s => (
+            <div key={s.id} className="glass-card rounded-xl overflow-hidden">
+              <div className="flex items-center gap-3 p-3.5">
+                <div className="w-10 h-10 rounded-xl bg-navy-900 dark:bg-navy-800 flex flex-col items-center justify-center flex-shrink-0">
+                  <span className="text-[9px] font-bold text-blue-400 uppercase leading-none">{MN[s.month]}</span>
+                  <span className="text-xs font-black text-white leading-tight">{s.year}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-slate-800 dark:text-white">{s.driver}</p>
+                  <p className="text-[10px] text-slate-400">{s.completedTrips||0} trips · {s.workingDays||0} days</p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-base font-black text-slate-800 dark:text-white">Rs. {Number(s.netAmount||0).toLocaleString('en-IN')}</p>
+                  <StatusBadge status={s.status} />
+                </div>
+                <button onClick={() => onViewPayslip(s)}
+                  className="w-8 h-8 rounded-lg border border-slate-200 dark:border-navy-700 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-navy-700 flex-shrink-0 transition-colors">
+                  <FileText size={13} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -835,7 +976,7 @@ export default function Payroll() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1 w-fit">
-        {[['settlements','Monthly Settlements'],['trip_payslips','Trip Payslips']].map(([key, lbl]) => (
+        {[['settlements','Monthly Settlements'],['trip_payslips','Trip Payslips'],['history','Salary History']].map(([key, lbl]) => (
           <button key={key} onClick={() => setTab(key)}
             className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
               tab === key
@@ -1056,6 +1197,11 @@ export default function Payroll() {
             )
           })}
         </div>
+      )}
+
+      {/* Salary History Tab */}
+      {tab === 'history' && (
+        <SalaryHistoryPanel settlements={settlements} onViewPayslip={setPayslipItem} />
       )}
 
       {/* Modals */}

@@ -117,6 +117,94 @@ function VSelectField({ label, field, options, value, onChange }) {
   )
 }
 
+// ── Vehicle Service Panel (Module 8) ─────────────────────────
+const SVC_TYPES = [
+  {key:'oil_change',label:'Oil Change'},{key:'tyre',label:'Tyre'},{key:'battery',label:'Battery'},
+  {key:'brake',label:'Brake'},{key:'general',label:'General Service'},{key:'other',label:'Other'},
+]
+const SVC_ICONS = {oil_change:'🛢️',tyre:'🔄',battery:'🔋',brake:'⛔',general:'🔧',other:'🔧'}
+const SVC_LS = id => `sjt_vsvc_${id}`
+const readSvc  = id => { try { return JSON.parse(localStorage.getItem(SVC_LS(id))||'[]') } catch { return [] } }
+const writeSvc = (id,d) => { try { localStorage.setItem(SVC_LS(id),JSON.stringify(d)) } catch {} }
+
+function VehicleServicePanel({ vehicle: v }) {
+  const [services, setServices] = useState(() => readSvc(v.id||v.reg))
+  const [showAdd,  setShowAdd]  = useState(false)
+  const [form, setForm] = useState({service_type:'general',service_date:'',next_service_date:'',service_km:'',cost:'',vendor:'',notes:''})
+  const totalCost = services.reduce((s,i)=>s+Number(i.cost||0),0)
+  const latest    = [...services].sort((a,b)=>(b.service_date||'').localeCompare(a.service_date||''))[0]
+  const handleAdd = () => {
+    if (!form.service_date) return
+    const item = {...form,id:`svc-${Date.now()}`,created_at:new Date().toISOString()}
+    const updated = [item,...services]; setServices(updated); writeSvc(v.id||v.reg,updated)
+    setForm({service_type:'general',service_date:'',next_service_date:'',service_km:'',cost:'',vendor:'',notes:''}); setShowAdd(false)
+  }
+  const INP = 'w-full px-2.5 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none'
+  return (
+    <div className="space-y-3">
+      {v.nextServiceKm && v.km && (
+        <div className="bg-white dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700">
+          <div className="flex justify-between text-xs mb-1.5">
+            <span className="text-slate-500 dark:text-slate-400 font-medium">KM to Next Service</span>
+            <span className="font-bold text-slate-700 dark:text-slate-200">{Number(v.km).toLocaleString()} / {Number(v.nextServiceKm).toLocaleString()} km</span>
+          </div>
+          <div className="h-2 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full" style={{width:`${Math.min(100,Math.round((v.km/v.nextServiceKm)*100))}%`}} />
+          </div>
+          <p className="text-[10px] text-slate-400 mt-1 text-right">{Math.max(0,v.nextServiceKm-v.km).toLocaleString()} km remaining</p>
+        </div>
+      )}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="bg-white dark:bg-navy-800/60 rounded-xl p-2.5 text-center border border-slate-100 dark:border-navy-700"><p className="text-base font-black text-slate-700 dark:text-white">{services.length}</p><p className="text-[9px] text-slate-400 uppercase">Records</p></div>
+        <div className="bg-white dark:bg-navy-800/60 rounded-xl p-2.5 text-center border border-slate-100 dark:border-navy-700"><p className="text-base font-black text-emerald-600 dark:text-emerald-400">Rs.{totalCost.toLocaleString('en-IN')}</p><p className="text-[9px] text-slate-400 uppercase">Total Cost</p></div>
+        <div className="bg-white dark:bg-navy-800/60 rounded-xl p-2.5 text-center border border-slate-100 dark:border-navy-700"><p className="text-xs font-black text-slate-700 dark:text-white">{latest?.service_date||'—'}</p><p className="text-[9px] text-slate-400 uppercase">Last Done</p></div>
+      </div>
+      <button onClick={()=>setShowAdd(o=>!o)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all active:scale-95 shadow-md">
+        <Plus size={13} /> Log Service
+      </button>
+      {showAdd && (
+        <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3 border border-slate-200 dark:border-navy-700 space-y-2.5">
+          <div className="grid grid-cols-2 gap-2">
+            <div><label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Type</label>
+              <select value={form.service_type} onChange={e=>setForm(f=>({...f,service_type:e.target.value}))} className={INP}>{SVC_TYPES.map(t=><option key={t.key} value={t.key}>{t.label}</option>)}</select></div>
+            <div><label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Date *</label>
+              <input type="date" value={form.service_date} onChange={e=>setForm(f=>({...f,service_date:e.target.value}))} className={INP} /></div>
+            <div><label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Next Service</label>
+              <input type="date" value={form.next_service_date} onChange={e=>setForm(f=>({...f,next_service_date:e.target.value}))} className={INP} /></div>
+            <div><label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Cost (Rs.)</label>
+              <input type="number" value={form.cost} onChange={e=>setForm(f=>({...f,cost:e.target.value}))} placeholder="0" className={INP} /></div>
+            <div><label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">KM</label>
+              <input type="number" value={form.service_km} onChange={e=>setForm(f=>({...f,service_km:e.target.value}))} placeholder="0" className={INP} /></div>
+            <div><label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Vendor</label>
+              <input value={form.vendor} onChange={e=>setForm(f=>({...f,vendor:e.target.value}))} placeholder="Garage name" className={INP} /></div>
+          </div>
+          <input value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} placeholder="Notes (optional)" className={INP} />
+          <div className="flex gap-2">
+            <button onClick={()=>setShowAdd(false)} className="flex-1 py-2 rounded-lg border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">Cancel</button>
+            <button onClick={handleAdd} className="flex-1 py-2 rounded-lg bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 transition-all active:scale-95">Save</button>
+          </div>
+        </div>
+      )}
+      {services.length === 0 ? <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-3">No service records yet.</p> : (
+        <div className="space-y-2">
+          {[...services].sort((a,b)=>(b.service_date||'').localeCompare(a.service_date||'')).map(svc=>(
+            <div key={svc.id} className="bg-white dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-navy-700 flex items-center justify-center flex-shrink-0 text-sm">{SVC_ICONS[svc.service_type]||'🔧'}</div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{SVC_TYPES.find(t=>t.key===svc.service_type)?.label||svc.service_type}</p>
+                <div className="flex items-center gap-2 text-[10px] text-slate-400 flex-wrap">
+                  <span>{svc.service_date}</span>{svc.vendor&&<span>· {svc.vendor}</span>}{svc.service_km&&<span>· {Number(svc.service_km).toLocaleString()} km</span>}
+                </div>
+              </div>
+              {svc.cost>0&&<span className="text-xs font-bold text-slate-700 dark:text-slate-200 flex-shrink-0">Rs.{Number(svc.cost).toLocaleString('en-IN')}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function VSectionHead({ title }) {
   return <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest pt-2 pb-1 border-t border-slate-100 dark:border-navy-700 mt-2">{title}</p>
 }
@@ -370,55 +458,7 @@ function VehicleDetail({ v, trips, assignments, drivers, onEdit, onAssign, onDel
         )}
 
         {/* Service tab */}
-        {tab === 'service' && (
-          <div className="space-y-2">
-            <div className="bg-white dark:bg-navy-800/60 rounded-xl p-4 border border-slate-100 dark:border-navy-700">
-              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Last Service</p>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { label:'Date', value: v.lastServiceDate || '—' },
-                  { label:'KM',   value: v.lastServiceKm ? `${Number(v.lastServiceKm).toLocaleString()} km` : '—' },
-                ].map(d => (
-                  <div key={d.label} className="bg-slate-50 dark:bg-navy-900/40 rounded-lg p-2">
-                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">{d.label}</p>
-                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{d.value}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="bg-white dark:bg-navy-800/60 rounded-xl p-4 border border-slate-100 dark:border-navy-700">
-              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Next Service</p>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { label:'Date', value: v.nextServiceDate || '—' },
-                  { label:'KM',   value: v.nextServiceKm ? `${Number(v.nextServiceKm).toLocaleString()} km` : '—' },
-                ].map(d => (
-                  <div key={d.label} className="bg-slate-50 dark:bg-navy-900/40 rounded-lg p-2">
-                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">{d.label}</p>
-                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{d.value}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-            {v.nextServiceKm && v.km && (
-              <div className="bg-white dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700">
-                <div className="flex justify-between text-xs mb-1.5">
-                  <span className="text-slate-500">KM Progress</span>
-                  <span className="font-bold text-slate-700 dark:text-slate-200">
-                    {Number(v.km).toLocaleString()} / {Number(v.nextServiceKm).toLocaleString()} km
-                  </span>
-                </div>
-                <div className="h-2 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full"
-                    style={{ width:`${Math.min(100, Math.round((v.km / v.nextServiceKm) * 100))}%` }} />
-                </div>
-                <p className="text-[10px] text-slate-400 mt-1 text-right">
-                  {Math.max(0, v.nextServiceKm - v.km).toLocaleString()} km to next service
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+        {tab === 'service' && <VehicleServicePanel vehicle={v} />}
 
         {/* History tab */}
         {tab === 'history' && (

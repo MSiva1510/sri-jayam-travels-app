@@ -261,3 +261,51 @@ export function exportToCSV(rows, columns, filename) {
   a.href=url; a.download=`${filename}_${todayStr()}.csv`; a.click()
   URL.revokeObjectURL(url)
 }
+// ── Day 29: Excel export ──────────────────────────────────────
+export async function exportToExcel(rows, columns, filename) {
+  try {
+    const XLSX = await import('xlsx')
+    const headers = columns.map(c => c.label)
+    const data = rows.map(r =>
+      columns.map(c => c.key.split('.').reduce((o,k) => o?.[k], r) ?? '')
+    )
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...data])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Report')
+    XLSX.writeFile(wb, `${filename}_${todayStr()}.xlsx`)
+  } catch { exportToCSV(rows, columns, filename) }
+}
+
+// ── Day 29: PDF export (print-based) ─────────────────────────
+export function exportToPDF(rows, columns, filename, title = '') {
+  const tableRows = rows.map(r =>
+    `<tr>${columns.map(c => {
+      const val = c.key.split('.').reduce((o,k) => o?.[k], r) ?? ''
+      return `<td>${val}</td>`
+    }).join('')}</tr>`
+  ).join('')
+  const html = `<!DOCTYPE html><html><head><title>${title||filename}</title>
+  <style>body{font-family:Arial,sans-serif;font-size:12px;margin:20px;color:#111}h2{font-size:18px;margin-bottom:4px}p.sub{color:#64748b;font-size:11px;margin:0 0 16px}table{width:100%;border-collapse:collapse}th{background:#0d1b4b;color:white;padding:8px 10px;text-align:left;font-size:11px}td{padding:7px 10px;border-bottom:1px solid #f1f5f9;font-size:11px}tr:nth-child(even)td{background:#f8fafc}.footer{margin-top:16px;font-size:10px;color:#94a3b8;text-align:right}</style>
+  </head><body>
+  <h2>${title||filename}</h2><p class="sub">Sri Jayam Travels &middot; ${new Date().toLocaleString('en-IN')}</p>
+  <table><thead><tr>${columns.map(c=>`<th>${c.label}</th>`).join('')}</tr></thead>
+  <tbody>${tableRows}</tbody></table>
+  <div class="footer">Sri Jayam Travels ERP</div></body></html>`
+  const w = window.open('','_blank','width=900,height=700')
+  w.document.write(html); w.document.close(); w.focus()
+  setTimeout(()=>{w.print();w.close()},400)
+}
+
+// ── Day 29: Monthly revenue summary ──────────────────────────
+export async function getMonthlySummary(year) {
+  const { loadBookings } = await import('./tripTypes')
+  const bookings = await loadBookings().catch(()=>[])
+  return Array.from({length:12},(_,i)=>i+1).map(m => {
+    const items = bookings.filter(b => {
+      const d = new Date(b.createdAt||b.created_at||b.startDate||'')
+      return d.getFullYear()===year && d.getMonth()+1===m
+    })
+    const revenue = items.reduce((s,b)=>s+Number(b.fare||b.totalFare||0),0)
+    return { month:m, bookings:items.length, completed:items.filter(b=>b.status==='completed').length, cancelled:items.filter(b=>b.status==='cancelled').length, revenue }
+  })
+}

@@ -52,20 +52,116 @@ export const TRIP_TYPE_CONFIG = {
 
 export const TRIP_TYPE_LIST = Object.values(TRIP_TYPE_CONFIG)
 
-// ── Booking status definitions ────────────────────────────────
+// ── Booking status definitions — Full Day 29 lifecycle ────────
 export const BOOKING_STATUSES = [
-  { key:'draft',     label:'Draft',       badge:'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',                dot:'bg-slate-400' },
-  { key:'confirmed', label:'Confirmed',   badge:'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',          dot:'bg-violet-500' },
-  { key:'assigned',  label:'Assigned',    badge:'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',                  dot:'bg-blue-500' },
-  { key:'started',   label:'In Progress', badge:'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',              dot:'bg-amber-500 animate-pulse' },
-  { key:'completed', label:'Completed',   badge:'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',      dot:'bg-emerald-500' },
-  { key:'cancelled', label:'Cancelled',   badge:'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',                     dot:'bg-red-500' },
+  {
+    key:'draft',
+    label:'Draft',
+    icon:'📝',
+    badge:'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+    dot:'bg-slate-400',
+  },
+  {
+    key:'pending',
+    label:'Pending',
+    icon:'⏳',
+    badge:'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300',
+    dot:'bg-yellow-500 animate-pulse',
+  },
+  {
+    key:'approved',
+    label:'Approved',
+    icon:'✅',
+    badge:'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
+    dot:'bg-violet-500',
+  },
+  {
+    key:'confirmed',
+    label:'Confirmed',
+    icon:'✅',
+    badge:'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
+    dot:'bg-violet-500',
+  },
+  {
+    key:'assigned',
+    label:'Assigned',
+    icon:'👤',
+    badge:'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+    dot:'bg-blue-500',
+  },
+  {
+    key:'started',
+    label:'In Progress',
+    icon:'🚗',
+    badge:'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+    dot:'bg-amber-500 animate-pulse',
+  },
+  {
+    key:'completed',
+    label:'Completed',
+    icon:'🏁',
+    badge:'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+    dot:'bg-emerald-500',
+  },
+  {
+    key:'closed',
+    label:'Closed',
+    icon:'🔒',
+    badge:'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
+    dot:'bg-teal-500',
+  },
+  {
+    key:'cancelled',
+    label:'Cancelled',
+    icon:'❌',
+    badge:'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+    dot:'bg-red-500',
+  },
 ]
 
-// Keep legacy alias for backward compat
+// Backward-compat alias
 export const TRIP_STATUSES = BOOKING_STATUSES
 
-export const getStatusCfg = key => BOOKING_STATUSES.find(s => s.key === key) || BOOKING_STATUSES[0]
+export const getStatusCfg = key =>
+  BOOKING_STATUSES.find(s => s.key === key) || BOOKING_STATUSES[0]
+
+// ── Workflow transitions ────────────────────────────────────────
+// What actions are available from each status
+export const WORKFLOW_TRANSITIONS = {
+  draft: [
+    { to:'pending',   label:'Submit for Approval', color:'blue'   },
+    { to:'cancelled', label:'Cancel Booking',       color:'red'    },
+  ],
+  pending: [
+    { to:'approved',  label:'Approve',              color:'violet' },
+    { to:'draft',     label:'Return to Draft',      color:'slate'  },
+    { to:'cancelled', label:'Cancel',               color:'red'    },
+  ],
+  approved: [
+    { to:'assigned',  label:'Assign Driver',        color:'blue'   },
+    { to:'cancelled', label:'Cancel',               color:'red'    },
+  ],
+  confirmed: [
+    { to:'assigned',  label:'Assign Driver',        color:'blue'   },
+    { to:'cancelled', label:'Cancel',               color:'red'    },
+  ],
+  assigned: [
+    { to:'started',   label:'Start Trip',           color:'amber'  },
+    { to:'cancelled', label:'Cancel',               color:'red'    },
+  ],
+  started: [
+    { to:'completed', label:'Complete Trip',        color:'emerald'},
+  ],
+  completed: [
+    { to:'closed',    label:'Close Booking',        color:'teal'   },
+  ],
+  closed:    [],
+  cancelled: [],
+}
+
+export function getWorkflowTransitions(status) {
+  return WORKFLOW_TRANSITIONS[status] || []
+}
 
 // ── Driver availability config ────────────────────────────────
 export const DRIVER_AVAIL_CFG = {
@@ -92,8 +188,6 @@ export function generateBookingNumber() {
 }
 
 // ── Supabase booking store ────────────────────────────────────
-// All functions are async — callers must await them.
-
 async function _loadBookings() {
   try {
     const rows = await tripRepository.getAll()
@@ -105,8 +199,6 @@ async function _loadBookings() {
 }
 export const loadBookings = withCache('bookings', _loadBookings)
 
-
-// Alias used in some pages
 export const getBookings = loadBookings
 
 export function normalizeBooking(row = {}) {
@@ -130,6 +222,11 @@ export function normalizeBooking(row = {}) {
     fare: Number(row.fare ?? row.total_fare ?? row.base_fare ?? 0),
     createdAt: row.createdAt ?? row.created_at ?? '',
     updatedAt: row.updatedAt ?? row.updated_at ?? row.created_at ?? '',
+    approvedBy: row.approvedBy ?? row.approved_by ?? '',
+    approvedAt: row.approvedAt ?? row.approved_at ?? '',
+    remarks: row.remarks ?? '',
+    lastModifiedBy: row.lastModifiedBy ?? row.last_modified_by ?? '',
+    approval_history: Array.isArray(row.approval_history) ? row.approval_history : [],
   }
 }
 
@@ -180,8 +277,3 @@ export function getVehicleAvailability(vehicleReg, date, bookings, mockVehicleSt
   if (conflict) return 'assigned'
   return 'available'
 }
-
-// ── Seed / reference data (NOT merged into live queries) ─────
-// Used only as fallback if Supabase is unreachable, and as
-// documentation of the expected booking shape.
-// Backward compat alias

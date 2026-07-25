@@ -2,7 +2,8 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import {
   Car, Users, User, IndianRupee, AlertTriangle,
   CheckCircle, Download, BarChart2, FileText,
-  RefreshCw, Navigation, TrendingUp,TrendingDown,
+  RefreshCw, Navigation, TrendingUp, TrendingDown,
+  Calendar, Table,
 } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
 import Avatar     from '../components/ui/Avatar'
@@ -11,7 +12,8 @@ import {
   getExecutiveSummary, getTripReport, getDriverPerformance,
   getVehiclePerformance, getCustomerReport, getExpenseAnalytics,
   getPayrollAnalytics, getOperationsMonitor, getBusinessAlerts,
-  exportToCSV, todayStr, thisMonthStr,
+  exportToCSV, exportToExcel, exportToPDF, getMonthlySummary,
+  todayStr, thisMonthStr,
 } from '../data/reportData'
 import { driverRepository, vehicleRepository } from '../repositories'
 import { getStatusCfg } from '../data/tripTypes'
@@ -77,8 +79,30 @@ function ExportBtn({ onClick }) {
   return (
     <button onClick={onClick}
       className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-navy-700 transition-all active:scale-95">
-      <Download size={13} /> Export CSV
+      <Download size={13} /> CSV
     </button>
+  )
+}
+
+function ExportPanel({ onCSV, onExcel, onPDF }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-navy-700 transition-all active:scale-95">
+        <Download size={13} /> Export ▾
+      </button>
+      {open && (
+        <div className="absolute right-0 top-9 bg-white dark:bg-navy-800 border border-slate-200 dark:border-navy-700 rounded-xl shadow-xl z-20 overflow-hidden py-1 min-w-[130px]">
+          {[{label:'CSV',icon:'📊',fn:onCSV},{label:'Excel',icon:'📗',fn:onExcel},{label:'PDF',icon:'📄',fn:onPDF}].map(o => (
+            <button key={o.label} onClick={() => { o.fn?.(); setOpen(false) }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
+              <span>{o.icon}</span> {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -585,6 +609,76 @@ function BusinessAlerts() {
 // ─────────────────────────────────────────────────────────────
 //  Main Reports Page
 // ─────────────────────────────────────────────────────────────
+// ── Monthly Summary (Day 29 Module 6) ────────────────────────
+const ML = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+function MonthlySummary() {
+  const curYear = new Date().getFullYear()
+  const [year, setYear] = useState(curYear)
+  const [data, setData] = useState([])
+  useEffect(() => { getMonthlySummary(year).then(setData).catch(()=>{}) }, [year])
+  const maxRev = Math.max(...data.map(d=>d.revenue), 1)
+  const totalRev = data.reduce((s,d)=>s+d.revenue,0)
+  const totalBk  = data.reduce((s,d)=>s+d.bookings,0)
+  const COLS = [{label:'Month',key:'month'},{label:'Bookings',key:'bookings'},{label:'Completed',key:'completed'},{label:'Cancelled',key:'cancelled'},{label:'Revenue',key:'revenue'}]
+  const exportRows = data.map(d => ({...d, month:ML[d.month-1]}))
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-bold text-slate-500 dark:text-slate-400">Year</label>
+          <select value={year} onChange={e=>setYear(Number(e.target.value))}
+            className="px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none">
+            {[curYear-1,curYear,curYear+1].map(y=><option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+        <ExportPanel
+          onCSV={()=>exportToCSV(exportRows,COLS,`monthly_${year}`)}
+          onExcel={()=>exportToExcel(exportRows,COLS,`monthly_${year}`)}
+          onPDF={()=>exportToPDF(exportRows,COLS,`monthly_${year}`,`Monthly Summary ${year}`)}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="glass-card rounded-xl p-3 text-center"><p className="text-2xl font-display font-black text-navy-800 dark:text-white">Rs. {totalRev.toLocaleString('en-IN')}</p><p className="text-[10px] text-slate-400 mt-0.5">Total Revenue {year}</p></div>
+        <div className="glass-card rounded-xl p-3 text-center"><p className="text-2xl font-display font-black text-blue-600 dark:text-blue-400">{totalBk}</p><p className="text-[10px] text-slate-400 mt-0.5">Total Bookings {year}</p></div>
+      </div>
+      <div className="glass-card rounded-2xl p-4 space-y-3">
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Revenue by Month</p>
+        {data.map(d=>(
+          <div key={d.month}>
+            <div className="flex justify-between text-xs mb-1">
+              <span className="font-bold text-slate-700 dark:text-slate-200">{ML[d.month-1]}</span>
+              <span className="text-slate-500 dark:text-slate-400">{d.bookings} trips · <span className="font-bold text-emerald-600 dark:text-emerald-400">Rs. {d.revenue.toLocaleString('en-IN')}</span></span>
+            </div>
+            <div className="h-2 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-gradient-to-r from-navy-600 to-blue-500 transition-all duration-500" style={{width:`${Math.round((d.revenue/maxRev)*100)}%`}} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="glass-card rounded-2xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead><tr className="bg-slate-50 dark:bg-navy-800/60 border-b border-slate-100 dark:border-navy-700">
+              {COLS.map(c=><th key={c.key} className="px-4 py-2.5 text-left font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">{c.label}</th>)}
+            </tr></thead>
+            <tbody className="divide-y divide-slate-50 dark:divide-navy-800">
+              {exportRows.map((r,i)=>(
+                <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-navy-800/20 transition-colors">
+                  <td className="px-4 py-2.5 font-bold text-slate-700 dark:text-slate-200">{r.month}</td>
+                  <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">{r.bookings}</td>
+                  <td className="px-4 py-2.5 text-emerald-600 dark:text-emerald-400 font-bold">{r.completed}</td>
+                  <td className="px-4 py-2.5 text-red-500">{r.cancelled}</td>
+                  <td className="px-4 py-2.5 font-bold text-slate-800 dark:text-white">Rs. {r.revenue.toLocaleString('en-IN')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const TABS = [
   {key:'overview',  label:'Overview',   icon:BarChart2},
   {key:'trips',     label:'Trips',      icon:Navigation},
@@ -593,12 +687,14 @@ const TABS = [
   {key:'customers', label:'Customers',  icon:Users},
   {key:'expenses',  label:'Expenses',   icon:TrendingUp},
   {key:'payroll',   label:'Payroll',    icon:IndianRupee},
+  {key:'monthly',   label:'Monthly',    icon:Calendar},
   {key:'operations',label:'Operations', icon:RefreshCw},
   {key:'alerts',    label:'Alerts',     icon:AlertTriangle},
 ]
 
 const TAB_META = {
   overview:  {title:'Executive Overview',  sub:'All modules snapshot'},
+  monthly:   {title:'Monthly Summary',     sub:'Revenue by month with export'},
   trips:     {title:'Trip Reports',        sub:'Date range filter + CSV export'},
   drivers:   {title:'Driver Performance',  sub:'Current month'},
   vehicles:  {title:'Vehicle Performance', sub:'All time'},
@@ -664,6 +760,7 @@ export default function Reports() {
         {tab==='customers'  && <CustomerReports />}
         {tab==='expenses'   && <ExpenseAnalytics />}
         {tab==='payroll'    && <PayrollAnalytics />}
+        {tab==='monthly'    && <MonthlySummary />}
         {tab==='operations' && <OperationsMonitor />}
         {tab==='alerts'     && <BusinessAlerts />}
       </div>

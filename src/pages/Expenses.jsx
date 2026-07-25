@@ -693,11 +693,27 @@ export default function Expenses() {
               {EXPENSE_TYPES.map(t => <option key={t.key} value={t.key}>{t.icon} {t.label}</option>)}
             </select>
 
-            <select value={statFilter} onChange={e=>{ setStatFilter(e.target.value); setPage(1) }}
-              className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
-              <option value="all">All Statuses</option>
-              {APPROVAL_STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-            </select>
+            {/* Approval status pill tabs */}
+            <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1">
+              {[
+                { key:'all',       label:'All',         count: rangeFiltered.length },
+                { key:'submitted', label:'⏳ Pending',  count: rangeFiltered.filter(e=>e.status==='submitted').length },
+                { key:'approved',  label:'✅ Approved', count: rangeFiltered.filter(e=>e.status==='approved').length  },
+                { key:'rejected',  label:'❌ Rejected', count: rangeFiltered.filter(e=>e.status==='rejected').length  },
+              ].map(s => (
+                <button key={s.key} onClick={()=>{setStatFilter(s.key);setPage(1)}}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all whitespace-nowrap ${
+                    statFilter===s.key
+                      ? 'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow'
+                      : 'text-slate-500 dark:text-slate-400'
+                  }`}>
+                  {s.label}
+                  <span className={`text-[9px] px-1 rounded-full ${statFilter===s.key?'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400':'bg-slate-200 dark:bg-navy-600 text-slate-400'}`}>
+                    {s.count}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

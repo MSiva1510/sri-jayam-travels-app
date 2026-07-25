@@ -22,6 +22,9 @@ function AddDriverModal({ onClose, onSaved }) {
   const [form, setForm] = useState({
     name:'', mobile:'', vehicle:'', license:'', vehicleType:'',
     joined: new Date().toISOString().slice(0,10), status:'active', rating: 4.5,
+    licenseExpiry:'', badge:'', medicalExpiry:'',
+    bankName:'', accountNo:'', ifscCode:'',
+    emergencyName:'', emergencyContact:'',
   })
   const [licenceImg, setLicenceImg] = useState(null)
   const [preview,    setPreview]    = useState(null)
@@ -118,9 +121,48 @@ function AddDriverModal({ onClose, onSaved }) {
               {errors.license && <p className="text-[10px] text-red-500 mt-0.5">{errors.license}</p>}
             </div>
             <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Licence Expiry</label>
+              <input type="date" className={`${inp} border-slate-200 dark:border-navy-700`}
+                value={form.licenseExpiry||''} onChange={e => upd('licenseExpiry', e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Badge No.</label>
+              <input className={`${inp} border-slate-200 dark:border-navy-700`}
+                value={form.badge||''} onChange={e => upd('badge', e.target.value)} placeholder="Badge number" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Medical Cert Expiry</label>
+              <input type="date" className={`${inp} border-slate-200 dark:border-navy-700`}
+                value={form.medicalExpiry||''} onChange={e => upd('medicalExpiry', e.target.value)} />
+            </div>
+            <div>
               <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Join Date</label>
               <input type="date" className={`${inp} border-slate-200 dark:border-navy-700`}
                 value={form.joined} onChange={e => upd('joined', e.target.value)} />
+            </div>
+          </div>
+
+          {/* Bank Details */}
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Bank Details</p>
+            <div className="grid grid-cols-3 gap-2">
+              <input className={`${inp} border-slate-200 dark:border-navy-700`}
+                value={form.bankName||''} onChange={e=>upd('bankName',e.target.value)} placeholder="Bank name" />
+              <input className={`${inp} border-slate-200 dark:border-navy-700`}
+                value={form.accountNo||''} onChange={e=>upd('accountNo',e.target.value)} placeholder="Account no." />
+              <input className={`${inp} border-slate-200 dark:border-navy-700`}
+                value={form.ifscCode||''} onChange={e=>upd('ifscCode',e.target.value.toUpperCase())} placeholder="IFSC" />
+            </div>
+          </div>
+
+          {/* Emergency Contact */}
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Emergency Contact</p>
+            <div className="grid grid-cols-2 gap-2">
+              <input className={`${inp} border-slate-200 dark:border-navy-700`}
+                value={form.emergencyName||''} onChange={e=>upd('emergencyName',e.target.value)} placeholder="Contact name" />
+              <input className={`${inp} border-slate-200 dark:border-navy-700`}
+                value={form.emergencyContact||''} onChange={e=>upd('emergencyContact',e.target.value.replace(/\D/g,'').slice(0,10))} placeholder="Mobile number" />
             </div>
           </div>
 
@@ -188,16 +230,38 @@ function DriverModal({ driver, bookings, payslips, onClose }) {
         <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label:'Mobile',  value: driver.mobile  },
-              { label:'Vehicle', value: driver.vehicle },
-              { label:'Licence', value: driver.license },
-              { label:'Joined',  value: driver.joined  },
-            ].map(r => (
+              { label:'Mobile',          value: driver.mobile           },
+              { label:'Vehicle',         value: driver.vehicle          },
+              { label:'Licence No.',     value: driver.license          },
+              { label:'Joined',          value: driver.joined           },
+              { label:'Licence Expiry',  value: driver.licenseExpiry || '—' },
+              { label:'Badge No.',       value: driver.badge            || '—' },
+              { label:'Medical Expiry',  value: driver.medicalExpiry    || '—' },
+            ].filter(r=>r.value&&r.value!=='—'||['Licence Expiry','Badge No.','Medical Expiry'].includes(r.label)).map(r => (
               <div key={r.label} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3">
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">{r.label}</p>
-                <p className="text-xs font-bold text-slate-700 dark:text-slate-200 mt-0.5">{r.value}</p>
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-200 mt-0.5">{r.value||'—'}</p>
               </div>
             ))}
+          </div>
+          {(driver.bankName || driver.emergencyName) && (
+            <div className="grid grid-cols-2 gap-3">
+              {driver.bankName && (
+                <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3 col-span-1">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">Bank</p>
+                  <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{driver.bankName}</p>
+                  {driver.accountNo && <p className="text-[10px] text-slate-400">{driver.accountNo}</p>}
+                </div>
+              )}
+              {driver.emergencyName && (
+                <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3 col-span-1">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">Emergency</p>
+                  <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{driver.emergencyName}</p>
+                  <p className="text-[10px] text-slate-400">{driver.emergencyContact}</p>
+                </div>
+              )}
+            </div>
+          )}
           </div>
           <div className="grid grid-cols-3 gap-2">
             {[
@@ -233,8 +297,7 @@ function DriverModal({ driver, bookings, payslips, onClose }) {
             )}
           </div>
         </div>
-      </div>
-    </ModalOverlay>
+      </ModalOverlay>
   )
 }
 

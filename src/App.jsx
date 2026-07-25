@@ -27,6 +27,8 @@ import Attendance      from './pages/Attendance'
 import Profile         from './pages/Profile'
 import Payroll         from './pages/Payroll'
 import Reports         from './pages/Reports'
+import Documents       from './pages/Documents'
+import AuditLog        from './pages/AuditLog'
 
 // Driver pages
 import DriverDashboard from './pages/driver/DriverDashboard'
@@ -69,8 +71,10 @@ export default function App() {
             {/* Fix 2: /attendance locked to admin + manager only */}
             <Route path="/attendance"  element={<ProtectedRoute allowedRoles={['admin','manager']}><Attendance /></ProtectedRoute>} />
             <Route path="/profile"     element={<ProtectedRoute allowedRoles={['admin','manager']}><Profile /></ProtectedRoute>} />
+            <Route path="/documents"   element={<ProtectedRoute allowedRoles={['admin','manager']}><Documents /></ProtectedRoute>} />
             <Route path="/payroll"     element={<ProtectedRoute allowedRoles={['admin','manager']}><Payroll /></ProtectedRoute>} />
             <Route path="/reports"     element={<ProtectedRoute allowedRoles={['admin']}><Reports /></ProtectedRoute>} />
+            <Route path="/audit-log"   element={<ProtectedRoute allowedRoles={['admin']}><AuditLog /></ProtectedRoute>} />
             <Route path="/admin/database-status" element={<ProtectedRoute allowedRoles={['admin']}><DatabaseStatus /></ProtectedRoute>} />
             <Route path="/admin/users"           element={<ProtectedRoute allowedRoles={['admin','manager']}><UserManagement /></ProtectedRoute>} />
 

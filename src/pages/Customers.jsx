@@ -119,6 +119,8 @@ const EMPTY_CUSTOMER = {
   address:'', city:'', state:'Tamil Nadu',
   gst:'', companyName:'', contactPerson:'', billingAddress:'',
   notes:'',
+  isVip:false, isBlacklisted:false, isFrequentTraveller:false,
+  emergencyName:'', emergencyContact:'',
 }
 
 // ─ Separate field input component to prevent re-renders ─
@@ -456,27 +458,52 @@ function CustomerModal({ customer, onClose, onSave }) {
                 Customer Notes
               </label>
               <span className={`text-[9px] font-semibold ${
-                form.notes.length > 270
-                  ? 'text-red-500'
-                  : form.notes.length > 210
-                  ? 'text-amber-500'
-                  : 'text-slate-400 dark:text-slate-500'
-              }`}>
-                {form.notes.length}/300
-              </span>
+                form.notes.length > 270 ? 'text-red-500' : form.notes.length > 210 ? 'text-amber-500' : 'text-slate-400 dark:text-slate-500'
+              }`}>{form.notes.length}/300</span>
             </div>
             <textarea
               value={form.notes || ''}
-              onChange={e => {
-                let val = e.target.value
-                if (val.length > 300) val = val.slice(0, 300)
-                handleNotesChange({ target: { value: val } })
-              }}
-              placeholder="Preferred driver, vehicle, payment terms, VIP status…"
-              rows={3}
-              maxLength={300}
+              onChange={e => { let val = e.target.value; if (val.length > 300) val = val.slice(0,300); handleNotesChange({ target:{ value:val } }) }}
+              placeholder="Preferred driver, vehicle, payment terms…"
+              rows={3} maxLength={300}
               className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25 resize-none transition-all"
             />
+          </div>
+
+          {/* Emergency Contact */}
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 mt-1">Emergency Contact</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Contact Name</label>
+                <input value={form.emergencyName||''} onChange={e=>upd({emergencyName:e.target.value})} placeholder="Family member / Friend"
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Mobile</label>
+                <input value={form.emergencyContact||''} onChange={e=>upd({emergencyContact:e.target.value.replace(/\D/g,'').slice(0,10)})} placeholder="10-digit mobile"
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
+              </div>
+            </div>
+          </div>
+
+          {/* Customer Flags */}
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 mt-1">Customer Flags</p>
+            <div className="flex gap-2 flex-wrap">
+              {[
+                { key:'isVip',               label:'⭐ VIP Customer',       on:'border-amber-400 bg-amber-50 dark:bg-amber-900/15 text-amber-700 dark:text-amber-300'  },
+                { key:'isFrequentTraveller', label:'🔁 Frequent Traveller', on:'border-blue-400 bg-blue-50 dark:bg-blue-900/15 text-blue-700 dark:text-blue-300'     },
+                { key:'isBlacklisted',       label:'🚫 Blacklisted',        on:'border-red-400 bg-red-50 dark:bg-red-900/15 text-red-700 dark:text-red-300'          },
+              ].map(f => (
+                <button key={f.key} type="button" onClick={() => upd({ [f.key]: !form[f.key] })}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-bold transition-all ${
+                    form[f.key] ? `${f.on} ring-2 ring-offset-1 ring-current/30` : 'border-slate-200 dark:border-navy-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-navy-800'
+                  }`}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -514,6 +541,16 @@ function CustomerProfile({ customer, bookings, onEdit, onDelete, onBooking, canE
 
   return (
     <div className="bg-slate-50/50 dark:bg-navy-800/30 border-t border-slate-100 dark:border-navy-700 px-4 py-4 space-y-4">
+
+      {/* VIP / Blacklist badges */}
+      {(customer.isVip || customer.isBlacklisted || customer.isFrequentTraveller) && (
+        <div className="flex gap-2 flex-wrap">
+          {customer.isVip               && <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">⭐ VIP</span>}
+          {customer.isFrequentTraveller && <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">🔁 Frequent</span>}
+          {customer.isBlacklisted       && <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">🚫 Blacklisted</span>}
+        </div>
+      )}
+
       {/* Basic Info */}
       <div className="grid grid-cols-2 gap-4">
         {renderField('Name', customer.name)}
@@ -559,6 +596,17 @@ function CustomerProfile({ customer, bookings, onEdit, onDelete, onBooking, canE
               <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">Notes</p>
               <p className="text-slate-700 dark:text-slate-300 text-sm">{customer.notes}</p>
             </div>
+          </div>
+        </>
+      )}
+
+      {/* Emergency Contact */}
+      {(customer.emergencyName || customer.emergencyContact) && (
+        <>
+          <div className="border-t border-slate-200 dark:border-navy-600 pt-3" />
+          <div className="grid grid-cols-2 gap-3">
+            {customer.emergencyName    && renderField('Emergency Name',   customer.emergencyName)}
+            {customer.emergencyContact && renderField('Emergency Mobile', customer.emergencyContact)}
           </div>
         </>
       )}
@@ -670,6 +718,7 @@ export default function Customers() {
   const [bookingFor,   setBookingFor]   = useState(null)
   const [search,       setSearch]       = useState('')
   const [typeFilter,   setTypeFilter]   = useState('all')
+  const [flagFilter,   setFlagFilter]   = useState('all')
   const [sortBy,       setSortBy]       = useState('name')
   const [expanded,     setExpanded]     = useState(null)
   const [toast,        setToast]        = useState('')
@@ -733,6 +782,12 @@ export default function Customers() {
   const filtered = useMemo(() => {
     return customers
       .filter(c => typeFilter === 'all' || c.type === typeFilter)
+      .filter(c => {
+        if (flagFilter === 'vip')         return c.isVip
+        if (flagFilter === 'frequent')    return c.isFrequentTraveller
+        if (flagFilter === 'blacklisted') return c.isBlacklisted
+        return true
+      })
       .filter(c =>
         !search ||
         (c.name ?? '').toLowerCase().includes((search ?? '').toLowerCase()) ||
@@ -746,7 +801,7 @@ export default function Customers() {
         sortBy === 'recent' ? (b.updatedAt || '').localeCompare(a.updatedAt || '') :
         0
       )
-  }, [customers, search, typeFilter, sortBy])
+  }, [customers, search, typeFilter, flagFilter, sortBy])
 
   const corporateCount = customers.filter(c => c.type === 'corporate' || c.type === 'agent').length
   const newThisMonth = customers.filter(c => {
@@ -836,6 +891,25 @@ export default function Customers() {
                   ? 'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow'
                   : 'text-slate-500 dark:text-slate-400'
               }`}>{l}
+            </button>
+          ))}
+        </div>
+
+        {/* Flag filter chips */}
+        <div className="flex gap-1 flex-wrap">
+          {[
+            { key:'all',         label:'All'         },
+            { key:'vip',         label:'⭐ VIP'      },
+            { key:'frequent',    label:'🔁 Frequent' },
+            { key:'blacklisted', label:'🚫 Listed'   },
+          ].map(f => (
+            <button key={f.key} onClick={() => setFlagFilter(f.key)}
+              className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
+                flagFilter === f.key
+                  ? 'bg-navy-900 dark:bg-blue-700 text-white shadow'
+                  : 'bg-slate-100 dark:bg-navy-800 text-slate-500 dark:text-slate-400'
+              }`}>
+              {f.label}
             </button>
           ))}
         </div>

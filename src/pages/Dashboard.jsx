@@ -208,11 +208,19 @@ export default function Dashboard() {
   // ── Loading screen ────────────────────────────────────────
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center space-y-3">
-          <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm font-bold text-slate-500 dark:text-slate-400">Loading dashboard…</p>
+      <div className="space-y-6 animate-pulse">
+        <div className="h-10 bg-slate-200 dark:bg-navy-700 rounded-xl w-48" />
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+          {[1,2,3,4].map(i => <div key={i} className="h-28 bg-slate-200 dark:bg-navy-700 rounded-2xl" />)}
         </div>
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+          {[1,2,3,4].map(i => <div key={i} className="h-24 bg-slate-200 dark:bg-navy-700 rounded-2xl" />)}
+        </div>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="h-64 bg-slate-200 dark:bg-navy-700 rounded-2xl" />
+          <div className="h-64 bg-slate-200 dark:bg-navy-700 rounded-2xl" />
+        </div>
+        <div className="h-48 bg-slate-200 dark:bg-navy-700 rounded-2xl" />
       </div>
     )
   }
