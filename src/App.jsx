@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { AppProvider }           from './context/AppContext'
 import { AuthProvider }          from './context/AuthContext'
 import { RideLifecycleProvider } from './context/RideLifecycleContext'
+import { CommunicationProvider } from './context/CommunicationContext'
 import AppShell                  from './components/layout/AppShell'
 import ProtectedRoute            from './components/auth/ProtectedRoute'
 
@@ -27,8 +28,10 @@ import Attendance      from './pages/Attendance'
 import Profile         from './pages/Profile'
 import Payroll         from './pages/Payroll'
 import Reports         from './pages/Reports'
-import Documents       from './pages/Documents'
 import AuditLog        from './pages/AuditLog'
+import Documents       from './pages/Documents'
+import Communications       from './pages/Communications'
+import CommunicationSettings from './pages/CommunicationSettings'
 
 // Driver pages
 import DriverDashboard from './pages/driver/DriverDashboard'
@@ -50,6 +53,7 @@ export default function App() {
     <ErrorBoundary>
     <AppProvider>
       <AuthProvider>
+        <CommunicationProvider>
         <Routes>
           {/* Public */}
           <Route path="/login"        element={<Login />} />
@@ -71,10 +75,12 @@ export default function App() {
             {/* Fix 2: /attendance locked to admin + manager only */}
             <Route path="/attendance"  element={<ProtectedRoute allowedRoles={['admin','manager']}><Attendance /></ProtectedRoute>} />
             <Route path="/profile"     element={<ProtectedRoute allowedRoles={['admin','manager']}><Profile /></ProtectedRoute>} />
-            <Route path="/documents"   element={<ProtectedRoute allowedRoles={['admin','manager']}><Documents /></ProtectedRoute>} />
-            <Route path="/payroll"     element={<ProtectedRoute allowedRoles={['admin','manager']}><Payroll /></ProtectedRoute>} />
-            <Route path="/reports"     element={<ProtectedRoute allowedRoles={['admin']}><Reports /></ProtectedRoute>} />
-            <Route path="/audit-log"   element={<ProtectedRoute allowedRoles={['admin']}><AuditLog /></ProtectedRoute>} />
+            <Route path="/documents"              element={<ProtectedRoute allowedRoles={['admin','manager']}><Documents /></ProtectedRoute>} />
+            <Route path="/communications"          element={<ProtectedRoute allowedRoles={['admin','manager']}><Communications /></ProtectedRoute>} />
+            <Route path="/communications-settings" element={<ProtectedRoute allowedRoles={['admin','manager']}><CommunicationSettings /></ProtectedRoute>} />
+            <Route path="/payroll"                 element={<ProtectedRoute allowedRoles={['admin','manager']}><Payroll /></ProtectedRoute>} />
+            <Route path="/reports"                 element={<ProtectedRoute allowedRoles={['admin']}><Reports /></ProtectedRoute>} />
+            <Route path="/audit-log"               element={<ProtectedRoute allowedRoles={['admin']}><AuditLog /></ProtectedRoute>} />
             <Route path="/admin/database-status" element={<ProtectedRoute allowedRoles={['admin']}><DatabaseStatus /></ProtectedRoute>} />
             <Route path="/admin/users"           element={<ProtectedRoute allowedRoles={['admin','manager']}><UserManagement /></ProtectedRoute>} />
 
@@ -92,6 +98,7 @@ export default function App() {
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </CommunicationProvider>
       </AuthProvider>
     </AppProvider>
     </ErrorBoundary>

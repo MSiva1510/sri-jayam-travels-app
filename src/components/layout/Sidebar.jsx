@@ -4,7 +4,7 @@ import {
   User, Car, Settings, ChevronLeft, ChevronRight,
   MapPin, Phone, Globe, LogOut, Navigation,
   History, List, Route, Signal, CalendarCheck, IndianRupee, BarChart2, Database, UserCog,
-  FolderOpen, ClipboardList,
+  FolderOpen, ClipboardList, MessageSquare,
 } from 'lucide-react'
 import { useApp }  from '../../context/AppContext'
 import { useAuth, ROLE_LABELS, ROLE_COLORS } from '../../context/AuthContext'
@@ -24,8 +24,9 @@ const NAV_ITEMS = [
   { to: '/attendance',     label: 'Attendance',    icon: CalendarCheck,   roles: ['admin','manager'], perm: 'attendance'},
   { to: '/documents',      label: 'Documents',     icon: FolderOpen,      roles: ['admin','manager'], perm: 'reports'   },
   { to: '/payroll',        label: 'Payroll',       icon: IndianRupee,     roles: ['admin','manager'], perm: 'payroll'   },
-  { to: '/reports',        label: 'Reports',       icon: BarChart2,       roles: ['admin'], perm: 'reports'   },
-  { to: '/audit-log',      label: 'Audit Log',     icon: ClipboardList,   roles: ['admin'], perm: 'reports'   },
+  { to: '/communications', label: 'Communications', icon: MessageSquare,  roles: ['admin','manager'], perm: 'reports'   },
+  { to: '/reports',        label: 'Reports',        icon: BarChart2,       roles: ['admin'], perm: 'reports'   },
+  { to: '/audit-log',      label: 'Audit Log',      icon: ClipboardList,   roles: ['admin'], perm: 'reports'   },
   // Driver
   { to: '/driver',         label: 'Home',          icon: LayoutDashboard, roles: ['driver'] },
   { to: '/assigned-trips', label: 'Trips Today',   icon: List,            roles: ['driver'] },

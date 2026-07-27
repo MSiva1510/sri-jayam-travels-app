@@ -1,20 +1,16 @@
 // ─── Notification Center ──────────────────────────────────────
-// 4-tab panel: Inbox · Alerts · Activity · Archived
-// Backed by notificationService (Supabase + localStorage fallback)
+// 4-tab bell panel — reads from CommunicationContext.
+// Falls back gracefully when context is unavailable.
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   Bell, X, Check, CheckCircle, AlertTriangle,
   Clock, Archive, Trash2, BookOpen, BellOff,
 } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
-import {
-  loadNotifications, markRead, markAllRead,
-  archiveNotification, dismissNotification,
-  NOTIFICATION_TYPES,
-} from '../../services/notificationService'
+import { useCommunicationCtx } from '../../hooks/useCommunication'
 import { getBusinessAlerts } from '../../data/reportData'
 import { loadRecentActivity, fmtAuditTime } from '../../data/auditLogData'
+import { NOTIFICATION_TYPES } from '../../services/notificationService'
 
 // ── Helpers ───────────────────────────────────────────────────
 function useClickOutside(ref, handler) {
@@ -147,41 +143,34 @@ function AlertRow({ alert: a }) {
 
 // ── Main component ────────────────────────────────────────────
 export default function NotificationCenter() {
-  const { user } = useAuth()
-  const [open, setOpen]   = useState(false)
-  const [tab,  setTab]    = useState('inbox')
-  const [notifs, setNotifs]   = useState([])
-  const [alerts, setAlerts]   = useState([])
-  const [activity, setActivity] = useState([])
-  const [loading, setLoading] = useState(false)
+  const {
+    notifications, unreadCount, notifLoading,
+    loadNotifs, markRead, markAllRead, archive, dismiss,
+  } = useCommunicationCtx()
+
+  const [open,     setOpen]    = useState(false)
+  const [tab,      setTab]     = useState('inbox')
+  const [alerts,   setAlerts]  = useState([])
+  const [activity, setActivity]= useState([])
   const wrapRef = useRef()
   useClickOutside(wrapRef, () => setOpen(false))
 
-  const reload = useCallback(async () => {
-    setLoading(true)
-    try {
-      const [ns, as] = await Promise.allSettled([
-        loadNotifications(user?.id, { limit: 50 }),
-        getBusinessAlerts(),
-      ])
-      setNotifs(ns.status === 'fulfilled' ? ns.value : [])
-      setAlerts(as.status === 'fulfilled' ? as.value : [])
-      setActivity(loadRecentActivity(12))
-    } catch {}
-    setLoading(false)
-  }, [user?.id])
+  useEffect(() => {
+    if (!open) return
+    loadNotifs()
+    getBusinessAlerts().then(setAlerts).catch(()=>{})
+    setActivity(loadRecentActivity(12))
+  }, [open, loadNotifs])
 
-  useEffect(() => { if (open) reload() }, [open, reload])
+  const inbox    = notifications.filter(n => ['unread','read'].includes(n.status))
+  const archived = notifications.filter(n => n.status === 'archived')
+  const unread   = notifications.filter(n => n.status === 'unread')
+  const badgeNum = unreadCount + alerts.filter(a => a.priority === 'high').length
 
-  const inbox    = notifs.filter(n => ['unread','read'].includes(n.status))
-  const archived = notifs.filter(n => n.status === 'archived')
-  const unread   = notifs.filter(n => n.status === 'unread')
-  const badgeNum = unread.length + alerts.filter(a => a.priority === 'high').length
-
-  const doMarkRead    = async id => { await markRead(id); setNotifs(prev => prev.map(n => n.id === id ? { ...n, status:'read', is_read:true } : n)) }
-  const doMarkAll     = async () => { await markAllRead(user?.id); setNotifs(prev => prev.map(n => n.status === 'unread' ? { ...n, status:'read', is_read:true } : n)) }
-  const doArchive     = async id => { await archiveNotification(id); setNotifs(prev => prev.map(n => n.id === id ? { ...n, status:'archived' } : n)) }
-  const doDismiss     = async id => { await dismissNotification(id); setNotifs(prev => prev.filter(n => n.id !== id)) }
+  const doMarkRead = (id) => markRead(id)
+  const doMarkAll  = ()    => markAllRead()
+  const doArchive  = (id)  => archive(id)
+  const doDismiss  = (id)  => dismiss(id)
 
   const TABS = [
     { key:'inbox',    label:'Inbox',    badge: unread.length,                                    count: inbox.length    },
@@ -251,7 +240,7 @@ export default function NotificationCenter() {
 
           {/* Body */}
           <div className="max-h-80 overflow-y-auto">
-            {loading ? (
+            {notifLoading ? (
               <div className="flex items-center justify-center py-10">
                 <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
               </div>
