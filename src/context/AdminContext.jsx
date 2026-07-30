@@ -5,20 +5,20 @@ import {
   loadUsers, loadSettings, loadBackupConfigs, loadBackupHistory,
   getHealthSummary, checkDBConnection, getErrorLog, getErrorStats,
   getSessionHistory, getRoleMatrix, loadAllPermissions,
-  canDo, PERMISSIONS,
+  PERMISSIONS,
 } from '../services/adminService'
 import { permissionEngine, bootPermissions } from '../security/PermissionEngine'
 import { sessionManager } from '../security/SessionManager'
+import { DEFAULT_BACKUP_CONFIGS } from '../repositories/adminRepository'
 
 const AdminContext = createContext(null)
 
 export function AdminProvider({ children }) {
-  const { user, isAdmin, isManager } = useAuth()
-  const isPrivileged = isAdmin || isManager
+  const { user, isAdmin } = useAuth()
 
   const [users,         setUsers]         = useState([])
   const [settings,      setSettings]      = useState([])
-  const [backupConfigs, setBackupConfigs] = useState([])
+  const [backupConfigs, setBackupConfigs] = useState(DEFAULT_BACKUP_CONFIGS)
   const [backupHistory, setBackupHistory] = useState([])
   const [health,        setHealth]        = useState(null)
   const [dbStatus,      setDbStatus]      = useState(null)

@@ -11,6 +11,13 @@ const LS = {
 const rLS = (k,d=[]) => { try { return JSON.parse(localStorage.getItem(k)||JSON.stringify(d)) } catch { return d } }
 const wLS = (k,v)    => { try { localStorage.setItem(k, JSON.stringify(v)) } catch {} }
 
+export const DEFAULT_BACKUP_CONFIGS = [
+  { id:'bc-1', name:'Manual Backup',  provider:'manual',   is_active:true,  retention_days:30, last_backup_status:'never' },
+  { id:'bc-2', name:'Supabase Auto',  provider:'supabase', is_active:false, retention_days:7,  last_backup_status:'never' },
+  { id:'bc-3', name:'Google Drive',   provider:'gdrive',   is_active:false, retention_days:90, last_backup_status:'never' },
+  { id:'bc-4', name:'OneDrive',       provider:'onedrive', is_active:false, retention_days:90, last_backup_status:'never' },
+]
+
 // ── Role Permissions ──────────────────────────────────────────
 export const rolePermissionRepository = {
   async getAll() {
@@ -143,15 +150,10 @@ export const backupRepository = {
     if (supabase) {
       try {
         const { data } = await supabase.from('backup_config').select('*').order('created_at')
-        if (data) return data
+        if (data?.length) return data
       } catch {}
     }
-    return [
-      { id:'bc-1', name:'Manual Backup',  provider:'manual',   is_active:true,  retention_days:30, last_backup_status:'never' },
-      { id:'bc-2', name:'Supabase Auto',  provider:'supabase', is_active:false, retention_days:7,  last_backup_status:'never' },
-      { id:'bc-3', name:'Google Drive',   provider:'gdrive',   is_active:false, retention_days:90, last_backup_status:'never' },
-      { id:'bc-4', name:'OneDrive',       provider:'onedrive', is_active:false, retention_days:90, last_backup_status:'never' },
-    ]
+    return DEFAULT_BACKUP_CONFIGS
   },
   async getHistory({ limit=20 } = {}) {
     if (supabase) {

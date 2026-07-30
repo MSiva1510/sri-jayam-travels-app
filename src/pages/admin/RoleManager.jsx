@@ -1,9 +1,9 @@
 // ─── Role Manager Page ────────────────────────────────────────
-import { useState, useMemo } from 'react'
-import { Shield, Check, X, Save, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
+import { useState } from 'react'
+import { Shield, Check, X, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import { useAdmin } from '../../context/AdminContext'
-import { setRolePermission, getAllPermissions } from '../../services/adminService'
+import { setRolePermission } from '../../services/adminService'
 import { useAuth } from '../../context/AuthContext'
 
 const PERMISSION_GROUPS = {
@@ -31,7 +31,7 @@ const ROLES = ['admin','manager','driver']
 
 export default function RoleManager() {
   const { user } = useAuth()
-  const { roleMatrix, setRoleMatrix, loading } = useAdmin()
+  const { roleMatrix, setRoleMatrix } = useAdmin()
   const [saving,       setSaving]       = useState({})
   const [expanded,     setExpanded]     = useState(null)
   const [saved,        setSaved]        = useState({})

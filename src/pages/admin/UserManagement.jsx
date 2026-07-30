@@ -37,14 +37,14 @@ function StatusPill({ status }) {
 
 // ─── Add / Edit User Modal ────────────────────────────────────
 // Defined OUTSIDE the page component to prevent remount on keypress
-function UserModal({ editUser, currentUserRole, onClose, onSaved, showToast }) {
+function UserModal({ editUser, currentUserRole, onClose, onSaved, showToast, defaultRole = 'driver' }) {
   const isEdit = !!editUser
 
   const [form, setForm] = useState({
     full_name: editUser?.full_name || editUser?.name || '',
     email:     editUser?.email     || '',
     phone:     editUser?.phone     || '',
-    role:      editUser?.role      || 'driver',
+    role:      editUser?.role      || defaultRole,
     password:  '',
     confirm:   '',
   })
