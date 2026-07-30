@@ -5,6 +5,7 @@ import {
   MapPin, Phone, Globe, LogOut, Navigation,
   History, List, Route, Signal, CalendarCheck, IndianRupee, BarChart2, Database, UserCog,
   FolderOpen, ClipboardList, MessageSquare,
+  Shield, HardDrive, Activity, Lock,
 } from 'lucide-react'
 import { useApp }  from '../../context/AppContext'
 import { useAuth, ROLE_LABELS, ROLE_COLORS } from '../../context/AuthContext'
@@ -38,7 +39,11 @@ const NAV_ITEMS = [
 
 const BOTTOM_ITEMS = [
   { to: '/admin/users',           label: 'User Accounts',   icon: UserCog,  roles: ['admin','manager'] },
-  { to: '/admin/database-status', label: 'Database Status', icon: Database, roles: ['admin'] },
+  { to: '/admin/roles',           label: 'Roles & Perms',   icon: Shield,   roles: ['admin'] },
+  { to: '/admin/security',        label: 'Security',         icon: Lock,     roles: ['admin'] },
+  { to: '/admin/health',          label: 'System Health',    icon: Activity, roles: ['admin'] },
+  { to: '/admin/backup',          label: 'Backup Manager',   icon: HardDrive,roles: ['admin'] },
+  { to: '/admin/database-status', label: 'Database Status',  icon: Database, roles: ['admin'] },
   { to: '/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
 ]
 

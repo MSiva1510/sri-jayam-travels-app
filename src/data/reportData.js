@@ -298,7 +298,6 @@ export function exportToPDF(rows, columns, filename, title = '') {
 
 // ── Day 29: Monthly revenue summary ──────────────────────────
 export async function getMonthlySummary(year) {
-  const { loadBookings } = await import('./tripTypes')
   const bookings = await loadBookings().catch(()=>[])
   return Array.from({length:12},(_,i)=>i+1).map(m => {
     const items = bookings.filter(b => {

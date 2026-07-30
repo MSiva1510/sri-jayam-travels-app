@@ -4,6 +4,7 @@ import { AppProvider }           from './context/AppContext'
 import { AuthProvider }          from './context/AuthContext'
 import { RideLifecycleProvider } from './context/RideLifecycleContext'
 import { CommunicationProvider } from './context/CommunicationContext'
+import { AdminProvider }         from './context/AdminContext'
 import AppShell                  from './components/layout/AppShell'
 import ProtectedRoute            from './components/auth/ProtectedRoute'
 
@@ -22,13 +23,18 @@ import Expenses        from './pages/Expenses'
 import Drivers         from './pages/Drivers'
 import Vehicles        from './pages/Vehicles'
 import Settings        from './pages/Settings'
-import UserManagement  from './pages/admin/UserManagement'
+import UserManagement   from './pages/admin/UserManagement'
+import RoleManager      from './pages/admin/RoleManager'
+import SystemHealth     from './pages/admin/SystemHealth'
+import BackupManager    from './pages/admin/BackupManager'
+import SecuritySettings from './pages/admin/SecuritySettings'
+import DatabaseStatus   from './pages/admin/DatabaseStatus'
 import Attendance      from './pages/Attendance'
 import Profile         from './pages/Profile'
 import Payroll         from './pages/Payroll'
 import Reports         from './pages/Reports'
-import AuditLog        from './pages/AuditLog'
 import Documents       from './pages/Documents'
+import AuditLog        from './pages/AuditLog'
 import Communications       from './pages/Communications'
 import CommunicationSettings from './pages/CommunicationSettings'
 
@@ -53,6 +59,7 @@ export default function App() {
     <AppProvider>
       <AuthProvider>
         <CommunicationProvider>
+        <AdminProvider>
         <Routes>
           {/* Public */}
           <Route path="/login"        element={<Login />} />
@@ -80,7 +87,12 @@ export default function App() {
             <Route path="/payroll"                 element={<ProtectedRoute allowedRoles={['admin','manager']}><Payroll /></ProtectedRoute>} />
             <Route path="/reports"                 element={<ProtectedRoute allowedRoles={['admin']}><Reports /></ProtectedRoute>} />
             <Route path="/audit-log"               element={<ProtectedRoute allowedRoles={['admin']}><AuditLog /></ProtectedRoute>} />
+            <Route path="/admin/database-status" element={<ProtectedRoute allowedRoles={['admin']}><DatabaseStatus /></ProtectedRoute>} />
             <Route path="/admin/users"           element={<ProtectedRoute allowedRoles={['admin','manager']}><UserManagement /></ProtectedRoute>} />
+            <Route path="/admin/roles"           element={<ProtectedRoute allowedRoles={['admin']}><RoleManager /></ProtectedRoute>} />
+            <Route path="/admin/health"          element={<ProtectedRoute allowedRoles={['admin']}><SystemHealth /></ProtectedRoute>} />
+            <Route path="/admin/backup"          element={<ProtectedRoute allowedRoles={['admin']}><BackupManager /></ProtectedRoute>} />
+            <Route path="/admin/security"        element={<ProtectedRoute allowedRoles={['admin']}><SecuritySettings /></ProtectedRoute>} />
 
             {/* Driver — Fix 2: no /attendance route for drivers */}
             <Route path="/driver"          element={<DriverShell><DriverDashboard /></DriverShell>} />
@@ -96,6 +108,7 @@ export default function App() {
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </AdminProvider>
         </CommunicationProvider>
       </AuthProvider>
     </AppProvider>
