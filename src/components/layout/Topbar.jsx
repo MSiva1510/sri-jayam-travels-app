@@ -22,6 +22,8 @@ const PAGE_TITLES = {
   '/ride-history':    { label: 'Ride History',     sub: 'Your past trips & earnings'     },
   '/driver-profile':  { label: 'My Profile',       sub: 'Account & performance'          },
   '/live-location':   { label: 'Live Location',    sub: 'Real-time GPS tracking'          },
+  '/fleet':           { label: 'Live Fleet',        sub: 'Real-time vehicle tracking'       },
+  '/fleet/settings':  { label: 'GPS Settings',      sub: 'Configure GPS provider'           },
   '/payroll':         { label: 'Payroll',           sub: 'Driver settlements & salary'      },
   '/payslips':        { label: 'My Payslips',       sub: 'Your settlement history'          },
 }

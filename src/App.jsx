@@ -5,6 +5,7 @@ import { AuthProvider }          from './context/AuthContext'
 import { RideLifecycleProvider } from './context/RideLifecycleContext'
 import { CommunicationProvider } from './context/CommunicationContext'
 import { AdminProvider }         from './context/AdminContext'
+import { GpsHistoryProvider }    from './context/GpsHistoryContext'
 import AppShell                  from './components/layout/AppShell'
 import ProtectedRoute            from './components/auth/ProtectedRoute'
 
@@ -37,6 +38,8 @@ import Documents       from './pages/Documents'
 import AuditLog        from './pages/AuditLog'
 import Communications       from './pages/Communications'
 import CommunicationSettings from './pages/CommunicationSettings'
+import Fleet            from './pages/Fleet'
+import FleetSettings    from './pages/FleetSettings'
 
 // Driver pages
 import DriverDashboard from './pages/driver/DriverDashboard'
@@ -67,7 +70,7 @@ export default function App() {
           <Route path="/book"         element={<PublicBooking />} />
 
           {/* Protected shell */}
-          <Route element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
+          <Route element={<ProtectedRoute><GpsHistoryProvider><AppShell /></GpsHistoryProvider></ProtectedRoute>}>
             {/* Admin + Manager */}
             <Route path="/"            element={<ProtectedRoute allowedRoles={['admin','manager']}><Dashboard /></ProtectedRoute>} />
             <Route path="/invoices"    element={<ProtectedRoute allowedRoles={['admin']}><Invoices /></ProtectedRoute>} />
@@ -87,6 +90,9 @@ export default function App() {
             <Route path="/payroll"                 element={<ProtectedRoute allowedRoles={['admin','manager']}><Payroll /></ProtectedRoute>} />
             <Route path="/reports"                 element={<ProtectedRoute allowedRoles={['admin']}><Reports /></ProtectedRoute>} />
             <Route path="/audit-log"               element={<ProtectedRoute allowedRoles={['admin']}><AuditLog /></ProtectedRoute>} />
+            {/* Day 32: GPS / Live Fleet */}
+            <Route path="/fleet"                   element={<ProtectedRoute allowedRoles={['admin','manager']}><Fleet /></ProtectedRoute>} />
+            <Route path="/fleet/settings"          element={<ProtectedRoute allowedRoles={['admin']}><FleetSettings /></ProtectedRoute>} />
             <Route path="/admin/database-status" element={<ProtectedRoute allowedRoles={['admin']}><DatabaseStatus /></ProtectedRoute>} />
             <Route path="/admin/users"           element={<ProtectedRoute allowedRoles={['admin','manager']}><UserManagement /></ProtectedRoute>} />
             <Route path="/admin/roles"           element={<ProtectedRoute allowedRoles={['admin']}><RoleManager /></ProtectedRoute>} />

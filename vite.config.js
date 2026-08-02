@@ -10,6 +10,7 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes('node_modules')) return
           if (id.includes('xlsx')) return 'xlsx'
+          if (id.includes('leaflet')) return 'leaflet'
           if (id.includes('@supabase')) return 'supabase'
           if (
             id.includes('react') ||

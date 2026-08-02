@@ -28,6 +28,8 @@ const NAV_ITEMS = [
   { to: '/communications', label: 'Communications', icon: MessageSquare,  roles: ['admin','manager'], perm: 'reports'   },
   { to: '/reports',        label: 'Reports',        icon: BarChart2,       roles: ['admin'], perm: 'reports'   },
   { to: '/audit-log',      label: 'Audit Log',      icon: ClipboardList,   roles: ['admin'], perm: 'reports'   },
+  // Day 32: Live Fleet Dashboard
+  { to: '/fleet',          label: 'Live Fleet',     icon: Navigation,      roles: ['admin','manager'], perm: 'view_fleet' },
   // Driver
   { to: '/driver',         label: 'Home',          icon: LayoutDashboard, roles: ['driver'] },
   { to: '/assigned-trips', label: 'Trips Today',   icon: List,            roles: ['driver'] },
@@ -44,6 +46,8 @@ const BOTTOM_ITEMS = [
   { to: '/admin/health',          label: 'System Health',    icon: Activity, roles: ['admin'] },
   { to: '/admin/backup',          label: 'Backup Manager',   icon: HardDrive,roles: ['admin'] },
   { to: '/admin/database-status', label: 'Database Status',  icon: Database, roles: ['admin'] },
+  // Day 32: GPS provider configuration
+  { to: '/fleet/settings',        label: 'GPS Settings',     icon: Navigation, roles: ['admin'] },
   { to: '/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
 ]
 
