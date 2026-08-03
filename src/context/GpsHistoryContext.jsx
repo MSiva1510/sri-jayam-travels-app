@@ -1,48 +1,44 @@
 // ─── GPS History Context ──────────────────────────────────────
-// Thin wrapper around the gpsSyncService module singleton.
-// Mounts the service on first child render, unmounts on last
-// child unmount, and re-renders when health state changes.
+// Thin wrapper around gpsSyncService. Provides fleet snapshots,
+// KPI summary, settings, and today's distance to Fleet page.
 
-import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
-import { gpsSyncService }           from '../services/gpsSyncService'
-import { gpsHistoryRepository }     from '../repositories/gpsHistoryRepository'
-import { gpsSettingsRepository }    from '../repositories/gpsSettingsRepository'
+import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { gpsSyncService }        from '../services/gpsSyncService'
+import { gpsHistoryRepository }  from '../repositories/gpsHistoryRepository'
+import { gpsSettingsRepository } from '../repositories/gpsSettingsRepository'
 
 const GpsHistoryContext = createContext(null)
 
 export function GpsHistoryProvider({ children }) {
-  const [health, setHealth] = useState(() => gpsSyncService.getHealth())
-  const [running, setRunning] = useState(false)
-  const [fleet, setFleet] = useState([])
-  const [snapshots, setSnapshots] = useState([])
-  const [settings, setSettings] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const lastSyncRef = useRef(null)
+  const [health,        setHealth]       = useState(() => gpsSyncService.getHealth())
+  const [running,       setRunning]      = useState(false)
+  const [snapshots,     setSnapshots]    = useState([])
+  const [settings,      setSettings]     = useState(null)
+  const [loading,       setLoading]      = useState(true)
+  const [error,         setError]        = useState(null)
+  const [todayDistance, setTodayDistance]= useState(0)
 
-  // Subscribe to service health changes
+  // Subscribe to sync-service health updates
   useEffect(() => {
     const unsub = gpsSyncService.subscribe(({ health, running }) => {
-      setHealth({ ...health })
-      setRunning(!!running)
+      setHealth({ ...health }); setRunning(!!running)
     })
     return unsub
   }, [])
 
-  // Load settings + initial fleet snapshot on mount
+  // Initial load: settings + fleet snapshot + today's distance
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
         setLoading(true)
-        const [s, f] = await Promise.all([
+        const [s, f, dist] = await Promise.all([
           gpsSettingsRepository.getAsObject(),
           gpsHistoryRepository.getLatestForFleet(),
+          gpsHistoryRepository.getTodayDistanceKm(),
         ])
         if (cancelled) return
-        setSettings(s)
-        setSnapshots(f)
-        lastSyncRef.current = f
+        setSettings(s); setSnapshots(f); setTodayDistance(dist)
       } catch (err) {
         if (!cancelled) setError(err?.message ?? 'Failed to load GPS data')
       } finally {
@@ -52,19 +48,18 @@ export function GpsHistoryProvider({ children }) {
     return () => { cancelled = true }
   }, [])
 
-  // Start/stop polling based on mounted lifecycle
-  useEffect(() => {
-    gpsSyncService.start()
-    return () => gpsSyncService.stop()
-  }, [])
+  // Start polling; stop on unmount
+  useEffect(() => { gpsSyncService.start(); return () => gpsSyncService.stop() }, [])
 
-  // Periodically refresh the latest snapshot view (cheap query)
+  // Refresh fleet snapshot + distance every 15 s
   useEffect(() => {
     const t = setInterval(async () => {
       try {
-        const f = await gpsHistoryRepository.getLatestForFleet()
-        setSnapshots(f)
-        lastSyncRef.current = f
+        const [f, dist] = await Promise.all([
+          gpsHistoryRepository.getLatestForFleet(),
+          gpsHistoryRepository.getTodayDistanceKm(),
+        ])
+        setSnapshots(f); setTodayDistance(dist)
       } catch {}
     }, 15_000)
     return () => clearInterval(t)
@@ -73,37 +68,25 @@ export function GpsHistoryProvider({ children }) {
   const syncNow = useCallback(async () => {
     try {
       await gpsSyncService.syncNow()
-      const f = await gpsHistoryRepository.getLatestForFleet()
-      setSnapshots(f)
+      const [f, dist] = await Promise.all([
+        gpsHistoryRepository.getLatestForFleet(),
+        gpsHistoryRepository.getTodayDistanceKm(),
+      ])
+      setSnapshots(f); setTodayDistance(dist)
       return { ok: true }
-    } catch (err) {
-      return { ok: false, error: err?.message ?? 'Sync failed' }
-    }
+    } catch (err) { return { ok: false, error: err?.message ?? 'Sync failed' } }
   }, [])
 
-  const healthCheck = useCallback(() => gpsSyncService.healthCheck(), [])
-
+  const healthCheck    = useCallback(() => gpsSyncService.healthCheck(), [])
   const reloadSettings = useCallback(async () => {
-    const s = await gpsSettingsRepository.getAsObject()
-    setSettings(s)
-    return s
+    const s = await gpsSettingsRepository.getAsObject(); setSettings(s); return s
   }, [])
-
-  const value = {
-    health,
-    running,
-    fleet,         // computed {online, moving, stopped, offline, avgSpeed, lastSync}
-    snapshots,     // raw gps_tracking latest per vehicle
-    settings,
-    loading,
-    error,
-    syncNow,
-    healthCheck,
-    reloadSettings,
-  }
 
   return (
-    <GpsHistoryContext.Provider value={value}>
+    <GpsHistoryContext.Provider value={{
+      health, running, snapshots, settings, loading, error, todayDistance,
+      syncNow, healthCheck, reloadSettings,
+    }}>
       {children}
     </GpsHistoryContext.Provider>
   )
@@ -111,47 +94,41 @@ export function GpsHistoryProvider({ children }) {
 
 export function useGpsHistory() {
   const ctx = useContext(GpsHistoryContext)
-  if (!ctx) {
-    throw new Error('useGpsHistory must be used within GpsHistoryProvider')
-  }
-  // Derive fleet KPIs from snapshots
-  const summary = computeFleetSummary(ctx.snapshots)
-  return { ...ctx, fleet: { ...ctx.fleet, ...summary } }
+  if (!ctx) throw new Error('useGpsHistory must be used within GpsHistoryProvider')
+  return { ...ctx, fleet: computeFleetSummary(ctx.snapshots, ctx.todayDistance) }
 }
 
-function computeFleetSummary(snapshots = []) {
-  let online = 0, moving = 0, stopped = 0, offline = 0, gpsOn = 0, gpsOff = 0, ignitionOn = 0, ignitionOff = 0
-  let speedSum = 0, speedCount = 0
-  let lastSync = null
+function computeFleetSummary(snapshots = [], todayDistance = 0) {
+  let total = snapshots.length
+  let online = 0, moving = 0, stopped = 0, offline = 0
+  let gpsOn = 0, gpsOff = 0, ignitionOn = 0, ignitionOff = 0
+  let speedSum = 0, speedCount = 0, lastSync = null
+
   for (const s of snapshots) {
     const ts = s.timestamp ? new Date(s.timestamp).getTime() : 0
     const isRecent = ts && (Date.now() - ts) < 5 * 60_000
+
+    // GPS online — use explicit boolean (null = legacy, excluded from counts)
+    if (s.gps_online === true)  gpsOn++
+    else if (s.gps_online === false) gpsOff++
+
+    if (s.ignition === true)  ignitionOn++
+    else if (s.ignition === false) ignitionOff++
+
     if (isRecent) {
       online++
-      if (s.ignition === true) ignitionOn++; else if (s.ignition === false) ignitionOff++
-      if (s.gps_online !== false) gpsOn++; else gpsOff++
-      if ((s.speed_kmh ?? 0) > 0) {
-        moving++
-        speedSum += Number(s.speed_kmh ?? 0)
-        speedCount++
-      } else {
-        stopped++
-      }
-    } else {
-      offline++
-    }
+      const speed = Number(s.speed_kmh ?? 0)
+      if (speed > 0) { moving++; speedSum += speed; speedCount++ } else stopped++
+    } else offline++
+
     if (ts && (!lastSync || ts > lastSync)) lastSync = ts
   }
+
   return {
-    online,
-    moving,
-    stopped,
-    offline,
-    gpsOn,
-    gpsOff,
-    ignitionOn,
-    ignitionOff,
+    total, online, moving, stopped, offline,
+    gpsOn, gpsOff, ignitionOn, ignitionOff,
     avgSpeed: speedCount ? Math.round(speedSum / speedCount) : 0,
+    todayDistance,
     lastSync: lastSync ? new Date(lastSync).toISOString() : null,
   }
 }

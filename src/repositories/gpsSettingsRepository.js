@@ -63,6 +63,45 @@ async function getAll() {
   return data ?? []
 }
 
+async function findExistingRow(key) {
+  const { data, error } = await withTimeout(
+    supabase
+      .from('settings')
+      .select('id, setting_key, category')
+      .eq('setting_key', key)
+      .eq('category', GPS_SETTINGS_CATEGORY)
+      .maybeSingle(),
+    8000,
+    { data: null, error: null }
+  )
+  if (error) return null
+  return data ?? null
+}
+
+async function saveRow(row) {
+  const existing = await findExistingRow(row.setting_key)
+  if (existing?.id) {
+    const { error } = await withTimeout(
+      supabase
+        .from('settings')
+        .update(row)
+        .eq('id', existing.id),
+      8000,
+      { error: null }
+    )
+    return error ? { ok: false, error: error.message } : { ok: true, action: 'updated' }
+  }
+
+  const { error } = await withTimeout(
+    supabase
+      .from('settings')
+      .insert([row]),
+    8000,
+    { error: null }
+  )
+  return error ? { ok: false, error: error.message } : { ok: true, action: 'inserted' }
+}
+
 /** Return the GPS settings as a flat object keyed by setting_key. */
 async function getAsObject() {
   const rows = await getAll()
@@ -87,21 +126,13 @@ async function getRows() {
 async function set(key, value, { updated_by } = {}) {
   if (!supabase) return { ok: false, error: 'no-supabase' }
   if (!key)      return { ok: false, error: 'missing-key' }
-  const { error } = await withTimeout(
-    supabase
-      .from('settings')
-      .upsert([_row({
-        setting_key:  key,
-        setting_value: value,
-        is_sensitive: SENSITIVE_KEYS.has(key),
-        description:  GPS_SETTINGS_DESCRIPTIONS[key] ?? null,
-        updated_by:   updated_by ?? null,
-      })]),
-    8000,
-    { error: null }
-  )
-  if (error) return { ok: false, error: error.message }
-  return { ok: true }
+  return saveRow(_row({
+    setting_key:  key,
+    setting_value: value,
+    is_sensitive: SENSITIVE_KEYS.has(key),
+    description:  GPS_SETTINGS_DESCRIPTIONS[key] ?? null,
+    updated_by:   updated_by ?? null,
+  }))
 }
 
 /** Upsert many keys in one call. */
@@ -118,12 +149,10 @@ async function setMany(updates, { updated_by } = {}) {
     updated_by:   updated_by ?? null,
   }))
 
-  const { error } = await withTimeout(
-    supabase.from('settings').upsert(rows),
-    8000,
-    { error: null }
-  )
-  if (error) return { ok: false, error: error.message }
+  for (const row of rows) {
+    const result = await saveRow(row)
+    if (!result.ok) return result
+  }
   return { ok: true, count: entries.length }
 }
 

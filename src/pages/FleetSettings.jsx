@@ -220,7 +220,7 @@ export default function FleetSettings() {
             <span className={`text-sm font-medium ${testResult.ok ? 'text-emerald-600' : 'text-rose-600'}`}>
               {testResult.ok
                 ? `Connected (${testResult.latencyMs} ms${testResult.mock ? ' • mock' : ''})`
-                : `Failed: ${testResult.error}`}
+                : `Failed: ${testResult.error || 'Connection test failed'}`}
             </span>
           )}
         </div>

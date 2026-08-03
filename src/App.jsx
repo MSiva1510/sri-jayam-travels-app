@@ -40,6 +40,8 @@ import Communications       from './pages/Communications'
 import CommunicationSettings from './pages/CommunicationSettings'
 import Fleet            from './pages/Fleet'
 import FleetSettings    from './pages/FleetSettings'
+import GpsHistory       from './pages/GpsHistory'
+import RouteReplay      from './pages/RouteReplay'
 
 // Driver pages
 import DriverDashboard from './pages/driver/DriverDashboard'
@@ -93,6 +95,9 @@ export default function App() {
             {/* Day 32: GPS / Live Fleet */}
             <Route path="/fleet"                   element={<ProtectedRoute allowedRoles={['admin','manager']}><Fleet /></ProtectedRoute>} />
             <Route path="/fleet/settings"          element={<ProtectedRoute allowedRoles={['admin']}><FleetSettings /></ProtectedRoute>} />
+            {/* Day 33: GPS History + Route Replay */}
+            <Route path="/gps-history"        element={<ProtectedRoute allowedRoles={['admin','manager']}><GpsHistory /></ProtectedRoute>} />
+            <Route path="/gps-history/replay" element={<ProtectedRoute allowedRoles={['admin','manager']}><RouteReplay /></ProtectedRoute>} />
             <Route path="/admin/database-status" element={<ProtectedRoute allowedRoles={['admin']}><DatabaseStatus /></ProtectedRoute>} />
             <Route path="/admin/users"           element={<ProtectedRoute allowedRoles={['admin','manager']}><UserManagement /></ProtectedRoute>} />
             <Route path="/admin/roles"           element={<ProtectedRoute allowedRoles={['admin']}><RoleManager /></ProtectedRoute>} />

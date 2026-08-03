@@ -30,6 +30,8 @@ const NAV_ITEMS = [
   { to: '/audit-log',      label: 'Audit Log',      icon: ClipboardList,   roles: ['admin'], perm: 'reports'   },
   // Day 32: Live Fleet Dashboard
   { to: '/fleet',          label: 'Live Fleet',     icon: Navigation,      roles: ['admin','manager'], perm: 'view_fleet' },
+  // Day 33: GPS History + Route Replay
+  { to: '/gps-history',   label: 'GPS History',    icon: History,         roles: ['admin','manager'], perm: 'view_fleet' },
   // Driver
   { to: '/driver',         label: 'Home',          icon: LayoutDashboard, roles: ['driver'] },
   { to: '/assigned-trips', label: 'Trips Today',   icon: List,            roles: ['driver'] },
