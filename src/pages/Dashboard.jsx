@@ -12,7 +12,7 @@ import Badge      from '../components/ui/Badge'
 import Button     from '../components/ui/Button'
 import PageHeader from '../components/ui/PageHeader'
 import { useAuth } from '../context/AuthContext'
-import { driverRepository, vehicleRepository }         from '../repositories'
+import { driverRepository, vehicleRepository, fleetAlertRepository } from '../repositories'
 import { loadAttendanceToday }                         from '../data/attendanceData'
 import { loadCustomers }                               from '../data/customerData'
 import { loadExpenses, summariseByType, isThisMonth }  from '../data/expenseData'
@@ -80,6 +80,7 @@ export default function Dashboard() {
   const [todayAttendance, setTodayAttendance] = useState([])
   const [drivers,     setDrivers]     = useState([])
   const [vehicles,    setVehicles]    = useState([])
+  const [fleetAlerts, setFleetAlerts] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadErrors, setLoadErrors] = useState([])
 
@@ -96,8 +97,9 @@ export default function Dashboard() {
       loadAttendanceToday(),
       driverRepository.getAll(),
       vehicleRepository.getAll(),
+      fleetAlertRepository.getActiveAlerts({ limit: 50 }) // Get recent active alerts
     ])
-    const [bks, cust, exps, stls, att, drv, veh] = results
+    const [bks, cust, exps, stls, att, drv, veh, alerts] = results
     const errors = []
 
     setBookings(    bks.status === 'fulfilled' && Array.isArray(bks.value)  ? bks.value  : [])
@@ -107,10 +109,11 @@ export default function Dashboard() {
     setTodayAttendance(att.status === 'fulfilled' && Array.isArray(att.value) ? att.value : [])
     setDrivers(     drv.status === 'fulfilled' && Array.isArray(drv.value)  ? drv.value  : [])
     setVehicles(    veh.status === 'fulfilled' && Array.isArray(veh.value)  ? veh.value  : [])
+    setFleetAlerts( alerts.status === 'fulfilled' && Array.isArray(alerts.value) ? alerts.value : [])
 
     results.forEach((r, i) => {
       if (r.status === 'rejected') {
-        const labels = ['bookings','customers','expenses','settlements','attendance','drivers','vehicles']
+        const labels = ['bookings','customers','expenses','settlements','attendance','drivers','vehicles','fleetAlerts']
         console.error(`[Dashboard] failed to load ${labels[i]}:`, r.reason)
         errors.push(labels[i])
       }
@@ -740,6 +743,91 @@ export default function Dashboard() {
             <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">Live Fleet</h3>
           </div>
           <LiveFleetBoard />
+        </div>
+      )}
+
+      {/* ── Fleet Alerts ── */}
+      {can('fleetAlerts') && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Fleet Alerts</p>
+              <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">Active Alerts</h3>
+            </div>
+            <button onClick={() => navigate('/fleet/alerts')}
+              className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
+              View All →
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            {/* Alert Statistics */}
+            <div className="glass-card rounded-2xl p-4">
+              <div className="space-y-3">
+                <p className="text-xs font-bold text-slate-600 dark:text-slate-400">Critical Alerts</p>
+                <p className="text-2xl font-display font-black text-red-600">
+                  {fleetAlerts.filter(a => a.priority === 'critical' && a.status !== 'resolved' && a.status !== 'closed').length}
+                </p>
+              </div>
+            </div>
+            <div className="glass-card rounded-2xl p-4">
+              <div className="space-y-3">
+                <p className="text-xs font-bold text-slate-600 dark:text-slate-400">High Priority Alerts</p>
+                <p className="text-2xl font-display font-black text-amber-600">
+                  {fleetAlerts.filter(a => a.priority === 'high' && a.status !== 'resolved' && a.status !== 'closed').length}
+                </p>
+              </div>
+            </div>
+            <div className="glass-card rounded-2xl p-4">
+              <div className="space-y-3">
+                <p className="text-xs font-bold text-slate-600 dark:text-slate-400">Total Active Alerts</p>
+                <p className="text-2xl font-display font-black text-slate-600">
+                  {fleetAlerts.filter(a => a.status !== 'resolved' && a.status !== 'closed').length}
+                </p>
+              </div>
+            </div>
+          </div>
+          {/* Recent Alerts List */}
+          <div className="glass-card rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">Recent Alerts</h3>
+              <button onClick={() => navigate('/fleet/alerts')}
+                className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
+                View All
+              </button>
+            </div>
+            {fleetAlerts.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-slate-500 dark:text-slate-400">No active alerts</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {fleetAlerts.slice(0, 5).map((alert, index) => (
+                  <div key={index} className={`border-l-4 ${alert.priority === 'critical' ? 'border-red-500' : alert.priority === 'high' ? 'border-amber-500' : 'border-blue-500'} p-3 mb-2 rounded-lg bg-slate-50 dark:bg-navy-800/20`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">
+                          {alert.title}
+                        </p>
+                        <p className="text-[9px] text-slate-500 dark:text-slate-400">
+                          {alert.vehicle_id ?
+                            (alert.vehicle_id.substring(0, 8) + '...') :
+                            'Unknown Vehicle'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${alert.priority === 'critical' ? 'bg-red-100 text-red-800' : alert.priority === 'high' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
+                          {alert.priority.charAt(0).toUpperCase() + alert.priority.slice(1)}
+                        </span>
+                        <span className="text-[9px] text-slate-500">
+                          {new Date(alert.detected_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </span>
+                      </div>
+                    </div>
+                  }
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

@@ -23,6 +23,11 @@ export const GPS_DEFAULT_SETTINGS = {
   timeout:            30,
   retry_count:        3,
   enabled:            true,
+  // Alert settings
+  overspeed_limit:    80, // km/h
+  idle_time_limit:    30, // minutes
+  offline_timeout:    5,  // minutes
+  alerts_enabled:     true
 }
 
 export const GPS_SETTINGS_DESCRIPTIONS = {
@@ -34,6 +39,10 @@ export const GPS_SETTINGS_DESCRIPTIONS = {
   timeout:            'Per-request timeout in seconds.',
   retry_count:        'Number of retries on a failed poll.',
   enabled:            'Kill switch — when false, polling is suspended.',
+  overspeed_limit:    'Speed limit in km/h for overspeed alerts',
+  idle_time_limit:    'Minutes of idling before triggering idle alert',
+  offline_timeout:    'Minutes of no GPS data before considering vehicle offline',
+  alerts_enabled:     'Master switch to enable/disable all alert generation'
 }
 
 function _row({ setting_key, setting_value, is_sensitive, description, updated_by }) {
@@ -174,6 +183,15 @@ function validate(settings = {}) {
   }
   if (settings.retry_count && (Number(settings.retry_count) < 0 || Number(settings.retry_count) > 10)) {
     errs.push('retry_count must be between 0 and 10')
+  }
+  if (settings.overspeed_limit && (Number(settings.overspeed_limit) < 0 || Number(settings.overspeed_limit) > 300)) {
+    errs.push('overspeed_limit must be between 0 and 300 km/h')
+  }
+  if (settings.idle_time_limit && (Number(settings.idle_time_limit) < 0 || Number(settings.idle_time_limit) > 240)) {
+    errs.push('idle_time_limit must be between 0 and 240 minutes')
+  }
+  if (settings.offline_timeout && (Number(settings.offline_timeout) < 0 || Number(settings.offline_timeout) > 60)) {
+    errs.push('offline_timeout must be between 0 and 60 minutes')
   }
   return errs
 }
