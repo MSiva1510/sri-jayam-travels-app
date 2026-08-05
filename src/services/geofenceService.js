@@ -353,10 +353,9 @@ async refreshZones() {
         console.error('Failed to refresh geofence zones:', error)
         // Keep existing zones if refresh fails
     }
-}
-}
+  }
 
-/**
+  /**
    * Manually trigger geofence detection for a set of vehicle positions
    * Useful for testing or manual triggering
    * @param {Array} vehiclePositions - Array of vehicle position objects
@@ -370,5 +369,4 @@ async refreshZones() {
 // Create and export a singleton instance
 export const geofenceService = new GeofenceService()
 
-// Export the class for potential multiple instances
-export { GeofenceService }
+// GeofenceService class is already exported above (export class GeofenceService)

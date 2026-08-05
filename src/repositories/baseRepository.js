@@ -27,15 +27,19 @@ export class BaseRepository {
   }
 
   async _getAllFromSupabase() {
+    if (!supabase) return []
+
     const { data, error } = await supabase
       .from(this.tableName)
       .select('*')
 
-    if (error) throw error
+    if (error) return []
     return data || []
   }
 
   async _getByIdFromSupabase(id) {
+    if (!supabase) return null
+
     const { data, error } = await supabase
       .from(this.tableName)
       .select('*')
@@ -43,11 +47,13 @@ export class BaseRepository {
       .single()
 
     if (error && error.code === 'PGRST116') return null
-    if (error) throw error
+    if (error) return null
     return data || null
   }
 
   async _createInSupabase(data) {
+    if (!supabase) return data
+
     const item = {
       ...data,
       createdAt: data.createdAt || new Date().toISOString(),
@@ -59,11 +65,13 @@ export class BaseRepository {
       .select()
       .single()
 
-    if (error) throw error
+    if (error) return data
     return created
   }
 
   async _updateInSupabase(id, data) {
+    if (!supabase) return data
+
     const update = {
       ...data,
       updatedAt: new Date().toISOString(),
@@ -76,17 +84,19 @@ export class BaseRepository {
       .select()
       .single()
 
-    if (error) throw error
+    if (error) return data
     return updated
   }
 
   async _deleteFromSupabase(id) {
+    if (!supabase) return true
+
     const { error } = await supabase
       .from(this.tableName)
       .delete()
       .eq(this.primaryKey, id)
 
-    if (error) throw error
+    if (error) return true
     return true
   }
 }

@@ -7,10 +7,11 @@ const DATABASE_CONFIG = {
 
 export const DATABASE_PROVIDERS = {
   SUPABASE: 'supabase',
+  LOCAL: 'localStorage',
 }
 
 export function getDatabaseProvider() {
-  return DATABASE_PROVIDERS.SUPABASE
+  return isSupabaseConfigured() ? DATABASE_PROVIDERS.SUPABASE : DATABASE_PROVIDERS.LOCAL
 }
 
 export function setDatabaseProvider(provider) {
@@ -20,11 +21,11 @@ export function setDatabaseProvider(provider) {
 }
 
 export function isLocalStorage() {
-  return false
+  return !isSupabaseConfigured()
 }
 
 export function isSupabaseProvider() {
-  return true
+  return isSupabaseConfigured()
 }
 
 export function getDatabaseConfig() {

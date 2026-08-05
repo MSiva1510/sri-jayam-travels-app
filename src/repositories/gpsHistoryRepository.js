@@ -39,14 +39,18 @@ class GpsHistoryRepository {
   // ── Fleet-wide latest per vehicle (with vehicle+driver join) ──
   async getLatestForFleet() {
     if (!supabase) return []
-    const { data } = await withTimeout(
+
+    const { data, error } = await withTimeout(
       supabase.from(this.table)
         .select('*, vehicles(id, registration, imei, model), drivers(id, name)')
         .order('timestamp', { ascending: false }).limit(500),
       DEFAULT_TIMEOUT_MS, { data: [] }
     )
+
+    if (error) throw error
+
     const seen = new Set()
-    const out  = []
+    const out = []
     for (const row of data ?? []) {
       if (!row.vehicle_id || seen.has(row.vehicle_id)) continue
       seen.add(row.vehicle_id)

@@ -274,7 +274,7 @@ export class GeofenceZoneRepository extends BaseRepository {
 }
 
 // Create a separate repository for geofence events
-class GeofenceEventRepository extends BaseRepository {
+export class GeofenceEventRepository extends BaseRepository {
   constructor() {
     super('geofence_events', 'id')
   }
@@ -446,4 +446,4 @@ class GeofenceEventRepository extends BaseRepository {
 // Export instances
 export const geofenceZoneRepository = new GeofenceZoneRepository()
 export const geofenceEventRepository = new GeofenceEventRepository()
-export { GeofenceZoneRepository, GeofenceEventRepository }
+// Classes are already exported above

@@ -196,14 +196,20 @@ function validate(settings = {}) {
   return errs
 }
 
-export const gpsSettingsRepository = {
-  getAll,
-  getAsObject,
-  getRows,
-  set,
-  setMany,
-  validate,
-  GPS_DEFAULT_SETTINGS,
-  GPS_SETTINGS_CATEGORY,
-  SENSITIVE_KEYS,
+class GpsSettingsRepository {
+  constructor() {
+    this.GPS_DEFAULT_SETTINGS = GPS_DEFAULT_SETTINGS
+    this.GPS_SETTINGS_CATEGORY = GPS_SETTINGS_CATEGORY
+    this.SENSITIVE_KEYS = SENSITIVE_KEYS
+  }
+
+  async getAll() { return getAll() }
+  async getAsObject() { return getAsObject() }
+  async getRows() { return getRows() }
+  async set(key, value, options) { return set(key, value, options) }
+  async setMany(updates, options) { return setMany(updates, options) }
+  validate(settings = {}) { return validate(settings) }
 }
+
+export const gpsSettingsRepository = new GpsSettingsRepository()
+export { GpsSettingsRepository }

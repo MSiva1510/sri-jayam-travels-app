@@ -31,9 +31,9 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!email.trim() || !password) return
-    const ok = await login({ email: email.trim().toLowerCase(), password })
-    if (ok) {
-      const dest = user?.role === 'driver' ? '/driver' : (from === '/login' ? '/' : from)
+    const loggedInUser = await login({ email: email.trim().toLowerCase(), password })
+    if (loggedInUser) {
+      const dest = loggedInUser.role === 'driver' ? '/driver' : (from === '/login' ? '/' : from)
       navigate(dest, { replace: true })
     }
   }

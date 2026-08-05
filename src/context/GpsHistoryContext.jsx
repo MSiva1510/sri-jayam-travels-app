@@ -38,7 +38,7 @@ export function GpsHistoryProvider({ children }) {
           gpsHistoryRepository.getTodayDistanceKm(),
         ])
         if (cancelled) return
-        setSettings(s); setSnapshots(f); setTodayDistance(dist)
+        setSettings(s); setSnapshots(Array.isArray(f) ? f : []); setTodayDistance(dist)
       } catch (err) {
         if (!cancelled) setError(err?.message ?? 'Failed to load GPS data')
       } finally {
@@ -59,7 +59,7 @@ export function GpsHistoryProvider({ children }) {
           gpsHistoryRepository.getLatestForFleet(),
           gpsHistoryRepository.getTodayDistanceKm(),
         ])
-        setSnapshots(f); setTodayDistance(dist)
+        setSnapshots(Array.isArray(f) ? f : []); setTodayDistance(dist)
       } catch {}
     }, 15_000)
     return () => clearInterval(t)
@@ -72,7 +72,7 @@ export function GpsHistoryProvider({ children }) {
         gpsHistoryRepository.getLatestForFleet(),
         gpsHistoryRepository.getTodayDistanceKm(),
       ])
-      setSnapshots(f); setTodayDistance(dist)
+      setSnapshots(Array.isArray(f) ? f : []); setTodayDistance(dist)
       return { ok: true }
     } catch (err) { return { ok: false, error: err?.message ?? 'Sync failed' } }
   }, [])

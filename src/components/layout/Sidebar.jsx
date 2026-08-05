@@ -3,7 +3,7 @@ import {
   LayoutDashboard, FileText, Users, Receipt,
   User, Car, Settings, ChevronLeft, ChevronRight,
   MapPin, Phone, Globe, LogOut, Navigation,
-  History, List, Route, Signal, CalendarCheck, IndianRupee, BarChart2, Database, UserCog,
+  History, List, Route, Signal, CalendarCheck, IndianRupee, BarChart2, Database, UserCog, TrendingUp,
   FolderOpen, ClipboardList, MessageSquare,
   Shield, HardDrive, Activity, Lock,
 } from 'lucide-react'
@@ -31,7 +31,9 @@ const NAV_ITEMS = [
   // Day 32: Live Fleet Dashboard
   { to: '/fleet',          label: 'Live Fleet',     icon: Navigation,      roles: ['admin','manager'], perm: 'view_fleet' },
   // Day 33: GPS History + Route Replay
-  { to: '/gps-history',   label: 'GPS History',    icon: History,         roles: ['admin','manager'], perm: 'view_fleet' },
+  { to: '/gps-history',      label: 'GPS History',    icon: History,      roles: ['admin','manager'], perm: 'view_fleet' },
+  // Day 36: Fleet Analytics
+  { to: '/fleet-analytics',  label: 'Fleet Analytics',icon: TrendingUp,   roles: ['admin','manager'], perm: 'view_fleet' },
   // Driver
   { to: '/driver',         label: 'Home',          icon: LayoutDashboard, roles: ['driver'] },
   { to: '/assigned-trips', label: 'Trips Today',   icon: List,            roles: ['driver'] },

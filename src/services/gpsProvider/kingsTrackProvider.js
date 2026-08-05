@@ -13,6 +13,27 @@ const MOCK_VEHICLES = [
   { Vehicle: 'TN-32-CR-9012', Latitude: 11.9600, Longitude: 79.8400, Address: 'Auroville Main Rd', Speed: 18, Timestamp: new Date().toISOString(), GPS: 'V', Ignition: 'ON',  Status: 'Idle',    Odometer: 12345.6, IMEI: '352093089012345' },
 ]
 
+function readValue(record, keys) {
+  for (const key of keys) {
+    if (record?.[key] !== undefined && record?.[key] !== null && record?.[key] !== '') return record[key]
+  }
+  return undefined
+}
+
+function toBoolean(value, fallback = false) {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value !== 0
+  const text = String(value ?? '').trim().toUpperCase()
+  if (['1', 'TRUE', 'YES', 'ON', 'A', 'ACTIVE', 'VALID'].includes(text)) return true
+  if (['0', 'FALSE', 'NO', 'OFF', 'V', 'VOID', 'INACTIVE'].includes(text)) return false
+  return fallback
+}
+
+function toNumber(value, fallback = 0) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
 export function createKingsTrackProvider(settings = {}) {
   const baseUrl = settings.api_url || DEFAULT_URL
   const timeout = Number(settings.timeout ?? 30) * 1000
@@ -25,25 +46,32 @@ export function createKingsTrackProvider(settings = {}) {
                 : Array.isArray(raw?.vehicles) ? raw.vehicles
                 : []
     return list.map(v => {
-      const lat = Number(v.Latitude ?? v.latitude)
-      const lng = Number(v.Longitude ?? v.longitude)
+      const lat = toNumber(readValue(v, ['Latitude', 'latitude', 'lat']), NaN)
+      const lng = toNumber(readValue(v, ['Longitude', 'longitude', 'lng']), NaN)
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
-      const tsRaw = v.Timestamp ?? v.timestamp ?? new Date().toISOString()
-      const ts    = new Date(tsRaw)
+
+      const tsRaw = readValue(v, ['Timestamp', 'timestamp', 'ts', 'time']) ?? new Date().toISOString()
+      const ts = new Date(tsRaw)
       const isoTs = Number.isFinite(ts.getTime()) ? ts.toISOString() : new Date().toISOString()
+
+      const gpsText = String(readValue(v, ['GPS', 'gps', 'Gps']) ?? '').trim().toUpperCase()
+      const ignitionText = String(readValue(v, ['Ignition', 'ignition']) ?? '').trim().toUpperCase()
+      const statusText = String(readValue(v, ['Status', 'status']) ?? '').trim().toLowerCase()
+
       return {
-        imei:         v.IMEI ?? v.imei ?? v.DeviceIMEI ?? '',
-        registration: v.Vehicle ?? v.registration ?? '',
-        lat, lng,
-        address:    v.Address  ?? v.address  ?? '',
-        speed_kmh:  Number(v.Speed ?? v.speed ?? 0),
-        ignition:   String(v.Ignition ?? '').toUpperCase() === 'ON',
-        gps_online: String(v.GPS ?? v.gps ?? '').toUpperCase() === 'A',
-        status:     (v.Status ?? v.status ?? '').toString().toLowerCase(),
-        odometer:   Number(v.Odometer ?? v.odometer ?? 0),
-        timestamp:  isoTs,
-        _epoch:     Math.floor(ts.getTime() / 60000) * 60000,
-        _raw:       v,   // per-vehicle raw for the gps_tracking.raw column
+        imei:         readValue(v, ['IMEI', 'imei', 'DeviceIMEI', 'imei_no']) ?? '',
+        registration: readValue(v, ['Vehicle', 'registration', 'plate_no', 'plateNo', 'vehicle_no']) ?? '',
+        lat,
+        lng,
+        address:      readValue(v, ['Address', 'address']) ?? '',
+        speed_kmh:    toNumber(readValue(v, ['Speed', 'speed']), 0),
+        ignition:     toBoolean(ignitionText, false),
+        gps_online:   toBoolean(gpsText, false),
+        status:       statusText,
+        odometer:     toNumber(readValue(v, ['Odometer', 'odometer']), 0),
+        timestamp:    isoTs,
+        _epoch:       Math.floor(ts.getTime() / 60000) * 60000,
+        _raw:         v,
       }
     }).filter(Boolean)
   }

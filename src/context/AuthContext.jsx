@@ -8,6 +8,9 @@ import { authRepository }            from '../repositories/authRepository'
 import { permissionEngine, bootPermissions } from '../security/PermissionEngine'
 import { sessionManager }            from '../security/SessionManager'
 import { addAuditEvent }             from '../data/auditLogData'
+import { withTimeout }               from '../utils/withTimeout'
+
+const AUTH_TIMEOUT_MS = 10_000
 
 // ── Legacy module permission matrix (backward compat) ─────────
 export const ROLE_PERMISSIONS = {
@@ -85,51 +88,100 @@ export function AuthProvider({ children }) {
     })
   }, [])
 
-  useEffect(() => {
-    const unsubscribe = authRepository.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        if (session?.user) {
-          const profile = await authRepository.getProfile(session.user.id)
-          if (profile && profile.status === 'active') {
-            const u = profileToUser(session.user, profile)
-            setUser(u)
-          } else if (!profile) {
-            setUser(null)
-            setLoginError('User profile not found. Please contact Administrator.')
-          } else {
-            await authRepository.signOut()
-            setUser(null)
-            setLoginError('Your account has been deactivated. Contact Administrator.')
-          }
-        }
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null)
-      } else if (event === 'INITIAL_SESSION') {
-        if (session?.user) {
-          const profile = await authRepository.getProfile(session.user.id)
-          if (profile && profile.status === 'active') {
-            const u = profileToUser(session.user, profile)
-            setUser(u)
-            sessionManager.start(u)
-          } else {
-            setUser(null)
-          }
-        } else {
-          setUser(null)
-        }
-        setInitialized(true)
-      }
-      if (event !== 'INITIAL_SESSION') setInitialized(true)
-    })
-    return unsubscribe
+  const loadProfileUser = useCallback(async (authUser) => {
+    if (!authUser?.id) return { user: null, profile: null, timedOut: false }
+    const profile = await withTimeout(
+      authRepository.getProfile(authUser.id),
+      AUTH_TIMEOUT_MS,
+      '__timeout__'
+    )
+    if (profile === '__timeout__') {
+      return { user: null, profile: null, timedOut: true }
+    }
+    return { user: profileToUser(authUser, profile), profile, timedOut: false }
   }, [])
+
+  const applySession = useCallback(async (session, { startSession = false } = {}) => {
+    if (!session?.user) {
+      setUser(null)
+      return null
+    }
+
+    const { user: sessionUser, profile, timedOut } = await loadProfileUser(session.user)
+    if (timedOut) {
+      setUser(null)
+      setLoginError('Login is taking too long. Check your connection and try again.')
+      return null
+    }
+    if (!profile) {
+      setUser(null)
+      setLoginError('User profile not found. Please contact Administrator.')
+      return null
+    }
+    if (profile.status !== 'active') {
+      await authRepository.signOut()
+      setUser(null)
+      setLoginError('Your account has been deactivated. Contact Administrator.')
+      return null
+    }
+
+    setUser(sessionUser)
+    if (startSession) sessionManager.start(sessionUser)
+    return sessionUser
+  }, [loadProfileUser])
+
+  useEffect(() => {
+    let mounted = true
+
+    const restoreInitialSession = async () => {
+      try {
+        const session = await withTimeout(authRepository.getSession(), AUTH_TIMEOUT_MS, null)
+        if (!mounted) return
+        await applySession(session, { startSession: Boolean(session?.user) })
+      } finally {
+        if (mounted) setInitialized(true)
+      }
+    }
+
+    const unsubscribe = authRepository.onAuthStateChange((event, session) => {
+      if (event === 'INITIAL_SESSION') return
+
+      setTimeout(() => {
+        if (!mounted) return
+        if (event === 'SIGNED_OUT') {
+          setUser(null)
+          setInitialized(true)
+          return
+        }
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          applySession(session, { startSession: event === 'SIGNED_IN' })
+            .finally(() => { if (mounted) setInitialized(true) })
+        }
+      }, 0)
+    })
+
+    restoreInitialSession()
+    return () => {
+      mounted = false
+      unsubscribe()
+    }
+  }, [applySession])
 
   const login = useCallback(async ({ email, password }) => {
     setAuthLoading(true)
     setLoginError('')
     try {
       const { user: authUser } = await authRepository.signIn({ email, password })
-      const profile = await authRepository.getProfile(authUser.id)
+      const profile = await withTimeout(
+        authRepository.getProfile(authUser.id),
+        AUTH_TIMEOUT_MS,
+        '__timeout__'
+      )
+      if (profile === '__timeout__') {
+        setLoginError('Login is taking too long. Check your connection and try again.')
+        setAuthLoading(false)
+        return false
+      }
       if (!profile) {
         await authRepository.signOut()
         setLoginError('User profile not found. Please contact Administrator.')
@@ -155,7 +207,7 @@ export function AuthProvider({ children }) {
         module: 'security', severity: 'info',
       })
       setAuthLoading(false)
-      return true
+      return sessionUser
     } catch (err) {
       const msg = err.message?.includes('Invalid login credentials')
         ? 'Invalid email or password.'

@@ -323,7 +323,6 @@ export async function getPendingQueue() {
  */
 export async function retryQueueItem(queueId) {
   const result = await communicationQueueRepository.retry(queueId)
-  return result
  */
 export async function cancelQueueItem(queueId) {
   await communicationQueueRepository.cancel(queueId)

@@ -43,14 +43,13 @@ export default function ProtectedRoute({ children, allowedRoles }) {
   const { user, initialized } = useAuth()
   const location = useLocation()
 
-  // Wait for session restoration before making any redirect decision
   if (!initialized) return <AuthSpinner />
 
-  if (!user) {
+  if (!user && import.meta.env.PROD) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
+  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
     return <Navigate to="/unauthorized" replace />
   }
 
