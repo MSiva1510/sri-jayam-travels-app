@@ -8,6 +8,22 @@ import { getDatabaseProvider, DATABASE_PROVIDERS } from '../config/database'
 import { dataService } from '../services/dataService'
 
 const ALERTS_STORAGE_KEY = 'sjt_fleet_alerts'
+const MISSING_TABLES_STORAGE_KEY = 'sjt_supabase_missing_tables'
+
+function getMissingSupabaseTables() {
+  return dataService.get(MISSING_TABLES_STORAGE_KEY, {}) || {}
+}
+
+function cacheMissingSupabaseTable(tableName) {
+  const tables = getMissingSupabaseTables()
+  tables[tableName] = true
+  dataService.set(MISSING_TABLES_STORAGE_KEY, tables)
+  return true
+}
+
+function isSupabaseTableMissing(tableName) {
+  return getMissingSupabaseTables()[tableName] === true
+}
 
 /**
  * FleetAlertRepository - Manages fleet alert data
@@ -15,6 +31,7 @@ const ALERTS_STORAGE_KEY = 'sjt_fleet_alerts'
 export class FleetAlertRepository extends BaseRepository {
   constructor() {
     super('fleet_alerts', 'id')
+    this.tableMissing = isSupabaseTableMissing(this.tableName)
   }
 
   /**
@@ -34,7 +51,7 @@ export class FleetAlertRepository extends BaseRepository {
   async getAll(opts = {}) {
     const provider = getDatabaseProvider()
 
-    if (provider === DATABASE_PROVIDERS.SUPABASE) {
+    if (provider === DATABASE_PROVIDERS.SUPABASE && !this.tableMissing) {
       return this._getAllFromSupabase(opts)
     }
 
@@ -63,7 +80,7 @@ export class FleetAlertRepository extends BaseRepository {
   async getById(id) {
     const provider = getDatabaseProvider()
 
-    if (provider === DATABASE_PROVIDERS.SUPABASE) {
+    if (provider === DATABASE_PROVIDERS.SUPABASE && !this.tableMissing) {
       return this._getByIdFromSupabase(id)
     }
 
@@ -78,7 +95,7 @@ export class FleetAlertRepository extends BaseRepository {
   async create(data) {
     const provider = getDatabaseProvider()
 
-    if (provider === DATABASE_PROVIDERS.SUPABASE) {
+    if (provider === DATABASE_PROVIDERS.SUPABASE && !this.tableMissing) {
       return this._createInSupabase(data)
     }
 
@@ -94,7 +111,7 @@ export class FleetAlertRepository extends BaseRepository {
   async update(id, data) {
     const provider = getDatabaseProvider()
 
-    if (provider === DATABASE_PROVIDERS.SUPABASE) {
+    if (provider === DATABASE_PROVIDERS.SUPABASE && !this.tableMissing) {
       return this._updateInSupabase(id, data)
     }
 
@@ -109,7 +126,7 @@ export class FleetAlertRepository extends BaseRepository {
   async delete(id) {
     const provider = getDatabaseProvider()
 
-    if (provider === DATABASE_PROVIDERS.SUPABASE) {
+    if (provider === DATABASE_PROVIDERS.SUPABASE && !this.tableMissing) {
       return this._deleteFromSupabase(id)
     }
 
@@ -287,6 +304,11 @@ export class FleetAlertRepository extends BaseRepository {
       if (error) throw error
       return data || []
     } catch (error) {
+      if (error?.code === 'PGRST205' || String(error?.message).includes('fleet_alerts')) {
+        this.tableMissing = cacheMissingSupabaseTable(this.tableName)
+        console.warn('Fleet alerts table missing in Supabase; falling back to local alerts.')
+        return this._getAllFromLocal(opts)
+      }
       console.error('Error fetching fleet alerts from Supabase:', error)
       throw error
     }
@@ -303,9 +325,18 @@ export class FleetAlertRepository extends BaseRepository {
         .single()
 
       if (error && error.code === 'PGRST116') return null
+      if (error && error.code === 'PGRST205') {
+        this.tableMissing = cacheMissingSupabaseTable(this.tableName)
+        return this._getByIdFromLocal(id)
+      }
       if (error) throw error
       return data || null
     } catch (error) {
+      if (error?.code === 'PGRST205' || String(error?.message).includes('fleet_alerts')) {
+        this.tableMissing = cacheMissingSupabaseTable(this.tableName)
+        console.warn('Fleet alerts table missing in Supabase; falling back to local alert lookup.')
+        return this._getByIdFromLocal(id)
+      }
       console.error('Error fetching fleet alert from Supabase:', error)
       throw error
     }
@@ -332,6 +363,11 @@ export class FleetAlertRepository extends BaseRepository {
       if (error) throw error
       return created
     } catch (error) {
+      if (error?.code === 'PGRST205' || String(error?.message).includes('fleet_alerts')) {
+        this.tableMissing = cacheMissingSupabaseTable(this.tableName)
+        console.warn('Fleet alerts table missing in Supabase; creating alert locally.')
+        return this._createInLocal(data)
+      }
       console.error('Error creating fleet alert in Supabase:', error)
       throw error
     }
@@ -356,6 +392,11 @@ export class FleetAlertRepository extends BaseRepository {
       if (error) throw error
       return updated
     } catch (error) {
+      if (error?.code === 'PGRST205' || String(error?.message).includes('fleet_alerts')) {
+        this.tableMissing = cacheMissingSupabaseTable(this.tableName)
+        console.warn('Fleet alerts table missing in Supabase; updating alert locally.')
+        return this._updateInLocal(id, data)
+      }
       console.error('Error updating fleet alert in Supabase:', error)
       throw error
     }
@@ -373,9 +414,15 @@ export class FleetAlertRepository extends BaseRepository {
       if (error) throw error
       return true
     } catch (error) {
+      if (error?.code === 'PGRST205' || String(error?.message).includes('fleet_alerts')) {
+        this.tableMissing = cacheMissingSupabaseTable(this.tableName)
+        console.warn('Fleet alerts table missing in Supabase; deleting alert locally.')
+        return this._deleteFromLocal(id)
+      }
       console.error('Error deleting fleet alert from Supabase:', error)
       throw error
     }
+
   }
 }
 

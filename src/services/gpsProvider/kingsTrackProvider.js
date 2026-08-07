@@ -110,10 +110,10 @@ export function createKingsTrackProvider(settings = {}) {
 }
 
 async function requestGps(targetUrl, body, timeout, useProxy) {
-  const method = String(body.api_method || 'POST').toUpperCase()
+  const method = String(body.api_method || 'GET').toUpperCase()
   const first = await sendGpsRequest(targetUrl, body, timeout, useProxy, method)
-  if (first?.status !== 405 || method === 'GET') return first
-  return sendGpsRequest(targetUrl, body, timeout, useProxy, 'GET')
+  if (first?.status !== 405 || method === 'POST') return first
+  return sendGpsRequest(targetUrl, body, timeout, useProxy, 'POST')
 }
 
 function sendGpsRequest(targetUrl, body, timeout, useProxy, vendorMethod) {
@@ -126,11 +126,21 @@ function sendGpsRequest(targetUrl, body, timeout, useProxy, vendorMethod) {
       ? withQueryParams(targetUrl, body)
       : targetUrl
 
+  const isPost = vendorMethod === 'POST'
+  const headers = useProxy
+    ? { 'Content-Type': 'application/json' }
+    : { 'Content-Type': isPost ? 'application/x-www-form-urlencoded' : 'application/json' }
+  const payload = useProxy
+    ? JSON.stringify(requestBody)
+    : vendorMethod === 'GET'
+      ? undefined
+      : new URLSearchParams(requestBody).toString()
+
   return withTimeout(
     fetch(url, {
       method: useProxy ? 'POST' : vendorMethod,
-      headers: { 'Content-Type': 'application/json' },
-      body: vendorMethod === 'GET' && !useProxy ? undefined : JSON.stringify(requestBody),
+      headers,
+      body: payload,
     }),
     timeout,
     null

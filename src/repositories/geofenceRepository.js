@@ -8,6 +8,22 @@ import { getDatabaseProvider, DATABASE_PROVIDERS } from '../config/database'
 import { dataService } from '../services/dataService'
 
 const GEOFENCE_ZONES_STORAGE_KEY = 'sjt_geofence_zones'
+const MISSING_TABLES_STORAGE_KEY = 'sjt_supabase_missing_tables'
+
+function getMissingSupabaseTables() {
+  return dataService.get(MISSING_TABLES_STORAGE_KEY, {}) || {}
+}
+
+function cacheMissingSupabaseTable(tableName) {
+  const tables = getMissingSupabaseTables()
+  tables[tableName] = true
+  dataService.set(MISSING_TABLES_STORAGE_KEY, tables)
+  return true
+}
+
+function isSupabaseTableMissing(tableName) {
+  return getMissingSupabaseTables()[tableName] === true
+}
 
 /**
  * GeofenceZoneRepository - Manages geofence zone data
@@ -15,6 +31,7 @@ const GEOFENCE_ZONES_STORAGE_KEY = 'sjt_geofence_zones'
 export class GeofenceZoneRepository extends BaseRepository {
   constructor() {
     super('geofence_zones', 'id')
+    this.tableMissing = isSupabaseTableMissing(this.tableName)
   }
 
   /**
@@ -28,7 +45,7 @@ export class GeofenceZoneRepository extends BaseRepository {
   async getZones(opts = {}) {
     const provider = getDatabaseProvider()
 
-    if (provider === DATABASE_PROVIDERS.SUPABASE) {
+    if (provider === DATABASE_PROVIDERS.SUPABASE && !this.tableMissing) {
       return this._getZonesFromSupabase(opts)
     }
 
@@ -43,7 +60,7 @@ export class GeofenceZoneRepository extends BaseRepository {
   async getZoneById(id) {
     const provider = getDatabaseProvider()
 
-    if (provider === DATABASE_PROVIDERS.SUPABASE) {
+    if (provider === DATABASE_PROVIDERS.SUPABASE && !this.tableMissing) {
       return this._getZoneByIdFromSupabase(id)
     }
 
@@ -58,7 +75,7 @@ export class GeofenceZoneRepository extends BaseRepository {
   async createZone(data) {
     const provider = getDatabaseProvider()
 
-    if (provider === DATABASE_PROVIDERS.SUPABASE) {
+    if (provider === DATABASE_PROVIDERS.SUPABASE && !this.tableMissing) {
       return this._createZoneInSupabase(data)
     }
 
@@ -74,7 +91,7 @@ export class GeofenceZoneRepository extends BaseRepository {
   async updateZone(id, data) {
     const provider = getDatabaseProvider()
 
-    if (provider === DATABASE_PROVIDERS.SUPABASE) {
+    if (provider === DATABASE_PROVIDERS.SUPABASE && !this.tableMissing) {
       return this._updateZoneInSupabase(id, data)
     }
 
@@ -89,7 +106,7 @@ export class GeofenceZoneRepository extends BaseRepository {
   async deleteZone(id) {
     const provider = getDatabaseProvider()
 
-    if (provider === DATABASE_PROVIDERS.SUPABASE) {
+    if (provider === DATABASE_PROVIDERS.SUPABASE && !this.tableMissing) {
       return this._deleteZoneFromSupabase(id)
     }
 
@@ -182,6 +199,11 @@ export class GeofenceZoneRepository extends BaseRepository {
       if (error) throw error
       return data || []
     } catch (error) {
+      if (error?.code === 'PGRST205' || String(error?.message).includes('geofence_zones')) {
+        this.tableMissing = cacheMissingSupabaseTable(this.tableName)
+        console.warn('Geofence table missing in Supabase; falling back to empty local geofence list.')
+        return []
+      }
       console.error('Error fetching geofence zones from Supabase:', error)
       throw error
     }
@@ -198,9 +220,18 @@ export class GeofenceZoneRepository extends BaseRepository {
         .single()
 
       if (error && error.code === 'PGRST116') return null
+      if (error && error.code === 'PGRST205') {
+        this.tableMissing = cacheMissingSupabaseTable(this.tableName)
+        return null
+      }
       if (error) throw error
       return data || null
     } catch (error) {
+      if (error?.code === 'PGRST205' || String(error?.message).includes('geofence_zones')) {
+        this.tableMissing = cacheMissingSupabaseTable(this.tableName)
+        console.warn('Geofence table missing in Supabase; returning null for zone lookup.')
+        return null
+      }
       console.error('Error fetching geofence zone from Supabase:', error)
       throw error
     }
@@ -226,6 +257,11 @@ export class GeofenceZoneRepository extends BaseRepository {
       if (error) throw error
       return created
     } catch (error) {
+      if (error?.code === 'PGRST205' || String(error?.message).includes('geofence_zones')) {
+        this.tableMissing = cacheMissingSupabaseTable(this.tableName)
+        console.warn('Geofence table missing in Supabase; creating zone locally.')
+        return this._createZoneInLocal(data)
+      }
       console.error('Error creating geofence zone in Supabase:', error)
       throw error
     }
@@ -250,6 +286,11 @@ export class GeofenceZoneRepository extends BaseRepository {
       if (error) throw error
       return updated
     } catch (error) {
+      if (error?.code === 'PGRST205' || String(error?.message).includes('geofence_zones')) {
+        this.tableMissing = cacheMissingSupabaseTable(this.tableName)
+        console.warn('Geofence table missing in Supabase; updating zone locally.')
+        return this._updateZoneInLocal(id, data)
+      }
       console.error('Error updating geofence zone in Supabase:', error)
       throw error
     }
@@ -267,6 +308,11 @@ export class GeofenceZoneRepository extends BaseRepository {
       if (error) throw error
       return true
     } catch (error) {
+      if (error?.code === 'PGRST205' || String(error?.message).includes('geofence_zones')) {
+        this.tableMissing = cacheMissingSupabaseTable(this.tableName)
+        console.warn('Geofence table missing in Supabase; deleting zone locally.')
+        return this._deleteZoneFromLocal(id)
+      }
       console.error('Error deleting geofence zone from Supabase:', error)
       throw error
     }

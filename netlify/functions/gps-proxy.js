@@ -45,8 +45,10 @@ export async function handler(event) {
 
     const response = await fetch(url, {
       method,
-      headers: { 'Content-Type': 'application/json' },
-      body: method === 'GET' ? undefined : JSON.stringify(vendorPayload),
+      headers: {
+        'Content-Type': method === 'GET' ? 'application/json' : 'application/x-www-form-urlencoded'
+      },
+      body: method === 'GET' ? undefined : new URLSearchParams(vendorPayload).toString(),
     })
 
     const text = await response.text()

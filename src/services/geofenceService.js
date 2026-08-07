@@ -35,6 +35,14 @@ export class GeofenceService {
       this.initialized = true
       console.log(`GeofenceService initialized with ${this.zones.length} active zones`)
     } catch (error) {
+      const missingTable = error?.code === 'PGRST205' || String(error?.message).includes('geofence_zones')
+      if (missingTable) {
+        this.zones = []
+        this._loadVehicleStates()
+        this.initialized = true
+        console.warn('GeofenceService initialized with empty zones because geofence_zones table is unavailable.')
+        return
+      }
       console.error('Failed to initialize GeofenceService:', error)
       throw error
     }

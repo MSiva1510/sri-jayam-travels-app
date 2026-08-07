@@ -14,6 +14,15 @@ function gpsProxyDevMiddleware() {
           return
         }
 
+        if (req.method === 'OPTIONS') {
+          res.statusCode = 204
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS')
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+          res.end()
+          return
+        }
+
         if (req.method !== 'POST') {
           res.statusCode = 405
           res.setHeader('Content-Type', 'application/json')
@@ -49,8 +58,10 @@ function gpsProxyDevMiddleware() {
 
           const upstream = await fetch(target, {
             method,
-            headers: { 'Content-Type': 'application/json' },
-            body: method === 'GET' ? undefined : JSON.stringify(vendorPayload),
+            headers: {
+              'Content-Type': method === 'GET' ? 'application/json' : 'application/x-www-form-urlencoded'
+            },
+            body: method === 'GET' ? undefined : new URLSearchParams(vendorPayload).toString(),
           })
           const text = await upstream.text()
           res.statusCode = upstream.status

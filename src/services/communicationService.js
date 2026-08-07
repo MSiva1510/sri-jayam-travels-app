@@ -235,23 +235,6 @@ export async function saveNotificationPreferences(userId, prefs) {
   return notificationPreferenceRepository.upsert(userId, prefs)
 }
 
-// ── Communication logs ────────────────────────────────────────
-export async function getCommunicationLogs(filters = {}) {
-  return communicationLogRepository.getAll(filters)
-}
-
-export async function getCommunicationStats() {
-  return communicationLogRepository.getStats()
-}
-
-// ── Provider info ─────────────────────────────────────────────
-export async function getProviders() {
-  return providerRepository.getAll()
-}
-
-export async function getActiveProviders() {
-  return providerRepository.getActive()
-}
 
 // ── Engine stats ──────────────────────────────────────────────
 export function getEngineStats() {
@@ -324,7 +307,8 @@ export async function getPendingQueue() {
 export async function retryQueueItem(queueId) {
   const result = await communicationQueueRepository.retry(queueId)
   return result
- */
+}
+
 export async function cancelQueueItem(queueId) {
   await communicationQueueRepository.cancel(queueId)
   return true
@@ -340,18 +324,10 @@ export async function getQueueItem(queueId) {
 }
 
 // ── Provider Management ───────────────────────────────────────
-/**
- * Get all communication providers
- * @returns {Promise<Array>} List of providers
- */
 export async function getProviders() {
   return providerRepository.getAll()
 }
 
-/**
- * Get active communication providers
- * @returns {Promise<Array>} List of active providers
- */
 export async function getActiveProviders() {
   return providerRepository.getActive()
 }
@@ -403,7 +379,8 @@ export async function getCommunicationStats() {
 }
 
 // ── Message Templates Helper ─────────────────────────────────────────
-/s variable template placeholder variables
+/**
+
  * @param {string} template - Template string with {{var
  * @param {Object} values - Key-value pairs for substitution
  * @returns {string} Rendered template
