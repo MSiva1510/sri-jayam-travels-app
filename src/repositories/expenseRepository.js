@@ -9,6 +9,23 @@ import { getDatabaseProvider, DATABASE_PROVIDERS } from '../config/database'
 import { dataService } from '../services/dataService'
 
 const EXPENSES_STORAGE_KEY = 'sjt_expenses'
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const EXPENSE_SELECT = 'id, booking_id, driver_id, driver_name, amount, expense_date, description, created_by, status, type, created_at, updated_at'
+
+function toDbExpense(data = {}) {
+  const payload = {
+    booking_id: UUID_RE.test(String(data.booking_id || data.tripRef || '')) ? (data.booking_id || data.tripRef) : undefined,
+    driver_id: UUID_RE.test(String(data.driver_id || '')) ? data.driver_id : undefined,
+    driver_name: data.driver_name ?? data.driver,
+    amount: data.amount,
+    expense_date: data.expense_date ?? data.date ?? data.receiptDate,
+    description: data.description ?? data.notes ?? data.location,
+    created_by: UUID_RE.test(String(data.created_by || '')) ? data.created_by : undefined,
+    status: data.status === 'submitted' ? 'pending' : data.status,
+    type: data.type === 'misc' ? 'other' : data.type,
+  }
+  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined))
+}
 
 /**
  * ExpenseRepository - Manages expense data
@@ -40,7 +57,7 @@ export class ExpenseRepository extends BaseRepository {
       try {
         const { data, error } = await supabase
           .from('expenses')
-          .select('*')
+          .select(EXPENSE_SELECT)
           .eq('driver_id', driverId)
         if (error) throw error
         return data || []
@@ -58,7 +75,7 @@ export class ExpenseRepository extends BaseRepository {
       try {
         const { data, error } = await supabase
           .from('expenses')
-          .select('*')
+          .select(EXPENSE_SELECT)
           .eq('booking_id', tripId)
         if (error) throw error
         return data || []
@@ -76,7 +93,7 @@ export class ExpenseRepository extends BaseRepository {
       try {
         const { data, error } = await supabase
           .from('expenses')
-          .select('*')
+          .select(EXPENSE_SELECT)
           .eq('status', status)
         if (error) throw error
         return data || []
@@ -173,7 +190,7 @@ export class ExpenseRepository extends BaseRepository {
     try {
       const { data, error } = await supabase
         .from('expenses')
-        .select('*')
+        .select(EXPENSE_SELECT)
         .order('created_at', { ascending: false })
       if (error) throw error
       return data || []
@@ -184,10 +201,11 @@ export class ExpenseRepository extends BaseRepository {
   }
 
   async _getByIdFromSupabase(id) {
+    if (!UUID_RE.test(String(id))) return null
     try {
       const { data, error } = await supabase
         .from('expenses')
-        .select('*')
+        .select(EXPENSE_SELECT)
         .eq('id', id)
         .single()
       if (error && error.code === 'PGRST116') return null
@@ -202,8 +220,8 @@ export class ExpenseRepository extends BaseRepository {
   async _createInSupabase(data) {
     try {
       const expense = {
-        ...data,
-        id: data.id || `EXP-${Date.now().toString().slice(-6)}`,
+        ...toDbExpense(data),
+        ...(UUID_RE.test(String(data.id || '')) ? { id: data.id } : {}),
         created_at: data.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }
@@ -221,10 +239,13 @@ export class ExpenseRepository extends BaseRepository {
   }
 
   async _updateInSupabase(id, data) {
+    if (!UUID_RE.test(String(id))) {
+      throw new Error(`Cannot update expense ${id}: Supabase expense id must be a UUID`)
+    }
     try {
       const { data: updated, error } = await supabase
         .from('expenses')
-        .update({ ...data, updated_at: new Date().toISOString() })
+        .update({ ...toDbExpense(data), updated_at: new Date().toISOString() })
         .eq('id', id)
         .select()
         .single()
@@ -237,6 +258,9 @@ export class ExpenseRepository extends BaseRepository {
   }
 
   async _deleteFromSupabase(id) {
+    if (!UUID_RE.test(String(id))) {
+      throw new Error(`Cannot delete expense ${id}: Supabase expense id must be a UUID`)
+    }
     try {
       const { error } = await supabase.from('expenses').delete().eq('id', id)
       if (error) throw error

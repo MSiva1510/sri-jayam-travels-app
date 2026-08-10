@@ -15,7 +15,7 @@ import ReplayControls        from '../components/gps/ReplayControls'
 import TripStats             from '../components/gps/TripStats'
 import VehicleTimeline       from '../components/gps/VehicleTimeline'
 import { gpsHistoryRepository }  from '../repositories/gpsHistoryRepository'
-import { vehicleRepository }      from '../repositories/vehicleRepository'
+import { loadVehicles }          from '../data/vehicleData'
 import { processReplayData, REPLAY_INTERVAL_MS } from '../services/gpsReplayService'
 import { useApp } from '../context/AppContext'
 
@@ -49,7 +49,7 @@ export default function RouteReplay() {
         setLoading(true); setError(null); setPlaying(false); setCurrentIndex(0)
         const [pts, vehicles] = await Promise.all([
           gpsHistoryRepository.getReplay(vehicleId, since || undefined, until || undefined),
-          vehicleRepository.getAll(),
+          loadVehicles(),
         ])
         if (cancelled) return
         const label = vehicles?.find(v => v.id === vehicleId)?.registration ?? vehicleId

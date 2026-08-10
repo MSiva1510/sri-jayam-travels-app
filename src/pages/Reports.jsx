@@ -8,6 +8,8 @@ import {
 import PageHeader from '../components/ui/PageHeader'
 import Avatar     from '../components/ui/Avatar'
 import { useAuth } from '../context/AuthContext'
+import { loadDrivers } from '../data/driverData'
+import { loadVehicles } from '../data/vehicleData'
 import {
   getExecutiveSummary, getTripReport, getDriverPerformance,
   getVehiclePerformance, getCustomerReport, getExpenseAnalytics,
@@ -15,7 +17,6 @@ import {
   exportToCSV, exportToExcel, exportToPDF, getMonthlySummary,
   todayStr, thisMonthStr,
 } from '../data/reportData'
-import { driverRepository, vehicleRepository } from '../repositories'
 import { getStatusCfg } from '../data/tripTypes'
 
 // ─────────────────────────────────────────────────────────────
@@ -181,8 +182,8 @@ function TripReports() {
   const [vehicles, setVehicles] = useState([])
   useEffect(()=>{ getTripReport(from,to,driver,vehicle).then(d=>setReport(d ?? { rows:[], totalRevenue:0, totalDistance:0, completed:0, cancelled:0, cancelRate:0 })) },[from,to,driver,vehicle])
   useEffect(() => {
-    driverRepository.getAll().then(d => setDrivers(Array.isArray(d) ? d : [])).catch(err => console.error('[Reports] load drivers failed:', err))
-    vehicleRepository.getAll().then(v => setVehicles(Array.isArray(v) ? v : [])).catch(err => console.error('[Reports] load vehicles failed:', err))
+    loadDrivers().then(d => setDrivers(Array.isArray(d) ? d : [])).catch(err => console.error('[Reports] load drivers failed:', err))
+    loadVehicles().then(v => setVehicles(Array.isArray(v) ? v : [])).catch(err => console.error('[Reports] load vehicles failed:', err))
   }, [])
 
   const handleExport = () => exportToCSV(report.rows,[

@@ -7,8 +7,26 @@ import { BaseRepository } from './baseRepository'
 import supabase from '../lib/supabase'
 import { getDatabaseProvider, DATABASE_PROVIDERS } from '../config/database'
 import { dataService } from '../services/dataService'
+import { cacheClear } from '../utils/dataCache'
 
 const DRIVERS_STORAGE_KEY = 'sjt_drivers'
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function toDbDriver(data = {}) {
+  const payload = {
+    driver_id: data.driver_id || (!UUID_RE.test(String(data.id || '')) ? data.id : undefined),
+    name: data.name,
+    phone: data.phone,
+    license_number: data.license_number ?? data.license,
+    status: data.status ?? (data.is_active === false ? 'offline' : undefined),
+    joined_date: data.joined_date ?? data.joined,
+    license_expiry: data.license_expiry,
+    bank_name: data.bank_name,
+    emergency_contact: data.emergency_contact,
+    updated_at: data.updated_at ?? data.updatedAt,
+  }
+  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined))
+}
 
 /**
  * DriverRepository - Manages driver data
@@ -59,7 +77,7 @@ export class DriverRepository extends BaseRepository {
       try {
         const { data, error } = await supabase
           .from('drivers')
-          .select('*')
+          .select('id, driver_id, name, phone, status, license_number')
           .ilike('name', `%${name}%`)
 
         if (error) throw error
@@ -85,7 +103,7 @@ export class DriverRepository extends BaseRepository {
       try {
         const { data, error } = await supabase
           .from('drivers')
-          .select('*')
+          .select('id, driver_id, name, phone, license_number, status')
           .ilike('phone', `%${phone}%`)
 
         if (error) throw error
@@ -243,7 +261,7 @@ export class DriverRepository extends BaseRepository {
    * @returns {Promise<boolean>}
    */
   async isLicenseUnique(licenseNumber, excludeId = null) {
-    const drivers = await this.getAll()
+    const drivers = await this.getLookup()
     return !drivers.some(d => d.license_number === licenseNumber && d.id !== excludeId)
   }
 
@@ -307,13 +325,47 @@ export class DriverRepository extends BaseRepository {
     return Promise.resolve(items.filter(d => d.phone?.includes(phone)))
   }
 
+  async getLookup() {
+    const provider = getDatabaseProvider()
+    if (provider === DATABASE_PROVIDERS.SUPABASE) {
+      return this._getLookupFromSupabase()
+    }
+    return this._getLookupFromLocal()
+  }
+
+  _getLookupFromLocal() {
+    const items = dataService.get(DRIVERS_STORAGE_KEY, [])
+    return Promise.resolve(items.map(d => ({
+      id: d.id,
+      name: d.name,
+      phone: d.phone,
+      vehicle: d.vehicle,
+      status: d.status,
+      is_active: d.isActive !== false,
+      license_number: d.license_number,
+    })))
+  }
+
+  async _getLookupFromSupabase() {
+    try {
+      const { data, error } = await supabase
+        .from('drivers')
+        .select('id, driver_id, name, phone, status, license_number')
+      if (error) throw error
+      return data || []
+    } catch (error) {
+      console.error('Error fetching driver lookup from Supabase:', error)
+      throw error
+    }
+  }
+
   // ── SUPABASE METHODS ──────────────────────────────────────────
 
   async _getAllFromSupabase() {
     try {
       const { data, error } = await supabase
         .from('drivers')
-        .select('*')
+        .select('id, driver_id, name, phone, license_number, status, joined_date, license_expiry, bank_name, emergency_contact, created_at, updated_at')
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -328,8 +380,8 @@ export class DriverRepository extends BaseRepository {
     try {
       const { data, error } = await supabase
         .from('drivers')
-        .select('*')
-        .eq('id', id)
+        .select('id, driver_id, name, phone, license_number, status, joined_date, license_expiry, bank_name, emergency_contact, created_at, updated_at')
+        .eq(UUID_RE.test(String(id)) ? 'id' : 'driver_id', id)
         .single()
 
       if (error && error.code === 'PGRST116') {
@@ -347,8 +399,8 @@ export class DriverRepository extends BaseRepository {
   async _createInSupabase(data) {
     try {
       const driver = {
-        ...data,
-        id: data.id || `DRV-${Date.now().toString().slice(-6)}`,
+        ...toDbDriver(data),
+        driver_id: data.driver_id || (!UUID_RE.test(String(data.id || '')) ? data.id : null) || `DRV-${Date.now().toString().slice(-6)}`,
         created_at: data.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }
@@ -360,6 +412,7 @@ export class DriverRepository extends BaseRepository {
         .single()
 
       if (error) throw error
+      cacheClear('drivers')
       return created
     } catch (error) {
       console.error('Error creating driver in Supabase:', error)
@@ -372,14 +425,15 @@ export class DriverRepository extends BaseRepository {
       const { data: updated, error } = await supabase
         .from('drivers')
         .update({
-          ...data,
+          ...toDbDriver(data),
           updated_at: new Date().toISOString(),
         })
-        .eq('id', id)
+        .eq(UUID_RE.test(String(id)) ? 'id' : 'driver_id', id)
         .select()
         .single()
 
       if (error) throw error
+      cacheClear('drivers')
       return updated
     } catch (error) {
       console.error('Error updating driver in Supabase:', error)
@@ -392,9 +446,10 @@ export class DriverRepository extends BaseRepository {
       const { error } = await supabase
         .from('drivers')
         .delete()
-        .eq('id', id)
+        .eq(UUID_RE.test(String(id)) ? 'id' : 'driver_id', id)
 
       if (error) throw error
+      cacheClear('drivers')
       return true
     } catch (error) {
       console.error('Error deleting driver from Supabase:', error)

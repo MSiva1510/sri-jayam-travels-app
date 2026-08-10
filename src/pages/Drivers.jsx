@@ -6,6 +6,7 @@ import Button      from '../components/ui/Button'
 import PageHeader  from '../components/ui/PageHeader'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import { driverRepository }  from '../repositories/driverRepository'
+import { loadDrivers }        from '../data/driverData'
 import { loadBookings }       from '../data/tripTypes'
 import { loadTripPayslips }   from '../data/settlementData'
 
@@ -315,7 +316,7 @@ export default function Drivers() {
     setLoading(true)
     try {
       const [drs, bks, pys] = await Promise.all([
-        driverRepository.getAll(),
+        loadDrivers(),
         loadBookings(),
         loadTripPayslips(),
       ])

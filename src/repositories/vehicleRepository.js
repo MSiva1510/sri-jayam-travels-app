@@ -7,8 +7,28 @@ import { BaseRepository } from './baseRepository'
 import supabase from '../lib/supabase'
 import { getDatabaseProvider, DATABASE_PROVIDERS } from '../config/database'
 import { dataService } from '../services/dataService'
+import { cacheClear } from '../utils/dataCache'
 
 const VEHICLES_STORAGE_KEY = 'sjt_vehicles'
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function toDbVehicle(data = {}) {
+  const payload = {
+    vehicle_id: data.vehicle_id || (!UUID_RE.test(String(data.id || '')) ? data.id : undefined),
+    registration: data.registration ?? data.reg,
+    vehicle_type: data.vehicle_type ?? data.type,
+    model: data.model,
+    year: data.year,
+    color: data.color,
+    fuel_type: data.fuel_type ?? data.fuel,
+    status: data.status,
+    current_km: data.current_km ?? data.km,
+    engine_number: data.engine_number,
+    imei: data.imei,
+    updated_at: data.updated_at ?? data.updatedAt,
+  }
+  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined))
+}
 
 /**
  * VehicleRepository - Manages vehicle data
@@ -59,7 +79,7 @@ export class VehicleRepository extends BaseRepository {
       try {
         const { data, error } = await supabase
           .from('vehicles')
-          .select('*')
+          .select('id, vehicle_id, registration, vehicle_type, model, status, current_km, engine_number, imei')
           .ilike('registration', `%${registration}%`)
 
         if (error) throw error
@@ -85,7 +105,7 @@ export class VehicleRepository extends BaseRepository {
       try {
         const { data, error } = await supabase
           .from('vehicles')
-          .select('*')
+          .select('id, vehicle_id, registration, vehicle_type, model, status, current_km, engine_number, imei')
           .ilike('model', `%${model}%`)
 
         if (error) throw error
@@ -111,7 +131,7 @@ export class VehicleRepository extends BaseRepository {
       try {
         const { data, error } = await supabase
           .from('vehicles')
-          .select('*')
+          .select('id, vehicle_id, registration, vehicle_type, model, status, current_km, engine_number, imei')
           .eq('status', status)
 
         if (error) throw error
@@ -134,18 +154,7 @@ export class VehicleRepository extends BaseRepository {
     const provider = getDatabaseProvider()
 
     if (provider === DATABASE_PROVIDERS.SUPABASE) {
-      try {
-        const { data, error } = await supabase
-          .from('vehicles')
-          .select('*')
-          .eq('current_driver', driverId)
-
-        if (error) throw error
-        return data || []
-      } catch (error) {
-        console.error('Get by driver failed:', error)
-        throw error
-      }
+      return []
     }
 
     return this._getByDriverLocal(driverId)
@@ -335,7 +344,7 @@ export class VehicleRepository extends BaseRepository {
     try {
       const { data, error } = await supabase
         .from('vehicles')
-        .select('*')
+        .select('id, vehicle_id, registration, vehicle_type, model, year, color, fuel_type, status, current_km, engine_number, imei, created_at, updated_at')
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -350,8 +359,8 @@ export class VehicleRepository extends BaseRepository {
     try {
       const { data, error } = await supabase
         .from('vehicles')
-        .select('*')
-        .eq('id', id)
+        .select('id, vehicle_id, registration, vehicle_type, model, year, color, fuel_type, status, current_km, engine_number, imei, created_at, updated_at')
+        .eq(UUID_RE.test(String(id)) ? 'id' : 'vehicle_id', id)
         .single()
 
       if (error && error.code === 'PGRST116') {
@@ -369,8 +378,8 @@ export class VehicleRepository extends BaseRepository {
   async _createInSupabase(data) {
     try {
       const vehicle = {
-        ...data,
-        id: data.id || `VEH-${Date.now().toString().slice(-6)}`,
+        ...toDbVehicle(data),
+        vehicle_id: data.vehicle_id || (!UUID_RE.test(String(data.id || '')) ? data.id : null) || `VEH-${Date.now().toString().slice(-6)}`,
         created_at: data.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }
@@ -382,6 +391,7 @@ export class VehicleRepository extends BaseRepository {
         .single()
 
       if (error) throw error
+      cacheClear('vehicles')
       return created
     } catch (error) {
       console.error('Error creating vehicle in Supabase:', error)
@@ -394,14 +404,15 @@ export class VehicleRepository extends BaseRepository {
       const { data: updated, error } = await supabase
         .from('vehicles')
         .update({
-          ...data,
+          ...toDbVehicle(data),
           updated_at: new Date().toISOString(),
         })
-        .eq('id', id)
+        .eq(UUID_RE.test(String(id)) ? 'id' : 'vehicle_id', id)
         .select()
         .single()
 
       if (error) throw error
+      cacheClear('vehicles')
       return updated
     } catch (error) {
       console.error('Error updating vehicle in Supabase:', error)
@@ -414,9 +425,10 @@ export class VehicleRepository extends BaseRepository {
       const { error } = await supabase
         .from('vehicles')
         .delete()
-        .eq('id', id)
+        .eq(UUID_RE.test(String(id)) ? 'id' : 'vehicle_id', id)
 
       if (error) throw error
+      cacheClear('vehicles')
       return true
     } catch (error) {
       console.error('Error deleting vehicle from Supabase:', error)

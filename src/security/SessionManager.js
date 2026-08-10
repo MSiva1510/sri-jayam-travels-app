@@ -91,10 +91,21 @@ class SessionManagerImpl {
   // ── Internal ──────────────────────────────────────────────
   _scheduleTimeout() {
     this._clearTimer()
+    // Never auto-logout a driver mid-trip: the active ride is more important
+    // than the idle timer. The timer resumes when the ride ends.
+    try {
+      const activeRide = JSON.parse(localStorage.getItem('sjt_ride_lifecycle') || 'null')
+      if (activeRide?.state && activeRide.state !== 'idle') return
+    } catch {}
     const ms = this._timeout * 60 * 1000
     this._timer = setTimeout(() => {
       if (this._onTimeout) this._onTimeout()
     }, ms)
+  }
+
+  // Call this when a ride ends so the idle timer can resume.
+  resumeTimeoutAfterRide() {
+    this._scheduleTimeout()
   }
 
   _clearTimer() {

@@ -7,7 +7,7 @@ import { useNavigate }           from 'react-router-dom'
 import { Search, Play, RefreshCw, MapPin, Gauge, Radio, WifiOff, Flame, ChevronRight } from 'lucide-react'
 import PageHeader                from '../components/ui/PageHeader'
 import { gpsHistoryRepository } from '../repositories/gpsHistoryRepository'
-import { vehicleRepository }    from '../repositories/vehicleRepository'
+import { loadVehicles }    from '../data/vehicleData'
 
 function fmtTs(iso) {
   if (!iso) return '—'
@@ -38,7 +38,7 @@ export default function GpsHistory() {
 
   // Load vehicles for picker
   useEffect(() => {
-    vehicleRepository.getAll().then(v => setVehicles(v ?? [])).catch(() => {})
+    loadVehicles().then(v => setVehicles(v ?? [])).catch(() => {})
   }, [])
 
   const load = useCallback(async () => {

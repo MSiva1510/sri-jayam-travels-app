@@ -9,9 +9,11 @@ import {
 import { TRIP_TYPE_LIST, TRIP_TYPE_CONFIG, saveBooking, generateBookingNumber } from '../data/tripTypes'
 import { addAuditEvent }   from '../data/auditLogData'
 import { addTimelineEvent } from '../data/tripTimelineData'
-import { driverRepository, vehicleRepository } from '../repositories'
+import { loadDrivers } from '../data/driverData'
+import { loadVehicles } from '../data/vehicleData'
 import PageHeader from '../components/ui/PageHeader'
 import { validateField, sanitizeInput } from '../utils/formValidation'
+import { useAuth } from '../context/AuthContext'
 
 // ─────────────────────────────────────────────────────────────
 //  Shared field primitives
@@ -401,6 +403,7 @@ const EMPTY_TYPE_DATA = {
 
 export default function CreateTrip() {
   const navigate = useNavigate()
+  const { user }  = useAuth()
 
   const [step,       setStep]       = useState(0)   // 0 = pick type, 1 = fill form
   const [tripType,   setTripType]   = useState(null)
@@ -412,10 +415,8 @@ export default function CreateTrip() {
   const [vehicles,   setVehicles]   = useState([])
 
   useEffect(() => {
-    driverRepository.getAll().then(d => setDrivers(Array.isArray(d) ? d : []))
-      .catch(err => console.error('[CreateTrip] load drivers failed:', err))
-    vehicleRepository.getAll().then(v => setVehicles(Array.isArray(v) ? v : []))
-      .catch(err => console.error('[CreateTrip] load vehicles failed:', err))
+    loadDrivers().then(d => setDrivers(Array.isArray(d) ? d : [])).catch(err => console.error('[CreateTrip] load drivers failed:', err))
+    loadVehicles().then(v => setVehicles(Array.isArray(v) ? v : [])).catch(err => console.error('[CreateTrip] load vehicles failed:', err))
   }, [])
 
   const cfg = tripType ? TRIP_TYPE_CONFIG[tripType] : null
@@ -443,51 +444,65 @@ export default function CreateTrip() {
     return e
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     const errs = validate()
     if (Object.keys(errs).length) { setErrors(errs); return }
 
     const bookingNo = generateBookingNumber()
-    const now       = new Date().toISOString()
+
+    // Resolve human-readable display values from selected IDs
+    const selectedDriver  = drivers.find(d => d.id === common.driver)
+    const selectedVehicle = vehicles.find(v => v.id === common.vehicle)
 
     // Derive pickup/drop from type-specific data for display
     const pickup = typeData.pickup || typeData.baseLocation || common.customer
     const drop   = typeData.drop   || typeData.destination  || typeData.stops?.join(' · ') || '—'
 
+    // Build payload with snake_case column names matching the Supabase schema
     const booking = {
-      id:         bookingNo,
-      bookingNo,
-      type:       tripType,
-      status:     common.driver ? 'assigned' : 'draft',
-      customer:   common.customer.trim(),
-      contact:    common.contact.trim(),
-      pickup,
-      drop,
-      startDate:  common.startDate,
-      startTime:  common.startTime || null,
-      // Round-trip / multi-day extras
-      returnDate: typeData.returnDate  || null,
-      returnTime: typeData.returnTime  || null,
-      notes:      common.notes.trim(),
-      driver:     common.driver || null,
-      vehicle:    common.vehicle || null,
-      fare:       null,
-      km:         null,
-      typeData,                          // preserve type-specific fields
-      createdAt:  now,
-      updatedAt:  now,
-      createdBy:  'manager',             // replaced with user.role after auth wired to Supabase
+      booking_number:   bookingNo,
+      booking_id:       bookingNo,
+      type:             tripType,
+      status:           common.driver ? 'assigned' : 'draft',
+      customer_name:    common.customer.trim(),
+      customer_contact: common.contact.trim(),
+      pickup_location:  pickup,
+      drop_location:    drop,
+      start_date:       common.startDate,
+      start_time:       common.startTime || null,
+      end_date:         typeData.returnDate  || null,
+      end_time:         typeData.returnTime  || null,
+      notes:            common.notes.trim(),
+      driver_id:        selectedDriver?.id  || null,
+      vehicle_id:       selectedVehicle?.id || null,
+      total_fare:       null,
+      total_km:         null,
+      // Store display names + all type-specific fields in type_data JSONB
+      type_data: {
+        ...typeData,
+        driver_name:          selectedDriver?.name          || null,
+        vehicle_registration: selectedVehicle?.reg          || null,
+        booking_ref:          bookingNo,
+      },
+      created_by: user?.id || null,
     }
 
-    saveBooking(booking)
+    try {
+      await saveBooking(booking)
+    } catch (err) {
+      console.error('[CreateTrip] saveBooking failed:', err)
+      setErrors({ submit: 'Failed to save booking. Please check your connection and try again.' })
+      return
+    }
+
     addAuditEvent('TRIP_CREATED', {
-      description: `${booking.customer} — ${booking.pickup || ''} → ${booking.drop || ''}`,
-      tripId: booking.id,
-      driver: booking.driver,
+      description: `${booking.customer_name} — ${pickup} → ${drop}`,
+      tripId: bookingNo,
+      driver: selectedDriver?.name || null,
     })
-    if (booking.driver) {
-      addTimelineEvent(booking.id, 'assigned', `Assigned to ${booking.driver}`)
+    if (selectedDriver) {
+      addTimelineEvent(bookingNo, 'assigned', `Assigned to ${selectedDriver.name}`)
     }
     setSubmitted(true)
   }
@@ -511,8 +526,8 @@ export default function CreateTrip() {
             {[
               { label: 'Trip Type',   value: cfg.label },
               { label: 'Customer',    value: common.customer },
-              { label: 'Vehicle',     value: common.vehicle },
-              { label: 'Driver',      value: common.driver || 'Self Drive' },
+              { label: 'Vehicle',     value: vehicles.find(v => v.id === common.vehicle)?.reg || common.vehicle },
+              { label: 'Driver',      value: drivers.find(d => d.id === common.driver)?.name || (tripType === 'self_drive' ? 'Self Drive' : '—') },
               { label: 'Start Date',  value: common.startDate },
               { label: 'Start Time',  value: common.startTime || '—' },
             ].map(r => (
@@ -662,7 +677,7 @@ export default function CreateTrip() {
               >
                 <option value="">— Select vehicle —</option>
                 {vehicles.map(v => (
-                  <option key={v.id} value={v.reg} disabled={v.status !== 'active'}>
+                  <option key={v.id} value={v.id} disabled={v.status !== 'active'}>
                     {v.reg} — {v.type} ({v.model}){v.status !== 'active' ? ' ⚠ Service' : ''}
                   </option>
                 ))}
@@ -680,7 +695,7 @@ export default function CreateTrip() {
               >
                 <option value="">— Select driver —</option>
                 {!isSelfDrive && drivers.map(d => (
-                  <option key={d.id} value={d.name}>
+                  <option key={d.id} value={d.id}>
                     {d.name} — {d.vehicle}
                   </option>
                 ))}

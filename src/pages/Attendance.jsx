@@ -6,7 +6,7 @@ import {
 import PageHeader from '../components/ui/PageHeader'
 import Avatar     from '../components/ui/Avatar'
 import { useAuth } from '../context/AuthContext'
-import { driverRepository } from '../repositories'
+import { loadDrivers } from '../data/driverData'
 import {
   loadAttendance, saveAttendanceRecord,
   ATTENDANCE_TYPES, getAttendanceCfg,
@@ -184,7 +184,7 @@ function AdminAttendanceView({ isAdmin }) {
   const [loadError, setLoadError] = useState(null)
 
   const reload = useCallback(async () => {
-    const [rec, drv] = await Promise.allSettled([loadAttendance(), driverRepository.getAll()])
+    const [rec, drv] = await Promise.allSettled([loadAttendance(), loadDrivers()])
     setAllRecords(rec.status === 'fulfilled' && Array.isArray(rec.value) ? rec.value : [])
     setDrivers(   drv.status === 'fulfilled' && Array.isArray(drv.value) ? drv.value : [])
     const failed = rec.status === 'rejected' || drv.status === 'rejected'

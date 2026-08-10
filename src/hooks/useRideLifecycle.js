@@ -13,6 +13,7 @@
 // This hook does NOT import useGPS — GPS is opt-in.
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { sessionManager } from '../security/SessionManager'
 
 // ── Storage keys ──────────────────────────────────────────────
 export const LIFECYCLE_KEY         = 'sjt_ride_lifecycle'
@@ -205,6 +206,8 @@ export function useRideLifecycle() {
       writeLifecycle(updated)
       return updated
     })
+    // Re-enable the session idle timer now that the ride is over
+    sessionManager.resumeTimeoutAfterRide()
     stopTimer()
   }, [stopTimer])
 

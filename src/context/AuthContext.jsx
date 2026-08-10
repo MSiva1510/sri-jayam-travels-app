@@ -237,16 +237,18 @@ export function AuthProvider({ children }) {
     await authRepository.sendPasswordReset(email)
   }, [])
 
-  // Granular permission check via PermissionEngine
+  // Granular permission check via PermissionEngine.
+  // Named permissions ('create_booking', 'view_finance' ...) are checked directly.
+  // Legacy module names ('trips', 'vehicles' ...) are routed through the
+  // MODULE_PERMISSION_MAP inside the engine so the two systems never conflict.
   const can = useCallback((permission) => {
     if (!user) return false
-    // Try new granular engine first
+    // Named granular permission (e.g. PERMISSIONS.CREATE_BOOKING)
     const granular = permissionEngine.can(user.role, permission)
-    // Fall back to legacy module matrix
-    if (granular === false && ROLE_PERMISSIONS[user.role]?.[permission] !== undefined) {
-      return ROLE_PERMISSIONS[user.role][permission]
-    }
-    return granular
+    if (granular) return true
+    // Legacy module name (e.g. 'trips', 'vehicles') — route through the engine
+    // so we use a single source of truth and don't re-grant denied permissions
+    return permissionEngine.canModule(user.role, permission)
   }, [user])
 
   // Check granular named permission

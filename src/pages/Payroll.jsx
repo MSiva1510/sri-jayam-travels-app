@@ -862,7 +862,7 @@ export default function Payroll() {
 
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 3000) }
   const reload = useCallback(async () => {
-    const [s, p, d] = await Promise.allSettled([loadSettlements(), loadTripPayslips(), driverRepository.getAll()])
+    const [s, p, d] = await Promise.allSettled([loadSettlements(), loadTripPayslips(), loadDrivers()])
     setSettlements( s.status === 'fulfilled' && Array.isArray(s.value) ? s.value : [])
     setTripPayslips(p.status === 'fulfilled' && Array.isArray(p.value) ? p.value : [])
     setDrivers(     d.status === 'fulfilled' && Array.isArray(d.value) ? d.value : [])

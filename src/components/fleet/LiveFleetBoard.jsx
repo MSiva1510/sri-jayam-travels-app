@@ -5,7 +5,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Car, MapPin, Clock, RefreshCw, Activity, User, Navigation } from 'lucide-react'
-import { driverRepository, vehicleRepository } from '../../repositories'
+import { loadDrivers } from '../../data/driverData'
+import { loadVehicles } from '../../data/vehicleData'
 import { loadBookings } from '../../data/tripTypes'
 import { loadDriverStatuses, getStatusCfg, DRIVER_STATUS_OFFLINE_MS } from '../../data/driverStatusData'
 import { getLatestRoutePoint } from '../../data/gpsHistoryData'
@@ -42,8 +43,8 @@ export default function LiveFleetBoard() {
   const fetchData = useCallback(async () => {
     const [bk, dr, ve, st] = await Promise.allSettled([
       loadBookings(),
-      driverRepository.getAll(),
-      vehicleRepository.getAll(),
+      loadDrivers(),
+      loadVehicles(),
       loadDriverStatuses(),
     ])
     if (bk.status === 'fulfilled') setBookings(Array.isArray(bk.value) ? bk.value : [])

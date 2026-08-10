@@ -12,6 +12,8 @@ import { vehicleRepository }               from './vehicleRepository'
 import { driverRepository }                from './driverRepository'
 import { gpsHistoryRepository }            from './gpsHistoryRepository'
 import { fleetAlertRepository }            from './fleetAlertRepository'
+import { loadVehicles }                    from '../data/vehicleData'
+import { loadDrivers }                     from '../data/driverData'
 import { geofenceZoneRepository, geofenceEventRepository } from './geofenceRepository'
 import { distanceBetween }                 from '../utils/locationUtils'
 import { withTimeout }                     from '../utils/withTimeout'
@@ -86,8 +88,8 @@ class FleetAnalyticsRepository {
     const untilTs = until ? `${until}T23:59:59.999Z` : `${today}T23:59:59.999Z`
 
     const [vehicles, drivers, snapshots] = await Promise.all([
-      vehicleRepository.getAll().catch(() => []),
-      driverRepository.getAll().catch(() => []),
+      loadVehicles().catch(() => []),
+      loadDrivers().catch(() => []),
       gpsHistoryRepository.getLatestForFleet().catch(() => []),
     ])
 
@@ -167,7 +169,7 @@ class FleetAnalyticsRepository {
     const sinceTs = since ? `${since}T00:00:00.000Z` : `${today}T00:00:00.000Z`
     const untilTs = until ? `${until}T23:59:59.999Z` : `${today}T23:59:59.999Z`
 
-    const vehicles = await vehicleRepository.getAll().catch(() => [])
+    const vehicles = await loadVehicles().catch(() => [])
     if (!supabase) return vehicles.map(v => ({ ...v, trips: 0, distanceKm: 0, avgSpeed: 0, maxSpeed: 0, movingHours: 0, idleHours: 0 }))
 
     // Trips per vehicle from bookings
@@ -214,7 +216,7 @@ class FleetAnalyticsRepository {
     const sinceTs = since ? `${since}T00:00:00.000Z` : `${today}T00:00:00.000Z`
     const untilTs = until ? `${until}T23:59:59.999Z` : `${today}T23:59:59.999Z`
 
-    const drivers = await driverRepository.getAll().catch(() => [])
+    const drivers = await loadDrivers().catch(() => [])
     if (!supabase) return drivers.map(d => ({ ...d, trips: 0, distanceKm: 0, drivingHours: 0, attendance: 0, avgSpeed: 0 }))
 
     // Trips per driver
@@ -401,7 +403,7 @@ class FleetAnalyticsRepository {
     })).sort((a,b)=>a.date.localeCompare(b.date))
 
     // Group by vehicle
-    const vehicles = await vehicleRepository.getAll().catch(() => [])
+    const vehicles = await loadVehicles().catch(() => [])
     const vMap = Object.fromEntries(vehicles.map(v=>[v.id, v.registration]))
     const vRows = {}
     for (const r of rows) {

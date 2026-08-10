@@ -10,6 +10,8 @@ import ModalOverlay from '../components/ui/ModalOverlay'
 import { useAuth }  from '../context/AuthContext'
 import { vehicleRepository }                       from '../repositories/vehicleRepository'
 import { driverRepository }                        from '../repositories/driverRepository'
+import { loadDrivers }                            from '../data/driverData'
+import { loadVehicles }                           from '../data/vehicleData'
 import { loadVehicleAssignments, saveVehicleAssignment } from '../data/attendanceData'
 import { docStatus, daysLabel }                    from '../utils/vehicleUtils'
 import { getVehicleStatusEntry, getVehicleStatusCfg }   from '../data/vehicleStatusData'
@@ -566,7 +568,7 @@ export default function Vehicles() {
     try {
       const result = await withTimeout(
         Promise.all([
-          vehicleRepository.getAll(),
+          loadVehicles(),
           loadVehicleAssignments(),
           loadBookings(),
         ]),
@@ -584,7 +586,7 @@ export default function Vehicles() {
         setLoadError('')
       }
       // Also load drivers for assignment modal (lazy — low priority)
-      driverRepository.getAll().then(d => setDrivers(d || []))
+      loadDrivers().then(d => setDrivers(d || []))
         .catch(err => console.error('[Vehicles] load drivers failed:', err))
     } catch (err) {
       console.error('Vehicles page load failed:', err)

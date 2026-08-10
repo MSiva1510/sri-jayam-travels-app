@@ -9,6 +9,42 @@ import { getDatabaseProvider, DATABASE_PROVIDERS } from '../config/database'
 import { dataService } from '../services/dataService'
 
 const TRIPS_STORAGE_KEY = 'sjt_trips'
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function toDbBooking(data = {}) {
+  const typeData = data.type_data && typeof data.type_data === 'object' ? data.type_data : {}
+  const payload = {
+    booking_id: data.booking_id ?? data.bookingNo,
+    booking_number: data.booking_number ?? data.bookingNo,
+    type: data.type,
+    status: data.status,
+    customer_id: UUID_RE.test(String(data.customer_id || '')) ? data.customer_id : undefined,
+    customer_name: data.customer_name ?? data.customer,
+    customer_contact: data.customer_contact ?? data.contact,
+    driver_id: UUID_RE.test(String(data.driver_id || '')) ? data.driver_id : undefined,
+    vehicle_id: UUID_RE.test(String(data.vehicle_id || '')) ? data.vehicle_id : undefined,
+    pickup_location: data.pickup_location ?? data.pickup,
+    drop_location: data.drop_location ?? data.drop,
+    start_date: data.start_date ?? data.startDate,
+    start_time: data.start_time ?? data.startTime,
+    end_date: data.end_date ?? data.returnDate,
+    end_time: data.end_time ?? data.returnTime,
+    total_km: data.total_km ?? data.km,
+    base_fare: data.base_fare,
+    total_fare: data.total_fare ?? data.fare,
+    notes: data.notes,
+    type_data: { ...typeData, ...data.typeData },
+    approved_by: data.approved_by ?? data.approvedBy,
+    approved_at: data.approved_at ?? data.approvedAt,
+    remarks: data.remarks,
+    last_modified_by: data.last_modified_by ?? data.lastModifiedBy,
+    approval_history: data.approval_history,
+    driver_name: data.driver_name ?? data.driver,
+    vehicle_reg: data.vehicle_reg ?? data.vehicle_registration ?? data.vehicle,
+  }
+  if (!Object.keys(payload.type_data).length) delete payload.type_data
+  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined))
+}
 
 /**
  * TripRepository - Manages trip data
@@ -40,7 +76,7 @@ export class TripRepository extends BaseRepository {
       try {
         const { data, error } = await supabase
           .from('bookings')
-          .select('*')
+          .select('id, booking_id, booking_number, type, status, customer_id, customer_name, customer_contact, driver_id, vehicle_id, pickup_location, drop_location, start_date, start_time, end_date, end_time, total_km, base_fare, total_fare, notes, type_data, approved_by, approved_at, remarks, last_modified_by, approval_history, driver_name, vehicle_reg, created_at, updated_at')
           .eq('status', status)
         if (error) throw error
         return data || []
@@ -182,7 +218,7 @@ export class TripRepository extends BaseRepository {
     try {
       const { data, error } = await supabase
         .from('bookings')
-        .select('*')
+        .select('id, booking_id, booking_number, type, status, customer_id, customer_name, customer_contact, driver_id, vehicle_id, pickup_location, drop_location, start_date, start_time, end_date, end_time, total_km, base_fare, total_fare, notes, type_data, approved_by, approved_at, remarks, last_modified_by, approval_history, driver_name, vehicle_reg, created_at, updated_at')
         .order('created_at', { ascending: false })
       if (error) throw error
       return data || []
@@ -196,8 +232,8 @@ export class TripRepository extends BaseRepository {
     try {
       const { data, error } = await supabase
         .from('bookings')
-        .select('*')
-        .eq('id', id)
+        .select('id, booking_id, booking_number, type, status, customer_id, customer_name, customer_contact, driver_id, vehicle_id, pickup_location, drop_location, start_date, start_time, end_date, end_time, total_km, base_fare, total_fare, notes, type_data, approved_by, approved_at, remarks, last_modified_by, approval_history, driver_name, vehicle_reg, created_at, updated_at')
+        .eq(UUID_RE.test(String(id)) ? 'id' : 'booking_id', id)
         .single()
       if (error && error.code === 'PGRST116') {
         return null
@@ -212,10 +248,15 @@ export class TripRepository extends BaseRepository {
 
   async _createInSupabase(data) {
     try {
+      // Never pass a non-UUID 'id' — let Supabase auto-generate the PK.
+      // booking_number and booking_id carry the human-readable reference.
+      const { id, ...payload } = data
       const trip = {
-        ...data,
-        id: data.id || `TRIP-${Date.now().toString().slice(-6)}`,
-        created_at: data.created_at || new Date().toISOString(),
+        ...toDbBooking(payload),
+        ...(UUID_RE.test(String(id || '')) ? { id } : {}),
+        booking_id: payload.booking_id || payload.bookingNo || (!UUID_RE.test(String(id || '')) ? id : null) || `BK-${Date.now().toString().slice(-6)}`,
+        booking_number: payload.booking_number || payload.bookingNo || payload.booking_id || `BK-${Date.now().toString().slice(-6)}`,
+        created_at: payload.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }
       const { data: created, error } = await supabase
@@ -236,10 +277,10 @@ export class TripRepository extends BaseRepository {
       const { data: updated, error } = await supabase
         .from('bookings')
         .update({
-          ...data,
+          ...toDbBooking(data),
           updated_at: new Date().toISOString(),
         })
-        .eq('id', id)
+        .eq(UUID_RE.test(String(id)) ? 'id' : 'booking_id', id)
         .select()
         .single()
       if (error) throw error
@@ -255,7 +296,7 @@ export class TripRepository extends BaseRepository {
       const { error } = await supabase
         .from('bookings')
         .delete()
-        .eq('id', id)
+        .eq(UUID_RE.test(String(id)) ? 'id' : 'booking_id', id)
       if (error) throw error
       return true
     } catch (error) {

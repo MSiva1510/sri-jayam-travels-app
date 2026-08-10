@@ -51,7 +51,8 @@ export async function deleteCustomer(id) {
 export async function findCustomerByMobile(mobile) {
   if (!mobile || mobile.length < 10) return null
   try {
-    return await customerRepository.searchByMobile(mobile)
+    const matches = await customerRepository.searchByMobile(mobile)
+    return Array.isArray(matches) ? matches[0] || null : matches
   } catch (err) {
     console.error('[customerData] findCustomerByMobile failed:', err)
     return null

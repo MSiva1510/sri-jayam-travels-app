@@ -18,7 +18,8 @@ import {
   generateBookingNumber, loadBookings, saveBooking, deleteBooking,
   getWorkflowTransitions,
 } from '../data/tripTypes'
-import { driverRepository, vehicleRepository } from '../repositories'
+import { loadDrivers } from '../data/driverData'
+import { loadVehicles } from '../data/vehicleData'
 import { addAuditEvent }    from '../data/auditLogData'
 import { loadTripRoute, calcRouteDistanceKm } from '../data/gpsHistoryData'
 import { loadGPSHistory }   from '../hooks/useGPS'
@@ -653,7 +654,7 @@ export default function Trips() {
   , [bookings, search, statusFilter, typeFilter, isDriver, user])
 
   const reload = useCallback(async () => {
-    const [b, d, v] = await Promise.allSettled([loadBookings(), driverRepository.getAll(), vehicleRepository.getAll()])
+    const [b, d, v] = await Promise.allSettled([loadBookings(), loadDrivers(), loadVehicles()])
     setBookings(b.status==='fulfilled' && Array.isArray(b.value) ? b.value : [])
     setDrivers( d.status==='fulfilled' && Array.isArray(d.value) ? d.value : [])
     setVehicles(v.status==='fulfilled' && Array.isArray(v.value) ? v.value : [])

@@ -17,7 +17,10 @@ class GpsHistoryRepository {
   async getAll(opts = {}) {
     if (!supabase) return []
     const limit = Math.min(opts.limit ?? 500, 1000)
-    let q = supabase.from(this.table).select('*').order('timestamp', { ascending: false }).limit(limit)
+    let q = supabase.from(this.table)
+      .select('id, vehicle_id, trip_id, driver_id, latitude, longitude, speed_kmh, address, ignition, gps_online, status, odometer, bearing, timestamp, created_at, updated_at, raw')
+      .order('timestamp', { ascending: false })
+      .limit(limit)
     if (opts.vehicleId) q = q.eq('vehicle_id', opts.vehicleId)
     if (opts.since)     q = q.gte('timestamp', opts.since)
     if (opts.until)     q = q.lte('timestamp', opts.until)

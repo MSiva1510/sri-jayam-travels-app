@@ -8,7 +8,7 @@ import { gpsSettingsRepository } from '../repositories/gpsSettingsRepository'
 import { vehicleRepository }    from '../repositories/vehicleRepository'
 import { fleetAlertRepository } from '../repositories/fleetAlertRepository'
 import { geofenceService }      from '../services/geofenceService'
-import { withCache, cacheClear } from '../utils/dataCache'
+import { loadVehicles }         from '../data/vehicleData'
 import { addAuditEvent }        from '../data/auditLogData'
 import supabase                 from '../lib/supabase'
 
@@ -32,7 +32,7 @@ function emit() {
 
 async function _ensureIndexes() {
   if (!Object.keys(state.vehicleIndex).length) {
-    const list = await withCache('vehicles_for_gps', () => vehicleRepository.getAll())()
+    const list = await loadVehicles()
     const regIdx = {}, imeiIdx = {}
     for (const v of list ?? []) {
       if (v.registration) regIdx[v.registration] = v.id
@@ -44,8 +44,8 @@ async function _ensureIndexes() {
 }
 
 function _resetIndexes() {
-  state.vehicleIndex = {}; state.imeiIndex = {}
-  cacheClear('vehicles_for_gps')
+  state.vehicleIndex = {}
+  state.imeiIndex = {}
 }
 
 async function _syncNow() {

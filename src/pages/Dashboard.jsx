@@ -12,7 +12,9 @@ import Badge      from '../components/ui/Badge'
 import Button     from '../components/ui/Button'
 import PageHeader from '../components/ui/PageHeader'
 import { useAuth } from '../context/AuthContext'
-import { driverRepository, vehicleRepository, fleetAlertRepository } from '../repositories'
+import { loadDrivers } from '../data/driverData'
+import { loadVehicles } from '../data/vehicleData'
+import { fleetAlertRepository } from '../repositories'
 import { loadAttendanceToday }                         from '../data/attendanceData'
 import { loadCustomers }                               from '../data/customerData'
 import { loadExpenses, summariseByType, isThisMonth }  from '../data/expenseData'
@@ -95,8 +97,8 @@ export default function Dashboard() {
       loadExpenses(),
       loadSettlements(),
       loadAttendanceToday(),
-      driverRepository.getAll(),
-      vehicleRepository.getAll(),
+      loadDrivers(),
+      loadVehicles(),
       fleetAlertRepository.getActiveAlerts({ limit: 50 }) // Get recent active alerts
     ])
     const [bks, cust, exps, stls, att, drv, veh, alerts] = results

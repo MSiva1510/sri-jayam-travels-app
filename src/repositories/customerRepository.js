@@ -9,6 +9,27 @@ import { getDatabaseProvider, DATABASE_PROVIDERS } from '../config/database'
 import { dataService } from '../services/dataService'
 
 const CUSTOMERS_STORAGE_KEY = 'sjt_customers'
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function toDbCustomer(data = {}) {
+  const payload = {
+    customer_id: data.customer_id || (!UUID_RE.test(String(data.id || '')) ? data.id : undefined),
+    name: data.name,
+    type: data.type === 'agent' ? 'agency' : data.type,
+    status: data.status,
+    primary_mobile: data.primary_mobile ?? data.mobile,
+    alternate_mobile: data.alternate_mobile ?? data.altMobile,
+    email: data.email,
+    city: data.city,
+    address: data.address ?? data.billingAddress,
+    company_name: data.company_name ?? data.companyName,
+    contact_person: data.contact_person ?? data.contactPerson,
+    gstin: data.gstin ?? data.gst,
+    notes: data.notes,
+    is_active: data.is_active ?? (data.status ? data.status !== 'inactive' : undefined),
+  }
+  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined))
+}
 
 /**
  * CustomerRepository - Manages customer data
@@ -254,7 +275,7 @@ export class CustomerRepository extends BaseRepository {
     try {
       const { data, error } = await supabase
         .from('customers')
-        .select('*')
+        .select('id, customer_id, name, type, status, primary_mobile, alternate_mobile, email, city, address, company_name, contact_person, gstin, notes, is_active, created_at, updated_at')
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -269,8 +290,8 @@ export class CustomerRepository extends BaseRepository {
     try {
       const { data, error } = await supabase
         .from('customers')
-        .select('*')
-        .eq('id', id)
+        .select('id, customer_id, name, type, status, primary_mobile, alternate_mobile, email, city, address, company_name, contact_person, gstin, notes, is_active, created_at, updated_at')
+        .eq(UUID_RE.test(String(id)) ? 'id' : 'customer_id', id)
         .single()
 
       if (error && error.code === 'PGRST116') {
@@ -288,8 +309,8 @@ export class CustomerRepository extends BaseRepository {
   async _createInSupabase(data) {
     try {
       const customer = {
-        ...data,
-        id: data.id || `CUS-${Date.now().toString().slice(-6)}`,
+        ...toDbCustomer(data),
+        customer_id: data.customer_id || (!UUID_RE.test(String(data.id || '')) ? data.id : null) || `CUS-${Date.now().toString().slice(-6)}`,
         created_at: data.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }
@@ -313,10 +334,10 @@ export class CustomerRepository extends BaseRepository {
       const { data: updated, error } = await supabase
         .from('customers')
         .update({
-          ...data,
+          ...toDbCustomer(data),
           updated_at: new Date().toISOString(),
         })
-        .eq('id', id)
+        .eq(UUID_RE.test(String(id)) ? 'id' : 'customer_id', id)
         .select()
         .single()
 
@@ -333,7 +354,7 @@ export class CustomerRepository extends BaseRepository {
       const { error } = await supabase
         .from('customers')
         .delete()
-        .eq('id', id)
+        .eq(UUID_RE.test(String(id)) ? 'id' : 'customer_id', id)
 
       if (error) throw error
       return true

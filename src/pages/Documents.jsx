@@ -12,7 +12,8 @@ import PageHeader   from '../components/ui/PageHeader'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import { useAuth }  from '../context/AuthContext'
 import supabase     from '../lib/supabase'
-import { driverRepository, vehicleRepository } from '../repositories'
+import { loadDrivers } from '../data/driverData'
+import { loadVehicles } from '../data/vehicleData'
 import { loadCustomers } from '../data/customerData'
 
 // ── Document type catalogue per category ─────────────────────
@@ -330,8 +331,8 @@ export default function Documents() {
     try {
       const [d, dr, veh, cust] = await Promise.allSettled([
         fetchDocs(),
-        driverRepository.getAll(),
-        vehicleRepository.getAll(),
+        loadDrivers(),
+        loadVehicles(),
         loadCustomers(),
       ])
       setDocs(d.status === 'fulfilled' ? d.value : [])

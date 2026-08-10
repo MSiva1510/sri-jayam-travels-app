@@ -3,6 +3,8 @@
 
 import supabase      from '../lib/supabase'
 import { TRIP_TYPE_CONFIG } from './tripTypes'
+import { withCache } from '../utils/dataCache'
+import { driverRepository } from '../repositories/driverRepository'
 
 export const TODAY_DAY = new Date().toLocaleDateString('en-IN', {
   weekday: 'long',
@@ -89,7 +91,7 @@ export async function getDriverProfile(driverName) {
   if (!supabase || !driverName) return null
   const { data, error } = await supabase
     .from('drivers')
-    .select('id, name, phone, vehicle_registration, vehicle_type, rating, is_active, joined_date, driver_id')
+    .select('id, driver_id, name, phone, vehicle, status, joined_date')
     .ilike('name', driverName)
     .limit(1)
     .single()
@@ -115,6 +117,18 @@ export async function getDriverVehicle(vehicleReg) {
   }
   return data || null
 }
+
+async function _loadDrivers() {
+  try {
+    return await driverRepository.getAll()
+  } catch (error) {
+    console.error('[driverData] loadDrivers failed:', error)
+    throw error
+  }
+}
+
+export const loadDrivers = withCache('drivers', _loadDrivers)
+export const getDrivers = loadDrivers
 
 // Compute today stats from bookings array (already loaded in component)
 export function getTodayStats(driverName, bookings = []) {

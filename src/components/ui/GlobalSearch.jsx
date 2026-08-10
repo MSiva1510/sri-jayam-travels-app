@@ -7,7 +7,8 @@ import { useNavigate } from 'react-router-dom'
 import { Search, X, User, Car, Users, Route, FileText } from 'lucide-react'
 import { loadBookings } from '../../data/tripTypes'
 import { loadCustomers } from '../../data/customerData'
-import { driverRepository, vehicleRepository } from '../../repositories'
+import { loadDrivers } from '../../data/driverData'
+import { loadVehicles } from '../../data/vehicleData'
 
 const ENTITY_CFG = {
   customer: { Icon:Users, color:'text-violet-500', bg:'bg-violet-100 dark:bg-violet-900/30', label:'Customer', path:'/customers' },
@@ -22,7 +23,7 @@ async function buildIndex() {
   if (_index && Date.now() - _indexTs < 30000) return _index
   const [bookings, customers, drivers, vehicles] = await Promise.allSettled([
     loadBookings(), loadCustomers(),
-    driverRepository.getAll(), vehicleRepository.getAll(),
+    loadDrivers(), loadVehicles(),
   ])
   const items = []
   if (customers.status === 'fulfilled') {

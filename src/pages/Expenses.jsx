@@ -16,8 +16,9 @@ import {
   isToday, isThisWeek, isThisMonth,
   summariseByType, getTripExpenses, getExpenseDate,
 } from '../data/expenseData'
-import { driverRepository, vehicleRepository } from '../repositories'
 import { loadBookings } from '../data/tripTypes'
+import { loadDrivers } from '../data/driverData'
+import { loadVehicles } from '../data/vehicleData'
 import { addAuditEvent } from '../data/auditLogData'
 
 // ─────────────────────────────────────────────────────────────
@@ -431,7 +432,7 @@ export default function Expenses() {
   const [loadError, setLoadError] = useState(null)
   const reload = async () => {
     const [e, d, v] = await Promise.allSettled([
-      loadExpenses(), driverRepository.getAll(), vehicleRepository.getAll(),
+      loadExpenses(), loadDrivers(), loadVehicles(),
     ])
     setExpenses(e.status === 'fulfilled' && Array.isArray(e.value) ? e.value : [])
     setDrivers( d.status === 'fulfilled' && Array.isArray(d.value) ? d.value : [])

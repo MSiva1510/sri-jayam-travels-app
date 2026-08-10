@@ -120,40 +120,49 @@ export default function AssignedTrips() {
 
   const [base, setBase] = useState([])
   useEffect(() => {
-    loadBookings().then(all => {
-      const _all = Array.isArray(all) ? all : []
-      return all
-            .filter(b =>
-              b.driver?.toLowerCase() === user?.name?.toLowerCase() &&
-              b.startDate === todayISO &&
-              b.status !== 'cancelled'
-            )
-            .map(b => ({
-              tripId:        b.id,
-              customer:      b.customer,
-              contact:       b.contact || '',
-              pickup:        b.pickup  || '',
-              drop:          b.drop    || '',
-              tripType:      b.type    || 'one_way',
-              scheduledTime: b.startTime
-                ? new Date(`${b.startDate}T${b.startTime}`).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                : '—',
-              status:  b.status === 'started' ? 'driving'
-                     : b.status === 'completed' ? 'completed'
-                     : 'pending',
-              fare:    b.fare  || 0,
-              km:      b.km    || 0,
-              notes:   b.notes || '',
-              bookingId: b.id,
-            }))
-    })
-  }, [user, todayISO])
+    if (!user?.name) return
+    loadBookings()
+      .then(all => {
+        const matched = (Array.isArray(all) ? all : [])
+          .filter(b =>
+            // Match by driver_id (UUID) when available, fall back to name string
+            (b.driver_id && user?.driverId
+              ? b.driver_id === user.driverId
+              : b.driver?.toLowerCase() === user?.name?.toLowerCase()
+            ) &&
+            b.startDate === todayISO &&
+            b.status !== 'cancelled'
+          )
+          .map(b => ({
+            tripId:        b.id,
+            customer:      b.customer,
+            contact:       b.contact || '',
+            pickup:        b.pickup  || '',
+            drop:          b.drop    || '',
+            tripType:      b.type    || 'one_way',
+            scheduledTime: b.startTime
+              ? new Date(`${b.startDate}T${b.startTime}`).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : '—',
+            status:  b.status === 'started'   ? 'driving'
+                   : b.status === 'completed' ? 'completed'
+                   : 'pending',
+            fare:      b.fare  || 0,
+            km:        b.km    || 0,
+            notes:     b.notes || '',
+            bookingId: b.id,
+          }))
+        setBase(matched)
+        // Restore driving status for any trip already active in the lifecycle
+        setTrips(
+          activeRide?.tripId
+            ? matched.map(t => t.tripId === activeRide.tripId ? { ...t, status: 'driving' } : t)
+            : matched
+        )
+      })
+      .catch(err => console.error('[AssignedTrips] loadBookings failed:', err))
+  }, [user, todayISO]) // activeRide intentionally excluded — only re-load on user/date change
 
-  const [trips,  setTrips]  = useState(() =>
-    activeRide?.tripId
-      ? base.map(t => t.tripId === activeRide.tripId ? { ...t, status: 'driving' } : t)
-      : base
-  )
+  const [trips, setTrips] = useState([])
   const [filter, setFilter] = useState('all')
   const [active, setActive] = useState(null)
   const [odomStart,   setOdomStart]   = useState(null)
@@ -338,8 +347,15 @@ export default function AssignedTrips() {
         distanceKm: distKm,
       }
       saveBooking(updated)
-      const payslip = buildTripPayslip(updated, await loadPayrollSettings())
-      saveTripPayslip(payslip)
+      // Only auto-generate payslip once fare is set by the manager.
+      // If fare is still null, skip and let the manager trigger it from the Payroll page
+      // after they enter the actual fare in the Trips page edit modal.
+      if (updated.fare != null && Number(updated.fare) > 0) {
+        const payslip = buildTripPayslip(updated, await loadPayrollSettings())
+        saveTripPayslip(payslip)
+      } else {
+        console.warn('[AssignedTrips] Payslip NOT generated — fare is null. Manager must set fare and regenerate from Payroll page.')
+      }
     }
 
     setTrips(prev => prev.map(t =>
