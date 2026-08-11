@@ -25,6 +25,7 @@ function toDbVehicle(data = {}) {
     current_km: data.current_km ?? data.km,
     engine_number: data.engine_number,
     imei: data.imei,
+    service_history: data.service_history,
     updated_at: data.updated_at ?? data.updatedAt,
   }
   return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined))
@@ -344,7 +345,7 @@ export class VehicleRepository extends BaseRepository {
     try {
       const { data, error } = await supabase
         .from('vehicles')
-        .select('id, vehicle_id, registration, vehicle_type, model, year, color, fuel_type, status, current_km, engine_number, imei, created_at, updated_at')
+        .select('id, vehicle_id, registration, vehicle_type, model, year, color, fuel_type, status, current_km, engine_number, imei, service_history, created_at, updated_at')
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -359,7 +360,7 @@ export class VehicleRepository extends BaseRepository {
     try {
       const { data, error } = await supabase
         .from('vehicles')
-        .select('id, vehicle_id, registration, vehicle_type, model, year, color, fuel_type, status, current_km, engine_number, imei, created_at, updated_at')
+        .select('id, vehicle_id, registration, vehicle_type, model, year, color, fuel_type, status, current_km, engine_number, imei, service_history, created_at, updated_at')
         .eq(UUID_RE.test(String(id)) ? 'id' : 'vehicle_id', id)
         .single()
 
