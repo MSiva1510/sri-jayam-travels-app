@@ -9,6 +9,7 @@ import { permissionEngine, bootPermissions } from '../security/PermissionEngine'
 import { sessionManager }            from '../security/SessionManager'
 import { addAuditEvent }             from '../data/auditLogData'
 import { withTimeout }               from '../utils/withTimeout'
+import { backgroundServiceManager }  from '../services/BackgroundServiceManager'
 
 const AUTH_TIMEOUT_MS = 10_000
 
@@ -201,6 +202,8 @@ export function AuthProvider({ children }) {
       setUser(sessionUser)
       // Start session tracking
       sessionManager.start(sessionUser)
+      // Start background services
+      backgroundServiceManager.startAll()
       // Audit log
       addAuditEvent('USER_LOGIN', {
         description: `${profile.full_name} (${profile.role}) logged in`,
@@ -228,6 +231,8 @@ export function AuthProvider({ children }) {
       description: `${user?.name || 'Unknown'} logged out`,
       module: 'security', severity: 'info',
     })
+    // Stop background services
+    backgroundServiceManager.stopAll()
     sessionManager.end('logout')
     try { await authRepository.signOut() } catch {}
     setUser(null)

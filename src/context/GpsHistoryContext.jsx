@@ -6,10 +6,12 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 import { gpsSyncService }        from '../services/gpsSyncService'
 import { gpsHistoryRepository }  from '../repositories/gpsHistoryRepository'
 import { gpsSettingsRepository } from '../repositories/gpsSettingsRepository'
+import { useAuth }               from './AuthContext'
 
 const GpsHistoryContext = createContext(null)
 
 export function GpsHistoryProvider({ children }) {
+  const { user } = useAuth()
   const [health,        setHealth]       = useState(() => gpsSyncService.getHealth())
   const [running,       setRunning]      = useState(false)
   const [snapshots,     setSnapshots]    = useState([])
@@ -27,7 +29,18 @@ export function GpsHistoryProvider({ children }) {
   }, [])
 
   // Initial load: settings + fleet snapshot + today's distance
+  // Only fetch when user is authenticated
   useEffect(() => {
+    if (!user) {
+      // Clear data when user logs out
+      setSettings(null)
+      setSnapshots([])
+      setTodayDistance(0)
+      setError(null)
+      setLoading(false)
+      return
+    }
+
     let cancelled = false
     ;(async () => {
       try {
@@ -46,13 +59,22 @@ export function GpsHistoryProvider({ children }) {
       }
     })()
     return () => { cancelled = true }
-  }, [])
+  }, [user])
 
   // Start polling; stop on unmount
-  useEffect(() => { gpsSyncService.start(); return () => gpsSyncService.stop() }, [])
+  // Note: GPS sync service is now managed by BackgroundServiceManager
+  // This useEffect is kept only for backward compatibility during transition
+  useEffect(() => {
+    return () => {
+      // Do not stop gpsSyncService here - it's managed centrally
+    }
+  }, [])
 
   // Refresh fleet snapshot + distance every 15 s
+  // Only refresh when user is authenticated
   useEffect(() => {
+    if (!user) return
+
     const t = setInterval(async () => {
       try {
         const [f, dist] = await Promise.all([
@@ -60,10 +82,13 @@ export function GpsHistoryProvider({ children }) {
           gpsHistoryRepository.getTodayDistanceKm(),
         ])
         setSnapshots(Array.isArray(f) ? f : []); setTodayDistance(dist)
-      } catch {}
+      } catch {
+        // Silently ignore errors to prevent infinite error loops
+        // Errors will be caught and displayed in the initial load
+      }
     }, 15_000)
     return () => clearInterval(t)
-  }, [])
+  }, [user])
 
   const syncNow = useCallback(async () => {
     try {

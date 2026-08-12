@@ -45,7 +45,7 @@ export default function ProtectedRoute({ children, allowedRoles }) {
 
   if (!initialized) return <AuthSpinner />
 
-  if (!user && import.meta.env.PROD) {
+  if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 

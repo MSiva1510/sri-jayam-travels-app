@@ -803,30 +803,33 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="space-y-3">
-                {fleetAlerts.slice(0, 5).map((alert, index) => (
-                  <div key={index} className={`border-l-4 ${alert.priority === 'critical' ? 'border-red-500' : alert.priority === 'high' ? 'border-amber-500' : 'border-blue-500'} p-3 mb-2 rounded-lg bg-slate-50 dark:bg-navy-800/20`}>
+                {fleetAlerts.slice(0, 5).map((alert, index) => {
+                  const priority = alert?.priority || 'medium'
+                  const priorityLabel = priority.charAt(0).toUpperCase() + priority.slice(1)
+                  return (
+                  <div key={alert?.id || index} className={`border-l-4 ${priority === 'critical' ? 'border-red-500' : priority === 'high' ? 'border-amber-500' : 'border-blue-500'} p-3 mb-2 rounded-lg bg-slate-50 dark:bg-navy-800/20`}>
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">
-                          {alert.title}
+                          {alert?.title || 'Fleet alert'}
                         </p>
                         <p className="text-[9px] text-slate-500 dark:text-slate-400">
-                          {alert.vehicle_id ?
-                            (alert.vehicle_id.substring(0, 8) + '...') :
+                          {alert?.vehicle_id ?
+                            (String(alert.vehicle_id).substring(0, 8) + '...') :
                             'Unknown Vehicle'}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${alert.priority === 'critical' ? 'bg-red-100 text-red-800' : alert.priority === 'high' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
-                          {alert.priority.charAt(0).toUpperCase() + alert.priority.slice(1)}
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${priority === 'critical' ? 'bg-red-100 text-red-800' : priority === 'high' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
+                          {priorityLabel}
                         </span>
                         <span className="text-[9px] text-slate-500">
-                          {new Date(alert.detected_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                          {alert?.detected_at ? new Date(alert.detected_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}
                         </span>
                       </div>
                     </div>
                   </div>
-                ))}
+                )})}
               </div>
             )}
           </div>

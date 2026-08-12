@@ -69,11 +69,13 @@ export default function LiveFleetBoard() {
   const todayISO = new Date().toISOString().slice(0, 10)
 
   const rows = drivers.map(driver => {
-    const vehicle = vehicles.find(v => v.reg === driver.vehicle)
+    const driverName = driver?.name || driver?.full_name || 'Unknown driver'
+    const driverVehicle = driver?.vehicle || driver?.vehicleReg || driver?.vehicle_reg || 'Unassigned'
+    const vehicle = vehicles.find(v => v.reg === driverVehicle)
 
     // Active booking for this driver today
     const activeBooking = bookings.find(b =>
-      b.driver?.toLowerCase() === driver.name.toLowerCase() &&
+      (b.driver || b.driver_name || '').toLowerCase() === driverName.toLowerCase() &&
       b.startDate === todayISO &&
       ['started', 'assigned', 'confirmed'].includes(b.status)
     )
@@ -97,7 +99,7 @@ export default function LiveFleetBoard() {
     const currentArea = latestGPS?.area
       || (driver.status === 'active' ? 'Puducherry' : '—')
 
-    return { driver, vehicle, status, activeBooking, currentArea }
+    return { driver, driverName, driverVehicle, vehicle, status, activeBooking, currentArea }
   })
 
   const onlineCount  = rows.filter(r => r.status !== 'offline').length
@@ -138,7 +140,7 @@ export default function LiveFleetBoard() {
 
       {/* Rows */}
       <div className="divide-y divide-slate-100 dark:divide-navy-700/60">
-        {rows.map(({ driver, vehicle, status, activeBooking, currentArea }) => {
+        {rows.map(({ driver, driverName, driverVehicle, vehicle, status, activeBooking, currentArea }) => {
           const isActive  = status === 'driving' || status === 'passenger_onboard'
           const startedAt = activeBooking?.updatedAt || null
           const tripId    = activeBooking?.id || null
@@ -155,11 +157,11 @@ export default function LiveFleetBoard() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-slate-800 dark:text-white text-xs font-mono">{driver.vehicle}</span>
+                      <span className="font-bold text-slate-800 dark:text-white text-xs font-mono">{driverVehicle}</span>
                       <StatusPill statusKey={status} />
                     </div>
                     <div className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      <User size={9} /><span>{driver.name}</span>
+                      <User size={9} /><span>{driverName}</span>
                       <span className="mx-1">·</span>
                       <MapPin size={9} /><span>{currentArea}</span>
                     </div>
@@ -183,12 +185,12 @@ export default function LiveFleetBoard() {
                     <Car size={12} className={isActive ? 'text-white' : 'text-slate-400'} />
                   </div>
                   <div>
-                    <p className="font-bold text-slate-800 dark:text-white text-xs font-mono leading-tight">{driver.vehicle}</p>
+                    <p className="font-bold text-slate-800 dark:text-white text-xs font-mono leading-tight">{driverVehicle}</p>
                     <p className="text-[9px] text-slate-400">{vehicle?.model || ''}</p>
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{driver.name}</p>
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{driverName}</p>
                   <p className="text-[9px] text-slate-400">{vehicle?.type || ''}</p>
                 </div>
                 <div className="flex items-center gap-1">

@@ -8,6 +8,7 @@ import {
   fleetAnalyticsRepository,
   rangeForPreset,
 } from '../repositories/fleetAnalyticsRepository'
+import { useAuth } from './AuthContext'
 
 const FleetAnalyticsContext = createContext(null)
 
@@ -20,6 +21,7 @@ const INITIAL_FILTER = {
 }
 
 export function FleetAnalyticsProvider({ children }) {
+  const { user } = useAuth()
   const [filter,      setFilter]      = useState(INITIAL_FILTER)
   const [activeTab,   setActiveTab]   = useState('kpi')
 
@@ -43,6 +45,18 @@ export function FleetAnalyticsProvider({ children }) {
 
   // Load all data for the active tab
   const loadTab = useCallback(async (tab, range, vId, dId) => {
+    if (!user) {
+      // Clear data when user logs out
+      setFleetSummary(null)
+      setVehicleSummary([])
+      setDriverSummary([])
+      setTripSummary(null)
+      setAlertSummary(null)
+      setGeofenceSummary(null)
+      setDistanceSummary(null)
+      return
+    }
+
     setLoading(true); setError(null)
     try {
       switch (tab) {
@@ -73,23 +87,28 @@ export function FleetAnalyticsProvider({ children }) {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [user])
 
   // Load on tab / filter change
+  // Only load when user is authenticated
   useEffect(() => {
+    if (!user) return
     loadTab(activeTab, dateRange, filter.vehicleId, filter.driverId)
-  }, [activeTab, dateRange, filter.vehicleId, filter.driverId, loadTab])
+  }, [activeTab, dateRange, filter.vehicleId, filter.driverId, loadTab, user])
 
   // Also load KPI on mount regardless of active tab
+  // Only load when user is authenticated
   useEffect(() => {
+    if (!user) return
     if (activeTab !== 'kpi') {
       fleetAnalyticsRepository.getFleetSummary(dateRange).then(setFleetSummary).catch(() => {})
     }
-  }, [dateRange])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTab, dateRange, user])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const refresh = useCallback(() => {
+    if (!user) return
     loadTab(activeTab, dateRange, filter.vehicleId, filter.driverId)
-  }, [loadTab, activeTab, dateRange, filter.vehicleId, filter.driverId])
+  }, [loadTab, activeTab, dateRange, filter.vehicleId, filter.driverId, user])
 
   const value = {
     // Filters
