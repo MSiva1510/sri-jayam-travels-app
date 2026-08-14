@@ -1,0 +1,29 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// supabase_config.dart
+// Single place for all Supabase connection constants.
+// The anon key is intentionally a client-side publishable key — not a secret.
+// Never put the service-role key here.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class SupabaseConfig {
+  SupabaseConfig._();
+
+  static const String url = 'https://qxirmjvbufxxlkogelfj.supabase.co';
+
+  /// Anon / publishable key. Safe to embed in mobile apps.
+  /// Rotate this at: Supabase Dashboard → Settings → API → anon key.
+  static const String anonKey =
+      'YOUR_SUPABASE_ANON_KEY'; // replace after rotating
+
+  // Table names — avoids magic strings scattered across the codebase
+  static const String profilesTable = 'profiles';
+  static const String driversTable = 'drivers';
+  static const String bookingsTable = 'bookings';
+  static const String tripsTable = 'trips';
+  static const String attendanceTable = 'attendance';
+  static const String tripPayslipsTable = 'trip_payslips';
+
+  // Storage buckets
+  static const String avatarsBucket = 'avatars';
+  static const String documentsBucket = 'documents';
+}

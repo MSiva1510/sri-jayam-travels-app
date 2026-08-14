@@ -1,0 +1,122 @@
+﻿// 
+// main.dart
+// 
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../core/config/supabase_config.dart';
+import '../core/auth/auth_state.dart';
+import '../navigation/app_router.dart';
+import '../providers/auth_provider.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Supabase.initialize(
+    url: SupabaseConfig.url,
+    anonKey: SupabaseConfig.anonKey,
+    // Supabase Flutter SDK handles session persistence + token refresh
+    // automatically via shared_preferences. No custom session storage needed.
+  );
+
+  runApp(const ProviderScope(child: SriJayamApp()));
+}
+
+class SriJayamApp extends ConsumerWidget {
+  const SriJayamApp({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final router = ref.watch(routerProvider);
+    return MaterialApp.router(
+      title: 'Sri Jayam Travels',
+      debugShowCheckedModeBanner: false,
+      theme: _buildTheme(Brightness.light),
+      darkTheme: _buildTheme(Brightness.dark),
+      themeMode: ThemeMode.system,
+      routerConfig: router,
+      builder: (context, child) => _AuthGuard(child: child ?? const SizedBox()),
+    );
+  }
+
+  ThemeData _buildTheme(Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
+    final seed = const Color(0xFF1565C0); // Sri Jayam blue
+
+    return ThemeData(
+      useMaterial3: true,
+      colorSchemeSeed: seed,
+      brightness: brightness,
+      inputDecorationTheme: InputDecorationTheme(
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: isDark ? Colors.white12 : Colors.black12),
+        ),
+      ),
+    );
+  }
+}
+
+/// Sits between MaterialApp.router and every page.
+/// Shows a splash/loading screen while the session is being restored.
+class _AuthGuard extends ConsumerWidget {
+  const _AuthGuard({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authProvider);
+
+    if (authState is AuthInitializing) {
+      return const _SplashScreen();
+    }
+    return child;
+  }
+}
+
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.directions_car_rounded,
+                size: 72,
+                color: Color(0xFF1565C0),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Sri Jayam Travels',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 32),
+              const CircularProgressIndicator(),
+              const SizedBox(height: 12),
+              Text(
+                'Checking session...',
+                style: TextStyle(color: Colors.grey.shade600),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

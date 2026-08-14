@@ -265,7 +265,7 @@ export function exportToCSV(rows, columns, filename) {
 // ── Day 29: Excel export ──────────────────────────────────────
 export async function exportToExcel(rows, columns, filename) {
   try {
-    const XLSX = await import('xlsx')
+    const XLSX = await import('@e965/xlsx')
     const headers = columns.map(c => c.label)
     const data = rows.map(r =>
       columns.map(c => c.key.split('.').reduce((o,k) => o?.[k], r) ?? '')
