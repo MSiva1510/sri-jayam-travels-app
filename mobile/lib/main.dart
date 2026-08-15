@@ -1,24 +1,22 @@
-﻿// 
+﻿// ─────────────────────────────────────────────────────────────────────────────
 // main.dart
-// 
+// ─────────────────────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
-import '../core/config/supabase_config.dart';
-import '../core/auth/auth_state.dart';
-import '../navigation/app_router.dart';
-import '../providers/auth_provider.dart';
+import 'core/config/supabase_config.dart';
+import 'core/auth/auth_state.dart';
+import 'navigation/app_router.dart';
+import 'providers/auth_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Supabase.initialize(
-    url: SupabaseConfig.url,
-    anonKey: SupabaseConfig.anonKey,
-    // Supabase Flutter SDK handles session persistence + token refresh
-    // automatically via shared_preferences. No custom session storage needed.
+    url:            SupabaseConfig.url,
+    publishableKey: SupabaseConfig.anonKey,
   );
 
   runApp(const ProviderScope(child: SriJayamApp()));
@@ -31,44 +29,46 @@ class SriJayamApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
     return MaterialApp.router(
-      title: 'Sri Jayam Travels',
+      title:                      'Sri Jayam Travels',
       debugShowCheckedModeBanner: false,
-      theme: _buildTheme(Brightness.light),
-      darkTheme: _buildTheme(Brightness.dark),
-      themeMode: ThemeMode.system,
-      routerConfig: router,
-      builder: (context, child) => _AuthGuard(child: child ?? const SizedBox()),
+      theme:                      _buildTheme(Brightness.light),
+      darkTheme:                  _buildTheme(Brightness.dark),
+      themeMode:                  ThemeMode.system,
+      routerConfig:               router,
+      builder: (context, child) =>
+          _AuthGuard(child: child ?? const SizedBox()),
     );
   }
 
   ThemeData _buildTheme(Brightness brightness) {
-    final isDark = brightness == Brightness.dark;
-    final seed = const Color(0xFF1565C0); // Sri Jayam blue
-
     return ThemeData(
-      useMaterial3: true,
-      colorSchemeSeed: seed,
-      brightness: brightness,
+      useMaterial3:    true,
+      colorSchemeSeed: const Color(0xFF1565C0),
+      brightness:      brightness,
       inputDecorationTheme: InputDecorationTheme(
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        border:         OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
+          horizontal: 16, vertical: 16,
         ),
       ),
       cardTheme: CardThemeData(
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: isDark ? Colors.white12 : Colors.black12),
+          side: BorderSide(
+            color: brightness == Brightness.dark
+                ? Colors.white12
+                : Colors.black12,
+          ),
         ),
       ),
     );
   }
 }
 
-/// Sits between MaterialApp.router and every page.
-/// Shows a splash/loading screen while the session is being restored.
+/// Shows a splash screen while session is being restored.
 class _AuthGuard extends ConsumerWidget {
   const _AuthGuard({required this.child});
   final Widget child;
@@ -76,7 +76,6 @@ class _AuthGuard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
-
     if (authState is AuthInitializing) {
       return const _SplashScreen();
     }
@@ -98,7 +97,7 @@ class _SplashScreen extends StatelessWidget {
             children: [
               const Icon(
                 Icons.directions_car_rounded,
-                size: 72,
+                size:  72,
                 color: Color(0xFF1565C0),
               ),
               const SizedBox(height: 24),

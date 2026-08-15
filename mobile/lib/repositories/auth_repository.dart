@@ -1,30 +1,30 @@
-﻿// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+﻿// ─────────────────────────────────────────────────────────────────────────────
 // auth_repository.dart
 // ONLY layer that touches Supabase directly for auth + profiles.
 // No UI code. No business logic. Returns raw data or throws.
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:sri_jayam_travels_mobile/core/config/supabase_config.dart';
-import 'package:sri_jayam_travels_mobile/models/user_profile.dart';
-import 'package:sri_jayam_travels_mobile/models/driver_profile.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
+import '../core/config/supabase_config.dart';
+import '../models/user_profile.dart';
+import '../models/driver_profile.dart';
 
 class AuthRepository {
   AuthRepository(this._supabase);
 
   final SupabaseClient _supabase;
 
-  // â”€â”€ Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Auth ──────────────────────────────────────────────────────────────────
 
   /// Sign in with email + password.
-  /// Throws [AuthException] on failure.
   Future<AuthResponse> signIn({
     required String email,
     required String password,
-  }) => _supabase.auth.signInWithPassword(
-    email: email.trim().toLowerCase(),
-    password: password,
-  );
+  }) =>
+      _supabase.auth.signInWithPassword(
+        email:    email.trim().toLowerCase(),
+        password: password,
+      );
 
   /// Sign out from Supabase.
   Future<void> signOut() => _supabase.auth.signOut();
@@ -35,15 +35,7 @@ class AuthRepository {
   /// Current Supabase user (null if not logged in).
   User? get currentUser => _supabase.auth.currentUser;
 
-  /// Stream of auth state changes.
-  Stream<AuthState> get authStateChanges =>
-      _supabase.auth.onAuthStateChange.map(
-        (e) => e.session != null
-            ? const AuthState.signedIn()
-            : const AuthState.signedOut(),
-      );
-
-  /// Low-level stream for full event data.
+  /// Low-level stream of auth change events (token refresh, sign-out, etc.)
   Stream<AuthChangeEvent> get rawAuthEvents =>
       _supabase.auth.onAuthStateChange.map((e) => e.event);
 
@@ -51,10 +43,9 @@ class AuthRepository {
   Future<void> resetPassword(String email) =>
       _supabase.auth.resetPasswordForEmail(email.trim().toLowerCase());
 
-  // â”€â”€ Profiles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Profiles ──────────────────────────────────────────────────────────────
 
   /// Fetch the `profiles` row for [userId] (= auth.uid()).
-  /// Returns null if no row found.
   Future<UserProfile?> getUserProfile(String userId) async {
     final data = await _supabase
         .from(SupabaseConfig.profilesTable)
@@ -66,31 +57,26 @@ class AuthRepository {
     return UserProfile.fromMap(data);
   }
 
-  // â”€â”€ Drivers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Drivers ───────────────────────────────────────────────────────────────
 
   /// Fetch the `drivers` row for the logged-in user.
   ///
-  /// Strategy:
-  ///   1. Fast path  â€” profile_id FK (added in Day 42 migration)
-  ///   2. Fallback   â€” email match (for legacy rows not yet back-filled)
-  ///
-  /// Returns null if no driver record exists.
+  /// 1. Fast path  — profile_id FK (added in Day 42 migration)
+  /// 2. Fallback   — email match (for legacy rows)
   Future<DriverProfile?> getDriverProfile({
     required String userId,
     required String email,
   }) async {
-    // 1. Fast path via profile_id
+    // Fast path via profile_id
     final byProfileId = await _supabase
         .from(SupabaseConfig.driversTable)
         .select()
         .eq('profile_id', userId)
         .maybeSingle();
 
-    if (byProfileId != null) {
-      return DriverProfile.fromMap(byProfileId);
-    }
+    if (byProfileId != null) return DriverProfile.fromMap(byProfileId);
 
-    // 2. Fallback via email
+    // Fallback via email
     final byEmail = await _supabase
         .from(SupabaseConfig.driversTable)
         .select()
@@ -98,10 +84,9 @@ class AuthRepository {
         .maybeSingle();
 
     if (byEmail != null) {
-      // Back-fill profile_id so fast path works next time
-      await _backFillProfileId(
+      _backFillProfileId(
         driverId: byEmail['id'] as String,
-        userId: userId,
+        userId:   userId,
       );
       return DriverProfile.fromMap(byEmail);
     }
@@ -109,25 +94,16 @@ class AuthRepository {
     return null;
   }
 
-  /// Silently write profile_id â€” fire-and-forget, no throw on failure.
-  Future<void> _backFillProfileId({
+  /// Silently write profile_id — fire-and-forget.
+  void _backFillProfileId({
     required String driverId,
     required String userId,
-  }) async {
-    try {
-      await _supabase
-          .from(SupabaseConfig.driversTable)
-          .update({'profile_id': userId})
-          .eq('id', driverId);
-    } catch (_) {
-      // Non-critical â€” the fallback email path will still work next login
-    }
+  }) {
+    _supabase
+        .from(SupabaseConfig.driversTable)
+        .update({'profile_id': userId})
+        .eq('id', driverId)
+        .then((_) {})
+        .catchError((_) {});
   }
 }
-
-// â”€â”€ Thin extension to help with sealed-class-style auth events â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-extension _AuthStateEx on AuthState {
-  static AuthState get signedIn => throw UnimplementedError();
-  static AuthState get signedOut => throw UnimplementedError();
-}
-

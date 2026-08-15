@@ -54,7 +54,7 @@
     },
     {
       "name": "supabase_flutter",
-      "version": "2.17.1",
+      "version": "2.17.2",
       "dependencies": [
         "app_links",
         "async",
@@ -240,7 +240,7 @@
     },
     {
       "name": "supabase",
-      "version": "2.16.0",
+      "version": "2.16.1",
       "dependencies": [
         "functions_client",
         "gotrue",
@@ -549,7 +549,7 @@
     },
     {
       "name": "gotrue",
-      "version": "2.27.1",
+      "version": "2.27.2",
       "dependencies": [
         "collection",
         "crypto",

@@ -13,7 +13,7 @@ class SupabaseConfig {
   /// Anon / publishable key. Safe to embed in mobile apps.
   /// Rotate this at: Supabase Dashboard → Settings → API → anon key.
   static const String anonKey =
-      'YOUR_SUPABASE_ANON_KEY'; // replace after rotating
+      'sb_publishable_GwZ25Lwj--A-MtKRaxEbrg_De5mz6eE'; // replace after rotating
 
   // Table names — avoids magic strings scattered across the codebase
   static const String profilesTable = 'profiles';

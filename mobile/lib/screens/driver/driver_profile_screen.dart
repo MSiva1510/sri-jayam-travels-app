@@ -1,23 +1,22 @@
-﻿// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+﻿// ─────────────────────────────────────────────────────────────────────────────
 // driver_profile_screen.dart
 // Displays all available driver fields from the live Supabase schema.
-// No fake/hardcoded data Ã¢â‚¬â€ empty fields show a placeholder.
-// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// No fake/hardcoded data — empty fields show a placeholder.
+// ─────────────────────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import 'package:sri_jayam_travels_mobile/models/driver_profile.dart';
-import 'package:sri_jayam_travels_mobile/providers/auth_provider.dart';
+import '../../models/driver_profile.dart';
+import '../../providers/auth_provider.dart';
 
 class DriverProfileScreen extends ConsumerWidget {
   const DriverProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authProvider);
-    final driver = ref.watch(currentDriverProvider);
+    final driver  = ref.watch(currentDriverProvider);
     final profile = ref.watch(currentProfileProvider);
 
     return Scaffold(
@@ -25,9 +24,10 @@ class DriverProfileScreen extends ConsumerWidget {
         title: const Text('My Profile'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon:    const Icon(Icons.refresh),
             tooltip: 'Refresh',
-            onPressed: () => ref.read(authProvider.notifier).refreshProfile(),
+            onPressed: () =>
+                ref.read(authProvider.notifier).refreshProfile(),
           ),
         ],
       ),
@@ -37,36 +37,43 @@ class DriverProfileScreen extends ConsumerWidget {
     );
   }
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬ Profile loaded Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  // ── Profile loaded ────────────────────────────────────────────────────────
 
-  Widget _buildProfile(BuildContext context, WidgetRef ref, DriverProfile d) {
+  Widget _buildProfile(
+    BuildContext context,
+    WidgetRef ref,
+    DriverProfile d,
+  ) {
     return RefreshIndicator(
       onRefresh: () => ref.read(authProvider.notifier).refreshProfile(),
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Ã¢â€â‚¬Ã¢â€â‚¬ Avatar + name Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+          // ── Avatar + name ────────────────────────────────────────────────
           _AvatarHeader(driver: d),
           const SizedBox(height: 24),
 
-          // Ã¢â€â‚¬Ã¢â€â‚¬ Status chip Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
-          if (d.status != null) Center(child: _StatusChip(status: d.status!)),
+          // ── Status chip ──────────────────────────────────────────────────
+          if (d.status != null)
+            Center(child: _StatusChip(status: d.status!)),
           const SizedBox(height: 24),
 
-          // Ã¢â€â‚¬Ã¢â€â‚¬ Personal info Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+          // ── Personal info ────────────────────────────────────────────────
           _Section(
             title: 'Personal Information',
-            icon: Icons.person_outline,
+            icon:  Icons.person_outline,
             children: [
-              _Field(label: 'Full Name', value: d.name),
-              _Field(label: 'Email', value: d.email),
-              _Field(label: 'Phone', value: d.phone),
-              _Field(label: 'Driver ID', value: d.driverId),
-              _Field(label: 'Address', value: d.address),
-              _Field(label: 'City', value: d.city),
+              _Field(label: 'Full Name',   value: d.name),
+              _Field(label: 'Email',       value: d.email),
+              _Field(label: 'Phone',       value: d.phone),
+              _Field(label: 'Driver ID',   value: d.driverId),
+              _Field(label: 'Address',     value: d.address),
+              _Field(label: 'City',        value: d.city),
               _Field(
                 label: 'Date of Birth',
-                value: d.dateOfBirth != null ? _fmt(d.dateOfBirth!) : null,
+                value: d.dateOfBirth != null
+                    ? _fmt(d.dateOfBirth!)
+                    : null,
               ),
               _Field(
                 label: 'Joined',
@@ -76,10 +83,10 @@ class DriverProfileScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
 
-          // Ã¢â€â‚¬Ã¢â€â‚¬ License Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+          // ── License ──────────────────────────────────────────────────────
           _Section(
             title: 'License',
-            icon: Icons.badge_outlined,
+            icon:  Icons.badge_outlined,
             children: [
               _Field(label: 'License No.', value: d.licenseNumber),
               _Field(
@@ -88,30 +95,30 @@ class DriverProfileScreen extends ConsumerWidget {
                 warning: d.isLicenseExpired
                     ? 'EXPIRED'
                     : d.isLicenseExpiringSoon
-                    ? 'Expires soon'
-                    : null,
+                        ? 'Expires soon'
+                        : null,
               ),
               _Field(label: 'Aadhar No.', value: d.aadharNumber),
             ],
           ),
           const SizedBox(height: 16),
 
-          // Ã¢â€â‚¬Ã¢â€â‚¬ Emergency contact Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+          // ── Emergency contact ─────────────────────────────────────────────
           _Section(
             title: 'Emergency Contact',
-            icon: Icons.emergency_outlined,
+            icon:  Icons.emergency_outlined,
             children: [
-              _Field(label: 'Name', value: d.emergencyContact),
+              _Field(label: 'Name',  value: d.emergencyContact),
               _Field(label: 'Phone', value: d.emergencyPhone),
             ],
           ),
           const SizedBox(height: 16),
 
-          // Ã¢â€â‚¬Ã¢â€â‚¬ Notes Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+          // ── Notes ─────────────────────────────────────────────────────────
           if (d.notes != null && d.notes!.isNotEmpty)
             _Section(
               title: 'Notes',
-              icon: Icons.notes_outlined,
+              icon:  Icons.notes_outlined,
               children: [
                 _Field(label: 'Notes', value: d.notes, multiLine: true),
               ],
@@ -122,7 +129,7 @@ class DriverProfileScreen extends ConsumerWidget {
     );
   }
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬ Empty state Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  // ── Empty state ───────────────────────────────────────────────────────────
 
   Widget _buildEmpty(BuildContext context, String? name) {
     final theme = Theme.of(context);
@@ -132,7 +139,7 @@ class DriverProfileScreen extends ConsumerWidget {
         children: [
           Icon(
             Icons.person_off_outlined,
-            size: 64,
+            size:  64,
             color: theme.colorScheme.onSurfaceVariant,
           ),
           const SizedBox(height: 16),
@@ -157,7 +164,7 @@ class DriverProfileScreen extends ConsumerWidget {
   static String _fmt(DateTime dt) => DateFormat('dd MMM yyyy').format(dt);
 }
 
-// Ã¢â€â‚¬Ã¢â€â‚¬ Sub-widgets Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ── Sub-widgets ───────────────────────────────────────────────────────────────
 
 class _AvatarHeader extends StatelessWidget {
   const _AvatarHeader({required this.driver});
@@ -178,9 +185,9 @@ class _AvatarHeader extends StatelessWidget {
               ? Text(
                   driver.initials,
                   style: TextStyle(
-                    fontSize: 32,
+                    fontSize:   32,
                     fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.onPrimaryContainer,
+                    color:      theme.colorScheme.onPrimaryContainer,
                   ),
                 )
               : null,
@@ -214,14 +221,17 @@ class _StatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final (color, label) = switch (status) {
-      'active' => (theme.colorScheme.primaryContainer, 'Active'),
-      'inactive' => (theme.colorScheme.errorContainer, 'Inactive'),
-      'on_leave' => (theme.colorScheme.tertiaryContainer, 'On Leave'),
-      _ => (theme.colorScheme.surfaceVariant, status),
+      'active'   => (theme.colorScheme.primaryContainer, 'Active'),
+      'inactive' => (theme.colorScheme.errorContainer,   'Inactive'),
+      'on_leave' => (theme.colorScheme.tertiaryContainer,'On Leave'),
+      _          => (theme.colorScheme.surfaceContainerHighest,   status),
     };
     return Chip(
       backgroundColor: color,
-      label: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+      label: Text(
+        label,
+        style: const TextStyle(fontWeight: FontWeight.w600),
+      ),
     );
   }
 }
@@ -232,7 +242,7 @@ class _Section extends StatelessWidget {
     required this.icon,
     required this.children,
   });
-  final String title;
+  final String   title;
   final IconData icon;
   final List<Widget> children;
 
@@ -261,7 +271,7 @@ class _Section extends StatelessWidget {
                 Text(
                   title,
                   style: theme.textTheme.titleSmall?.copyWith(
-                    color: theme.colorScheme.primary,
+                    color:      theme.colorScheme.primary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -283,10 +293,10 @@ class _Field extends StatelessWidget {
     this.warning,
     this.multiLine = false,
   });
-  final String label;
+  final String  label;
   final String? value;
   final String? warning;
-  final bool multiLine;
+  final bool    multiLine;
 
   @override
   Widget build(BuildContext context) {
@@ -294,9 +304,8 @@ class _Field extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
-        crossAxisAlignment: multiLine
-            ? CrossAxisAlignment.start
-            : CrossAxisAlignment.center,
+        crossAxisAlignment:
+            multiLine ? CrossAxisAlignment.start : CrossAxisAlignment.center,
         children: [
           SizedBox(
             width: 120,
@@ -309,7 +318,7 @@ class _Field extends StatelessWidget {
           ),
           Expanded(
             child: Text(
-              value ?? 'Ã¢â‚¬â€',
+              value ?? '—',
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w500,
               ),
@@ -319,14 +328,14 @@ class _Field extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: theme.colorScheme.errorContainer,
+                color:        theme.colorScheme.errorContainer,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
                 warning!,
                 style: TextStyle(
                   fontSize: 11,
-                  color: theme.colorScheme.onErrorContainer,
+                  color:    theme.colorScheme.onErrorContainer,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -336,4 +345,3 @@ class _Field extends StatelessWidget {
     );
   }
 }
-

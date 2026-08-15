@@ -135,7 +135,7 @@
     },
     {
       "name": "gotrue",
-      "rootUri": "file:///C:/Users/ASUS/AppData/Local/Pub/Cache/hosted/pub.dev/gotrue-2.27.1",
+      "rootUri": "file:///C:/Users/ASUS/AppData/Local/Pub/Cache/hosted/pub.dev/gotrue-2.27.2",
       "packageUri": "lib/",
       "languageVersion": "3.9"
     },
@@ -375,7 +375,7 @@
     },
     {
       "name": "supabase",
-      "rootUri": "file:///C:/Users/ASUS/AppData/Local/Pub/Cache/hosted/pub.dev/supabase-2.16.0",
+      "rootUri": "file:///C:/Users/ASUS/AppData/Local/Pub/Cache/hosted/pub.dev/supabase-2.16.1",
       "packageUri": "lib/",
       "languageVersion": "3.9"
     },
@@ -387,7 +387,7 @@
     },
     {
       "name": "supabase_flutter",
-      "rootUri": "file:///C:/Users/ASUS/AppData/Local/Pub/Cache/hosted/pub.dev/supabase_flutter-2.17.1",
+      "rootUri": "file:///C:/Users/ASUS/AppData/Local/Pub/Cache/hosted/pub.dev/supabase_flutter-2.17.2",
       "packageUri": "lib/",
       "languageVersion": "3.9"
     },
