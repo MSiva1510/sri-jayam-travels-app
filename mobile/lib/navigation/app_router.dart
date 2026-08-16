@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// app_router.dart  — Day 43
+// app_router.dart — Day 44 (adds /driver/bookings + /driver/bookings/:id)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
@@ -15,16 +15,22 @@ import '../screens/driver/driver_home_screen.dart';
 import '../screens/driver/driver_profile_screen.dart';
 import '../screens/driver/driver_trips_screen.dart';
 import '../screens/driver/trip_details_screen.dart';
+import '../screens/driver/driver_bookings_screen.dart';
+import '../screens/driver/booking_details_screen.dart';
 
 class AppRoutes {
   AppRoutes._();
+
   static const login          = '/login';
   static const forgotPassword = '/forgot-password';
   static const unauthorized   = '/unauthorized';
   static const driverHome     = '/driver';
   static const driverProfile  = '/driver/profile';
   static const driverTrips    = '/driver/trips';
-  static String tripDetail(String id) => '/driver/trips/$id';
+  static const driverBookings = '/driver/bookings';
+
+  static String tripDetail(String id)     => '/driver/trips/$id';
+  static String bookingDetail(String id)  => '/driver/bookings/$id';
 }
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -52,6 +58,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       };
     },
     routes: [
+      // ── Public ──────────────────────────────────────────────────────────
       GoRoute(
         path: AppRoutes.login,
         name: 'login',
@@ -70,6 +77,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (_, __) =>
             const NoTransitionPage(child: UnauthorizedScreen()),
       ),
+
+      // ── Driver (protected via redirect) ───────────────────────────────
       GoRoute(
         path: AppRoutes.driverHome,
         name: 'driverHome',
@@ -82,6 +91,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (_, __) =>
             const MaterialPage(child: DriverProfileScreen()),
       ),
+
+      // ── Trips ────────────────────────────────────────────────────────
       GoRoute(
         path: AppRoutes.driverTrips,
         name: 'driverTrips',
@@ -94,6 +105,22 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (_, state) {
           final id = state.pathParameters['id']!;
           return MaterialPage(child: TripDetailsScreen(tripId: id));
+        },
+      ),
+
+      // ── Bookings ─────────────────────────────────────────────────────
+      GoRoute(
+        path: AppRoutes.driverBookings,
+        name: 'driverBookings',
+        pageBuilder: (_, __) =>
+            const MaterialPage(child: DriverBookingsScreen()),
+      ),
+      GoRoute(
+        path: '/driver/bookings/:id',
+        name: 'bookingDetail',
+        pageBuilder: (_, state) {
+          final id = state.pathParameters['id']!;
+          return MaterialPage(child: BookingDetailsScreen(bookingId: id));
         },
       ),
     ],

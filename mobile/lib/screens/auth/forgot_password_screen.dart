@@ -123,8 +123,9 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                               if (v == null || v.trim().isEmpty) {
                                 return 'Please enter your email';
                               }
-                              if (!v.contains('@'))
+                              if (!v.contains('@')) {
                                 return 'Enter a valid email';
+                              }
                               return null;
                             },
                           ),
