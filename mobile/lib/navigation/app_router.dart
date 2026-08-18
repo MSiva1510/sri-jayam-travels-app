@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// app_router.dart — Day 44 (adds /driver/bookings + /driver/bookings/:id)
+// app_router.dart — Day 45 (adds /driver/attendance + /driver/attendance/history)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
@@ -17,20 +17,24 @@ import '../screens/driver/driver_trips_screen.dart';
 import '../screens/driver/trip_details_screen.dart';
 import '../screens/driver/driver_bookings_screen.dart';
 import '../screens/driver/booking_details_screen.dart';
+import '../screens/driver/attendance_screen.dart';
+import '../screens/driver/attendance_history_screen.dart';
 
 class AppRoutes {
   AppRoutes._();
 
-  static const login          = '/login';
-  static const forgotPassword = '/forgot-password';
-  static const unauthorized   = '/unauthorized';
-  static const driverHome     = '/driver';
-  static const driverProfile  = '/driver/profile';
-  static const driverTrips    = '/driver/trips';
-  static const driverBookings = '/driver/bookings';
+  static const login              = '/login';
+  static const forgotPassword     = '/forgot-password';
+  static const unauthorized       = '/unauthorized';
+  static const driverHome         = '/driver';
+  static const driverProfile      = '/driver/profile';
+  static const driverTrips        = '/driver/trips';
+  static const driverBookings     = '/driver/bookings';
+  static const attendance         = '/driver/attendance';
+  static const attendanceHistory  = '/driver/attendance/history';
 
-  static String tripDetail(String id)     => '/driver/trips/$id';
-  static String bookingDetail(String id)  => '/driver/bookings/$id';
+  static String tripDetail(String id)    => '/driver/trips/$id';
+  static String bookingDetail(String id) => '/driver/bookings/$id';
 }
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -44,7 +48,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                        goingTo == AppRoutes.forgotPassword;
 
       return switch (auth) {
-        AuthInitializing() || AuthLoadingProfile() => null,
+        AuthInitializing()  || AuthLoadingProfile()   => null,
         AuthUnauthenticated() || AuthAuthenticating() =>
             isPublic ? null : AppRoutes.login,
         AuthError(:final code) =>
@@ -78,7 +82,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             const NoTransitionPage(child: UnauthorizedScreen()),
       ),
 
-      // ── Driver (protected via redirect) ───────────────────────────────
+      // ── Driver — Home & Profile ──────────────────────────────────────
       GoRoute(
         path: AppRoutes.driverHome,
         name: 'driverHome',
@@ -92,7 +96,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             const MaterialPage(child: DriverProfileScreen()),
       ),
 
-      // ── Trips ────────────────────────────────────────────────────────
+      // ── Driver — Trips ─────────────────────────────────────────────
       GoRoute(
         path: AppRoutes.driverTrips,
         name: 'driverTrips',
@@ -108,7 +112,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
 
-      // ── Bookings ─────────────────────────────────────────────────────
+      // ── Driver — Bookings ──────────────────────────────────────────
       GoRoute(
         path: AppRoutes.driverBookings,
         name: 'driverBookings',
@@ -122,6 +126,20 @@ final routerProvider = Provider<GoRouter>((ref) {
           final id = state.pathParameters['id']!;
           return MaterialPage(child: BookingDetailsScreen(bookingId: id));
         },
+      ),
+
+      // ── Driver — Attendance ────────────────────────────────────────
+      GoRoute(
+        path: AppRoutes.attendance,
+        name: 'attendance',
+        pageBuilder: (_, __) =>
+            const MaterialPage(child: AttendanceScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.attendanceHistory,
+        name: 'attendanceHistory',
+        pageBuilder: (_, __) =>
+            const MaterialPage(child: AttendanceHistoryScreen()),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// driver_home_screen.dart — Day 44 (adds bookings section + quick nav)
+// driver_home_screen.dart — Day 45 (adds attendance status card)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/trip_provider.dart';
 import '../../providers/booking_provider.dart';
+import '../../providers/attendance_provider.dart';
 import '../../navigation/app_router.dart';
 import '../../widgets/driver/trip_card.dart';
 import '../../widgets/driver/booking_card.dart';
@@ -22,10 +23,11 @@ class DriverHomeScreen extends ConsumerWidget {
     final driver  = ref.watch(currentDriverProvider);
     final profile = ref.watch(currentProfileProvider);
 
-    final todayCount    = ref.watch(todayTripCountProvider);
-    final bookingCount  = ref.watch(activeBookingCountProvider);
-    final upcoming      = ref.watch(upcomingTripsProvider);
-    final nextBookings  = ref.watch(upcomingBookingsProvider);
+    final todayCount   = ref.watch(todayTripCountProvider);
+    final bookingCount = ref.watch(activeBookingCountProvider);
+    final upcoming     = ref.watch(upcomingTripsProvider);
+    final nextBookings = ref.watch(upcomingBookingsProvider);
+    final attendance   = ref.watch(todayAttendanceProvider);
 
     return Scaffold(
       body: RefreshIndicator(
@@ -34,11 +36,12 @@ class DriverHomeScreen extends ConsumerWidget {
           ref.invalidate(activeBookingCountProvider);
           ref.invalidate(upcomingTripsProvider);
           ref.invalidate(upcomingBookingsProvider);
+          ref.read(todayAttendanceProvider.notifier).refresh();
           await Future.delayed(const Duration(milliseconds: 400));
         },
         child: CustomScrollView(
           slivers: [
-            // ── App Bar ──────────────────────────────────────────────────
+            // ── App Bar ────────────────────────────────────────────────
             SliverAppBar(
               floating: true,
               expandedHeight: 160,
@@ -64,13 +67,13 @@ class DriverHomeScreen extends ConsumerWidget {
               ],
             ),
 
-            // ── Date + stats ──────────────────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // ── Date ────────────────────────────────────────────
                     Text(
                       DateFormat('EEEE, d MMMM yyyy').format(DateTime.now()),
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -79,7 +82,11 @@ class DriverHomeScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 16),
 
-                    // ── Stat cards ────────────────────────────────────────
+                    // ── Attendance card (quick action) ───────────────────
+                    _AttendanceCard(state: attendance, ref: ref),
+                    const SizedBox(height: 12),
+
+                    // ── Stats row ────────────────────────────────────────
                     Row(
                       children: [
                         Expanded(
@@ -87,7 +94,8 @@ class DriverHomeScreen extends ConsumerWidget {
                             icon:  Icons.today_outlined,
                             label: "Today's Trips",
                             value: todayCount.when(
-                              data: (c) => '$c', loading: () => '…',
+                              data: (c) => '$c',
+                              loading: () => '…',
                               error: (_, __) => '–',
                             ),
                             onTap: () => context.push(AppRoutes.driverTrips),
@@ -99,7 +107,8 @@ class DriverHomeScreen extends ConsumerWidget {
                             icon:  Icons.book_online_outlined,
                             label: 'Active Bookings',
                             value: bookingCount.when(
-                              data: (c) => '$c', loading: () => '…',
+                              data: (c) => '$c',
+                              loading: () => '…',
                               error: (_, __) => '–',
                             ),
                             onTap: () =>
@@ -110,7 +119,7 @@ class DriverHomeScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 12),
 
-                    // ── Quick nav row ─────────────────────────────────────
+                    // ── Quick nav ─────────────────────────────────────────
                     Row(
                       children: [
                         Expanded(
@@ -127,6 +136,15 @@ class DriverHomeScreen extends ConsumerWidget {
                             label: 'Bookings',
                             onTap: () =>
                                 context.push(AppRoutes.driverBookings),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _QuickNavButton(
+                            icon:  Icons.fingerprint,
+                            label: 'Attendance',
+                            onTap: () =>
+                                context.push(AppRoutes.attendance),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -154,7 +172,8 @@ class DriverHomeScreen extends ConsumerWidget {
                         ),
                         const Spacer(),
                         TextButton(
-                          onPressed: () => context.push(AppRoutes.driverTrips),
+                          onPressed: () =>
+                              context.push(AppRoutes.driverTrips),
                           child: const Text('See All'),
                         ),
                       ],
@@ -164,7 +183,7 @@ class DriverHomeScreen extends ConsumerWidget {
               ),
             ),
 
-            // ── Upcoming trips ────────────────────────────────────────────
+            // ── Upcoming trips ──────────────────────────────────────────
             upcoming.when(
               loading: () => const SliverToBoxAdapter(
                 child: Center(
@@ -174,7 +193,8 @@ class DriverHomeScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-              error: (_, __) => const SliverToBoxAdapter(child: SizedBox()),
+              error: (_, __) =>
+                  const SliverToBoxAdapter(child: SizedBox()),
               data: (trips) => trips.isEmpty
                   ? const SliverToBoxAdapter(child: SizedBox())
                   : SliverList(
@@ -214,29 +234,13 @@ class DriverHomeScreen extends ConsumerWidget {
               ),
             ),
 
-            // ── Next bookings list ────────────────────────────────────────
+            // ── Next bookings ─────────────────────────────────────────────
             nextBookings.when(
-              loading: () => const SliverToBoxAdapter(
-                child: Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: CircularProgressIndicator(),
-                  ),
-                ),
-              ),
-              error: (_, __) => const SliverToBoxAdapter(child: SizedBox()),
+              loading: () => const SliverToBoxAdapter(child: SizedBox()),
+              error: (_, __) =>
+                  const SliverToBoxAdapter(child: SizedBox()),
               data: (bookings) => bookings.isEmpty
-                  ? SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text(
-                          'No upcoming bookings.',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    )
+                  ? const SliverToBoxAdapter(child: SizedBox())
                   : SliverList(
                       delegate: SliverChildBuilderDelegate(
                         (ctx, i) => BookingCard(
@@ -278,7 +282,269 @@ class DriverHomeScreen extends ConsumerWidget {
   }
 }
 
-// ── Sub-widgets ───────────────────────────────────────────────────────────────
+// ── Attendance card ───────────────────────────────────────────────────────────
+
+class _AttendanceCard extends StatelessWidget {
+  const _AttendanceCard({required this.state, required this.ref});
+  final AttendanceState state;
+  final WidgetRef       ref;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    // Loading
+    if (state is AttendanceInitial || state is AttendanceLoading) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              const Icon(Icons.fingerprint),
+              const SizedBox(width: 12),
+              Text('Loading attendance…',
+                  style: theme.textTheme.bodyMedium),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Extract record from all states
+    final record = switch (state) {
+      AttendanceLoaded(:final record)        => record,
+      AttendanceSubmitting(:final current)   => current,
+      AttendanceError(:final record)         => record,
+      _                                      => null,
+    };
+
+    final isSubmitting = state is AttendanceSubmitting;
+
+    return Card(
+      child: InkWell(
+        onTap: () => Navigator.of(context)
+            .pushNamed(AppRoutes.attendance)
+            .catchError((_) {}),
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Title row ──────────────────────────────────────────────
+              Row(
+                children: [
+                  const Icon(Icons.fingerprint, size: 20),
+                  const SizedBox(width: 8),
+                  Text('Attendance',
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                  const Spacer(),
+                  _StatusDot(record: record),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // ── Times row ─────────────────────────────────────────────
+              if (record != null) ...[
+                Row(
+                  children: [
+                    _MiniTime(
+                      icon:  Icons.login_outlined,
+                      label: 'In',
+                      value: record.checkIn ?? '—',
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 24),
+                    _MiniTime(
+                      icon:  Icons.logout_outlined,
+                      label: 'Out',
+                      value: record.checkOut ?? '—',
+                      color: record.isCheckedOut
+                          ? theme.colorScheme.error
+                          : theme.colorScheme.onSurfaceVariant,
+                    ),
+                    if (record.workingHours != null) ...[
+                      const SizedBox(width: 24),
+                      _MiniTime(
+                        icon:  Icons.timer_outlined,
+                        label: 'Hours',
+                        value: record.workingHours!,
+                        color: Colors.green.shade700,
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // ── Quick action button ────────────────────────────────────
+              _QuickAction(
+                record:       record,
+                isSubmitting: isSubmitting,
+                onCheckIn:    () =>
+                    ref.read(todayAttendanceProvider.notifier).checkIn(),
+                onCheckOut:   () =>
+                    ref.read(todayAttendanceProvider.notifier).checkOut(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusDot extends StatelessWidget {
+  const _StatusDot({required this.record});
+  // ignore: avoid_annotating_with_dynamic
+  final dynamic record;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final (color, label) = record == null
+        ? (theme.colorScheme.onSurfaceVariant, 'Not checked in')
+        : record.isComplete
+            ? (Colors.green.shade600, 'Complete')
+            : record.isWorking
+                ? (theme.colorScheme.primary, 'Working')
+                : (theme.colorScheme.onSurfaceVariant, 'Not checked in');
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8, height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Text(label,
+            style: theme.textTheme.bodySmall?.copyWith(color: color)),
+      ],
+    );
+  }
+}
+
+class _MiniTime extends StatelessWidget {
+  const _MiniTime({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+  final IconData icon;
+  final String   label, value;
+  final Color    color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            )),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 12, color: color),
+            const SizedBox(width: 3),
+            Text(value,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                  fontSize: 13,
+                )),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _QuickAction extends StatelessWidget {
+  const _QuickAction({
+    required this.record,
+    required this.isSubmitting,
+    required this.onCheckIn,
+    required this.onCheckOut,
+  });
+  // ignore: avoid_annotating_with_dynamic
+  final dynamic      record;
+  final bool         isSubmitting;
+  final VoidCallback onCheckIn;
+  final VoidCallback onCheckOut;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    if (isSubmitting) {
+      return const SizedBox(
+        height: 36,
+        child: Center(
+          child: SizedBox(
+            height: 18, width: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    if (record != null && record.isComplete) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color:        theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          '✓ Day Complete',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color:      Colors.green.shade700,
+            fontWeight: FontWeight.bold,
+            fontSize:   13,
+          ),
+        ),
+      );
+    }
+
+    if (record != null && record.isWorking) {
+      return SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: onCheckOut,
+          icon:  const Icon(Icons.logout_outlined, size: 16),
+          label: const Text('Check Out'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: theme.colorScheme.error,
+            side: BorderSide(color: theme.colorScheme.error),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: onCheckIn,
+        icon:  const Icon(Icons.login_outlined, size: 16),
+        label: const Text('Check In'),
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Shared sub-widgets ────────────────────────────────────────────────────────
 
 class _Header extends StatelessWidget {
   const _Header({
@@ -316,8 +582,8 @@ class _Header extends StatelessWidget {
             child: photoUrl == null
                 ? Text(initials,
                     style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
+                        color:      Colors.white,
+                        fontSize:   20,
                         fontWeight: FontWeight.bold))
                 : null,
           ),
@@ -327,12 +593,12 @@ class _Header extends StatelessWidget {
             mainAxisSize:       MainAxisSize.min,
             children: [
               Text(_greeting(),
-                  style:
-                      const TextStyle(color: Colors.white70, fontSize: 13)),
+                  style: const TextStyle(
+                      color: Colors.white70, fontSize: 13)),
               Text(name,
                   style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
+                      color:      Colors.white,
+                      fontSize:   18,
                       fontWeight: FontWeight.bold)),
               if (status != null)
                 Container(
@@ -429,13 +695,14 @@ class _QuickNavButton extends StatelessWidget {
             children: [
               Icon(icon,
                   color: theme.colorScheme.onSecondaryContainer,
-                  size: 22),
+                  size: 20),
               const SizedBox(height: 4),
               Text(
                 label,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color:      theme.colorScheme.onSecondaryContainer,
                   fontWeight: FontWeight.w600,
+                  fontSize:   10,
                 ),
               ),
             ],
