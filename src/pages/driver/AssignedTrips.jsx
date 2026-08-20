@@ -125,11 +125,8 @@ export default function AssignedTrips() {
       .then(all => {
         const matched = (Array.isArray(all) ? all : [])
           .filter(b =>
-            // Match by driver_id (UUID) when available, fall back to name string
-            (b.driver_id && user?.driverId
-              ? b.driver_id === user.driverId
-              : b.driver?.toLowerCase() === user?.name?.toLowerCase()
-            ) &&
+            // Match by driver name (case-insensitive)
+            (b.driver?.toLowerCase() === user?.name?.toLowerCase()) &&
             b.startDate === todayISO &&
             b.status !== 'cancelled'
           )

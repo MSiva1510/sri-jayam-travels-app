@@ -1,4 +1,4 @@
-// ─── Documents Page — Module 3 ────────────────────────────────
+// ─── Documents Page — Module 3 ────────────────────────────
 // Centralised document management with expiry tracking, per-entity
 // categories and localStorage/Supabase dual-write.
 
@@ -45,11 +45,12 @@ const DOC_TYPES = {
     { key:'other',     label:'Other',      hasExpiry:false },
   ],
   trip: [
-    { key:'fuel_bill',    label:'Fuel Bill',    hasExpiry:false },
-    { key:'parking_bill', label:'Parking Bill', hasExpiry:false },
-    { key:'toll_receipt', label:'Toll Receipt', hasExpiry:false },
-    { key:'invoice_copy', label:'Invoice Copy', hasExpiry:false },
-    { key:'other',        label:'Other',        hasExpiry:false },
+    { key:'permit',       label:'Trip Permit',        hasExpiry:true,   icon:'📋' },
+    { key:'authorization',label:'Trip Authorization', hasExpiry:true,   icon:'📑' },
+    { key:'itinerary',    label:'Trip Itinerary',     hasExpiry:false,  icon:'🗺' },
+    { key:'manifest',     label:'Trip Manifest',      hasExpiry:false,  icon:'📄' },
+    { key:'inspection',   label:'Vehicle Inspection', hasExpiry:true,   icon:'🔍' },
+    { key:'other',        label:'Other',              hasExpiry:false,  icon:'📎' },
   ],
 }
 
@@ -114,8 +115,8 @@ async function upsertDoc(doc) {
     driver_id:      doc.driver_id    || null,
     vehicle_id:     doc.vehicle_id   || null,
     customer_id:    doc.customer_id  || null,
-    file_name:      doc.file_name    || null,
-    file_url:       doc.file_url     || null,
+    file_name:      doc.file_name    || doc.fileName    || null,
+    file_url:       doc.file_url     || doc.fileUrl     || null,
     document_id:    doc.id           || `DOC-${Date.now()}`,
   }
   if (supabase) {
@@ -149,15 +150,54 @@ function StatusBadge({ status }) {
   )
 }
 
-// ── Add Document Modal ────────────────────────────────────────
+// ── Add Document Modal ─────────────────────────────────────
 function AddDocModal({ onClose, onSave, drivers, vehicles, customers }) {
   const [form, setForm] = useState({
     category:'driver', doc_type:'license', title:'',
     entity_id:'', expiry_date:'', reminder_date:'', notes:'',
+    fileUrl: null, fileName: ''
   })
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState({})
+  const [preview, setPreview] = useState(null)
+  const fileInputRef = useRef(null)
   const upd = patch => setForm(f => ({ ...f, ...patch }))
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) {
+      setPreview(null)
+      return
+    }
+
+    // Validate file type (optional)
+    const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf']
+    if (!allowedTypes.includes(file.type)) {
+      setErrors(prev => ({ ...prev, file: 'Only JPG, PNG, and PDF files are allowed' }))
+      return
+    }
+
+    // Validate file size (optional - 5MB max)
+    const maxSize = 5 * 1024 * 1024 // 5MB
+    if (file.size > maxSize) {
+      setErrors(prev => ({ ...prev, file: 'File size must be less than 5MB' }))
+      return
+    }
+
+    // Clear file error
+    setErrors(prev => ({ ...prev, file: '' }))
+
+    // Create preview URL
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      setPreview(ev.target.result)
+      setForm(f => ({ ...f, fileUrl: ev.target.result, fileName: file.name }))
+    }
+    reader.onerror = (ev) => {
+      setErrors(prev => ({ ...prev, file: 'Failed to read file' }))
+    }
+    reader.readAsDataURL(file)
+  }
 
   const docTypes    = DOC_TYPES[form.category] || []
   const currentType = docTypes.find(t => t.key === form.doc_type)
@@ -293,6 +333,49 @@ function AddDocModal({ onClose, onSave, drivers, vehicles, customers }) {
               placeholder="Document number, remarks…" rows={2}
               className={`${INP} resize-none`} />
           </div>
+
+          {/* File Upload */}
+          <div>
+            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wide">
+              File <span className="text-red-500">*</span>
+            </label>
+            <div className="flex flex-col items-start">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".jpg,.jpeg,.png,.pdf"
+                onChange={handleFileChange}
+                className={`${INP} ${errors.file ? 'border-red-400' : ''}`}
+              />
+              {errors.file && <p className="text-xs text-red-500 mt-1">{errors.file}</p>}
+              {preview && (
+                <div className="mt-2 flex items-center gap-3">
+                  {(form.fileUrl || '').startsWith('data:image/') && (
+                    <img src={preview} alt="Preview" className="w-16 h-16 object-cover rounded" />
+                  )}
+                  {(form.fileUrl || '').startsWith('data:application/pdf') && (
+                    <div className="w-16 h-16 bg-blue-500/20 rounded flex items-center justify-center">
+                      <div className="text-xs font-bold text-blue-600">PDF</div>
+                    </div>
+                  )}
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{form.fileName || 'No file selected'}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPreview(null)
+                        setForm(f => ({ ...f, fileUrl: null, fileName: '' }))
+                        fileInputRef.current?.value = ''
+                      }}
+                      className="text-xs text-red-500 hover:underline"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Footer */}
@@ -393,7 +476,7 @@ export default function Documents() {
         subtitle={`${counts.total} total · ${counts.expired} expired · ${counts.expiring} expiring soon`}
         action={canManage && (
           <button onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white font-bold text-sm hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-lg active:scale-95">
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-sm font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-lg active:scale-95">
             <Plus size={15} /> Add Document
           </button>
         )}
@@ -432,7 +515,7 @@ export default function Documents() {
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white/70 dark:bg-navy-800/60 flex-1 min-w-[160px] max-w-xs">
           <Search size={14} className="text-slate-400 flex-shrink-0" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search documents…"
-            className="bg-transparent text-sm text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none w-full" />
+            className={"bg-transparent text-sm text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none w-full"} />
         </div>
 
         <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1">
@@ -465,7 +548,9 @@ export default function Documents() {
           {[1,2,3].map(i => (
             <div key={i} className="glass-card rounded-2xl p-4 animate-pulse">
               <div className="h-4 bg-slate-200 dark:bg-navy-700 rounded w-1/3 mb-2" />
-              <div className="h-3 bg-slate-100 dark:bg-navy-800 rounded w-1/2" />
+              <div className="h-3 bg-slate-100 dark:bg-navy-800 rounded w-1/3 mb-2" />
+              <div className="h-4 bg-slate-200 dark:bg-navy-700 rounded w-2/3" />
+              <div className="h-3 bg-slate-100 dark:bg-navy-800 rounded w-1/3" />
             </div>
           ))}
         </div>
