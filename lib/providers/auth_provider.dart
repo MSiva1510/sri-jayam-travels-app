@@ -1,14 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase/supabase.dart';
-import '../../core/config/supabase_config.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/config/supabase_config.dart';
 
-final authProvider = Provider<Map<String, dynamic>?>((ref) {
-  // In a real implementation, this would fetch and return user data
-  // For now, returning null to show loading state
-  return null;
-});
-
-final authStateProvider = StateNotifierProvider<AuthStateNotifier,
+/// The signed-in driver's basic profile data, loaded from the active
+/// Supabase session. `null` means signed out; loading/error states are
+/// surfaced through [AsyncValue] (see usage via `.when(...)` in
+/// DriverHomeScreen).
+final authProvider = StateNotifierProvider<AuthStateNotifier,
     AsyncValue<Map<String, dynamic>?>>((ref) {
   return AuthStateNotifier();
 });

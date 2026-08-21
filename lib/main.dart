@@ -4,17 +4,15 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/config/supabase_config.dart';
-import 'core/auth/auth_state.dart';
-import 'navigation/app_router.dart';
-import 'providers/auth_provider.dart';
+import 'screens/splash_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // supabase_flutter v2+ uses anonKey param (publishableKey in some docs).
+  // supabase_flutter v2+ uses the anonKey param (publishableKey in some docs).
   // Both point to the same publishable/anon key — NOT the service-role key.
   await Supabase.initialize(
     url:     SupabaseConfig.url,
@@ -24,21 +22,20 @@ Future<void> main() async {
   runApp(const ProviderScope(child: SriJayamApp()));
 }
 
-class SriJayamApp extends ConsumerWidget {
+class SriJayamApp extends StatelessWidget {
   const SriJayamApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final router = ref.watch(routerProvider);
-    return MaterialApp.router(
+  Widget build(BuildContext context) {
+    return MaterialApp(
       title:                      'Sri Jayam Travels',
       debugShowCheckedModeBanner: false,
       theme:                      _buildTheme(Brightness.light),
       darkTheme:                  _buildTheme(Brightness.dark),
       themeMode:                  ThemeMode.system,
-      routerConfig:               router,
-      builder: (context, child) =>
-          _AuthGuard(child: child ?? const SizedBox()),
+      // SplashScreen checks the current Supabase session on startup and
+      // replaces itself with LoginScreen or DriverHomeScreen accordingly.
+      home:                       const SplashScreen(),
     );
   }
 
@@ -63,60 +60,6 @@ class SriJayamApp extends ConsumerWidget {
             color: brightness == Brightness.dark
                 ? Colors.white12
                 : Colors.black12,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AuthGuard extends ConsumerWidget {
-  const _AuthGuard({required this.child});
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authProvider);
-    if (authState is AuthInitializing) {
-      return const _SplashScreen();
-    }
-    return child;
-  }
-}
-
-class _SplashScreen extends StatelessWidget {
-  const _SplashScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.directions_car_rounded,
-                size:  72,
-                color: Color(0xFF1565C0),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Sri Jayam Travels',
-                style: TextStyle(
-                  fontSize:   24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 32),
-              const CircularProgressIndicator(),
-              const SizedBox(height: 12),
-              Text(
-                'Checking session...',
-                style: TextStyle(color: Colors.grey.shade600),
-              ),
-            ],
           ),
         ),
       ),

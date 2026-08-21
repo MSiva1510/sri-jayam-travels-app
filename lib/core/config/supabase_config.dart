@@ -7,6 +7,8 @@
 // NEVER put the service-role key here.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 class SupabaseConfig {
   SupabaseConfig._();
 
@@ -16,6 +18,11 @@ class SupabaseConfig {
   /// RLS policies on the server restrict what each role can access.
   static const String anonKey =
       'sb_publishable_GwZ25Lwj--A-MtKRaxEbrg_De5mz6eE';
+
+  /// The already-initialized Supabase client (see `Supabase.initialize` in
+  /// main.dart). Screens and providers should read the client through this
+  /// getter rather than constructing their own.
+  static SupabaseClient get supabase => Supabase.instance.client;
 
   // ── Table names ─────────────────────────────────────────────────────────
   static const String profilesTable     = 'profiles';
