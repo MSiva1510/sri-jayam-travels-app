@@ -6,3 +6,6 @@ dist
 .dart_tool/
 .flutter-plugins-dependencies
 build/
+
+# AutoClaw KDream data
+.autoclaw/
