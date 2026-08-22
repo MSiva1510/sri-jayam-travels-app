@@ -17,6 +17,7 @@ import '../screens/driver/driver_home_screen.dart';
 import '../screens/driver/driver_profile_screen.dart';
 import '../screens/driver/driver_trips_screen.dart';
 import '../screens/driver/trip_details_screen.dart';
+import '../screens/driver/trip_map_screen.dart';
 import '../screens/driver/driver_bookings_screen.dart';
 import '../screens/driver/booking_details_screen.dart';
 import '../screens/driver/attendance_screen.dart';
@@ -37,6 +38,7 @@ class AppRoutes {
   static const attendanceHistory = '/driver/attendance/history';
 
   static String tripDetail(String id)    => '/driver/trips/$id';
+  static String tripMap(String id)       => '/driver/trips/$id/map';
   static String bookingDetail(String id) => '/driver/bookings/$id';
 }
 
@@ -131,6 +133,16 @@ final routerProvider = Provider<GoRouter>((ref) {
           final id = state.pathParameters['id']!;
           return MaterialPage(child: TripDetailsScreen(tripId: id));
         },
+        routes: [
+          GoRoute(
+            path: 'map',
+            name: 'tripMap',
+            pageBuilder: (_, state) {
+              final id = state.pathParameters['id']!;
+              return MaterialPage(child: TripMapScreen(tripId: id));
+            },
+          ),
+        ],
       ),
 
       // ── Driver — Bookings ──────────────────────────────────────────

@@ -58,6 +58,35 @@ class LocationService {
     );
   }
 
+  // ── Continuous stream (Day 47) ─────────────────────────────────────────────
+
+  /// Foreground position stream, filtered by device movement.
+  ///
+  /// [distanceFilterM] — OS only wakes the callback after moving this far,
+  /// which protects battery. The service layer applies an additional minimum
+  /// time interval on top of this.
+  Stream<GpsPosition> getPositionStream({int distanceFilterM = 25}) {
+    return Geolocator.getPositionStream(
+      locationSettings: LocationSettings(
+        accuracy:       LocationAccuracy.high,
+        distanceFilter: distanceFilterM,
+      ),
+    ).map((pos) => GpsPosition(
+          latitude:  pos.latitude,
+          longitude: pos.longitude,
+          accuracy:  pos.accuracy,
+          speed:     pos.speed,
+          heading:   pos.heading,
+          timestamp: pos.timestamp,
+        ));
+  }
+
+  /// Haversine distance in metres between two positions.
+  static double distanceBetween(GpsPosition a, GpsPosition b) =>
+      Geolocator.distanceBetween(
+        a.latitude, a.longitude, b.latitude, b.longitude,
+      );
+
   // ── Helper ─────────────────────────────────────────────────────────────────
 
   LocationStatus _permToStatus(LocationPermission p) {

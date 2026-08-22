@@ -31,6 +31,15 @@ class GpsPosition {
         'timestamp': timestamp.toUtc().toIso8601String(),
       };
 
+  /// Speed converted to km/h — gps_tracking.speed_kmh unit.
+  double? get speedKmh => speed == null ? null : speed! * 3.6;
+
+  /// Basic sanity guard against corrupt fixes.
+  bool get isValid =>
+      latitude >= -90 && latitude <= 90 &&
+      longitude >= -180 && longitude <= 180 &&
+      !(latitude == 0 && longitude == 0);
+
   @override
   String toString() =>
       'GpsPosition($latitude, $longitude ±${accuracy.toStringAsFixed(0)}m)';

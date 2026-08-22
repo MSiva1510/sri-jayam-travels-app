@@ -195,4 +195,40 @@ class TripDetailNotifier extends StateNotifier<TripDetailState> {
     state = const TripDetailLoading();
     await _load();
   }
+
+  /// assigned → started (Day 47). Throws [TripServiceException] on failure.
+  Future<TripModel> startTrip() async {
+    final driver = _ref.read(currentDriverProvider);
+    try {
+      final updated = await _service.startTrip(tripId: _tripId, driver: driver);
+      state = TripDetailLoaded(updated);
+      return updated;
+    } on TripServiceException catch (e) {
+      // Re-fetch so the UI reflects the server truth even after a failure.
+      refresh();
+      throw TripServiceException(
+        message: e.message,
+        code: e.code,
+        detail: e.detail,
+      );
+    }
+  }
+
+  /// started → completed (Day 47). Throws [TripServiceException] on failure.
+  Future<TripModel> completeTrip() async {
+    final driver = _ref.read(currentDriverProvider);
+    try {
+      final updated =
+          await _service.completeTrip(tripId: _tripId, driver: driver);
+      state = TripDetailLoaded(updated);
+      return updated;
+    } on TripServiceException catch (e) {
+      refresh();
+      throw TripServiceException(
+        message: e.message,
+        code: e.code,
+        detail: e.detail,
+      );
+    }
+  }
 }

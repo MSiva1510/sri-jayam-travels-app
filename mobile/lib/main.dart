@@ -10,6 +10,7 @@ import 'core/config/supabase_config.dart';
 import 'core/auth/auth_state.dart';
 import 'navigation/app_router.dart';
 import 'providers/auth_provider.dart';
+import 'providers/gps_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -68,18 +69,67 @@ class SriJayamApp extends ConsumerWidget {
   }
 }
 
-/// Shows a splash screen while session is being restored.
-class _AuthGuard extends ConsumerWidget {
+/// Watches auth + app lifecycle:
+///   • GPS tracking is force-stopped the moment the user is no longer
+///     authenticated (logout, remote revoke, session expiry) — no GPS
+///     request can outlive its session.
+///   • Tracking pauses when the app goes to background and resumes on
+///     return (foreground-only support — documented in Day 47 report).
+class _AuthGuard extends ConsumerStatefulWidget {
   const _AuthGuard({required this.child});
   final Widget child;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_AuthGuard> createState() => _AuthGuardState();
+}
+
+class _AuthGuardState extends ConsumerState<_AuthGuard>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final gps = ref.read(gpsTrackingProvider.notifier);
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+        gps.onAppPaused();
+      case AppLifecycleState.resumed:
+        gps.onAppResumed();
+      default:
+        break;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Central logout hook — covers manual logout, remote sign-out and
+    // session-expiry transitions alike.
+    ref.listen<AuthState>(authProvider, (prev, next) {
+      final wasIn = prev is AuthAuthenticated;
+      final isIn = next is AuthAuthenticated;
+      if (wasIn && !isIn) {
+        // Fire-and-forget hard teardown: listeners die immediately,
+        // a bounded flush attempt runs, then everything resets.
+        ref.read(gpsTrackingProvider.notifier).disposeSession();
+      }
+    });
+
     final authState = ref.watch(authProvider);
     if (authState is AuthInitializing) {
       return const _SplashScreen();
     }
-    return child;
+    return widget.child;
   }
 }
 

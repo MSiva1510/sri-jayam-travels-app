@@ -23,6 +23,9 @@ class SupabaseConfig {
   static const String attendanceTable = 'attendance';
   static const String tripPayslipsTable = 'trip_payslips';
 
+  // GPS — shared with Web ERP (Day 47)
+  static const String gpsTrackingTable = 'gps_tracking';
+
   // Storage buckets
   static const String avatarsBucket = 'avatars';
   static const String documentsBucket = 'documents';

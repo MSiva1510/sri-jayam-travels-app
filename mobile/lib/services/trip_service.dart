@@ -95,6 +95,51 @@ class TripService {
     }
   }
 
+  // ── Trip lifecycle (Day 47) ───────────────────────────────────────────────
+
+  /// assigned → started. Verifies the trip belongs to this driver and is in
+  /// a startable state BEFORE touching the database.
+  Future<TripModel> startTrip({
+    required String tripId,
+    required DriverProfile? driver,
+  }) async {
+    _requireDriver(driver);
+    final trip = await getTripById(tripId, driver);
+    if (!trip!.isAssigned) {
+      throw const TripServiceException(
+        message: 'Only an assigned trip can be started.',
+        code: TripErrorCode.invalidTransition,
+      );
+    }
+    try {
+      return await _repo.markStarted(tripId);
+    } catch (e) {
+      if (e is TripServiceException) rethrow;
+      throw _mapError(e);
+    }
+  }
+
+  /// started → completed.
+  Future<TripModel> completeTrip({
+    required String tripId,
+    required DriverProfile? driver,
+  }) async {
+    _requireDriver(driver);
+    final trip = await getTripById(tripId, driver);
+    if (!trip!.isStarted) {
+      throw const TripServiceException(
+        message: 'Only a started trip can be completed.',
+        code: TripErrorCode.invalidTransition,
+      );
+    }
+    try {
+      return await _repo.markCompleted(tripId);
+    } catch (e) {
+      if (e is TripServiceException) rethrow;
+      throw _mapError(e);
+    }
+  }
+
   // ── Error mapping ─────────────────────────────────────────────────────────
 
   TripServiceException _mapError(Object e) {
@@ -149,6 +194,7 @@ enum TripErrorCode {
   driverNotFound,
   notFound,
   unauthorized,
+  invalidTransition,
   network,
   sessionExpired,
   unknown,

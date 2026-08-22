@@ -99,4 +99,32 @@ class TripRepository {
 
     return (data as List).length;
   }
+
+  // ── Status transitions (Day 47) ───────────────────────────────────────────
+  //
+  // Mirrors the Web ERP booking workflow (src/data/tripTypes.js):
+  //   assigned → started → completed.
+  // Only the `status` column is touched — never a duplicate record.
+
+  /// assigned → started. Returns the updated row (RLS-filtered).
+  Future<TripModel> markStarted(String tripId) async {
+    final data = await _client
+        .from(SupabaseConfig.bookingsTable)
+        .update({'status': 'started', 'updated_at': DateTime.now().toUtc().toIso8601String()})
+        .eq('id', tripId)
+        .select(TripModel.selectColumns)
+        .single();
+    return TripModel.fromMap(data);
+  }
+
+  /// started → completed. Returns the updated row (RLS-filtered).
+  Future<TripModel> markCompleted(String tripId) async {
+    final data = await _client
+        .from(SupabaseConfig.bookingsTable)
+        .update({'status': 'completed', 'updated_at': DateTime.now().toUtc().toIso8601String()})
+        .eq('id', tripId)
+        .select(TripModel.selectColumns)
+        .single();
+    return TripModel.fromMap(data);
+  }
 }
