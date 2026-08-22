@@ -253,10 +253,7 @@ function SettlementModal({ settlement, drivers, onClose, onSave, currentUser }) 
       status:     form.status || 'draft',
       createdBy:  form.createdBy || currentUser?.name || '',
       createdAt:  form.createdAt || now,
-      updatedAt:  now,
-      paymentDate: form.paymentDate || null,
-      paymentMethod: form.paymentMethod || '',
-      paymentRemarks: form.paymentRemarks || '',
+      updatedAt:  now
     }
     onSave(full)
   }

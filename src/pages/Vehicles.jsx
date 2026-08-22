@@ -422,6 +422,10 @@ function VehicleDetail({ v, trips, assignments, drivers, onEdit, onAssign, onDel
           </div>
           <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
             <span className="flex items-center gap-1">
+              <Fuel size={11} className="text-orange-500" />
+              <span className="ml-1">{statusEntry.fuelLevel !== null ? `${statusEntry.fuelLevel}%` : '—'}</span>
+            </span>
+            <span className="flex items-center gap-1">
               <MapPin size={11} className="text-slate-400" />
               {statusEntry.area || (isIdle ? 'Last location unknown' : '—')}
             </span>
@@ -455,7 +459,7 @@ function VehicleDetail({ v, trips, assignments, drivers, onEdit, onAssign, onDel
             <DocRow icon={Shield}   label="Insurance"       number={v.insNumber}    expiry={v.insExpiry}    />
             <DocRow icon={FileText} label="Permit"          number={v.permitNumber} expiry={v.permitExpiry} />
             <DocRow icon={FileText} label="Fitness (FC)"    number={v.fcNumber}     expiry={v.fcExpiry}     />
-            <DocRow icon={Fuel}     label="Pollution (PUC)" number={v.pucNumber}    expiry={v.pucExpiry}    />
+            <DocRow icon={FileText} label="Pollution (PUC)" number={v.pucNumber}    expiry={v.pucExpiry}    />
           </div>
         )}
 
@@ -793,6 +797,11 @@ export default function Vehicles() {
                     <span className="text-sm font-bold">{(Number(v?.km) || 0).toLocaleString()}</span>
                   </div>
                   <p className="text-[10px] text-slate-400">km</p>
+                  <div className="flex items-center gap-1 justify-end text-slate-600 dark:text-slate-300 mt-1">
+                    <Fuel size={10} className="text-orange-500" />
+                    <span className="text-sm font-bold ml-1">{(getVehicleStatusEntry(v.reg).fuelLevel !== null ? `${getVehicleStatusEntry(v.reg).fuelLevel}%` : '—')}</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400">fuel</p>
                 </div>
                 {isOpen ? <ChevronUp size={15} className="text-slate-400 flex-shrink-0 ml-1" />
                          : <ChevronDown size={15} className="text-slate-400 flex-shrink-0 ml-1" />}

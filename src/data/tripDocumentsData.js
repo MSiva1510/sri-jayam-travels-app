@@ -44,7 +44,7 @@ export async function saveTripDocument(tripId, doc) {
   const payload = {
     trip_id:       tripId,
     document_type: doc.docType     || doc.document_type || 'misc_receipt',
-    file_url:      doc.fileUrl     || doc.file_url      || null,
+    file_url:      doc.fileUrl     || doc.file_url     || doc.dataUrl     || doc.data_url     || null,
     file_name:     doc.fileName    || doc.file_name     || null,
     file_size:     doc.fileSize    || doc.file_size     || null,
     uploaded_by:   doc.uploadedBy  || doc.uploaded_by   || null,

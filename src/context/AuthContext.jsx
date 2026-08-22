@@ -242,6 +242,24 @@ export function AuthProvider({ children }) {
     await authRepository.sendPasswordReset(email)
   }, [])
 
+  // Persist profile edits (full_name, phone ...) to public.profiles and
+  // keep the cached session user in sync with the database row.
+  const updateProfile = useCallback(async (updates) => {
+    if (!user?.id) throw new Error('Not signed in')
+    const profile = await authRepository.updateProfile(user.id, updates)
+    setUser(prev => prev ? {
+      ...prev,
+      name:       profile.full_name,
+      phone:      profile.phone || '',
+      avatar_url: profile.avatar_url || null,
+    } : prev)
+    return profile
+  }, [user])
+
+  const changePassword = useCallback(async (newPassword) => {
+    await authRepository.updatePassword(newPassword)
+  }, [])
+
   // Granular permission check via PermissionEngine.
   // Named permissions ('create_booking', 'view_finance' ...) are checked directly.
   // Legacy module names ('trips', 'vehicles' ...) are routed through the
@@ -269,7 +287,7 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       user, initialized, authLoading, loginError, setLoginError,
-      login, logout, sendPasswordReset,
+      login, logout, sendPasswordReset, updateProfile, changePassword,
       can, canDo,
       isAdmin, isManager, isDriver,
     }}>

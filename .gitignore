@@ -2,10 +2,8 @@ node_modules
 dist
 .env
 .env.local
+<<<<<<< HEAD
 .env.*.local
 .dart_tool/
 .flutter-plugins-dependencies
 build/
-
-# AutoClaw KDream data
-.autoclaw/

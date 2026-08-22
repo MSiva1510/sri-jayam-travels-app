@@ -68,6 +68,11 @@ export function normalizeExpense(row = {}) {
     status: row.status ?? 'draft',
     createdAt: row.createdAt ?? row.created_at ?? '',
     updatedAt: row.updatedAt ?? row.updated_at ?? row.created_at ?? '',
+    // Fuel-specific fields
+    odometerKm: row.odometer_km || row.odometerKm || 0,
+    litresFilled: row.litres_filled || row.litresFilled || 0,
+    fuelStation: row.fuel_station || row.fuelStation || '',
+    fuelRate: row.fuel_rate || row.fuelRate || 0,
   }
 }
 

@@ -23,7 +23,7 @@ export function getVehicleStatusCfg(status) {
 // Returns cached value — pre-load with loadAllVehicleStatuses()
 export function getVehicleStatusEntry(vehicleReg) {
   return _cache[vehicleReg] || {
-    status: 'available', driver: null, area: null, tripId: null, updatedAt: null,
+    status: 'available', driver: null, area: null, tripId: null, fuelLevel: null, updatedAt: null,
   }
 }
 
@@ -32,7 +32,7 @@ export async function loadAllVehicleStatuses() {
   if (!supabase) return
   const { data } = await supabase
     .from('vehicle_status')
-    .select('vehicle_id, status, assigned_driver_id, current_trip_id, last_km_reading, updated_at, vehicles(registration)')
+    .select('vehicle_id, status, assigned_driver_id, current_trip_id, last_km_reading, fuel_level, updated_at, vehicles(registration)')
   if (!data) return
   for (const row of data) {
     const reg = row.vehicles?.registration
@@ -41,6 +41,7 @@ export async function loadAllVehicleStatuses() {
       driver:    row.assigned_driver_id || null,
       tripId:    row.current_trip_id    || null,
       area:      null,
+      fuelLevel: row.fuel_level,
       updatedAt: row.updated_at,
     }
   }

@@ -1,4 +1,4 @@
-import React, { lazy, Suspense } from 'react'
+import React, { lazy, Suspense, useEffect } from 'react'
 import ErrorBoundary from './components/ErrorBoundary'
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { AppProvider }           from './context/AppContext'
@@ -7,6 +7,7 @@ import { RideLifecycleProvider } from './context/RideLifecycleContext'
 import { CommunicationProvider } from './context/CommunicationContext'
 import { AdminProvider }         from './context/AdminContext'
 import { GpsHistoryProvider }    from './context/GpsHistoryContext'
+import { loadAllVehicleStatuses } from './data/vehicleStatusData'
 import AppShell                  from './components/layout/AppShell'
 import ProtectedRoute            from './components/auth/ProtectedRoute'
 
@@ -66,6 +67,13 @@ function DriverLayout() {
 }
 
 export default function App() {
+  // Load vehicle statuses on app startup to populate the cache
+  useEffect(() => {
+    loadAllVehicleStatuses().catch(err => {
+      console.warn('Failed to load vehicle statuses:', err);
+    });
+  }, []);
+
   return (
     <ErrorBoundary>
     <AppProvider>

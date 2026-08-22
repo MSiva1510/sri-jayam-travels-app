@@ -1,5 +1,5 @@
 // ─── Profile.jsx — Fix 4: improved readability, correct section order ─
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Save, User, Lock, Bell, Sliders, Phone, Mail, Calendar, Shield } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
 import Avatar     from '../components/ui/Avatar'
@@ -29,11 +29,11 @@ function Section({ icon: Icon, title, children }) {
   )
 }
 
-function Field({ label, value, type = 'text', readOnly }) {
+function Field({ label, value, onChange, type = 'text', readOnly }) {
   return (
     <div>
       <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">{label}</label>
-      <input type={type} defaultValue={value} readOnly={readOnly}
+      <input type={type} value={value} onChange={onChange ? e => onChange(e.target.value) : undefined} readOnly={readOnly}
         className={`w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-navy-600
           text-slate-800 dark:text-slate-100 focus:outline-none transition-colors
           ${readOnly
@@ -57,7 +57,7 @@ function ToggleRow({ label, sub, checked, onChange }) {
 }
 
 export default function Profile() {
-  const { user } = useAuth()
+  const { user, updateProfile, changePassword } = useAuth()
   const { darkMode, setDarkMode } = useApp()
   const roleColors = user ? ROLE_COLORS[user.role] : null
 
@@ -66,8 +66,61 @@ export default function Profile() {
   const [notifSMS,    setNotifSMS]    = useState(true)
   const [twoFA,       setTwoFA]       = useState(false)
   const [savedMsg,    setSavedMsg]    = useState(false)
+  const [saving,      setSaving]      = useState(false)
+  const [formError,   setFormError]   = useState('')
 
-  const handleSave = () => { setSavedMsg(true); setTimeout(() => setSavedMsg(false), 2000) }
+  // Editable profile fields (persisted to public.profiles via AuthContext)
+  const [fullName, setFullName] = useState('')
+  const [phone,    setPhone]    = useState('')
+  const [hydrated, setHydrated] = useState(false)
+  useEffect(() => {
+    if (user && !hydrated) {
+      setFullName(user.name || '')
+      setPhone(user.phone || '')
+      setHydrated(true)
+    }
+  }, [user, hydrated])
+
+  // Password change fields
+  const [pwNew,     setPwNew]     = useState('')
+  const [pwConfirm, setPwConfirm] = useState('')
+  const [pwSaving,  setPwSaving]  = useState(false)
+
+  const handleSave = async () => {
+    if (saving) return
+    if (!fullName.trim()) { setFormError('Full name cannot be empty.'); return }
+    setSaving(true); setFormError('')
+    try {
+      await updateProfile({ full_name: fullName.trim(), phone: phone.trim() })
+      setSavedMsg(true); setTimeout(() => setSavedMsg(false), 2000)
+    } catch (err) {
+      console.error('[Profile] save failed:', err)
+      setFormError(err.message?.includes('Supabase not configured')
+        ? 'Database is not configured — changes cannot be saved.'
+        : 'Could not save changes. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleUpdatePassword = async () => {
+    if (pwSaving) return
+    if (!pwNew || pwNew.length < 6) { setFormError('New password must be at least 6 characters.'); return }
+    if (pwNew !== pwConfirm) { setFormError('Passwords do not match.'); return }
+    setPwSaving(true); setFormError('')
+    try {
+      await changePassword(pwNew)
+      setPwNew(''); setPwConfirm('')
+      setSavedMsg(true); setTimeout(() => setSavedMsg(false), 2000)
+    } catch (err) {
+      console.error('[Profile] password update failed:', err)
+      setFormError(err.message?.includes('Supabase not configured')
+        ? 'Database is not configured — password cannot be updated.'
+        : 'Could not update password. Please try again.')
+    } finally {
+      setPwSaving(false)
+    }
+  }
 
   if (!user) return null
 
@@ -123,14 +176,15 @@ export default function Profile() {
       {/* Edit name/phone */}
       <Section icon={User} title="Edit Profile">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Full Name"    value={user.name}  />
-          <Field label="Phone"        value={user.phone} type="tel" />
+          <Field label="Full Name"    value={fullName} onChange={setFullName} />
+          <Field label="Phone"        value={phone}    onChange={setPhone} type="tel" />
         </div>
         <Field label="Email Address" value={user.email} type="email" readOnly />
         {user.vehicle && <Field label="Assigned Vehicle" value={user.vehicle} readOnly />}
+        {formError && <p className="text-xs font-semibold text-red-600 dark:text-red-400">{formError}</p>}
         {savedMsg
           ? <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-semibold"><span>✓</span> Saved successfully</div>
-          : <Button icon={Save} variant="primary" onClick={handleSave}>Save Changes</Button>
+          : <Button icon={Save} variant="primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Changes'}</Button>
         }
       </Section>
 
@@ -153,16 +207,17 @@ export default function Profile() {
 
       {/* ── 3. Security ── */}
       <Section icon={Lock} title="Security">
-        <Field label="Current Password"  value=""  type="password" />
-        <Field label="New Password"      value=""  type="password" />
-        <Field label="Confirm Password"  value=""  type="password" />
+        <Field label="New Password"      value={pwNew}     onChange={setPwNew}     type="password" />
+        <Field label="Confirm Password"  value={pwConfirm} onChange={setPwConfirm} type="password" />
         <ToggleRow
           label="Two-Factor Authentication"
           sub="Require OTP on every login"
           checked={twoFA}
           onChange={setTwoFA}
         />
-        <Button icon={Lock} variant="secondary">Update Password</Button>
+        <Button icon={Lock} variant="secondary" onClick={handleUpdatePassword} disabled={pwSaving}>
+          {pwSaving ? 'Updating…' : 'Update Password'}
+        </Button>
       </Section>
 
       {/* ── 4. Notifications ── */}
