@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Printer, Eye, AlertTriangle } from 'lucide-react'
+import { Plus, Printer, Eye, AlertTriangle, FileText, X } from 'lucide-react'
 import Avatar        from '../components/ui/Avatar'
 import Button        from '../components/ui/Button'
 import PageHeader    from '../components/ui/PageHeader'
+import ModalOverlay  from '../components/ui/ModalOverlay'
 import InvoiceModal  from '../components/invoice/InvoiceModal'
 import { loadBookings, getStatusCfg } from '../data/tripTypes'
 
@@ -41,6 +42,10 @@ export default function Invoices() {
 
   const [filter,   setFilter]   = useState('all')
   const [selected, setSelected] = useState(null)   // booking shown in InvoiceModal
+  const [pickerOpen, setPickerOpen] = useState(false) // "New Invoice" booking picker
+
+  // Only billable bookings can generate an invoice
+  const invoiceable = bookings.filter(b => b.status === 'completed' || b.status === 'closed')
 
   const filtered = filter === 'all'
     ? bookings
@@ -56,10 +61,46 @@ export default function Invoices() {
       {/* Invoice preview / print / share modal */}
       {selected && <InvoiceModal booking={selected} onClose={() => setSelected(null)} />}
 
+      {/* New Invoice — pick a billable booking to invoice */}
+      {pickerOpen && (
+        <ModalOverlay onClose={() => setPickerOpen(false)} center>
+          <div className="w-[92vw] max-w-md max-h-[70vh] flex flex-col rounded-2xl bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-700 shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-navy-700">
+              <div className="flex items-center gap-2">
+                <FileText size={15} className="text-navy-700 dark:text-blue-400" />
+                <p className="text-xs font-bold text-navy-800 dark:text-slate-100 uppercase tracking-wider">New Invoice — Select Booking</p>
+              </div>
+              <button onClick={() => setPickerOpen(false)}
+                className="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-navy-800 transition-colors flex items-center justify-center">
+                <X size={14} />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-3 space-y-1.5">
+              {invoiceable.length === 0 ? (
+                <p className="px-2 py-6 text-center text-sm text-slate-400 dark:text-slate-500">
+                  No completed trips available to invoice yet.
+                </p>
+              ) : invoiceable.map(b => (
+                <button key={b.id} onClick={() => { setSelected(b); setPickerOpen(false) }}
+                  className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-blue-50 dark:hover:bg-navy-800 transition-colors flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{b.customer}</p>
+                    <p className="text-[10px] font-mono text-slate-400 truncate">{b.bookingNo || b.id} · {b.pickup} → {b.drop}</p>
+                  </div>
+                  <span className="text-xs font-bold text-navy-800 dark:text-blue-300 whitespace-nowrap">
+                    {b.fare ? `Rs. ${b.fare.toLocaleString('en-IN')}` : '—'}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
+
       <PageHeader
         title="Invoices"
         subtitle="Trip bills, pay slips &amp; invoice management"
-        action={<Button icon={Plus} variant="primary">New Invoice</Button>}
+        action={<Button icon={Plus} variant="primary" onClick={() => setPickerOpen(true)}>New Invoice</Button>}
       />
 
       {loadError && (

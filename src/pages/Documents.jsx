@@ -365,7 +365,7 @@ function AddDocModal({ onClose, onSave, drivers, vehicles, customers }) {
                       onClick={() => {
                         setPreview(null)
                         setForm(f => ({ ...f, fileUrl: null, fileName: '' }))
-                        fileInputRef.current?.value = ''
+                        if (fileInputRef.current) fileInputRef.current.value = ''
                       }}
                       className="text-xs text-red-500 hover:underline"
                     >
