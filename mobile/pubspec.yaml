@@ -19,12 +19,14 @@ dependencies:
   flutter_svg: ^2.0.10+1
   flutter_map: ^8.3.1
   latlong2: ^0.10.1
+  image_picker: ^1.2.3
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
   shared_preferences: ^2.5.5
+  image: ^4.9.2
 
 flutter:
   uses-material-design: true

@@ -18,7 +18,6 @@ class AttendanceScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(todayAttendanceProvider);
-    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(

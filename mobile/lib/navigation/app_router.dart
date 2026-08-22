@@ -18,6 +18,7 @@ import '../screens/driver/driver_profile_screen.dart';
 import '../screens/driver/driver_trips_screen.dart';
 import '../screens/driver/trip_details_screen.dart';
 import '../screens/driver/trip_map_screen.dart';
+import '../screens/driver/driver_documents_screen.dart';
 import '../screens/driver/driver_bookings_screen.dart';
 import '../screens/driver/booking_details_screen.dart';
 import '../screens/driver/attendance_screen.dart';
@@ -32,6 +33,7 @@ class AppRoutes {
   static const noConnection      = '/no-connection';
   static const driverHome        = '/driver';
   static const driverProfile     = '/driver/profile';
+  static const driverDocuments   = '/driver/documents';
   static const driverTrips       = '/driver/trips';
   static const driverBookings    = '/driver/bookings';
   static const attendance        = '/driver/attendance';
@@ -117,6 +119,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'driverProfile',
         pageBuilder: (_, __) =>
             const MaterialPage(child: DriverProfileScreen()),
+      ),
+
+      // ── Driver — Documents (Day 48) ─────────────────────────────────
+      GoRoute(
+        path: AppRoutes.driverDocuments,
+        name: 'driverDocuments',
+        pageBuilder: (_, __) =>
+            const MaterialPage(child: DriverDocumentsScreen()),
       ),
 
       // ── Driver — Trips ─────────────────────────────────────────────

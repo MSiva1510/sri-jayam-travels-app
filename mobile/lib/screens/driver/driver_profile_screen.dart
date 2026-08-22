@@ -6,9 +6,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/driver_profile.dart';
+import '../../navigation/app_router.dart';
 import '../../providers/auth_provider.dart';
 
 class DriverProfileScreen extends ConsumerWidget {
@@ -113,6 +115,22 @@ class DriverProfileScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 16),
+
+          // ── Documents shortcut (Day 48) ──────────────────────────────────
+          Card(
+            margin: const EdgeInsets.only(bottom: 16),
+            child: ListTile(
+              leading: Icon(
+                Icons.badge_outlined,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              title: const Text('My Documents'),
+              subtitle:
+                  const Text('Licence, badge & other documents'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push(AppRoutes.driverDocuments),
+            ),
+          ),
 
           // ── Notes ─────────────────────────────────────────────────────────
           if (d.notes != null && d.notes!.isNotEmpty)

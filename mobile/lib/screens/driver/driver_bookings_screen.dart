@@ -42,7 +42,6 @@ class _DriverBookingsScreenState
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(driverBookingsProvider);
-    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(

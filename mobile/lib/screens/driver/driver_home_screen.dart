@@ -8,9 +8,11 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../providers/auth_provider.dart';
+import '../../providers/gps_provider.dart';
 import '../../providers/trip_provider.dart';
 import '../../providers/booking_provider.dart';
 import '../../providers/attendance_provider.dart';
+import '../../services/gps_tracking_service.dart' show GpsTrackingStatus;
 import '../../services/location_service.dart';
 import '../../navigation/app_router.dart';
 import '../../widgets/driver/trip_card.dart';
@@ -89,7 +91,24 @@ class DriverHomeScreen extends ConsumerWidget {
 
 
                     // ── GPS status card ────────────────────────────────────
-                    _GpsStatusCard(),
+                    const _GpsStatusCard(),
+                    const SizedBox(height: 12),
+
+                    // ── My Documents (Day 48) ─────────────────────────────
+                    Card(
+                      margin: EdgeInsets.zero,
+                      child: ListTile(
+                        leading: Icon(
+                          Icons.badge_outlined,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        title: const Text('My Documents'),
+                        subtitle: const Text(
+                            'Upload your licence, badge & other documents'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => context.push(AppRoutes.driverDocuments),
+                      ),
+                    ),
                     const SizedBox(height: 12),
 
                     // ── Stats row ────────────────────────────────────────
@@ -328,9 +347,7 @@ class _AttendanceCard extends StatelessWidget {
 
     return Card(
       child: InkWell(
-        onTap: () => Navigator.of(context)
-            .pushNamed(AppRoutes.attendance)
-            .catchError((_) {}),
+        onTap: () => context.push(AppRoutes.attendance),
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -721,14 +738,14 @@ class _QuickNavButton extends StatelessWidget {
 
 // ── GPS Status Card ───────────────────────────────────────────────────────────
 
-class _GpsStatusCard extends StatefulWidget {
+class _GpsStatusCard extends ConsumerStatefulWidget {
   const _GpsStatusCard();
 
   @override
-  State<_GpsStatusCard> createState() => _GpsStatusCardState();
+  ConsumerState<_GpsStatusCard> createState() => _GpsStatusCardState();
 }
 
-class _GpsStatusCardState extends State<_GpsStatusCard> {
+class _GpsStatusCardState extends ConsumerState<_GpsStatusCard> {
   final _locationService = LocationService();
   LocationStatus _status = LocationStatus.unknown;
   String?        _position;
@@ -774,6 +791,9 @@ class _GpsStatusCardState extends State<_GpsStatusCard> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final track = ref.watch(gpsTrackingProvider);
+    final trackingLive = track.status == GpsTrackingStatus.active ||
+        track.status == GpsTrackingStatus.paused;
     final (color, icon) = switch (_status) {
       LocationStatus.granted           => (Colors.green.shade600, Icons.gps_fixed),
       LocationStatus.denied            => (theme.colorScheme.error, Icons.gps_off),
@@ -788,6 +808,67 @@ class _GpsStatusCardState extends State<_GpsStatusCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ── Live trip-tracking banner (Day 47) ─────────────────────
+            if (trackingLive && track.context != null) ...[
+              InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () => context.push(
+                    AppRoutes.tripMap(track.context!.tripId)),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: track.temporarilyOffline
+                        ? Colors.orange.shade50
+                        : Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: track.temporarilyOffline
+                          ? Colors.orange.shade300
+                          : Colors.green.shade200,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        track.temporarilyOffline
+                            ? Icons.cloud_off
+                            : Icons.track_changes,
+                        size: 18,
+                        color: track.temporarilyOffline
+                            ? Colors.orange.shade800
+                            : Colors.green.shade700,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Trip tracking '
+                          '${track.status == GpsTrackingStatus.paused ? 'paused' : 'active'}'
+                          ' · ${track.routePoints.length} points',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: track.temporarilyOffline
+                                ? Colors.orange.shade900
+                                : Colors.green.shade800,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        'View Map',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
             Row(
               children: [
                 Icon(icon, color: color, size: 18),
