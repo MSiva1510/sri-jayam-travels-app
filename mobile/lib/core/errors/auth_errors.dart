@@ -1,7 +1,11 @@
-﻿// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 // auth_errors.dart
 // Translates raw Supabase / network exceptions into user-friendly messages.
-// Nothing from this file should appear directly in UI widgets.
+//
+// DAY 46 FIX: The "session/token/expired" keyword match was too broad —
+// many generic Supabase error messages contain these words even for network
+// failures, causing "Your session has expired" to appear when the real
+// problem was "No internet connection".
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
@@ -17,12 +21,18 @@ class AuthErrorMapper {
 
     final msg = e.toString().toLowerCase();
 
-    if (msg.contains('network') ||
-        msg.contains('socket') ||
-        msg.contains('connection') ||
-        msg.contains('timeout')) {
+    // Network / connectivity — check before anything else.
+    if (msg.contains('network')     ||
+        msg.contains('socket')      ||
+        msg.contains('connection')  ||
+        msg.contains('timeout')     ||
+        msg.contains('host lookup') ||
+        msg.contains('no route')    ||
+        msg.contains('unreachable') ||
+        msg.contains('errno = 101') ||
+        msg.contains('errno = 111')) {
       return (
-        message: 'No internet connection. Please check your network and try again.',
+        message: 'No internet connection. Please check your network.',
         code: AuthErrorCode.networkUnavailable,
       );
     }
@@ -41,6 +51,7 @@ class AuthErrorMapper {
     if (msg.contains('invalid login') ||
         msg.contains('invalid credentials') ||
         msg.contains('wrong password') ||
+        msg.contains('email not found') ||
         msg.contains('user not found')) {
       return (
         message: 'Incorrect email or password. Please try again.',
@@ -51,12 +62,19 @@ class AuthErrorMapper {
     if (msg.contains('email not confirmed')) {
       return (
         message: 'Your email address has not been verified. '
-            'Please check your inbox for a confirmation link.',
+            'Please check your inbox.',
         code: AuthErrorCode.emailNotConfirmed,
       );
     }
 
-    if (msg.contains('session') || msg.contains('token') || msg.contains('expired')) {
+    // Only report "session expired" for SPECIFIC auth token expiry errors,
+    // not for any message that merely contains the word "session" or "token".
+    // This prevents network failures from being misreported as session expiry.
+    if (msg == 'token has expired' ||
+        msg == 'session has expired' ||
+        msg.contains('refresh_token_not_found') ||
+        msg.contains('jwt expired') ||
+        (msg.contains('refresh') && msg.contains('expired'))) {
       return (
         message: 'Your session has expired. Please log in again.',
         code: AuthErrorCode.sessionExpired,
@@ -76,7 +94,8 @@ class AuthErrorMapper {
     );
   }
 
-  // Business-level errors (not Supabase auth errors)
+  // ── Business-level errors ─────────────────────────────────────────────────
+
   static ({String message, AuthErrorCode code}) profileNotFound() => (
         message: 'Your account profile could not be found. '
             'Please contact your administrator.',
@@ -89,9 +108,10 @@ class AuthErrorMapper {
         code: AuthErrorCode.driverNotFound,
       );
 
-  static ({String message, AuthErrorCode code}) unauthorizedRole(String role) => (
-        message: 'Access denied. This app is for drivers only. '
-            'Your role is "$role".',
+  static ({String message, AuthErrorCode code}) unauthorizedRole(
+      String role) => (
+        message:
+            'Access denied. This app is for drivers only. Your role is "$role".',
         code: AuthErrorCode.unauthorizedRole,
       );
 }

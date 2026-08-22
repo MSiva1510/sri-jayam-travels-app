@@ -4,6 +4,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -194,18 +195,10 @@ class _Logo extends StatelessWidget {
     final theme = Theme.of(context);
     return Column(
       children: [
-        Container(
-          width:  80,
-          height: 80,
-          decoration: BoxDecoration(
-            color:        theme.colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Icon(
-            Icons.directions_car_rounded,
-            size:  44,
-            color: theme.colorScheme.onPrimaryContainer,
-          ),
+        SvgPicture.asset(
+          'assets/images/logo.svg',
+          width:  96,
+          height: 96,
         ),
         const SizedBox(height: 20),
         Text(

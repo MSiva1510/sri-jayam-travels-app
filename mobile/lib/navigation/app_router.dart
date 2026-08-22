@@ -1,5 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// app_router.dart — Day 45 (adds /driver/attendance + /driver/attendance/history)
+// app_router.dart — Day 46
+// Added: no-connection route (session valid but offline on startup)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import '../providers/auth_provider.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/forgot_password_screen.dart';
 import '../screens/auth/unauthorized_screen.dart';
+import '../screens/auth/no_connection_screen.dart';
 import '../screens/driver/driver_home_screen.dart';
 import '../screens/driver/driver_profile_screen.dart';
 import '../screens/driver/driver_trips_screen.dart';
@@ -23,15 +25,16 @@ import '../screens/driver/attendance_history_screen.dart';
 class AppRoutes {
   AppRoutes._();
 
-  static const login              = '/login';
-  static const forgotPassword     = '/forgot-password';
-  static const unauthorized       = '/unauthorized';
-  static const driverHome         = '/driver';
-  static const driverProfile      = '/driver/profile';
-  static const driverTrips        = '/driver/trips';
-  static const driverBookings     = '/driver/bookings';
-  static const attendance         = '/driver/attendance';
-  static const attendanceHistory  = '/driver/attendance/history';
+  static const login             = '/login';
+  static const forgotPassword    = '/forgot-password';
+  static const unauthorized      = '/unauthorized';
+  static const noConnection      = '/no-connection';
+  static const driverHome        = '/driver';
+  static const driverProfile     = '/driver/profile';
+  static const driverTrips       = '/driver/trips';
+  static const driverBookings    = '/driver/bookings';
+  static const attendance        = '/driver/attendance';
+  static const attendanceHistory = '/driver/attendance/history';
 
   static String tripDetail(String id)    => '/driver/trips/$id';
   static String bookingDetail(String id) => '/driver/bookings/$id';
@@ -48,17 +51,29 @@ final routerProvider = Provider<GoRouter>((ref) {
                        goingTo == AppRoutes.forgotPassword;
 
       return switch (auth) {
-        AuthInitializing()  || AuthLoadingProfile()   => null,
-        AuthUnauthenticated() || AuthAuthenticating() =>
-            isPublic ? null : AppRoutes.login,
-        AuthError(:final code) =>
-            code == AuthErrorCode.unauthorizedRole
-                ? AppRoutes.unauthorized
-                : (isPublic ? null : AppRoutes.login),
+        // Still loading — stay put
+        AuthInitializing() || AuthLoadingProfile() => null,
+
+        // Authenticated successfully
         AuthAuthenticated(:final profile) =>
             isPublic
                 ? AppRoutes.driverHome
                 : (!profile.isDriver ? AppRoutes.unauthorized : null),
+
+        // No session
+        AuthUnauthenticated() || AuthAuthenticating() =>
+            isPublic ? null : AppRoutes.login,
+
+        // Error states
+        AuthError(:final code) => switch (code) {
+            // Session valid but no network — show retry screen, NOT login
+            AuthErrorCode.networkUnavailable =>
+                goingTo == AppRoutes.noConnection ? null : AppRoutes.noConnection,
+            // Wrong role
+            AuthErrorCode.unauthorizedRole => AppRoutes.unauthorized,
+            // Everything else → login
+            _ => isPublic ? null : AppRoutes.login,
+          },
       };
     },
     routes: [
@@ -80,6 +95,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'unauthorized',
         pageBuilder: (_, __) =>
             const NoTransitionPage(child: UnauthorizedScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.noConnection,
+        name: 'noConnection',
+        pageBuilder: (_, __) =>
+            const NoTransitionPage(child: NoConnectionScreen()),
       ),
 
       // ── Driver — Home & Profile ──────────────────────────────────────

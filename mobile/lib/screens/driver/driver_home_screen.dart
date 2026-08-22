@@ -11,6 +11,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/trip_provider.dart';
 import '../../providers/booking_provider.dart';
 import '../../providers/attendance_provider.dart';
+import '../../services/location_service.dart';
 import '../../navigation/app_router.dart';
 import '../../widgets/driver/trip_card.dart';
 import '../../widgets/driver/booking_card.dart';
@@ -84,6 +85,11 @@ class DriverHomeScreen extends ConsumerWidget {
 
                     // ── Attendance card (quick action) ───────────────────
                     _AttendanceCard(state: attendance, ref: ref),
+                    const SizedBox(height: 12),
+
+
+                    // ── GPS status card ────────────────────────────────────
+                    _GpsStatusCard(),
                     const SizedBox(height: 12),
 
                     // ── Stats row ────────────────────────────────────────
@@ -707,6 +713,156 @@ class _QuickNavButton extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── GPS Status Card ───────────────────────────────────────────────────────────
+
+class _GpsStatusCard extends StatefulWidget {
+  const _GpsStatusCard();
+
+  @override
+  State<_GpsStatusCard> createState() => _GpsStatusCardState();
+}
+
+class _GpsStatusCardState extends State<_GpsStatusCard> {
+  final _locationService = LocationService();
+  LocationStatus _status = LocationStatus.unknown;
+  String?        _position;
+  bool           _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkStatus();
+  }
+
+  Future<void> _checkStatus() async {
+    final s = await _locationService.getStatus();
+    if (mounted) setState(() => _status = s);
+  }
+
+  Future<void> _requestAndFix() async {
+    setState(() => _loading = true);
+    try {
+      if (_status == LocationStatus.permanentlyDenied ||
+          _status == LocationStatus.gpsDisabled) {
+        await _locationService.openSettings();
+        await _checkStatus();
+        return;
+      }
+
+      final s = await _locationService.requestPermission();
+      setState(() => _status = s);
+      if (!s.isGranted) return;
+
+      final pos = await _locationService.getCurrentPosition();
+      if (mounted) {
+        setState(() {
+          _position =
+              '${pos.latitude.toStringAsFixed(5)}, ${pos.longitude.toStringAsFixed(5)}';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final (color, icon) = switch (_status) {
+      LocationStatus.granted           => (Colors.green.shade600, Icons.gps_fixed),
+      LocationStatus.denied            => (theme.colorScheme.error, Icons.gps_off),
+      LocationStatus.permanentlyDenied => (theme.colorScheme.error, Icons.location_off),
+      LocationStatus.gpsDisabled       => (Colors.orange.shade700, Icons.location_disabled),
+      LocationStatus.unknown           => (theme.colorScheme.onSurfaceVariant, Icons.gps_not_fixed),
+    };
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: color, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  'GPS — ${_status.label}',
+                  style: theme.textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const Spacer(),
+                if (_loading)
+                  const SizedBox(
+                    height: 16, width: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else
+                  TextButton(
+                    onPressed: _requestAndFix,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 4),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(
+                      _status.isGranted ? 'Refresh' :
+                      _status.isPermanent || _status.isGpsDisabled
+                          ? 'Open Settings'
+                          : 'Enable',
+                    ),
+                  ),
+              ],
+            ),
+            if (_position != null) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Icon(Icons.my_location,
+                      size: 13,
+                      color: theme.colorScheme.onSurfaceVariant),
+                  const SizedBox(width: 4),
+                  Text(
+                    _position!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color:      theme.colorScheme.onSurfaceVariant,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ],
+              ),
+            ] else if (_status == LocationStatus.denied) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Location is needed to track your trips.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ] else if (_status == LocationStatus.permanentlyDenied) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Permission blocked. Open Settings → Location → Allow.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ] else if (_status == LocationStatus.gpsDisabled) ...[
+              const SizedBox(height: 6),
+              Text(
+                'GPS is turned off. Enable it in device settings.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: Colors.orange.shade700,
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );

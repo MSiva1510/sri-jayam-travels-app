@@ -1,7 +1,5 @@
-﻿// ─────────────────────────────────────────────────────────────────────────────
-// auth_provider.dart
-// Riverpod StateNotifier for auth.
-// This is the ONLY place the UI reads auth state.
+// ─────────────────────────────────────────────────────────────────────────────
+// auth_provider.dart  — Day 46 (improved session restore + event handling)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'dart:async';
@@ -26,7 +24,7 @@ final authServiceProvider = Provider<AuthService>(
   (ref) => AuthService(ref.watch(authRepositoryProvider)),
 );
 
-// ── Auth state notifier ───────────────────────────────────────────────────────
+// ── Auth notifier ─────────────────────────────────────────────────────────────
 
 class AuthNotifier extends StateNotifier<AuthState> {
   AuthNotifier(this._service, this._repo) : super(const AuthInitializing()) {
@@ -37,13 +35,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
   final AuthRepository _repo;
   StreamSubscription<AuthChangeEvent>? _authSub;
 
-  // ── Startup ─────────────────────────────────────────────────────────────
+  // ── Startup ──────────────────────────────────────────────────────────────
 
   Future<void> _init() async {
-    // Listen for token refreshes and external sign-outs
+    // Set up listener BEFORE checking session to avoid missing events
     _authSub = _repo.rawAuthEvents.listen(_onAuthEvent);
 
-    // Restore any existing session
+    // Restore existing session (fixed: no longer checks session.isExpired)
     state = const AuthLoadingProfile();
     state = await _service.restoreSession();
   }
@@ -51,37 +49,55 @@ class AuthNotifier extends StateNotifier<AuthState> {
   void _onAuthEvent(AuthChangeEvent event) {
     switch (event) {
       case AuthChangeEvent.tokenRefreshed:
-        // Session refreshed by Supabase SDK automatically — no action needed
+        // SDK refreshed the access token — no action needed; state is valid
         break;
+
       case AuthChangeEvent.signedOut:
-        // Externally signed out (another device / token revoked)
+        // Externally signed out (another device / token revoked by server)
         if (state is! AuthUnauthenticated) {
           state = const AuthUnauthenticated();
         }
         break;
-      // userDeleted removed in newer SDK versions — handled by signedOut
+
+      case AuthChangeEvent.signedIn:
+        // Fired after a successful sign-in or session restore by the SDK.
+        // We handle this via restoreSession() on startup, so no action here
+        // unless we're currently in an error state.
+        if (state is AuthError) {
+          final err = state as AuthError;
+          if (err.code == AuthErrorCode.networkUnavailable) {
+            // Network came back — retry restoring session
+            _retryRestore();
+          }
+        }
+        break;
 
       default:
         break;
     }
   }
 
-  // ── Public actions ───────────────────────────────────────────────────────
+  Future<void> _retryRestore() async {
+    state = const AuthLoadingProfile();
+    state = await _service.restoreSession();
+  }
 
-  Future<void> login({required String email, required String password}) async {
+  // ── Public actions ────────────────────────────────────────────────────────
+
+  Future<void> login({
+    required String email,
+    required String password,
+  }) async {
     state = const AuthAuthenticating();
     final next = await _service.login(email: email, password: password);
     state = next;
   }
 
   Future<void> logout() async {
-    // Stop GPS / realtime / local caches here before sign-out.
-    // Day 43+ will hook GPS services; add calls here as each day is built.
-
     try {
       await _service.logout();
     } catch (_) {
-      // Always navigate to login even if sign-out call fails
+      // Always navigate to login even if the sign-out API call fails
     }
     state = const AuthUnauthenticated();
   }
@@ -89,7 +105,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> refreshProfile() async {
     final current = state;
     if (current is! AuthAuthenticated) return;
-
     state = const AuthLoadingProfile();
     state = await _service.refreshProfile(
       userId: current.profile.id,
@@ -97,7 +112,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     );
   }
 
-  // ── Dispose ──────────────────────────────────────────────────────────────
+  /// Called from the "Retry" button on the no-connection screen.
+  Future<void> retryConnection() => _retryRestore();
+
+  // ── Dispose ───────────────────────────────────────────────────────────────
 
   @override
   void dispose() {
@@ -108,19 +126,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 
-final authProvider =
-    StateNotifierProvider<AuthNotifier, AuthState>((ref) {
+final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   return AuthNotifier(
     ref.watch(authServiceProvider),
     ref.watch(authRepositoryProvider),
   );
 });
 
-// ── Convenience selectors (avoid rebuilds from unrelated state changes) ───────
+// ── Convenience selectors ─────────────────────────────────────────────────────
 
-final isAuthenticatedProvider = Provider<bool>((ref) {
-  return ref.watch(authProvider) is AuthAuthenticated;
-});
+final isAuthenticatedProvider = Provider<bool>(
+  (ref) => ref.watch(authProvider) is AuthAuthenticated,
+);
 
 final currentProfileProvider = Provider((ref) {
   final s = ref.watch(authProvider);
