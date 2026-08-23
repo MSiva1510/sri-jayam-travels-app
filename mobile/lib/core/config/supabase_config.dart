@@ -29,6 +29,9 @@ class SupabaseConfig {
   // Driver documents — shared with Web ERP (Day 48)
   static const String documentsTable = 'documents';
 
+  // Notifications — shared with Web ERP (user_id keyed)
+  static const String notificationsTable = 'notifications';
+
   // Storage buckets
   static const String avatarsBucket = 'avatars';
   static const String documentsBucket = 'documents';

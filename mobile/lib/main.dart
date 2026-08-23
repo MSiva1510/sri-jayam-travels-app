@@ -11,6 +11,12 @@ import 'core/auth/auth_state.dart';
 import 'navigation/app_router.dart';
 import 'providers/auth_provider.dart';
 import 'providers/gps_provider.dart';
+import 'providers/notification_provider.dart';
+import 'providers/attendance_provider.dart';
+import 'providers/booking_provider.dart';
+import 'providers/document_provider.dart';
+import 'providers/theme_provider.dart';
+import 'providers/trip_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,12 +35,13 @@ class SriJayamApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
+    final themeMode = ref.watch(themeControllerProvider);
     return MaterialApp.router(
       title:                      'Sri Jayam Travels',
       debugShowCheckedModeBanner: false,
       theme:                      _buildTheme(Brightness.light),
       darkTheme:                  _buildTheme(Brightness.dark),
-      themeMode:                  ThemeMode.system,
+      themeMode:                  themeMode.materialThemeMode,
       routerConfig:               router,
       builder: (context, child) =>
           _AuthGuard(child: child ?? const SizedBox()),
@@ -119,9 +126,7 @@ class _AuthGuardState extends ConsumerState<_AuthGuard>
       final wasIn = prev is AuthAuthenticated;
       final isIn = next is AuthAuthenticated;
       if (wasIn && !isIn) {
-        // Fire-and-forget hard teardown: listeners die immediately,
-        // a bounded flush attempt runs, then everything resets.
-        ref.read(gpsTrackingProvider.notifier).disposeSession();
+        _teardownSession(ref);
       }
     });
 
@@ -130,6 +135,34 @@ class _AuthGuardState extends ConsumerState<_AuthGuard>
       return const _SplashScreen();
     }
     return widget.child;
+  }
+
+  /// Full session teardown. Runs when the auth state leaves
+  /// [AuthAuthenticated] for ANY reason (logout, remote revoke, expiry):
+  ///   1. GPS: listeners + sync timer die immediately (bounded flush).
+  ///   2. Notifications realtime channel removed, cached rows cleared.
+  ///   3. All module providers invalidated so no trip/booking/attendance/
+  ///      document state can leak into the next account — and no stale
+  ///      screen can render another driver's data.
+  void _teardownSession(WidgetRef ref) {
+    ref.read(gpsTrackingProvider.notifier).disposeSession();
+    ref.read(notificationsProvider.notifier).disposeSession();
+
+    ref.invalidate(todayTripsProvider);
+    ref.invalidate(allDriverTripsProvider);
+    ref.invalidate(tripDetailProvider);
+    ref.invalidate(upcomingTripsProvider);
+    ref.invalidate(todayTripCountProvider);
+
+    ref.invalidate(driverBookingsProvider);
+    ref.invalidate(bookingDetailProvider);
+    ref.invalidate(upcomingBookingsProvider);
+    ref.invalidate(activeBookingCountProvider);
+
+    ref.invalidate(todayAttendanceProvider);
+    ref.invalidate(attendanceHistoryProvider);
+
+    ref.invalidate(documentsProvider);
   }
 }
 

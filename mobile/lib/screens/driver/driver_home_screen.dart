@@ -12,6 +12,7 @@ import '../../providers/gps_provider.dart';
 import '../../providers/trip_provider.dart';
 import '../../providers/booking_provider.dart';
 import '../../providers/attendance_provider.dart';
+import '../../providers/notification_provider.dart';
 import '../../services/gps_tracking_service.dart' show GpsTrackingStatus;
 import '../../services/location_service.dart';
 import '../../navigation/app_router.dart';
@@ -31,6 +32,11 @@ class DriverHomeScreen extends ConsumerWidget {
     final upcoming     = ref.watch(upcomingTripsProvider);
     final nextBookings = ref.watch(upcomingBookingsProvider);
     final attendance   = ref.watch(todayAttendanceProvider);
+    final unreadNotifs = ref.watch(unreadCountProvider);
+
+    // Lazily start the notifications feed + realtime (no-op when loaded).
+    Future.microtask(
+        () => ref.read(notificationsProvider.notifier).loadIfAuthenticated());
 
     return Scaffold(
       body: RefreshIndicator(
@@ -57,6 +63,16 @@ class DriverHomeScreen extends ConsumerWidget {
                 ),
               ),
               actions: [
+                IconButton(
+                  icon: Badge(
+                    isLabelVisible: unreadNotifs > 0,
+                    label: Text(unreadNotifs > 99 ? '99+' : '$unreadNotifs'),
+                    child: const Icon(Icons.notifications_outlined),
+                  ),
+                  tooltip: 'Notifications',
+                  onPressed: () =>
+                      context.push(AppRoutes.driverNotifications),
+                ),
                 IconButton(
                   icon: const Icon(Icons.person_outline),
                   tooltip: 'Profile',
@@ -107,6 +123,31 @@ class DriverHomeScreen extends ConsumerWidget {
                             'Upload your licence, badge & other documents'),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () => context.push(AppRoutes.driverDocuments),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // ── Messages / Communication ──────────────────────────
+                    Card(
+                      margin: EdgeInsets.zero,
+                      child: ListTile(
+                        leading: Icon(
+                          Icons.forum_outlined,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        title: const Text('Messages'),
+                        subtitle: const Text(
+                            'Notifications & WhatsApp updates'),
+                        trailing: unreadNotifs > 0
+                            ? Badge(
+                                isLabelVisible: true,
+                                label: Text('$unreadNotifs'),
+                                child:
+                                    const Icon(Icons.chevron_right),
+                              )
+                            : const Icon(Icons.chevron_right),
+                        onTap: () =>
+                            context.push(AppRoutes.driverCommunication),
                       ),
                     ),
                     const SizedBox(height: 12),

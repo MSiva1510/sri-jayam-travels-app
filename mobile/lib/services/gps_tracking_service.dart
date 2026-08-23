@@ -230,6 +230,11 @@ class GpsTrackingService extends StateNotifier<GpsTrackState> {
         driverId: driver.id,
       );
 
+      // Store the session context in state BEFORE any async work so every
+      // guard (isTracking, pause/resume, stop, dashboard banner, trip
+      // screen) sees a live session from this point on.
+      state = GpsTrackState(status: GpsTrackingStatus.starting, context: ctx);
+
       _clearSessionBookkeeping();
 
       // 3. Persist the starting fix immediately when we have one.

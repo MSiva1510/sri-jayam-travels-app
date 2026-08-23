@@ -118,7 +118,7 @@ class DriverProfileScreen extends ConsumerWidget {
 
           // ── Documents shortcut (Day 48) ──────────────────────────────────
           Card(
-            margin: const EdgeInsets.only(bottom: 16),
+            margin: const EdgeInsets.only(bottom: 12),
             child: ListTile(
               leading: Icon(
                 Icons.badge_outlined,
@@ -129,6 +129,21 @@ class DriverProfileScreen extends ConsumerWidget {
                   const Text('Licence, badge & other documents'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => context.push(AppRoutes.driverDocuments),
+            ),
+          ),
+
+          // ── Settings ─────────────────────────────────────────────────────
+          Card(
+            margin: const EdgeInsets.only(bottom: 16),
+            child: ListTile(
+              leading: Icon(
+                Icons.settings_outlined,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              title: const Text('Settings'),
+              subtitle: const Text('Appearance, messages & app info'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push(AppRoutes.driverSettings),
             ),
           ),
 

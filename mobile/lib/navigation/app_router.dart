@@ -23,6 +23,9 @@ import '../screens/driver/driver_bookings_screen.dart';
 import '../screens/driver/booking_details_screen.dart';
 import '../screens/driver/attendance_screen.dart';
 import '../screens/driver/attendance_history_screen.dart';
+import '../screens/driver/notifications_screen.dart';
+import '../screens/driver/communication_screen.dart';
+import '../screens/driver/settings_screen.dart';
 
 class AppRoutes {
   AppRoutes._();
@@ -38,6 +41,9 @@ class AppRoutes {
   static const driverBookings    = '/driver/bookings';
   static const attendance        = '/driver/attendance';
   static const attendanceHistory = '/driver/attendance/history';
+  static const driverNotifications = '/driver/notifications';
+  static const driverCommunication = '/driver/messages';
+  static const driverSettings      = '/driver/settings';
 
   static String tripDetail(String id)    => '/driver/trips/$id';
   static String tripMap(String id)       => '/driver/trips/$id/map';
@@ -183,6 +189,30 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'attendanceHistory',
         pageBuilder: (_, __) =>
             const MaterialPage(child: AttendanceHistoryScreen()),
+      ),
+
+      // ── Driver — Notifications ──────────────────────────────────────
+      GoRoute(
+        path: AppRoutes.driverNotifications,
+        name: 'driverNotifications',
+        pageBuilder: (_, __) =>
+            const MaterialPage(child: NotificationsScreen()),
+      ),
+
+      // ── Driver — Communication ──────────────────────────────────────
+      GoRoute(
+        path: AppRoutes.driverCommunication,
+        name: 'driverCommunication',
+        pageBuilder: (_, __) =>
+            const MaterialPage(child: CommunicationScreen()),
+      ),
+
+      // ── Driver — Settings ───────────────────────────────────────────
+      GoRoute(
+        path: AppRoutes.driverSettings,
+        name: 'driverSettings',
+        pageBuilder: (_, __) =>
+            const MaterialPage(child: SettingsScreen()),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(
