@@ -553,7 +553,6 @@ function CustomerProfile({ customer, bookings, onEdit, onDelete, onBooking, canE
 
       {/* Basic Info */}
       <div className="grid grid-cols-2 gap-4">
-        {renderField('Customer No.', customer.customer_id)}
         {renderField('Name', customer.name)}
         {renderField('Type', getCustomerTypeCfg(customer.type).label)}
         {renderField('Mobile', customer.mobile, <Phone size={14} />)}
@@ -958,9 +957,6 @@ export default function Customers() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-0.5">
                       <p className="font-bold text-slate-800 dark:text-white text-sm">{c.name}</p>
-                      {c.customer_id && (
-                        <span className="text-[9px] font-mono text-slate-400 dark:text-slate-500">{c.customer_id}</span>
-                      )}
                       {isCorp && c.companyName && (
                         <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium truncate max-w-[100px]">{c.companyName}</span>
                       )}

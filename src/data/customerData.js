@@ -19,37 +19,9 @@ export function generateCustomerId() {
 // ── Supabase customer store ───────────────────────────────────
 // All functions are async — callers must await them.
 
-// Maps raw Supabase `customers` row (snake_case) to the shape the UI reads
-// (camelCase). Without this, fields like mobile/companyName/gst were
-// silently undefined because the repository returns raw DB rows and the
-// column names don't match 1:1 with what the pages read.
-export function normalizeCustomer(row = {}) {
-  return {
-    ...row,
-    id:            row.id,
-    customer_id:   row.customer_id ?? null,
-    name:          row.name ?? '',
-    type:          row.type ?? 'individual',
-    status:        row.status ?? 'active',
-    mobile:        row.mobile ?? row.primary_mobile ?? '',
-    altMobile:     row.altMobile ?? row.alternate_mobile ?? '',
-    email:         row.email ?? '',
-    city:          row.city ?? '',
-    address:       row.address ?? '',
-    billingAddress:row.address ?? '',
-    companyName:   row.companyName ?? row.company_name ?? '',
-    contactPerson: row.contactPerson ?? row.contact_person ?? '',
-    gst:           row.gst ?? row.gstin ?? '',
-    notes:         row.notes ?? '',
-    createdAt:     row.createdAt ?? row.created_at ?? null,
-    updatedAt:     row.updatedAt ?? row.updated_at ?? null,
-  }
-}
-
 async function _loadCustomers() {
   try {
-    const rows = await customerRepository.getAll()
-    return (Array.isArray(rows) ? rows : []).map(normalizeCustomer)
+    return await customerRepository.getAll()
   } catch (err) {
     console.error('[customerData] loadCustomers failed:', err)
     throw err

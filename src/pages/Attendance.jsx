@@ -360,10 +360,7 @@ function AdminAttendanceView({ isAdmin }) {
       {isAdmin && (
         <div className="glass-card rounded-2xl p-5">
           <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Monthly Overview — All Drivers</p>
-          {driverRows.length === 0 && (
-            <p className="text-xs text-slate-400 dark:text-slate-500 py-2">No drivers found.</p>
-          )}
-          {driverRows.map(d => d.name).map(name => {
+          {['Ramanan','Babu','Rajasekharan'].map(name => {
             const dRecords = allRecords.filter(r => r.driver === name)
             const thisMonth = dRecords.filter(r => r.date?.startsWith(new Date().toISOString().slice(0,7)))
             const p = thisMonth.filter(r => ['present','half-day'].includes(r.status)).length

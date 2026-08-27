@@ -23,7 +23,7 @@ function toDbDriver(data = {}) {
     license_expiry: data.license_expiry,
     bank_name: data.bank_name,
     emergency_contact: data.emergency_contact,
-    license_photo_url: data.licenceImage ?? data.licence_image ?? data.license_photo_url,
+    licence_image: data.licenceImage ?? data.licence_image,
     updated_at: data.updated_at ?? data.updatedAt,
   }
   return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined))
@@ -196,15 +196,15 @@ export class DriverRepository extends BaseRepository {
     }
 
     try {
-      const fileName = `${driverId}-${Date.now()}.jpg`
+      const fileName = `driver-licenses/${driverId}-${Date.now()}.jpg`
       const { data, error } = await supabase.storage
-        .from('driver-licenses')
+        .from('documents')
         .upload(fileName, file, { upsert: false })
 
       if (error) throw error
 
       const { data: urlData } = supabase.storage
-        .from('driver-licenses')
+        .from('documents')
         .getPublicUrl(data.path)
 
       return urlData.publicUrl
@@ -226,15 +226,15 @@ export class DriverRepository extends BaseRepository {
     }
 
     try {
-      const fileName = `${driverId}-${Date.now()}.jpg`
+      const fileName = `driver-photos/${driverId}-${Date.now()}.jpg`
       const { data, error } = await supabase.storage
-        .from('driver-photos')
+        .from('documents')
         .upload(fileName, file, { upsert: false })
 
       if (error) throw error
 
       const { data: urlData } = supabase.storage
-        .from('driver-photos')
+        .from('documents')
         .getPublicUrl(data.path)
 
       return urlData.publicUrl
@@ -366,7 +366,7 @@ export class DriverRepository extends BaseRepository {
     try {
       const { data, error } = await supabase
         .from('drivers')
-        .select('id, driver_id, name, phone, license_number, status, joined_date, license_expiry, bank_name, emergency_contact, license_photo_url, created_at, updated_at')
+        .select('id, driver_id, name, phone, license_number, status, joined_date, license_expiry, bank_name, emergency_contact, licence_image, created_at, updated_at')
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -381,7 +381,7 @@ export class DriverRepository extends BaseRepository {
     try {
       const { data, error } = await supabase
         .from('drivers')
-        .select('id, driver_id, name, phone, license_number, status, joined_date, license_expiry, bank_name, emergency_contact, license_photo_url, created_at, updated_at')
+        .select('id, driver_id, name, phone, license_number, status, joined_date, license_expiry, bank_name, emergency_contact, licence_image, created_at, updated_at')
         .eq(UUID_RE.test(String(id)) ? 'id' : 'driver_id', id)
         .single()
 
