@@ -7,3 +7,5 @@ dist
 .dart_tool/
 .flutter-plugins-dependencies
 build/
+
+/mobile/
