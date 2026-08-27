@@ -60,7 +60,7 @@ function AddDriverModal({ onClose, onSaved }) {
       const payload = {
         ...form,
         id:           `DRV-${Date.now()}`,
-        licenceImage: licenceImg || null,
+        license_photo_url: licenceImg || null,
         createdAt:    new Date().toISOString(),
       }
       const created = await driverRepository.create(payload)

@@ -20,7 +20,7 @@ final alertServiceProvider = Provider<AlertService>((ref) {
   return AlertService(ref.watch(alertRepositoryProvider));
 });
 
-// ═════════════════════════════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════════════════════════════
 // State classes
 // ═════════════════════════════════════════════════════════════════════════════════════════════════════
 
@@ -34,7 +34,7 @@ sealed class AlertState {
   }) {
     return switch (this) {
       AlertLoading() => loading?.call() ?? (throw StateError('Loading state but no loading handler provided')),
-      AlertLoaded(alerts: var a) => loaded(a),
+      AlertLoaded(alerts: var alerts) => loaded(alerts),
       AlertError(message: var m) => error?.call(m) ?? (throw StateError('Error state but no error handler provided')),
     };
   }

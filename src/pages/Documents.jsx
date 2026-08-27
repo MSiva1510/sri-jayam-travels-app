@@ -117,7 +117,6 @@ async function upsertDoc(doc) {
     customer_id:    doc.customer_id  || null,
     file_name:      doc.file_name    || doc.fileName    || null,
     file_url:       doc.file_url     || doc.fileUrl     || null,
-    document_id:    doc.id           || `DOC-${Date.now()}`,
   }
   if (supabase) {
     try {
