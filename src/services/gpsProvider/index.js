@@ -11,6 +11,7 @@
 // to Context, Page, Service, or Repository.
 
 import { createKingsTrackProvider } from './kingsTrackProvider'
+import { createGpsTrackInProvider } from './gpsTrackInProvider'
 
 /**
  * @typedef {Object} NormalizedSnapshot
@@ -37,8 +38,7 @@ import { createKingsTrackProvider } from './kingsTrackProvider'
 
 const REGISTRY = {
   kingstrack: createKingsTrackProvider,
-  // future: 'provider2': createProvider2,
-  // future: 'provider3': createProvider3,
+  gpstrack:   createGpsTrackInProvider,   // app.gpstrack.in
 }
 
 /**

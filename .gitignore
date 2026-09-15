@@ -2,8 +2,12 @@ node_modules
 dist
 .env
 .env.local
-<<<<<<< HEAD
 .env.*.local
 .dart_tool/
 .flutter-plugins-dependencies
 build/
+*.backup
+*.backup2
+mobile/android/key.properties
+*.jks
+*.keystore

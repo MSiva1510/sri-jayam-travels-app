@@ -1,9 +1,12 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+import { extractBearer, verifySupabaseStaff } from './netlify/functions/_lib/verifySupabaseUser.js'
 
-const DEFAULT_ALLOWED_GPS_HOSTS = ['mvt.apmkingstrack.com']
+const DEFAULT_ALLOWED_GPS_HOSTS = ['mvt.apmkingstrack.com', 'app.gpstrack.in']
 
-function gpsProxyDevMiddleware() {
+// Mirrors netlify/functions/gps-proxy.js so dev behaves like production
+// (same allow-list, same auth requirement).
+function gpsProxyDevMiddleware(env) {
   return {
     name: 'gps-proxy-dev-middleware',
     configureServer(server) {
@@ -30,6 +33,14 @@ function gpsProxyDevMiddleware() {
           return
         }
 
+        const auth = await verifySupabaseStaff(extractBearer(req.headers), { ...process.env, ...env })
+        if (!auth.ok) {
+          res.statusCode = auth.status
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ error: auth.error }))
+          return
+        }
+
         try {
           const chunks = []
           for await (const chunk of req) chunks.push(chunk)
@@ -49,6 +60,12 @@ function gpsProxyDevMiddleware() {
           }
 
           const method = String(vendor_method || 'POST').toUpperCase()
+          if (!['GET', 'POST'].includes(method)) {
+            res.statusCode = 400
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: 'Unsupported vendor method' }))
+            return
+          }
           if (method === 'GET') {
             for (const [key, value] of Object.entries(vendorPayload)) {
               if (value == null || value === '') continue
@@ -77,8 +94,8 @@ function gpsProxyDevMiddleware() {
   }
 }
 
-export default defineConfig({
-  plugins: [react(), gpsProxyDevMiddleware()],
+export default defineConfig(({ mode }) => ({
+  plugins: [react(), gpsProxyDevMiddleware(loadEnv(mode, process.cwd(), 'VITE_'))],
   build: {
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
@@ -99,4 +116,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

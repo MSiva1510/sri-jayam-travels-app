@@ -3,7 +3,8 @@ import { Save, Navigation, RefreshCw, CheckCircle, AlertTriangle, ShieldCheck, L
 import Button     from '../components/ui/Button'
 import PageHeader from '../components/ui/PageHeader'
 import { gpsSettingsRepository, GPS_DEFAULT_SETTINGS, SENSITIVE_KEYS } from '../repositories/gpsSettingsRepository'
-import { createGpsProvider }                                            from '../services/gpsProvider'
+import { createGpsProvider, GPS_PROVIDER_NAMES }                        from '../services/gpsProvider'
+import { GPSTRACK_DEFAULT_URL }                                         from '../services/gpsProvider/gpsTrackInProvider'
 import { addAuditEvent }                                                from '../data/auditLogData'
 import { useAuth }                                                      from '../context/AuthContext'
 
@@ -57,10 +58,12 @@ function Field({ label, name, value, onChange, type = 'text', options, rows = 3,
 
 // ── Bare field metadata (one row per gps_settings key) ────────
 const FIELDS = [
-  { key: 'provider',         label: 'GPS Provider',         type: 'select',  options: ['kingstrack'], help: 'Swappable vendor adapter. Only `kingstrack` is registered today.' },
-  { key: 'api_url',          label: 'API URL',              sensitive: true, help: 'Vendor endpoint. POST JSON.' },
-  { key: 'company_id',       label: 'Company ID',           sensitive: true, help: 'Issued by the provider.' },
-  { key: 'user_id',          label: 'User ID',              sensitive: true, help: 'Issued by the provider.' },
+  { key: 'provider',         label: 'GPS Provider',         type: 'select',  options: GPS_PROVIDER_NAMES, help: 'Swappable vendor adapter: kingstrack (APM KingsTrack) or gpstrack (app.gpstrack.in).' },
+  { key: 'api_url',          label: 'API URL',              sensitive: true, help: 'Vendor endpoint. kingstrack: POST JSON · gpstrack: GET get_current_data.' },
+  { key: 'company_id',       label: 'Company ID',           sensitive: true, providers: ['kingstrack'], help: 'Issued by KingsTrack.' },
+  { key: 'user_id',          label: 'User ID',              sensitive: true, providers: ['kingstrack'], help: 'Issued by KingsTrack.' },
+  { key: 'api_token',        label: 'API Token',            sensitive: true, providers: ['gpstrack'],   help: 'From app.gpstrack.in → API access.' },
+  { key: 'api_email',        label: 'Account Email',        providers: ['gpstrack'],                    help: 'The gpstrack.in login email the token belongs to.' },
   { key: 'refresh_interval', label: 'Refresh Interval (s)', type: 'number',  help: 'Seconds between fleet polls (5–3600).' },
   { key: 'timeout',          label: 'Request Timeout (s)',  type: 'number',  help: 'Per-request timeout (5–300).' },
   { key: 'retry_count',      label: 'Retry Count',          type: 'number',  help: 'Retries on a failed poll (0–10).' },
@@ -93,7 +96,15 @@ export default function FleetSettings() {
       .finally(() => setLoading(false))
   }, [])
 
-  const update = (k, v) => setCfg(c => ({ ...c, [k]: v }))
+  const update = (k, v) => setCfg(c => {
+    const next = { ...c, [k]: v }
+    // Switching vendor: swap in that vendor's endpoint unless the URL was customised
+    if (k === 'provider' && v !== c.provider) {
+      const defaults = { kingstrack: GPS_DEFAULT_SETTINGS.api_url, gpstrack: GPSTRACK_DEFAULT_URL }
+      if (!c.api_url || Object.values(defaults).includes(c.api_url)) next.api_url = defaults[v] ?? c.api_url
+    }
+    return next
+  })
 
   async function handleSave() {
     const errs = gpsSettingsRepository.validate({ ...cfg, enabled })
@@ -184,7 +195,7 @@ export default function FleetSettings() {
 
       <SectionCard icon={Navigation} title="GPS Provider">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {FIELDS.map(f => (
+          {FIELDS.filter(f => !f.providers || f.providers.includes(cfg.provider)).map(f => (
             <Field
               key={f.key}
               label={f.label}

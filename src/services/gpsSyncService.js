@@ -3,6 +3,8 @@
 // Pages never call provider methods directly.
 
 import { createGpsProvider }    from './gpsProvider'
+
+const normalizeReg = (r) => String(r ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
 import { gpsHistoryRepository } from '../repositories/gpsHistoryRepository'
 import { gpsSettingsRepository } from '../repositories/gpsSettingsRepository'
 import { vehicleRepository }    from '../repositories/vehicleRepository'
@@ -35,8 +37,12 @@ async function _ensureIndexes() {
     const list = await loadVehicles()
     const regIdx = {}, imeiIdx = {}
     for (const v of list ?? []) {
-      if (v.registration) regIdx[v.registration] = v.id
-      if (v.imei)         imeiIdx[v.imei]        = v.id
+      if (v.registration) {
+        regIdx[v.registration] = v.id
+        // vendors send "PY01DF1255"; the fleet may be stored as "PY 01 DF 1255" / "PY-01-DF-1255"
+        regIdx[normalizeReg(v.registration)] = v.id
+      }
+      if (v.imei) imeiIdx[String(v.imei).trim()] = v.id
     }
     state.vehicleIndex = regIdx
     state.imeiIndex    = imeiIdx
@@ -71,7 +77,7 @@ async function _syncNow() {
   await _ensureIndexes()
   const rows = snapshots.map(s => ({
     ...s,
-    vehicle_id: state.vehicleIndex[s.registration] ?? state.imeiIndex[s.imei] ?? null,
+    vehicle_id: state.vehicleIndex[s.registration] ?? state.vehicleIndex[normalizeReg(s.registration)] ?? state.imeiIndex[s.imei] ?? null,
     timestamp:  new Date(s._epoch ?? Date.parse(s.timestamp) ?? Date.now()).toISOString(),
     raw:        s._raw ?? {},
   })).filter(s => s.vehicle_id)

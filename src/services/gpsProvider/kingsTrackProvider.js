@@ -3,6 +3,7 @@
 // Mock: VITE_GPS_MOCK=true bypasses network for dev/CI
 
 import { withTimeout } from '../../utils/withTimeout'
+import supabase from '../../lib/supabase'
 
 const DEFAULT_URL = 'https://mvt.apmkingstrack.com/fleettracking/api/live/json'
 const GPS_PROXY_PATH = '/api/gps-proxy'
@@ -116,7 +117,15 @@ async function requestGps(targetUrl, body, timeout, useProxy) {
   return sendGpsRequest(targetUrl, body, timeout, useProxy, 'POST')
 }
 
-function sendGpsRequest(targetUrl, body, timeout, useProxy, vendorMethod) {
+async function proxyAuthHeader() {
+  // The proxy only relays for signed-in staff; attach the Supabase JWT.
+  if (!supabase) return {}
+  const { data } = await supabase.auth.getSession()
+  const token = data?.session?.access_token
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+async function sendGpsRequest(targetUrl, body, timeout, useProxy, vendorMethod) {
   const requestBody = useProxy
     ? { target_url: targetUrl, vendor_method: vendorMethod, ...body }
     : body
@@ -128,7 +137,7 @@ function sendGpsRequest(targetUrl, body, timeout, useProxy, vendorMethod) {
 
   const isPost = vendorMethod === 'POST'
   const headers = useProxy
-    ? { 'Content-Type': 'application/json' }
+    ? { 'Content-Type': 'application/json', ...(await proxyAuthHeader()) }
     : { 'Content-Type': isPost ? 'application/x-www-form-urlencoded' : 'application/json' }
   const payload = useProxy
     ? JSON.stringify(requestBody)

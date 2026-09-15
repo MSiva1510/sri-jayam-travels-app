@@ -3,8 +3,7 @@ import {
   Car, ChevronRight, CheckCircle, Plus, X,
   ArrowLeft, RotateCcw,
 } from 'lucide-react'
-import { generateBookingNumber, saveBooking } from '../data/tripTypes'
-import { upsertCustomerFromBooking, findCustomerByMobile } from '../data/customerData'
+import supabase from '../lib/supabase'
 
 const TRIP_TYPES = [
   { key:'one_way',     label:'One Way',           icon:'🚗', desc:'Single destination' },
@@ -19,11 +18,6 @@ const VEHICLE_TYPES = [
   'Hatchback (4+1)', 'Sedan (4+1)', 'SUV (6+1)',
   'SUV (7+1)', 'Tempo Traveller (12+1)', 'Mini Bus (18+1)',
 ]
-
-function genRef() {
-  const d = new Date()
-  return `SJT-${d.getFullYear()%100}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}-${Math.floor(1000+Math.random()*9000)}`
-}
 
 const Label = ({ children, required }) => (
   <label className="block text-xs font-bold text-slate-600 mb-1">
@@ -76,7 +70,6 @@ export default function PublicBooking() {
 
   const [name,   setName]   = useState('')
   const [mobile, setMobile] = useState('')
-  const [matched,setMatched]= useState(null)
 
   const [tripType,    setTripType]    = useState('')
   const [pickup,      setPickup]      = useState('')
@@ -98,19 +91,6 @@ export default function PublicBooking() {
   const [sdDelivery,  setSdDelivery]  = useState('')
   const [sdReturn,    setSdReturn]    = useState('')
   const [bookingRef,  setBookingRef]  = useState('')
-
-  const handleMobileBlur = async () => {
-    if (mobile.length === 10) {
-      try {
-        const found = await findCustomerByMobile(mobile)
-        if (found) { setName(found.name); setMatched(found) }
-        else setMatched(null)
-      } catch (err) {
-        console.error('[PublicBooking] customer lookup failed:', err)
-        setMatched(null)
-      }
-    }
-  }
 
   const goToType = () => {
     const e = {}
@@ -139,50 +119,47 @@ export default function PublicBooking() {
     setSubmitError('')
     setSubmitting(true)
 
-    const ref = genRef()
-    const now = new Date().toISOString()
-    const booking = {
-      id:         generateBookingNumber(),
-      bookingNo:  ref,
-      status:     'draft',
-      customer:   name,
-      contact:    mobile,
+    // The portal runs unauthenticated. The anon key has NO table access —
+    // everything goes through the SECURITY DEFINER RPC public_create_booking,
+    // which validates, rate-limits, and creates the customer + draft booking.
+    const payload = {
+      name:       name.trim(),
+      mobile,
       type:       tripType,
+      start_date: date,
+      start_time: time || sdStartTime || '',
       pickup:     pickup || areaName || sdDelivery || '',
       drop:       drop   || sdReturn || dayLocs.filter(Boolean).join(' → ') || '',
-      startDate:  date,
-      startTime:  time || sdStartTime || '',
-      vehicleType,
-      returnDest,
-      numDays:    Number(numDays) || 0,
-      stops:      stops.filter(Boolean),
-      dayLocs:    dayLocs.filter(Boolean),
-      areaName,
-      sdIdNum, sdIdType, sdDLNum, sdDLExpiry,
-      sdStartTime, sdEndTime, sdDelivery, sdReturn,
-      driver:     null, vehicle: null, fare: 0,
-      notes:      `Public booking via portal. Customer: ${name} (${mobile})`,
-      source:     'public_portal',
-      createdAt:  now, updatedAt: now, createdBy: 'public',
+      type_data: {
+        vehicleType,
+        returnDest,
+        numDays:  Number(numDays) || 0,
+        stops:    stops.filter(Boolean),
+        dayLocs:  dayLocs.filter(Boolean),
+        areaName,
+        sdIdNum, sdIdType, sdDLNum, sdDLExpiry,
+        sdStartTime, sdEndTime, sdDelivery, sdReturn,
+      },
     }
 
     try {
-      await saveBooking(booking)
-      // Customer upsert failure shouldn't block a confirmed booking
-      try { await upsertCustomerFromBooking({ name, mobile }) }
-      catch (err) { console.error('[PublicBooking] customer upsert failed:', err) }
-      setBookingRef(ref)
+      if (!supabase) throw new Error('Booking service unavailable')
+      const { data, error } = await supabase.rpc('public_create_booking', { payload })
+      if (error) throw error
+      setBookingRef(data?.booking_number || '')
       setStep('done')
     } catch (err) {
       console.error('[PublicBooking] booking save failed:', err)
-      setSubmitError('Could not submit your booking. Please check your connection and try again, or call us directly.')
+      // 22023 = validation, 54000 = rate limit → show the server's message
+      const friendly = ['22023', '54000'].includes(err?.code) && err?.message
+      setSubmitError(friendly || 'Could not submit your booking. Please check your connection and try again, or call us directly.')
     } finally {
       setSubmitting(false)
     }
   }
 
   const reset = () => {
-    setStep('customer'); setName(''); setMobile(''); setMatched(null)
+    setStep('customer'); setName(''); setMobile('')
     setTripType(''); setPickup(''); setDrop(''); setReturnDest('')
     setVehicleType(''); setDate(''); setTime(''); setAreaName('')
     setNumDays(''); setStops(['']); setDayLocs([''])
@@ -233,14 +210,13 @@ export default function PublicBooking() {
               <div className="px-5 py-4 bg-teal-600">
                 <p className="text-teal-100 text-xs font-bold uppercase tracking-widest mb-0.5">Step 1 of 3</p>
                 <h2 className="text-white font-black text-xl">Your Information</h2>
-                <p className="text-teal-100 text-xs mt-1">We'll look up your previous trips automatically</p>
+                <p className="text-teal-100 text-xs mt-1">We'll call you back to confirm the fare</p>
               </div>
               <div className="px-5 py-5 space-y-4">
                 <div>
                   <Label required>Mobile Number</Label>
                   <Inp type="tel" value={mobile}
                     onChange={e => setMobile(e.target.value.replace(/\D/g,'').slice(0,10))}
-                    onBlur={handleMobileBlur}
                     placeholder="10-digit mobile number" maxLength={10} />
                   {errors.mobile && <p className="text-xs text-red-500 mt-1">{errors.mobile}</p>}
                 </div>
@@ -248,11 +224,6 @@ export default function PublicBooking() {
                   <Label required>Full Name</Label>
                   <Inp value={name} onChange={e => setName(e.target.value)} placeholder="Your full name" />
                   {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
-                  {matched && (
-                    <p className="text-xs text-teal-600 font-bold mt-1 flex items-center gap-1">
-                      <CheckCircle size={11} /> Welcome back, {matched.name}!
-                    </p>
-                  )}
                 </div>
               </div>
               <div className="px-5 pb-5">

@@ -1,4 +1,15 @@
-const DEFAULT_ALLOWED_HOSTS = ['mvt.apmkingstrack.com']
+import { extractBearer, verifySupabaseStaff } from './_lib/verifySupabaseUser.js'
+
+const DEFAULT_ALLOWED_HOSTS = ['mvt.apmkingstrack.com', 'app.gpstrack.in']
+const MAX_BODY_BYTES = 8 * 1024
+
+function json(statusCode, body) {
+  return {
+    statusCode,
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+    body: JSON.stringify(body),
+  }
+}
 
 function parseAllowedHosts() {
   const configured = process.env.GPS_PROXY_ALLOWED_HOSTS
@@ -18,19 +29,30 @@ function isAllowedTarget(targetUrl) {
 
 export async function handler(event) {
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) }
+    return json(405, { error: 'Method not allowed' })
+  }
+
+  // ── Auth: only signed-in staff may relay through this function ──
+  const auth = await verifySupabaseStaff(extractBearer(event.headers))
+  if (!auth.ok) return json(auth.status, { error: auth.error })
+
+  if ((event.body || '').length > MAX_BODY_BYTES) {
+    return json(413, { error: 'Request body too large' })
   }
 
   let payload
   try {
     payload = JSON.parse(event.body || '{}')
   } catch {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Invalid JSON body' }) }
+    return json(400, { error: 'Invalid JSON body' })
   }
 
   const { target_url, vendor_method, ...vendorPayload } = payload
   if (!target_url || !isAllowedTarget(target_url)) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'GPS target URL is not allowed' }) }
+    return json(400, { error: 'GPS target URL is not allowed' })
+  }
+  if (!['GET', 'POST'].includes(String(vendor_method || 'POST').toUpperCase())) {
+    return json(400, { error: 'Unsupported vendor method' })
   }
 
   try {

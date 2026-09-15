@@ -12,7 +12,7 @@ import supabase from '../lib/supabase'
 import { withTimeout } from '../utils/withTimeout'
 
 export const GPS_SETTINGS_CATEGORY = 'gps'
-export const SENSITIVE_KEYS = new Set(['api_url', 'company_id', 'user_id'])
+export const SENSITIVE_KEYS = new Set(['api_url', 'company_id', 'user_id', 'api_token', 'api_email'])
 
 export const GPS_DEFAULT_SETTINGS = {
   provider:           'kingstrack',
@@ -35,6 +35,8 @@ export const GPS_SETTINGS_DESCRIPTIONS = {
   api_url:            'Vendor endpoint URL (POST JSON).',
   company_id:         'Vendor account id (issued by provider).',
   user_id:            'Vendor user id (issued by provider).',
+  api_token:          'GPSTrack.in API token (provider = gpstrack).',
+  api_email:          'GPSTrack.in account email (provider = gpstrack).',
   refresh_interval:   'Seconds between fleet polls.',
   timeout:            'Per-request timeout in seconds.',
   retry_count:        'Number of retries on a failed poll.',

@@ -1,7 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+// import.meta.env is undefined outside Vite (node --test); degrade to "not configured"
+const env = import.meta.env ?? {}
+const supabaseUrl = env.VITE_SUPABASE_URL
+const supabaseKey = env.VITE_SUPABASE_ANON_KEY
 
 let supabase = null
 

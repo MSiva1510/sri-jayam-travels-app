@@ -80,42 +80,49 @@ export class AuthRepository {
   }
 
   // ── Admin: create new user without losing admin session ────
-  // supabase.auth.signUp() replaces the current session.
-  // We save the admin's tokens first, create the user, then
-  // restore the admin session so the admin stays logged in.
+  // supabase.auth.signUp() replaces the current session with the NEW
+  // user's session. The profile row MUST be inserted under the admin's
+  // session: RLS (profiles_insert) + the profiles trigger only allow
+  // admins to create profiles, so we restore the admin session first.
 
   async adminCreateUser({ email, password, full_name, role = 'driver', phone = null }) {
     if (!supabase) throw new Error('Supabase not configured')
+    if (!['admin', 'manager', 'driver'].includes(role)) throw new Error('Invalid role')
 
     // Step 1: Save current admin session tokens
     const { data: sessionData } = await supabase.auth.getSession()
     const adminSession = sessionData?.session
+    if (!adminSession?.access_token || !adminSession?.refresh_token) {
+      throw new Error('Admin session not found. Please sign in again.')
+    }
 
+    const restoreAdmin = async () => {
+      const { error } = await supabase.auth.setSession({
+        access_token:  adminSession.access_token,
+        refresh_token: adminSession.refresh_token,
+      })
+      if (error) throw new Error('Could not restore admin session: ' + error.message)
+    }
+
+    let newUser = null
     try {
-      // Step 2: Create the new auth user
+      // Step 2: Create the new auth user (this swaps the client session)
       const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
         email,
         password,
+        options: { data: { full_name, role } },
       })
       if (signUpErr) throw signUpErr
-
-      const newUser = signUpData.user
+      newUser = signUpData.user
       if (!newUser) throw new Error('User creation failed — no user returned')
-
-      // Step 3: Insert profile record
-      const profile = await this.createProfile({ id: newUser.id, email, full_name, role, phone })
-
-      return { userId: newUser.id, email, profile }
-
     } finally {
-      // Step 4: Restore admin session regardless of success or failure
-      if (adminSession?.access_token && adminSession?.refresh_token) {
-        await supabase.auth.setSession({
-          access_token:  adminSession.access_token,
-          refresh_token: adminSession.refresh_token,
-        })
-      }
+      // Step 3: Always put the admin back, whether sign-up succeeded or not
+      await restoreAdmin()
     }
+
+    // Step 4: Insert profile record — now running as the admin
+    const profile = await this.createProfile({ id: newUser.id, email, full_name, role, phone })
+    return { userId: newUser.id, email, profile }
   }
 
   // ── Password utilities ─────────────────────────────────────

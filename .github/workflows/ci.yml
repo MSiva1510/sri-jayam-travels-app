@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web — build & test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Dependency audit (prod deps, high+)
+        run: npm audit --omit=dev --audit-level=high
+      - name: Build
+        run: npm run build
+        env:
+          # Build-time public config only; real values live in Netlify env.
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_ANON_KEY: ci-placeholder
+      - name: Tests (GPS proxy contract + RLS migration in PGlite)
+        run: npm test
+      - name: Guard — no secrets or backups committed
+        run: |
+          set -e
+          ! git ls-files | grep -E '(^|/)\.env(\.local)?$' || (echo "::error::.env file committed" && exit 1)
+          ! git ls-files | grep -E '\.backup[0-9]*$'      || (echo "::error::backup file committed" && exit 1)
+          ! grep -rEn 'service_role|sb_secret_|eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9' --include='*.js' --include='*.jsx' --include='*.dart' --include='*.toml' src netlify mobile/lib || (echo "::error::possible secret in source" && exit 1)
+
+  mobile:
+    name: Mobile — analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos
+      - run: flutter test

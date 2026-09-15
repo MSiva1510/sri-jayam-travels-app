@@ -1,0 +1,171 @@
+/* ─── Login page: 3D card, mascots, micro-interactions ───────────── */
+
+/* ── Scene / tilted card ─────────────────────────────────────── */
+/* The card is fixed in place — no mouse-follow tilt. */
+.login-card { animation: login-card-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+
+/* ── Entrance stagger ───────────────────────────────────────── */
+@keyframes login-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes login-card-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.rise { animation: login-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; animation-delay: calc(var(--d, 0) * 70ms + 250ms); }
+
+/* ── Floating-label fields ──────────────────────────────────── */
+.fl-field { position: relative; padding-top: 14px; }
+.fl-field input {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-bottom: 1.5px solid rgb(203 213 225);        /* slate-300 */
+  padding: 8px 34px 9px 0;
+  font-size: 15px;
+  color: inherit;
+  outline: none;
+  transition: border-color 0.25s ease;
+}
+.dark .fl-field input { border-bottom-color: rgb(51 65 85); }  /* slate-700 */
+.fl-field label {
+  position: absolute;
+  left: 0; top: 22px;
+  font-size: 14px;
+  color: rgb(100 116 139);                              /* slate-500 */
+  pointer-events: none;
+  transform-origin: left center;
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), color 0.22s ease;
+}
+.fl-field input:focus + label,
+.fl-field input:not(:placeholder-shown) + label {
+  transform: translateY(-20px) scale(0.78);
+}
+.fl-field input:focus + label { color: rgb(15 23 42); }
+.dark .fl-field input:focus + label { color: rgb(226 232 240); }
+/* animated underline */
+.fl-field::after {
+  content: '';
+  position: absolute; left: 0; right: 0; bottom: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #0f172a, #3b82f6);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.dark .fl-field::after { background: linear-gradient(90deg, #60a5fa, #a78bfa); }
+.fl-field:focus-within::after { transform: scaleX(1); }
+.fl-field.has-error input { border-bottom-color: #ef4444; }
+.fl-field.has-error::after { background: #ef4444; transform: scaleX(1); }
+/* kill browser autofill yellow */
+.fl-field input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px transparent inset;
+  transition: background-color 9999s ease-out;
+}
+
+/* ── Button press bounce ────────────────────────────────────── */
+.press { transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, background-color 0.2s ease; }
+.press:hover:not(:disabled) { transform: translateY(-1px); }
+.press:active:not(:disabled) { transform: scale(0.96); }
+
+/* ── Mascots ────────────────────────────────────────────────── */
+.mascots { width: 100%; height: auto; overflow: visible; }
+.mascots .char {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: char-in 0.7s cubic-bezier(0.34, 1.4, 0.64, 1) backwards;
+  animation-delay: calc(var(--i) * 90ms + 150ms);
+  transition: transform 0.6s cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+@keyframes char-in {
+  from { opacity: 0; transform: translateY(40px) scale(0.85); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+/* gentle idle breathing on the whole group */
+.mascots-group { transform-box: fill-box; transform-origin: 50% 100%; }
+.mascots[data-state='idle'] .mascots-group,
+.mascots[data-state='looking'] .mascots-group,
+.mascots[data-state='away'] .mascots-group {
+  animation: char-breathe 3.8s ease-in-out infinite;
+}
+@keyframes char-breathe {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  50%      { transform: translateY(2px) scale(1.008, 0.992); }
+}
+
+/* pupils are positioned from JS; smooth the jumps a touch */
+.mascots .pupil { transition: transform 0.08s linear; }
+
+/* eyelids: closed = scaleY(1), open = scaleY(0) from the top */
+.mascots .eyelid {
+  transform-box: fill-box;
+  transform-origin: 50% 0%;
+  transform: scaleY(0);
+  transition: transform 0.12s ease-in;
+}
+.mascots.is-blinking .eyelid { transform: scaleY(1); }
+
+/* happy eyes on success */
+.mascots .eye-happy { opacity: 0; transition: opacity 0.15s ease; }
+.mascots[data-state='success'] .eye-happy { opacity: 1; }
+.mascots[data-state='success'] .eye-white,
+.mascots[data-state='success'] .pupil { opacity: 0; }
+.mascots[data-state='success'] .char { animation: char-hop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both; animation-delay: calc(var(--i) * 70ms); }
+@keyframes char-hop {
+  0%   { transform: translateY(0); }
+  40%  { transform: translateY(-16px) scale(1.03, 0.97); }
+  100% { transform: translateY(0); }
+}
+
+/* ── away: password is visible → they politely turn / look away ── */
+/* everyone stays upright: purple/pink/yellow just look away, orange turns its back */
+.mascots[data-state='away'] .char--orange { transform: scaleX(-1); }
+.mascots[data-state='away'] .char--orange .eye-happy { opacity: 1; }
+.mascots[data-state='away'] .char--orange .eye-white,
+.mascots[data-state='away'] .char--orange .pupil { opacity: 0; }
+.mascots[data-state='away'] .char--orange .mouth { d: path('M100 243 Q106 250 112 243'); }
+
+/* mouths */
+.mascots .mouth { transition: d 0.3s ease; }
+.mascots .mouth { transition: opacity 0.2s ease, d 0.3s ease; }
+.mascots[data-state='error'] .char--orange .mouth { d: path('M98 250 Q109 242 120 250'); }
+.mascots[data-state='error'] .char--purple .mouth { d: path('M209 130 Q217 124 225 130'); }
+.mascots[data-state='error'] .char--pink   .mouth { d: path('M281 181 Q287 177 293 181'); }
+.mascots[data-state='success'] .char--orange .mouth { d: path('M92 242 Q109 262 126 242'); }
+.mascots[data-state='success'] .char--purple .mouth { d: path('M204 124 Q217 140 230 124'); }
+.mascots[data-state='success'] .char--pink   .mouth { d: path('M278 176 Q287 188 296 176'); }
+.mascots[data-state='success'] .char--yellow .mouth { d: path('M338 234 Q350 248 362 234'); }
+
+/* eyebrows: hidden until they are upset */
+.mascots .brow {
+  transform-box: fill-box; transform-origin: 50% 50%;
+  opacity: 0; transform: translateY(6px);
+  transition: opacity 0.25s ease, transform 0.35s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+.mascots[data-state='error'] .brow { opacity: 1; transform: translateY(0); }
+.mascots[data-state='error'] .char--yellow .mouth { d: path('M336 236 q5 -5 10 0 t9 0 t9 0'); }
+.mascots[data-state='error'] .char { transform: translateY(3px); }
+
+/* error shake */
+.mascots[data-state='error'] .mascots-group { animation: char-shake 0.5s ease backwards; }
+@keyframes char-shake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-6px) rotate(-1deg); }
+  40%      { transform: translateX(6px)  rotate(1deg); }
+  60%      { transform: translateX(-4px); }
+  80%      { transform: translateX(4px); }
+}
+
+/* ── Reduced motion ─────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .login-card, .login-card.is-entering, .rise, .mascots .char, .mascots-group {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+  .mascots .pupil, .mascots .eyelid, .fl-field::after, .fl-field label {
+    transition: none !important;
+  }
+}

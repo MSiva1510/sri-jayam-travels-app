@@ -74,12 +74,17 @@ function Section({ title, children }) {
   )
 }
 
-function redactSettings(s = {}) {
+const mask = (v) => (v ? '••••' + String(v).slice(-4) : '')
+
+function redactSettings(s) {
+  if (!s) return { status: 'loading…' }   // settings arrive async; null before first load
   return {
     ...s,
-    company_id: s.company_id ? '••••' + String(s.company_id).slice(-4) : '',
-    user_id:    s.user_id    ? '••••' + String(s.user_id).slice(-4)    : '',
-    api_url:    s.api_url    ? s.api_url : '',
+    company_id: mask(s.company_id),
+    user_id:    mask(s.user_id),
+    api_token:  mask(s.api_token),
+    api_email:  s.api_email ? s.api_email.replace(/^(.{2}).*(@.*)$/, '$1…$2') : '',
+    api_url:    s.api_url ?? '',
   }
 }
 
