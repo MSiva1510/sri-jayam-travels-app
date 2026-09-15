@@ -142,7 +142,7 @@ export default function RideHistory() {
         </button>
         <div>
           <h1 className="font-display font-black text-slate-800 dark:text-white text-xl">Ride History</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">{history.length} trips · May 2026</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{history.length} trips · {new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })}</p>
         </div>
       </div>
 

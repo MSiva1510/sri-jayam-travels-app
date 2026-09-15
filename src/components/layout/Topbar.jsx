@@ -7,8 +7,12 @@ import Avatar from '../ui/Avatar'
 import NotificationCenter from '../ui/NotificationCenter'
 import GlobalSearch       from '../ui/GlobalSearch'
 
+const CURRENT_MONTH = new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })
+
+// Topbar shows the breadcrumb only; each page renders its own header/subtitle,
+// so the sub text here is kept for the document title & mobile only.
 const PAGE_TITLES = {
-  '/':                { label: 'Dashboard',       sub: 'Overview for May 2026'          },
+  '/':                { label: 'Dashboard',       sub: `Overview for ${CURRENT_MONTH}`  },
   '/invoices':        { label: 'Invoices',         sub: 'Trip bills & pay slips'         },
   '/trips':           { label: 'Trips',            sub: 'All trip types & management'    },
   '/create-trip':     { label: 'Create Trip',      sub: 'Add a new trip booking'         },
@@ -66,7 +70,7 @@ export default function Topbar() {
         </div>
         <div className="min-w-0">
           <h2 className="font-display font-black text-slate-800 dark:text-white text-base leading-tight truncate">{info.label}</h2>
-          {info.sub && <p className="text-[11px] text-slate-400 dark:text-slate-500 hidden sm:block leading-none mt-0.5">{info.sub}</p>}
+          {/* subtitle intentionally not repeated here — the page header carries it */}
         </div>
       </div>
 

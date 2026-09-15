@@ -234,7 +234,7 @@ export default function Dashboard() {
     <div className="space-y-6 animate-fade-up">
       <PageHeader
         title="Dashboard"
-        subtitle="Overview — May 2026"
+        subtitle={`Overview — ${new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })}`}
         action={can('trips') ? <Button icon={Plus} variant="primary" onClick={() => navigate('/trips')}>New Booking</Button> : null}
       />
 
