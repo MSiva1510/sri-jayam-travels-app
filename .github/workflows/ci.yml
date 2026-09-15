@@ -26,9 +26,10 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          # Build-time public config only; real values live in Netlify env.
-          VITE_SUPABASE_URL: https://example.supabase.co
-          VITE_SUPABASE_ANON_KEY: ci-placeholder
+          # Set in GitHub → Settings → Secrets and variables → Actions.
+          # Falls back to placeholders so forks / PRs from outside still build.
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://example.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'ci-placeholder' }}
       - name: Tests (GPS proxy contract + RLS migration in PGlite)
         run: npm test
       - name: Guard — no secrets or backups committed
