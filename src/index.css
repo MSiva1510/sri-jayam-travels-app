@@ -78,6 +78,76 @@
     border: 1px solid rgba(255,255,255,0.08);
   }
 
+  /* ── iOS-style dashboard cards ───────────────────────────
+     iPhone widgets: 20pt continuous-look corners, soft diffuse
+     shadow, no hover lift — press feedback instead. */
+  .ios-card {
+    background: rgba(255,255,255,0.88);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.6);
+    box-shadow:
+      0 1px 2px rgba(13,27,75,0.05),
+      0 8px 24px rgba(13,27,75,0.08);
+  }
+  .dark .ios-card {
+    background: rgba(20,32,80,0.6);
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow:
+      0 1px 2px rgba(0,0,0,0.35),
+      0 8px 24px rgba(0,0,0,0.35);
+  }
+  /* Tap feedback (iOS press, not hover lift) */
+  .ios-press {
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.15s ease, box-shadow 0.2s ease;
+  }
+  .ios-press:active {
+    transform: scale(0.97);
+  }
+  @media (hover: hover) {
+    .ios-press:hover {
+      box-shadow:
+        0 1px 2px rgba(13,27,75,0.05),
+        0 12px 32px rgba(13,27,75,0.14);
+    }
+    .dark .ios-press:hover {
+      box-shadow:
+        0 1px 2px rgba(0,0,0,0.35),
+        0 12px 32px rgba(0,0,0,0.5);
+    }
+  }
+
+  /* ── iPhone shimmer skeleton ─────────────────────────────
+     Base block + sweeping highlight, like iOS placeholder cells. */
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background: #e4e9f2;
+  }
+  .dark .skeleton {
+    background: #22305e;
+  }
+  .skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.65), transparent);
+    animation: ios-shimmer 1.6s infinite;
+  }
+  .dark .skeleton::after {
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent);
+  }
+  @keyframes ios-shimmer {
+    100% { transform: translateX(100%); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton::after { animation: none; }
+    .ios-press:active { transform: none; }
+  }
+
   .nav-item {
     display: flex;
     align-items: center;

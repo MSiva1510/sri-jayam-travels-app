@@ -113,10 +113,15 @@ export function getExpenseDate(expenseOrStr) {
 
 // ── Null-safe date helpers ─────────────────────────────────────
 // Each accepts an expense object OR a date string — never crashes.
+// NOTE: local parts, not toISOString() (UTC shifts the day/month for IST).
+function toLocalDateStr(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export function isToday(expenseOrDateStr) {
   const d = getExpenseDate(expenseOrDateStr)
   if (!d) return false
-  return d === new Date().toISOString().slice(0, 10)
+  return d === toLocalDateStr()
 }
 
 export function isThisWeek(expenseOrDateStr) {
@@ -133,7 +138,7 @@ export function isThisWeek(expenseOrDateStr) {
 export function isThisMonth(expenseOrDateStr) {
   const d = getExpenseDate(expenseOrDateStr)
   if (!d) return false
-  return d.startsWith(new Date().toISOString().slice(0, 7))
+  return d.startsWith(toLocalDateStr().slice(0, 7))
 }
 
 // ── Category summary (computed — no storage) ──────────────────

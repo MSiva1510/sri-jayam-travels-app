@@ -23,9 +23,9 @@ const NAV_ITEMS = [
   { to: '/drivers',        label: 'Drivers',       icon: User,            roles: ['admin','manager'], perm: 'drivers'  },
   { to: '/vehicles',       label: 'Vehicles',      icon: Car,             roles: ['admin','manager'], perm: 'vehicles' },
   { to: '/attendance',     label: 'Attendance',    icon: CalendarCheck,   roles: ['admin','manager'], perm: 'attendance'},
-  { to: '/documents',      label: 'Documents',     icon: FolderOpen,      roles: ['admin','manager'], perm: 'reports'   },
-  { to: '/payroll',        label: 'Payroll',       icon: IndianRupee,     roles: ['admin','manager'], perm: 'payroll'   },
-  { to: '/communications', label: 'Communications', icon: MessageSquare,  roles: ['admin','manager'], perm: 'reports'   },
+  { to: '/documents',      label: 'Documents',     icon: FolderOpen,      roles: ['admin','manager'], perm: 'manage_documents'   },
+  { to: '/payroll',        label: 'Payroll',       icon: IndianRupee,     roles: ['admin','manager'], perm: 'manage_payroll'   },
+  { to: '/communications', label: 'Communications', icon: MessageSquare,  roles: ['admin','manager'], perm: 'manage_communications'   },
   { to: '/reports',        label: 'Reports',        icon: BarChart2,       roles: ['admin'], perm: 'reports'   },
   { to: '/audit-log',      label: 'Audit Log',      icon: ClipboardList,   roles: ['admin'], perm: 'reports'   },
   // Day 32: Live Fleet Dashboard
@@ -63,7 +63,7 @@ function NavItem({ to, label, icon: Icon, collapsed }) {
 
   return (
     <NavLink to={to} title={collapsed ? label : undefined}
-      className={`nav-item ${isActive ? 'nav-item-active' : 'nav-item-inactive'}`}>
+      className={`nav-item group ${isActive ? 'nav-item-active' : 'nav-item-inactive'}`}>
       {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-blue-400 rounded-r-full" />}
       <Icon size={18} className={`flex-shrink-0 transition-colors ${isActive ? 'text-white' : 'text-white/50 group-hover:text-white'}`} />
       {!collapsed && <span className="truncate">{label}</span>}
@@ -126,7 +126,7 @@ function SidebarInner({ collapsed }) {
       {/* Business info footer */}
       {!collapsed && !isDriver && (
         <div className="px-4 py-3 border-t border-white/10 flex-shrink-0">
-          <div className="bg-white/6 rounded-xl p-3 space-y-1.5">
+          <div className="bg-white/5 rounded-xl p-3 space-y-1.5">
             <div className="flex items-center gap-2 text-white/50 text-[11px]"><Phone size={10} className="flex-shrink-0" /><span className="truncate">{BIZ.phone}</span></div>
             <div className="flex items-center gap-2 text-white/50 text-[11px]"><MapPin size={10} className="flex-shrink-0" /><span className="truncate">Puducherry, India</span></div>
             <div className="flex items-center gap-2 text-white/50 text-[11px]"><Globe size={10} className="flex-shrink-0" /><span className="truncate">{BIZ.website}</span></div>
@@ -138,7 +138,7 @@ function SidebarInner({ collapsed }) {
       {user && (
         <div className={`px-3 py-3 border-t border-white/10 flex-shrink-0 ${collapsed ? 'flex flex-col items-center gap-2' : ''}`}>
           {!collapsed ? (
-            <div className="bg-white/6 rounded-xl p-2.5">
+            <div className="bg-white/5 rounded-xl p-2.5">
               <div className="flex items-center gap-2.5 mb-2.5">
                 <Avatar name={user.name} size={30} />
                 <div className="flex-1 min-w-0">
@@ -170,6 +170,8 @@ function SidebarInner({ collapsed }) {
 
       {/* Collapse toggle */}
       <button onClick={() => setCollapsed(c => !c)}
+        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        aria-expanded={!collapsed}
         className="hidden lg:flex absolute -right-3 top-20 w-6 h-6 rounded-full bg-navy-800 border border-white/20 items-center justify-center text-white/70 hover:text-white hover:bg-navy-700 transition-all z-10 shadow-lg">
         {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
       </button>

@@ -28,8 +28,24 @@ const PAGE_TITLES = {
   '/live-location':   { label: 'Live Location',    sub: 'Real-time GPS tracking'          },
   '/fleet':           { label: 'Live Fleet',        sub: 'Real-time vehicle tracking'       },
   '/fleet/settings':  { label: 'GPS Settings',      sub: 'Configure GPS provider'           },
+  '/fleet-analytics': { label: 'Fleet Analytics',   sub: 'Utilization & performance'        },
+  '/gps-history':     { label: 'GPS History',       sub: 'Past vehicle tracks'              },
+  '/gps-history/replay': { label: 'Route Replay',   sub: 'Playback a vehicle route'         },
+  '/reports':         { label: 'Reports',           sub: 'Business reports & analytics'     },
+  '/attendance':      { label: 'Attendance',        sub: 'Driver attendance today'          },
+  '/profile':         { label: 'Profile',           sub: 'Your account'                     },
+  '/documents':       { label: 'Documents',         sub: 'Vehicle & trip documents'         },
+  '/communications':  { label: 'Communications',    sub: 'Customer messages'                },
+  '/communications-settings': { label: 'Communication Settings', sub: 'Templates & providers' },
   '/payroll':         { label: 'Payroll',           sub: 'Driver settlements & salary'      },
   '/payslips':        { label: 'My Payslips',       sub: 'Your settlement history'          },
+  '/audit-log':       { label: 'Audit Log',         sub: 'Recent system activity'           },
+  '/admin/users':     { label: 'User Accounts',     sub: 'Manage staff access'              },
+  '/admin/roles':     { label: 'Roles & Perms',     sub: 'Role permissions'                 },
+  '/admin/health':    { label: 'System Health',     sub: 'Service status'                   },
+  '/admin/backup':    { label: 'Backup Manager',    sub: 'Backups & restore'                },
+  '/admin/security':  { label: 'Security',          sub: 'Security settings'                },
+  '/admin/database-status': { label: 'Database Status', sub: 'Connection & tables'          },
 }
 
 export default function Topbar() {
@@ -58,6 +74,7 @@ export default function Topbar() {
       {/* Hamburger — mobile */}
       <button
         onClick={() => setSidebarOpen(true)}
+        aria-label="Open navigation menu"
         className="lg:hidden w-9 h-9 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors flex-shrink-0"
       >
         <Menu size={18} />
@@ -82,6 +99,8 @@ export default function Topbar() {
 
         {/* Dark mode */}
         <button onClick={() => setDarkMode(!darkMode)}
+          aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+          aria-pressed={darkMode}
           className="w-9 h-9 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-navy-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-navy-700 transition-all"
           title={darkMode ? 'Light mode' : 'Dark mode'}>
           {darkMode ? <Sun size={16} /> : <Moon size={16} />}
@@ -94,6 +113,9 @@ export default function Topbar() {
         {user && (
           <div className="relative" ref={dropRef}>
             <button onClick={() => setDropOpen(v => !v)}
+              aria-label="Account menu"
+              aria-expanded={dropOpen}
+              aria-haspopup="menu"
               className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl hover:bg-slate-100 dark:hover:bg-navy-800 transition-colors">
               <Avatar name={user.name} size={30} />
               <div className="hidden sm:block text-left">

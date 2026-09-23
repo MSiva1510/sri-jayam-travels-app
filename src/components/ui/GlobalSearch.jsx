@@ -131,7 +131,8 @@ export default function GlobalSearch() {
     <div ref={wrapRef} className="relative">
       <button
         onClick={() => { setOpen(true); setTimeout(() => inputRef.current?.focus(), 50) }}
-        className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-navy-600 bg-white/60 dark:bg-navy-800/60 text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-navy-700 transition-all text-xs min-w-[140px] sm:min-w-[200px]">
+        aria-label="Search records"
+        className="flex items-center gap-2 p-2 sm:px-3 sm:py-2 rounded-xl border border-slate-200 dark:border-navy-600 bg-white/60 dark:bg-navy-800/60 text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-navy-700 transition-all text-xs sm:min-w-[200px]">
         <Search size={13} />
         <span className="flex-1 text-left hidden sm:block">Search…</span>
         <kbd className="hidden sm:inline text-[9px] font-bold bg-slate-100 dark:bg-navy-700 text-slate-400 px-1.5 py-0.5 rounded border border-slate-200 dark:border-navy-600">⌘K</kbd>
@@ -158,10 +159,11 @@ export default function GlobalSearch() {
                   <X size={14} />
                 </button>
               )}
-              <kbd onClick={() => setOpen(false)}
-                className="text-[10px] bg-slate-100 dark:bg-navy-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-200 dark:border-navy-700 cursor-pointer">
+              <button onClick={() => setOpen(false)}
+                aria-label="Close search"
+                className="text-[10px] bg-slate-100 dark:bg-navy-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-200 dark:border-navy-700 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
                 Esc
-              </kbd>
+              </button>
             </div>
 
             {/* Results */}

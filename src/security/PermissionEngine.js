@@ -123,6 +123,13 @@ const MODULE_PERMISSION_MAP = {
   financialAnalytics: PERMISSIONS.VIEW_FINANCE,
   expenseReports:     PERMISSIONS.VIEW_REPORTS,
   invoiceManagement:  PERMISSIONS.GENERATE_INVOICE,
+  // Fleet / payroll aliases used by Dashboard + Sidebar. Without these,
+  // canModule() fell through to `role === 'admin'` and hid sections
+  // from managers even though their named permissions allow them.
+  payroll:       PERMISSIONS.MANAGE_PAYROLL,
+  fleetAlerts:   PERMISSIONS.MANAGE_VEHICLES,
+  view_fleet:    PERMISSIONS.MANAGE_VEHICLES,
+  manage_gps:    PERMISSIONS.MANAGE_VEHICLES,
 }
 
 class PermissionEngineImpl {

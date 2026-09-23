@@ -184,6 +184,9 @@ export default function NotificationCenter() {
       {/* Bell */}
       <button
         onClick={() => setOpen(o => !o)}
+        aria-label={badgeNum > 0 ? `Notifications, ${badgeNum} unread` : 'Notifications'}
+        aria-expanded={open}
+        aria-haspopup="dialog"
         className="relative w-9 h-9 rounded-xl border border-slate-200 dark:border-navy-600 bg-white/60 dark:bg-navy-800/60 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-navy-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-navy-700 transition-all"
         title="Notifications">
         <Bell size={16} />
@@ -196,7 +199,7 @@ export default function NotificationCenter() {
 
       {/* Panel */}
       {open && (
-        <div className="absolute right-0 top-11 w-96 bg-white dark:bg-navy-900 rounded-2xl shadow-2xl border border-slate-100 dark:border-navy-700 overflow-hidden z-50 animate-fade-up">
+        <div className="absolute right-0 top-11 w-[calc(100vw-2rem)] sm:w-96 max-w-96 bg-white dark:bg-navy-900 rounded-2xl shadow-2xl border border-slate-100 dark:border-navy-700 overflow-hidden z-50 animate-fade-up">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-navy-700">
             <h3 className="font-display font-black text-slate-800 dark:text-white text-sm">Notifications</h3>
@@ -208,6 +211,7 @@ export default function NotificationCenter() {
                 </button>
               )}
               <button onClick={() => setOpen(false)}
+                aria-label="Close notifications"
                 className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
                 <X size={13} />
               </button>

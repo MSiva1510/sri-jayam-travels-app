@@ -9,7 +9,7 @@ const COLORS = [
 
 export default function Avatar({ name = '', size = 36 }) {
   const safeName = String(name ?? '')
-  const initials = safeName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+  const initials = safeName.split(' ').filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
   const color    = COLORS[(safeName.charCodeAt(0) || 0) % COLORS.length]
   const px = Math.round(size * 0.34)
   return (

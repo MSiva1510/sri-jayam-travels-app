@@ -17,12 +17,20 @@ import { loadVehicles } from '../data/vehicleData'
 import { fleetAlertRepository } from '../repositories'
 import { loadAttendanceToday }                         from '../data/attendanceData'
 import { loadCustomers }                               from '../data/customerData'
-import { loadExpenses, summariseByType, isThisMonth }  from '../data/expenseData'
+import { loadExpenses, summariseByType, isThisMonth, getExpenseDate }  from '../data/expenseData'
 import { loadBookings, getStatusCfg, TRIP_TYPE_CONFIG } from '../data/tripTypes'
 import { loadSettlements }                             from '../data/settlementData'
 import { docStatus, daysLabel }                        from '../utils/vehicleUtils'
 import LiveFleetBoard                                  from '../components/fleet/LiveFleetBoard'
 import { loadRecentActivity, fmtAuditTime }            from '../data/auditLogData'
+
+// ── Local date helpers (IST-safe) ─────────────────────────────
+// toISOString() is UTC: at 00:00–05:30 IST it still returns yesterday /
+// last month. Dashboards compare against stored local YYYY-MM-DD strings,
+// so build the keys from local parts instead.
+const toLocalDateStr = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const toLocalMonthStr = (d = new Date()) => toLocalDateStr(d).slice(0, 7)
 
 // ── Blocked section placeholder ───────────────────────────────
 function AccessBlocked({ label }) {
@@ -37,17 +45,31 @@ function AccessBlocked({ label }) {
 
 function BarChart({ data }) {
   const max = Math.max(1, ...data.map(d => d.fare))
+  const fares = data.map(d => d.fare || 0)
+  const hi = Math.max(...fares)
+  const lo = Math.min(...fares)
+  const hasSpread = hi > 0 && hi !== lo
+  const total = data.reduce((s, d) => s + (d.fare || 0), 0)
   return (
-    <div className="flex items-end gap-1.5 h-24 w-full">
+    <div className="flex items-end gap-1.5 h-24 w-full" role="img" aria-label={`Fare trend, total Rs. ${total.toLocaleString('en-IN')}`}>
       {data.map((d, i) => {
         const pct    = Math.round((d.fare / max) * 100)
         const isLast = i === data.length - 1
+        const isHi   = hasSpread && d.fare === hi
+        const isLo   = hasSpread && d.fare === lo
+        const barCls = isHi
+          ? 'bg-gradient-to-t from-emerald-600 to-emerald-400 shadow-lg shadow-emerald-500/30'
+          : isLo
+          ? 'bg-gradient-to-t from-rose-600 to-rose-400 shadow-lg shadow-rose-500/30'
+          : isLast
+          ? 'bg-gradient-to-t from-blue-600 to-blue-400 shadow-lg shadow-blue-500/30'
+          : 'bg-slate-200 dark:bg-navy-700 group-hover:bg-slate-300 dark:group-hover:bg-navy-600 group-focus-within:bg-slate-300 dark:group-focus-within:bg-navy-600'
         return (
           <div key={d.month} className="flex flex-col items-center gap-1 flex-1">
-            <div className="w-full relative group">
-              <div className={`w-full rounded-t-md transition-all duration-500 ${isLast ? 'bg-gradient-to-t from-blue-600 to-blue-400 shadow-lg shadow-blue-500/30' : 'bg-slate-200 dark:bg-navy-700 group-hover:bg-slate-300 dark:group-hover:bg-navy-600'}`}
+            <div className="w-full relative group" tabIndex={0} aria-label={`${d.month}: Rs. ${d.fare.toLocaleString('en-IN')}${isHi ? ' (highest)' : isLo ? ' (lowest)' : ''}`}>
+              <div className={`w-full rounded-t-md transition-all duration-500 ${barCls}`}
                    style={{ height: `${Math.max(pct * 0.88, 6)}px` }} />
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 opacity-0 group-hover:opacity-100 transition-opacity bg-navy-900 text-white text-[10px] font-bold px-2 py-1 rounded-lg whitespace-nowrap pointer-events-none z-10">
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity bg-navy-900 text-white text-[10px] font-bold px-2 py-1 rounded-lg whitespace-nowrap pointer-events-none z-10">
                 Rs. {d.fare.toLocaleString('en-IN')}
               </div>
             </div>
@@ -60,9 +82,11 @@ function BarChart({ data }) {
 }
 
 function DonutRing({ pct, color, size = 110 }) {
-  const r = 24, cx = 32, cy = 32, circ = 2 * Math.PI * r, dash = (pct / 100) * circ
+  const safePct = Math.min(100, Math.max(0, Number(pct) || 0))
+  const r = 24, cx = 32, cy = 32, circ = 2 * Math.PI * r, dash = (safePct / 100) * circ
   return (
-    <svg width={size} height={size} viewBox="0 0 64 64" className="-rotate-90">
+    <svg width={size} height={size} viewBox="0 0 64 64" className="-rotate-90" role="img" aria-label={`Profit margin ${safePct}%`}>
+      <title>{safePct}% margin</title>
       <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth="6" className="stroke-slate-200 dark:stroke-navy-700" />
       <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth="6" stroke={color}
         strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" style={{ transition:'stroke-dasharray 0.6s ease' }} />
@@ -85,6 +109,8 @@ export default function Dashboard() {
   const [fleetAlerts, setFleetAlerts] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadErrors, setLoadErrors] = useState([])
+  // ── Period selector: this month vs this year ────────────────
+  const [period, setPeriod] = useState('month') // 'month' | 'year'
 
   // Each source loads independently — one failing table/query must not
   // blank out the rest of the dashboard. Failures are surfaced in
@@ -131,7 +157,13 @@ export default function Dashboard() {
   const absentCount  = todayAttendance.filter(a => a.status === 'absent').length
 
   // ── Booking derived ───────────────────────────────────────
-  const todayStr         = new Date().toISOString().slice(0, 10)
+  const todayStr         = toLocalDateStr()
+  const thisMonthKey     = toLocalMonthStr()
+  const monthBookings    = bookings.filter(b => b.startDate?.startsWith(thisMonthKey))
+  const monthFare        = monthBookings.reduce((s, b) => s + (b.fare || 0), 0)
+  const monthKm          = monthBookings.reduce((s, b) => s + (b.km || 0), 0)
+  const monthDone        = monthBookings.filter(b => b.status === 'completed').length
+  const monthPending     = monthBookings.filter(b => ['draft', 'confirmed', 'assigned'].includes(b.status)).length
   const bookingToday     = bookings.filter(b => b.startDate === todayStr)
   const bookingActive    = bookings.filter(b => b.status === 'started')
   const bookingCompleted = bookings.filter(b => b.status === 'completed')
@@ -152,15 +184,34 @@ export default function Dashboard() {
   )
 
   // ── Customer derived ──────────────────────────────────────
-  const thisMonthStr       = new Date().toISOString().slice(0, 7)
+  const thisMonthStr       = toLocalMonthStr()
   const newCustomersMonth  = customers.filter(c => c.createdAt?.startsWith(thisMonthStr)).length
   const corporateCustomers = customers.filter(c => c.type === 'corporate' || c.type === 'agent').length
 
   // ── Expense derived ───────────────────────────────────────
   const monthExpenses    = allExpenses.filter(e => isThisMonth(e))
-  const monthExpTotal    = monthExpenses.reduce((s, e) => s + e.amount, 0)
+  const monthExpTotal    = monthExpenses.reduce((s, e) => s + (e.amount || 0), 0)
+  const monthNet         = monthFare - monthExpTotal
   const pendingApprovals = allExpenses.filter(e => e.status === 'submitted').length
-  const expByCategory    = summariseByType(monthExpenses).slice(0, 3)
+
+  // ── Period derived (month vs year toggle) ───────────────────
+  // KPIs, expense chips and the fare chart follow the selected period.
+  // Queues (pending approvals, driver assignment) stay all-time on purpose.
+  const periodYear       = String(new Date().getFullYear())
+  const periodKey        = period === 'year' ? periodYear : toLocalMonthStr()
+  const periodTag        = period === 'year' ? 'this year' : 'this month'
+  const periodTagCap     = period === 'year' ? 'This Year' : 'This Month'
+  const periodBookings   = bookings.filter(b => b.startDate?.startsWith(periodKey))
+  const periodFare       = periodBookings.reduce((s, b) => s + (b.fare || 0), 0)
+  const periodKm         = periodBookings.reduce((s, b) => s + (b.km || 0), 0)
+  const periodDone       = periodBookings.filter(b => b.status === 'completed').length
+  const periodPending    = periodBookings.filter(b => ['draft', 'confirmed', 'assigned'].includes(b.status)).length
+  const periodCancelled  = periodBookings.filter(b => b.status === 'cancelled').length
+  const periodExpenses   = allExpenses.filter(e => { const d = getExpenseDate(e); return d ? d.startsWith(periodKey) : false })
+  const periodExpTotal   = periodExpenses.reduce((s, e) => s + (e.amount || 0), 0)
+  const periodNet        = periodFare - periodExpTotal
+  const periodCustomers  = customers.filter(c => c.createdAt?.startsWith(periodKey)).length
+  const expByCategory    = summariseByType(periodExpenses).slice(0, 3)
 
   // ── Settlement derived ────────────────────────────────────
   const totalPayrollPaid = settlements
@@ -177,13 +228,14 @@ export default function Dashboard() {
   const doneTrips    = bookingCompleted.length
   const pendingTrips = bookingPending.length
 
-  // ── Monthly fare trend ────────────────────────────────────
+  // ── Fare trend (follows period toggle) ────────────────────
+  // Month mode: last 6 months. Year mode: Jan–Dec of the current year.
   const monthlyFare = (() => {
     const now = new Date()
     const months = []
     for (let i = 5; i >= 0; i--) {
       const d     = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const key   = d.toISOString().slice(0, 7)
+      const key   = toLocalMonthStr(d)
       const label = d.toLocaleDateString('en-IN', { month: 'short' })
       const fare  = bookings
         .filter(b => b.startDate?.startsWith(key))
@@ -192,11 +244,27 @@ export default function Dashboard() {
     }
     return months
   })()
+  const yearlyFare = (() => {
+    const y = new Date().getFullYear()
+    const out = []
+    for (let m = 0; m < 12; m++) {
+      const d     = new Date(y, m, 1)
+      const key   = toLocalMonthStr(d)
+      const label = d.toLocaleDateString('en-IN', { month: 'short' })
+      const fare  = bookings
+        .filter(b => b.startDate?.startsWith(key))
+        .reduce((s, b) => s + (b.fare || 0), 0)
+      out.push({ month: label, fare })
+    }
+    return out
+  })()
+  const trendData  = period === 'year' ? yearlyFare : monthlyFare
+  const trendTitle = period === 'year' ? '12-month trend' : '6-month trend'
 
-  // ── Recent trips ──────────────────────────────────────────
+  // ── Recent trips (max 5 on the dashboard) ─────────────────
   const recentTrips = [...bookings]
     .sort((a, b) => (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || ''))
-    .slice(0, 7)
+    .slice(0, 5)
     .map(b => ({
       id:          b.id,
       customer:    b.customer,
@@ -210,22 +278,68 @@ export default function Dashboard() {
       status:      b.status,
     }))
 
-  // ── Loading screen ────────────────────────────────────────
+  // ── Loading skeleton (iPhone shimmer, mirrors the real layout) ──
   if (loading) {
     return (
-      <div className="space-y-6 animate-pulse">
-        <div className="h-10 bg-slate-200 dark:bg-navy-700 rounded-xl w-48" />
+      <div className="space-y-4" role="status" aria-busy="true" aria-label="Loading dashboard">
+        <span className="sr-only">Loading dashboard…</span>
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
+          <div className="space-y-2">
+            <div className="skeleton h-7 w-44 rounded-lg" />
+            <div className="skeleton h-4 w-32 rounded-md" />
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="skeleton h-9 w-36 rounded-xl" />
+            <div className="skeleton h-10 w-32 rounded-xl" />
+          </div>
+        </div>
+        {/* KPI boxes */}
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-          {[1,2,3,4].map(i => <div key={i} className="h-28 bg-slate-200 dark:bg-navy-700 rounded-2xl" />)}
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="ios-card p-4 space-y-3" aria-hidden="true">
+              <div className="flex items-start justify-between">
+                <div className="skeleton w-10 h-10 rounded-[14px]" />
+                <div className="skeleton h-5 w-12 rounded-full" />
+              </div>
+              <div className="skeleton h-3 w-20 rounded" />
+              <div className="skeleton h-7 w-3/4 rounded-lg" />
+              <div className="skeleton h-3 w-1/2 rounded" />
+            </div>
+          ))}
         </div>
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-          {[1,2,3,4].map(i => <div key={i} className="h-24 bg-slate-200 dark:bg-navy-700 rounded-2xl" />)}
+        {/* Widget chips */}
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+          {[1, 2, 3, 4, 5].map(i => (
+            <div key={i} className="ios-card p-3.5 flex items-center gap-3" aria-hidden="true">
+              <div className="skeleton w-9 h-9 rounded-[13px] flex-shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <div className="skeleton h-5 w-12 rounded" />
+                <div className="skeleton h-3 w-16 rounded" />
+              </div>
+            </div>
+          ))}
         </div>
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          <div className="h-64 bg-slate-200 dark:bg-navy-700 rounded-2xl" />
-          <div className="h-64 bg-slate-200 dark:bg-navy-700 rounded-2xl" />
+        {/* Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="glass-card rounded-[20px] p-5 space-y-3" aria-hidden="true">
+              <div className="skeleton h-3 w-24 rounded" />
+              <div className="skeleton h-6 w-32 rounded-lg" />
+              <div className="skeleton h-24 w-full rounded-xl" />
+            </div>
+          ))}
         </div>
-        <div className="h-48 bg-slate-200 dark:bg-navy-700 rounded-2xl" />
+        {/* Table rows */}
+        <div className="glass-card rounded-[20px] p-4 space-y-2.5" aria-hidden="true">
+          {[1, 2, 3, 4, 5].map(i => (
+            <div key={i} className="flex items-center gap-2.5">
+              <div className="skeleton w-7 h-7 rounded-full flex-shrink-0" />
+              <div className="skeleton h-3.5 flex-1 rounded" />
+              <div className="skeleton h-3.5 w-16 rounded hidden sm:block" />
+            </div>
+          ))}
+        </div>
       </div>
     )
   }
@@ -234,8 +348,34 @@ export default function Dashboard() {
     <div className="space-y-6 animate-fade-up">
       <PageHeader
         title="Dashboard"
-        subtitle={`Overview — ${new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })}`}
-        action={can('trips') ? <Button icon={Plus} variant="primary" onClick={() => navigate('/trips')}>New Booking</Button> : null}
+        subtitle={period === 'year'
+          ? `Overview — Year ${new Date().getFullYear()}`
+          : `Overview — ${new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })}`}
+        action={
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 p-1" role="group" aria-label="Dashboard period">
+              {[
+                { key: 'month', label: 'Month' },
+                { key: 'year', label: 'This Year' },
+              ].map(o => (
+                <button
+                  key={o.key}
+                  type="button"
+                  onClick={() => setPeriod(o.key)}
+                  aria-pressed={period === o.key}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    period === o.key
+                      ? 'bg-navy-900 text-white dark:bg-blue-600 shadow'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
+                  }`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            {can('trips') ? <Button icon={Plus} variant="primary" onClick={() => navigate('/trips')}>New Booking</Button> : null}
+          </div>
+        }
       />
 
       {loadErrors.length > 0 && (
@@ -253,47 +393,50 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── KPI Stats ── */}
+      {/* ── KPI Stats (follow the Month / This Year toggle) ── */}
       {can('revenueDashboard') ? (
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-          <StatCard label="Total Fare"  value={`Rs. ${totalFare.toLocaleString('en-IN')}`}  sub={`${bookings.length} trips`}      icon={IndianRupee} gradient="bg-gradient-to-br from-navy-700 to-blue-600"    trend={8.4} trendUp={true}  />
-          <StatCard label="Net Income"  value={`Rs. ${totalNet.toLocaleString('en-IN')}`}   sub="After trip costs"             icon={TrendingUp}  gradient="bg-gradient-to-br from-emerald-600 to-teal-500" trend={5.2} trendUp={true}  />
-          <StatCard label="Total KM"    value={totalKm.toLocaleString('en-IN')}             sub="Kilometres covered"           icon={Car}         gradient="bg-gradient-to-br from-violet-600 to-purple-500"             />
-          <StatCard label="Expenses"    value={`Rs. ${totalExp.toLocaleString('en-IN')}`}   sub={`${allExpenses.length} entries`} icon={Receipt}     gradient="bg-gradient-to-br from-amber-500 to-orange-500"  trend={2.1} trendUp={false} />
+          <StatCard label={`Fare (${periodTagCap})`}  value={`Rs. ${periodFare.toLocaleString('en-IN')}`}  sub={`${periodBookings.length} trips ${periodTag}`}      icon={IndianRupee} gradient="bg-gradient-to-br from-navy-700 to-blue-600"    trend={8.4} trendUp={true}  />
+          <StatCard label={`Net Income (${periodTagCap})`}  value={`Rs. ${periodNet.toLocaleString('en-IN')}`}   sub={`After trip costs ${periodTag}`}             icon={TrendingUp}  gradient="bg-gradient-to-br from-emerald-600 to-teal-500" trend={5.2} trendUp={true}  />
+          <StatCard label={`KM (${periodTagCap})`}    value={periodKm.toLocaleString('en-IN')}             sub={`Kilometres covered ${periodTag}`}           icon={Car}         gradient="bg-gradient-to-br from-violet-600 to-purple-500"             />
+          <StatCard label={`Expenses (${periodTagCap})`}    value={`Rs. ${periodExpTotal.toLocaleString('en-IN')}`}   sub={`${periodExpenses.length} entries ${periodTag}`} icon={Receipt}     gradient="bg-gradient-to-br from-amber-500 to-orange-500"  trend={2.1} trendUp={false} />
         </div>
       ) : (
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-          <StatCard label="Total Trips"   value={bookings.length}           sub="This month"          icon={Car}         gradient="bg-gradient-to-br from-navy-700 to-blue-600"    />
-          <StatCard label="Bills Done"    value={doneTrips}                 sub="Invoices generated"  icon={CheckCircle} gradient="bg-gradient-to-br from-emerald-600 to-teal-500" />
-          <StatCard label="Total KM"      value={totalKm.toLocaleString()}  sub="Kilometres covered"  icon={Car}         gradient="bg-gradient-to-br from-violet-600 to-purple-500" />
-          <StatCard label="Pending Bills" value={pendingTrips}              sub="Awaiting invoice"    icon={Clock}       gradient="bg-gradient-to-br from-amber-500 to-orange-500"  />
+          <StatCard label="Total Trips"   value={periodBookings.length}           sub={periodTagCap}          icon={Car}         gradient="bg-gradient-to-br from-navy-700 to-blue-600"    />
+          <StatCard label="Bills Done"    value={periodDone}                 sub={`Completed ${periodTag}`}  icon={CheckCircle} gradient="bg-gradient-to-br from-emerald-600 to-teal-500" />
+          <StatCard label="Total KM"      value={periodKm.toLocaleString('en-IN')}  sub={periodTagCap}  icon={Car}         gradient="bg-gradient-to-br from-violet-600 to-purple-500" />
+          <StatCard label="Pending Bills" value={periodPending}              sub="Awaiting invoice"    icon={Clock}       gradient="bg-gradient-to-br from-amber-500 to-orange-500"  />
         </div>
       )}
 
-      {/* ── Booking Widgets ── */}
-      {!can('revenueDashboard') === false || can('trips') ? (
+      {/* ── Booking Widgets (period-scoped; Today/Active stay live) ── */}
+      {(can('revenueDashboard') || can('trips')) ? (
         <div>
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Booking Management</p>
-              <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">Booking Overview</h3>
+              <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">
+                Booking Overview{' '}
+                <span className="badge badge-active align-middle">{periodTagCap}</span>
+              </h3>
             </div>
             <button onClick={() => navigate('/trips')}
-              className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors flex items-center gap-1">
+              className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors flex items-center gap-1 flex-shrink-0">
               View all →
             </button>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
             {[
-              { label:'Total Bookings', value: bookings.length,         icon: BookOpen,    color:'text-navy-800 dark:text-blue-300',         bg:'bg-navy-50 dark:bg-navy-800/60',          onClick:()=>navigate('/trips') },
+              { label:`Total Bookings`, value: periodBookings.length,         icon: BookOpen,    color:'text-navy-800 dark:text-blue-300',         bg:'bg-navy-50 dark:bg-navy-800/60',          onClick:()=>navigate('/trips') },
               { label:"Today's Trips",  value: bookingToday.length,     icon: CalendarCheck,color:'text-blue-600 dark:text-blue-400',        bg:'bg-blue-50 dark:bg-blue-900/20',          onClick:()=>navigate('/trips') },
               { label:'Active Trips',   value: bookingActive.length,    icon: Zap,         color:'text-amber-600 dark:text-amber-400',       bg:'bg-amber-50 dark:bg-amber-900/20',        onClick:()=>navigate('/trips') },
-              { label:'Completed',      value: bookingCompleted.length, icon: CheckCircle, color:'text-emerald-600 dark:text-emerald-400',   bg:'bg-emerald-50 dark:bg-emerald-900/20',    onClick:()=>navigate('/trips') },
-              { label:'Cancelled',      value: bookingCancelled.length, icon: XCircle,     color:'text-red-600 dark:text-red-400',           bg:'bg-red-50 dark:bg-red-900/20',            onClick:()=>navigate('/trips') },
+              { label:'Completed',      value: periodDone, icon: CheckCircle, color:'text-emerald-600 dark:text-emerald-400',   bg:'bg-emerald-50 dark:bg-emerald-900/20',    onClick:()=>navigate('/trips') },
+              { label:'Cancelled',      value: periodCancelled, icon: XCircle,     color:'text-red-600 dark:text-red-400',           bg:'bg-red-50 dark:bg-red-900/20',            onClick:()=>navigate('/trips') },
             ].map(s => (
               <div key={s.label} onClick={s.onClick}
-                className="glass-card rounded-2xl p-3.5 flex items-center gap-3 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5 cursor-pointer">
-                <div className={`w-9 h-9 rounded-xl ${s.bg} flex items-center justify-center flex-shrink-0`}>
+                className="ios-card ios-press p-3.5 flex items-center gap-3 cursor-pointer">
+                <div className={`w-9 h-9 rounded-[13px] ${s.bg} flex items-center justify-center flex-shrink-0`}>
                   <s.icon size={16} className={s.color} />
                 </div>
                 <div className="min-w-0">
@@ -389,8 +532,8 @@ export default function Dashboard() {
               { label:'Doc Alerts',      value: vehicleDocAlerts.length,icon: AlertTriangle, color:'text-amber-600 dark:text-amber-400',  bg:'bg-amber-50 dark:bg-amber-900/20'      },
             ].map(s => (
               <div key={s.label} onClick={() => navigate('/vehicles')}
-                className="glass-card rounded-2xl p-3.5 flex items-center gap-3 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5 cursor-pointer">
-                <div className={`w-9 h-9 rounded-xl ${s.bg} flex items-center justify-center flex-shrink-0`}>
+                className="ios-card ios-press p-3.5 flex items-center gap-3 cursor-pointer">
+                <div className={`w-9 h-9 rounded-[13px] ${s.bg} flex items-center justify-center flex-shrink-0`}>
                   <s.icon size={16} className={s.color} />
                 </div>
                 <div className="min-w-0">
@@ -445,7 +588,7 @@ export default function Dashboard() {
           { label:'Drivers',       value: drivers.length,  icon: Users,       color:'text-blue-500',    bg:'bg-blue-50 dark:bg-blue-900/20'       },
           { label:'Vehicles',      value: vehicles.length, icon: Fuel,        color:'text-violet-500',  bg:'bg-violet-50 dark:bg-violet-900/20'   },
         ].map(s => (
-          <div key={s.label} className="glass-card rounded-2xl p-4 flex items-center gap-3 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5">
+          <div key={s.label} className="ios-card p-4 flex items-center gap-3">
             <div className={`w-10 h-10 rounded-xl ${s.bg} flex items-center justify-center flex-shrink-0`}>
               <s.icon size={18} className={s.color} />
             </div>
@@ -475,11 +618,11 @@ export default function Dashboard() {
               { label:'Total Customers',   value: customers.length,         icon: Users,       color:'text-navy-800 dark:text-blue-300',        bg:'bg-navy-50 dark:bg-navy-800/60'       },
               { label:'Active',            value: customers.filter(c=>c.status==='active').length, icon: CheckCircle, color:'text-emerald-600 dark:text-emerald-400', bg:'bg-emerald-50 dark:bg-emerald-900/20' },
               { label:'Corporate / Agent', value: corporateCustomers,       icon: Users,       color:'text-violet-600 dark:text-violet-400',    bg:'bg-violet-50 dark:bg-violet-900/20'   },
-              { label:'New This Month',    value: newCustomersMonth,         icon: Plus,        color:'text-blue-600 dark:text-blue-400',        bg:'bg-blue-50 dark:bg-blue-900/20'       },
+              { label:`New ${periodTagCap}`,    value: periodCustomers,         icon: Plus,        color:'text-blue-600 dark:text-blue-400',        bg:'bg-blue-50 dark:bg-blue-900/20'       },
             ].map(s => (
               <div key={s.label} onClick={() => navigate('/customers')}
-                className="glass-card rounded-2xl p-3.5 flex items-center gap-3 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5 cursor-pointer">
-                <div className={`w-9 h-9 rounded-xl ${s.bg} flex items-center justify-center flex-shrink-0`}>
+                className="ios-card ios-press p-3.5 flex items-center gap-3 cursor-pointer">
+                <div className={`w-9 h-9 rounded-[13px] ${s.bg} flex items-center justify-center flex-shrink-0`}>
                   <s.icon size={16} className={s.color} />
                 </div>
                 <div className="min-w-0">
@@ -507,14 +650,14 @@ export default function Dashboard() {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { label:'Total Paid',        value:`Rs.${(totalPayrollPaid/1000).toFixed(1)}k`, color:'text-emerald-600 dark:text-emerald-400', bg:'bg-emerald-50 dark:bg-emerald-900/20' },
+              { label:'Total Paid',        value:`Rs. ${(totalPayrollPaid/1000).toFixed(1)}k`, color:'text-emerald-600 dark:text-emerald-400', bg:'bg-emerald-50 dark:bg-emerald-900/20' },
               { label:'Pending Approval',  value: settledPending,                             color:'text-blue-600 dark:text-blue-400',       bg:'bg-blue-50 dark:bg-blue-900/20'       },
               { label:'Approved (Unpaid)', value: settledApproved,                            color:'text-violet-600 dark:text-violet-400',   bg:'bg-violet-50 dark:bg-violet-900/20'   },
               { label:'Total Settlements', value: settlements.length,                         color:'text-navy-800 dark:text-blue-300',       bg:'bg-navy-50 dark:bg-navy-800/60'       },
             ].map(s => (
               <div key={s.label} onClick={() => navigate('/payroll')}
-                className="glass-card rounded-2xl p-3.5 flex items-center gap-3 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5 cursor-pointer">
-                <div className={`w-9 h-9 rounded-xl ${s.bg} flex items-center justify-center flex-shrink-0`}>
+                className="ios-card ios-press p-3.5 flex items-center gap-3 cursor-pointer">
+                <div className={`w-9 h-9 rounded-[13px] ${s.bg} flex items-center justify-center flex-shrink-0`}>
                   <IndianRupee size={16} className={s.color} />
                 </div>
                 <div className="min-w-0">
@@ -546,7 +689,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Expense Management</p>
-              <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">This Month</h3>
+              <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">{periodTagCap}</h3>
             </div>
             <button onClick={() => navigate('/expenses')}
               className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
@@ -557,14 +700,14 @@ export default function Dashboard() {
           {/* KPI chips */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
             {[
-              { label:'Month Total',    value:`Rs. ${(monthExpTotal/1000).toFixed(1)}k`, icon:TrendingDown, color:'text-amber-600 dark:text-amber-400', bg:'bg-amber-50 dark:bg-amber-900/20' },
-              { label:'Entries',        value: monthExpenses.length,                    icon:Receipt,      color:'text-slate-600 dark:text-slate-300', bg:'bg-slate-50 dark:bg-navy-800/60'  },
+              { label: period === 'year' ? 'Year Total' : 'Month Total',    value:`Rs. ${(periodExpTotal/1000).toFixed(1)}k`, icon:TrendingDown, color:'text-amber-600 dark:text-amber-400', bg:'bg-amber-50 dark:bg-amber-900/20' },
+              { label:'Entries',        value: periodExpenses.length,                    icon:Receipt,      color:'text-slate-600 dark:text-slate-300', bg:'bg-slate-50 dark:bg-navy-800/60'  },
               { label:'Pending Approval',value: pendingApprovals,                       icon:Clock,        color:'text-blue-600 dark:text-blue-400',   bg:'bg-blue-50 dark:bg-blue-900/20'   },
               { label:'Categories',     value: expByCategory.length,                   icon:Filter,       color:'text-violet-600 dark:text-violet-400',bg:'bg-violet-50 dark:bg-violet-900/20'},
             ].map(s => (
               <div key={s.label} onClick={() => navigate('/expenses')}
-                className="glass-card rounded-2xl p-3.5 flex items-center gap-3 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5 cursor-pointer">
-                <div className={`w-9 h-9 rounded-xl ${s.bg} flex items-center justify-center flex-shrink-0`}>
+                className="ios-card ios-press p-3.5 flex items-center gap-3 cursor-pointer">
+                <div className={`w-9 h-9 rounded-[13px] ${s.bg} flex items-center justify-center flex-shrink-0`}>
                   <s.icon size={16} className={s.color} />
                 </div>
                 <div className="min-w-0">
@@ -575,13 +718,13 @@ export default function Dashboard() {
             ))}
           </div>
 
-          {/* Top 3 categories this month */}
+          {/* Top 3 categories in the selected period */}
           {expByCategory.length > 0 && (
             <div className="glass-card rounded-2xl p-4">
-              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Top Categories This Month</p>
+              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Top Categories {periodTagCap}</p>
               <div className="space-y-2.5">
                 {expByCategory.map(t => {
-                  const pct = Math.round((t.total / monthExpTotal) * 100)
+                  const pct = periodExpTotal > 0 ? Math.round((t.total / periodExpTotal) * 100) : 0
                   return (
                     <div key={t.key}>
                       <div className="flex justify-between text-xs mb-1">
@@ -656,15 +799,15 @@ export default function Dashboard() {
           <div className="glass-card rounded-2xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Monthly Fare</p>
-                <p className="text-lg font-display font-black text-slate-800 dark:text-white">6-month trend</p>
+                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{period === 'year' ? 'Yearly Fare' : 'Monthly Fare'}</p>
+                <p className="text-lg font-display font-black text-slate-800 dark:text-white">{trendTitle}</p>
               </div>
-              <span className="badge badge-active">May</span>
+              <span className="badge badge-active">{period === 'year' ? periodYear : trendData[trendData.length - 1]?.month}</span>
             </div>
-            <BarChart data={monthlyFare} />
+            <BarChart data={trendData} />
             <div className="mt-3 pt-3 border-t border-slate-100 dark:border-navy-700 flex justify-between text-xs text-slate-500 dark:text-slate-400">
-              <span>Total (May)</span>
-              <span className="font-bold text-blue-600 dark:text-blue-400">Rs. {totalFare.toLocaleString('en-IN')}</span>
+              <span>Total ({periodTagCap})</span>
+              <span className="font-bold text-blue-600 dark:text-blue-400">Rs. {periodFare.toLocaleString('en-IN')}</span>
             </div>
           </div>
         ) : (
@@ -675,22 +818,24 @@ export default function Dashboard() {
           <div className="glass-card rounded-2xl p-5 flex flex-col">
             <div className="mb-4">
               <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Profit Breakdown</p>
-              <p className="text-lg font-display font-black text-slate-800 dark:text-white">Income vs Costs</p>
+              <p className="text-lg font-display font-black text-slate-800 dark:text-white">Income vs Costs{' '}
+                <span className="badge badge-active align-middle text-[10px]">{periodTagCap}</span>
+              </p>
             </div>
             <div className="flex-1 flex items-center justify-center">
               <div className="relative">
-                <DonutRing pct={totalFare > 0 ? Math.round((totalNet / totalFare) * 100) : 0} color="#10b981" />
+                <DonutRing pct={periodFare > 0 ? Math.round((periodNet / periodFare) * 100) : 0} color={periodNet >= 0 ? '#10b981' : '#f43f5e'} />
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <p className="text-xl font-display font-black text-slate-800 dark:text-white">{totalFare > 0 ? Math.round((totalNet / totalFare) * 100) : 0}%</p>
-                  <p className="text-[10px] text-slate-400">margin</p>
+                  <p className="text-xl font-display font-black text-slate-800 dark:text-white">{periodFare > 0 ? Math.min(100, Math.max(0, Math.round((periodNet / periodFare) * 100))) : 0}%</p>
+                  <p className="text-[10px] text-slate-400">margin {periodTag}</p>
                 </div>
               </div>
             </div>
             <div className="mt-3 space-y-2">
               {[
-                { label:'Trip Revenue', amt:totalFare, color:'bg-blue-500'    },
-                { label:'Net Income',   amt:totalNet,  color:'bg-emerald-500' },
-                { label:'Expenses',     amt:totalExp,  color:'bg-amber-500'   },
+                { label:'Trip Revenue', amt:periodFare, color:'bg-emerald-500'    },
+                { label:'Net Income',   amt:periodNet,  color: periodNet >= 0 ? 'bg-emerald-500' : 'bg-rose-500' },
+                { label:'Expenses',     amt:periodExpTotal,  color:'bg-rose-500'   },
               ].map(r => (
                 <div key={r.label} className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2"><div className={`w-2.5 h-2.5 rounded-full ${r.color}`} /><span className="text-slate-500 dark:text-slate-400">{r.label}</span></div>
@@ -710,7 +855,10 @@ export default function Dashboard() {
             <p className="text-lg font-display font-black text-slate-800 dark:text-white">Pay summary</p>
           </div>
           <div className="space-y-4">
-            {drivers.map(d => {
+            {drivers.length === 0 && (
+              <p className="text-xs text-slate-400 dark:text-slate-500">No drivers yet.</p>
+            )}
+            {drivers.slice(0, 5).map(d => {
               const driverTrips = bookings.filter(t => t.driver === d.name)
               const farePct     = totalFare > 0 ? Math.round((driverTrips.reduce((s,t) => s+(t.fare||0),0) / totalFare) * 100) : 0
               const driverCost  = allExpenses.filter(e => e.driver === d.name).reduce((s, e) => s + (e.amount || 0), 0)
@@ -727,12 +875,17 @@ export default function Dashboard() {
                     )}
                   </div>
                   <div className="h-1.5 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-teal-500 to-cyan-400 rounded-full" style={{ width: `${farePct}%` }} />
+                    <div className="h-full bg-gradient-to-r from-teal-500 to-cyan-400 rounded-full" style={{ width: `${Math.min(100, Math.max(0, farePct))}%` }} />
                   </div>
                   <p className="text-[10px] text-slate-400 mt-0.5">{farePct}% of total fare</p>
                 </div>
               )
             })}
+            {drivers.length > 5 && (
+              <button onClick={() => navigate('/drivers')} className="mt-3 text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
+                +{drivers.length - 5} more drivers →
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -749,82 +902,81 @@ export default function Dashboard() {
       )}
 
       {/* ── Fleet Alerts ── */}
-      {can('fleetAlerts') && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
+      {can('fleetAlerts') && (() => {
+        const activeAlerts = fleetAlerts.filter(a => a.status !== 'resolved' && a.status !== 'closed')
+        const criticalCount = activeAlerts.filter(a => a.priority === 'critical').length
+        const highCount = activeAlerts.filter(a => a.priority === 'high').length
+        return (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between mb-1">
             <div>
               <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Fleet Alerts</p>
-              <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">Active Alerts</h3>
+              <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">
+                Active Alerts{' '}
+                <span className="text-xs font-bold text-slate-400 dark:text-slate-500 align-middle">({activeAlerts.length})</span>
+              </h3>
             </div>
-            <button onClick={() => navigate('/fleet/alerts')}
-              className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
+            <button onClick={() => navigate('/fleet')}
+              className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors flex-shrink-0">
               View All →
             </button>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {/* Alert Statistics */}
-            <div className="glass-card rounded-2xl p-4">
-              <div className="space-y-3">
-                <p className="text-xs font-bold text-slate-600 dark:text-slate-400">Critical Alerts</p>
-                <p className="text-2xl font-display font-black text-red-600">
-                  {fleetAlerts.filter(a => a.priority === 'critical' && a.status !== 'resolved' && a.status !== 'closed').length}
-                </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {[
+              { label: 'Critical Alerts', value: criticalCount, icon: XCircle, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-900/20' },
+              { label: 'High Priority', value: highCount, icon: AlertTriangle, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20' },
+              { label: 'Total Active', value: activeAlerts.length, icon: Zap, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/20' },
+            ].map(s => (
+              <div key={s.label} className="ios-card p-3.5 flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-[13px] ${s.bg} flex items-center justify-center flex-shrink-0`}>
+                  <s.icon size={16} className={s.color} />
+                </div>
+                <div className="min-w-0">
+                  <p className={`text-xl font-display font-black leading-none ${s.color}`}>{s.value}</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">{s.label}</p>
+                </div>
               </div>
-            </div>
-            <div className="glass-card rounded-2xl p-4">
-              <div className="space-y-3">
-                <p className="text-xs font-bold text-slate-600 dark:text-slate-400">High Priority Alerts</p>
-                <p className="text-2xl font-display font-black text-amber-600">
-                  {fleetAlerts.filter(a => a.priority === 'high' && a.status !== 'resolved' && a.status !== 'closed').length}
-                </p>
-              </div>
-            </div>
-            <div className="glass-card rounded-2xl p-4">
-              <div className="space-y-3">
-                <p className="text-xs font-bold text-slate-600 dark:text-slate-400">Total Active Alerts</p>
-                <p className="text-2xl font-display font-black text-slate-600">
-                  {fleetAlerts.filter(a => a.status !== 'resolved' && a.status !== 'closed').length}
-                </p>
-              </div>
-            </div>
+            ))}
           </div>
           {/* Recent Alerts List */}
           <div className="glass-card rounded-2xl p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">Recent Alerts</h3>
-              <button onClick={() => navigate('/fleet/alerts')}
-                className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
+              <p className="text-sm font-bold text-slate-700 dark:text-slate-200">Recent Alerts</p>
+              <button onClick={() => navigate('/fleet')}
+                className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors flex-shrink-0">
                 View All
               </button>
             </div>
-            {fleetAlerts.length === 0 ? (
+            {activeAlerts.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-slate-500 dark:text-slate-400">No active alerts</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {fleetAlerts.slice(0, 5).map((alert, index) => {
+              <div className="space-y-2.5">
+                {activeAlerts.slice(0, 5).map((alert, index) => {
                   const priority = alert?.priority || 'medium'
                   const priorityLabel = priority.charAt(0).toUpperCase() + priority.slice(1)
+                  const detected = alert?.detected_at ? new Date(alert.detected_at) : null
+                  const detectedLabel = detected && !Number.isNaN(detected.getTime())
+                    ? `${detected.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} ${detected.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`
+                    : '--'
                   return (
-                  <div key={alert?.id || index} className={`border-l-4 ${priority === 'critical' ? 'border-red-500' : priority === 'high' ? 'border-amber-500' : 'border-blue-500'} p-3 mb-2 rounded-lg bg-slate-50 dark:bg-navy-800/20`}>
-                    <div className="flex items-center justify-between">
+                  <div key={alert?.id || index} className={`border-l-4 ${priority === 'critical' ? 'border-red-500' : priority === 'high' ? 'border-amber-500' : 'border-blue-500'} px-3 py-2.5 rounded-r-xl rounded-l-sm bg-slate-50 dark:bg-navy-800/40`}>
+                    <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">
                           {alert?.title || 'Fleet alert'}
                         </p>
-                        <p className="text-[9px] text-slate-500 dark:text-slate-400">
-                          {alert?.vehicle_id ?
-                            (String(alert.vehicle_id).substring(0, 8) + '...') :
-                            'Unknown Vehicle'}
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate font-mono">
+                          {alert?.vehicle_id ? `Vehicle ${String(alert.vehicle_id).slice(-6)}` : 'Unknown Vehicle'}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${priority === 'critical' ? 'bg-red-100 text-red-800' : priority === 'high' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${priority === 'critical' ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' : priority === 'high' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300'}`}>
                           {priorityLabel}
                         </span>
-                        <span className="text-[9px] text-slate-500">
-                          {alert?.detected_at ? new Date(alert.detected_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 whitespace-nowrap">
+                          {detectedLabel}
                         </span>
                       </div>
                     </div>
@@ -834,11 +986,12 @@ export default function Dashboard() {
             )}
           </div>
         </div>
-      )}
+        )
+      })()}
 
-      {/* ── Recent Activity (Audit Log) ── */}
+      {/* ── Recent Activity (Audit Log, max 5 on the dashboard) ── */}
       {(isAdmin || isManager) && (() => {
-        const recentActivity = loadRecentActivity(8)
+        const recentActivity = loadRecentActivity(5)
         if (recentActivity.length === 0) return null
         return (
           <div>
@@ -873,7 +1026,8 @@ export default function Dashboard() {
           </div>
           <Button icon={FileText} variant="outline" size="sm" onClick={() => navigate('/trips')}>View All</Button>
         </div>
-        <div className="glass-card rounded-2xl overflow-hidden">
+        {/* Desktop table */}
+        <div className="glass-card rounded-2xl overflow-hidden hidden md:block">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -886,8 +1040,15 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
+                {recentTrips.length === 0 && (
+                  <tr>
+                    <td colSpan={can('revenueDashboard') ? 7 : 5} className="px-4 py-8 text-center text-xs text-slate-400 dark:text-slate-500">
+                      No trips yet. Create your first booking from Trips.
+                    </td>
+                  </tr>
+                )}
                 {recentTrips.map(t => (
-                  <tr key={t.id} className="border-b border-slate-50 dark:border-navy-800 hover:bg-blue-50/40 dark:hover:bg-navy-800/50 transition-colors cursor-pointer" onClick={() => navigate('/trips')}>
+                  <tr key={t.id} className="border-b border-slate-50 dark:border-navy-800 hover:bg-blue-50/40 dark:hover:bg-navy-800/50 transition-colors cursor-pointer" onClick={() => navigate('/trips', { state: { tripId: t.id } })}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
                         <Avatar name={t.customer} size={28} />
@@ -910,6 +1071,39 @@ export default function Dashboard() {
               </tbody>
             </table>
           </div>
+        </div>
+        {/* Mobile cards — stacked, no horizontal slider */}
+        <div className="md:hidden space-y-2.5">
+          {recentTrips.length === 0 && (
+            <div className="glass-card rounded-[20px] px-4 py-8 text-center text-xs text-slate-400 dark:text-slate-500">
+              No trips yet. Create your first booking from Trips.
+            </div>
+          )}
+          {recentTrips.map(t => (
+            <div key={t.id} onClick={() => navigate('/trips', { state: { tripId: t.id } })}
+              className="ios-card ios-press p-3.5 cursor-pointer">
+              <div className="flex items-center gap-2.5 mb-2">
+                <Avatar name={t.customer} size={32} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{t.customer}</p>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500">{t.date} · {t.km} km</p>
+                </div>
+                <Badge status={t.status} />
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-snug">
+                {t.source} <span className="text-slate-300 dark:text-slate-500 mx-0.5">→</span> {t.destination}
+              </p>
+              <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-white/5">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{t.driver}</p>
+                {can('revenueDashboard') && (
+                  <p className="text-xs font-extrabold text-slate-900 dark:text-white tabular-nums flex-shrink-0">
+                    Rs. {t.fare.toLocaleString('en-IN')}{' '}
+                    <span className="text-emerald-600 dark:text-emerald-400">· Rs. {t.net.toLocaleString('en-IN')}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
