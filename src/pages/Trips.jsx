@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
-  Plus, Search, ChevronDown, ChevronUp,
-  Calendar, Car, User, MapPin,
+  Plus, ChevronDown, ChevronUp,
+  Calendar, CalendarDays, List, Car,
   CheckCircle, X, Edit2, Trash2, UserCheck,
   ChevronLeft, ChevronRight, AlertTriangle, Navigation, Clock,
   MessageCircle, IndianRupee,
@@ -135,7 +135,7 @@ function BookingModal({ booking, onClose, onSave, userName }) {
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{isEdit ? 'Edit Booking' : 'New Booking'}</p>
             <h3 className="font-display font-black text-slate-800 dark:text-white text-base">{isEdit ? form.bookingNo : 'Create Booking'}</h3>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700 transition-colors"><X size={15} /></button>
+          <button onClick={onClose} aria-label="Close booking form" className="min-w-[36px] min-h-[36px] w-9 h-9 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700 active:scale-95 transition-all"><X size={16} /></button>
         </div>
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
           <Grid2>
@@ -236,7 +236,7 @@ function AssignModal({ booking, bookings, drivers, vehicles, onClose, onAssign }
             <h3 className="font-display font-black text-slate-800 dark:text-white text-base">{booking.bookingNo}</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">{booking.customer} · {booking.startDate}</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700"><X size={15} /></button>
+          <button onClick={onClose} aria-label="Close assign dialog" className="min-w-[36px] min-h-[36px] w-9 h-9 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700 active:scale-95 transition-all"><X size={16} /></button>
         </div>
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
           <div>
@@ -399,7 +399,7 @@ function RouteHistoryModal({ booking, onClose }) {
       <div className="w-full max-w-lg bg-white dark:bg-navy-900 rounded-3xl shadow-2xl overflow-hidden animate-fade-up" onClick={e=>e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3.5 bg-slate-50 dark:bg-navy-800 border-b border-slate-200 dark:border-navy-700">
           <div><p className="font-display font-black text-slate-800 dark:text-white text-sm">Route History</p><p className="text-[10px] text-slate-400 font-mono">{booking.bookingNo||booking.id}</p></div>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl border border-slate-200 dark:border-navy-600 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors"><X size={15} /></button>
+          <button onClick={onClose} aria-label="Close route history" className="min-w-[36px] min-h-[36px] w-9 h-9 rounded-xl border border-slate-200 dark:border-navy-600 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-navy-700 active:scale-95 transition-all"><X size={16} /></button>
         </div>
         <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
           {points.length === 0 && !histEntry ? (
@@ -588,32 +588,98 @@ function CalendarView({ bookings }) {
   const prev = () => { if(mon===0){setMon(11);setYr(y=>y-1)}else setMon(m=>m-1) }
   const next = () => { if(mon===11){setMon(0);setYr(y=>y+1)}else setMon(m=>m+1) }
   const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
+  // ── Day popup: completed / upcoming / missed + trip list ──
+  const [selDay, setSelDay] = useState(null) // day-of-month or null
+  const selTrips = selDay ? (bookingMap[selDay] || []) : []
+  const selDateStr = selDay ? `${yr}-${String(mon+1).padStart(2,'0')}-${String(selDay).padStart(2,'0')}` : ''
+  const selDone = selTrips.filter(t => ['completed','closed'].includes(t.status))
+  const selMissed = selTrips.filter(t => selDateStr < todayStr && !['completed','closed','cancelled'].includes(t.status))
+  const selUpcoming = selTrips.filter(t => !(selDateStr < todayStr) && !['completed','closed','cancelled'].includes(t.status))
+  const selCancelled = selTrips.filter(t => t.status === 'cancelled')
+  const selLabel = selDay ? new Date(yr, mon, selDay).toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short', year:'numeric' }) : ''
   return (
-    <div className="glass-card rounded-2xl overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 bg-slate-50/80 dark:bg-navy-800/60 border-b border-slate-100 dark:border-navy-700">
-        <button onClick={prev} className="w-8 h-8 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors"><ChevronLeft size={15} /></button>
-        <p className="font-display font-black text-slate-800 dark:text-white text-sm">{MONTH_NAMES[mon]} {yr}</p>
-        <button onClick={next} className="w-8 h-8 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors"><ChevronRight size={15} /></button>
+    <div className="glass-card rounded-2xl overflow-hidden md:flex-1 md:min-h-0 md:flex md:flex-col">
+      <div className="flex items-center justify-between px-4 py-2 bg-slate-50/80 dark:bg-navy-800/60 border-b border-slate-100 dark:border-navy-700 md:shrink-0">
+        <button onClick={prev} aria-label="Previous month" className="w-8 h-8 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors"><ChevronLeft size={15} /></button>
+        <p className="font-display font-black text-slate-800 dark:text-white text-sm tabular-nums">{MONTH_NAMES[mon]} {yr}</p>
+        <button onClick={next} aria-label="Next month" className="w-8 h-8 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors"><ChevronRight size={15} /></button>
       </div>
-      <div className="p-3">
-        <div className="grid grid-cols-7 gap-1 mb-1">
+      <div className="p-2 md:flex-1 md:min-h-0 md:flex md:flex-col">
+        <div className="grid grid-cols-7 gap-1 mb-1 md:shrink-0">
           {DOW.map(d => <div key={d} className={`text-center text-[10px] font-bold py-1 ${d==='Sun'?'text-red-500':d==='Sat'?'text-blue-500':'text-slate-400 dark:text-slate-500'}`}>{d}</div>)}
         </div>
-        <div className="grid grid-cols-7 gap-1">
-          {Array.from({length:firstDow}).map((_,i) => <div key={`e${i}`} className="aspect-square" />)}
+        <div className="grid grid-cols-7 gap-1 md:flex-1 md:min-h-0 md:auto-rows-fr">
+          {Array.from({length:firstDow}).map((_,i) => <div key={`e${i}`} className="min-h-[44px] sm:min-h-[54px] md:min-h-0" />)}
           {Array.from({length:daysInMon}).map((_,idx) => {
             const day=idx+1; const dateStr=`${yr}-${String(mon+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
             const trips=bookingMap[day]||[]; const isToday=dateStr===todayStr; const hasCal=trips.length>0
             return (
-              <div key={day} className={`aspect-square rounded-xl flex flex-col items-center justify-start pt-1 px-0.5 border transition-all cursor-default ${isToday?'bg-navy-900 dark:bg-blue-700 border-navy-700 dark:border-blue-500 shadow-lg':hasCal?'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/40':'border-slate-100 dark:border-navy-800 bg-transparent'}`}>
-                <span className={`text-[11px] font-bold leading-none ${isToday?'text-white':hasCal?'text-emerald-700 dark:text-emerald-400':'text-slate-500 dark:text-slate-500'}`}>{day}</span>
-                {hasCal && !isToday && <div className="flex flex-wrap gap-0.5 mt-0.5 justify-center">{trips.slice(0,3).map((t,ti)=><span key={ti} className={`w-1.5 h-1.5 rounded-full ${getStatusCfg(t.status).dot.replace(' animate-pulse','')}`}/>)}</div>}
-                {hasCal && isToday && <span className="text-[9px] text-blue-200 mt-0.5 font-bold">{trips.length}</span>}
+              <div key={day} role="button" tabIndex={0}
+                onClick={() => setSelDay(day)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelDay(day) } }}
+                aria-label={`${dateStr}${hasCal ? `, ${trips.length} trips` : ', no trips'}`}
+                title={hasCal ? `${trips.length} trip${trips.length!==1?'s':''} — tap for details` : 'No trips'}
+                className={`min-h-[44px] sm:min-h-[54px] md:min-h-0 md:overflow-hidden rounded-xl flex flex-col items-center justify-start pt-1 px-0.5 border transition-all cursor-pointer hover:shadow-md active:scale-[0.98] ${isToday?'bg-navy-900 dark:bg-blue-700 border-navy-700 dark:border-blue-500 shadow-lg':hasCal?'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/40':'border-slate-100 dark:border-navy-800 bg-transparent'}`}>
+                <span className={`text-[11px] font-bold leading-none tabular-nums ${isToday?'text-white':hasCal?'text-emerald-700 dark:text-emerald-400':'text-slate-500 dark:text-slate-500'}`}>{day}</span>
+                {hasCal && !isToday && <div className="flex flex-wrap gap-0.5 mt-1 justify-center">{trips.slice(0,4).map((t,ti)=><span key={ti} className={`w-1.5 h-1.5 rounded-full ${getStatusCfg(t.status).dot.replace(' animate-pulse','')}`}/>)}</div>}
+                {hasCal && !isToday && trips.length > 1 && <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold tabular-nums">{trips.length}</span>}
+                {hasCal && isToday && <span className="text-[9px] text-blue-200 mt-0.5 font-bold tabular-nums">{trips.length}</span>}
               </div>
             )
           })}
         </div>
       </div>
+
+      {/* Day details popup */}
+      {selDay && (
+        <ModalOverlay onClose={() => setSelDay(null)} center>
+          <div className="w-[92vw] max-w-sm max-h-[75vh] flex flex-col rounded-[20px] bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-700 shadow-2xl overflow-hidden animate-fade-up" role="dialog" aria-modal="true" aria-label={`Trips on ${selLabel}`}>
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-navy-700">
+              <div>
+                <p className="text-sm font-extrabold text-slate-800 dark:text-white leading-tight">{selLabel}</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums">{selTrips.length} trip{selTrips.length !== 1 ? 's' : ''}</p>
+              </div>
+              <button onClick={() => setSelDay(null)}
+                aria-label="Close day details"
+                className="min-w-[36px] min-h-[36px] w-9 h-9 rounded-[12px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-navy-800 active:scale-95 transition-all flex items-center justify-center">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-4 space-y-3">
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { label:'Done', value:selDone.length, cls:'text-emerald-600 dark:text-emerald-400' },
+                  { label:'Upcoming', value:selUpcoming.length, cls:'text-blue-600 dark:text-blue-400' },
+                  { label:'Missed', value:selMissed.length, cls:'text-red-500 dark:text-red-400' },
+                  { label:'Cancelled', value:selCancelled.length, cls:'text-slate-400 dark:text-slate-500' },
+                ].map(s => (
+                  <div key={s.label} className="rounded-xl bg-slate-50 dark:bg-navy-800/60 border border-slate-100 dark:border-navy-700 px-2 py-2 text-center">
+                    <p className={`text-lg font-display font-black tabular-nums ${s.cls}`}>{s.value}</p>
+                    <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+              {selTrips.length === 0 ? (
+                <p className="text-center text-xs text-slate-400 dark:text-slate-500 py-4">No trips on this date.</p>
+              ) : (
+                <div className="space-y-2">
+                  {selTrips.map(t => (
+                    <div key={t.id} className="rounded-xl border border-slate-100 dark:border-navy-700 px-3 py-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{t.customer}</p>
+                        <StatusBadge status={t.status} />
+                      </div>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate mt-0.5">
+                        {(t.pickup || '—')} → {(t.drop || '—')}{t.fare ? ` · Rs. ${Number(t.fare).toLocaleString('en-IN')}` : ''}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
     </div>
   )
 }
@@ -633,9 +699,9 @@ export default function Trips() {
   const [bookings,      setBookings]      = useState([])
   const [drivers,       setDrivers]       = useState([])
   const [vehicles,      setVehicles]      = useState([])
+  const [loading,       setLoading]       = useState(true)
   const [loadError,     setLoadError]     = useState(null)
   const [tab,           setTab]           = useState('list')
-  const [search,        setSearch]        = useState('')
   const [statusFilter,  setStatusFilter]  = useState('all')
   const [typeFilter,    setTypeFilter]    = useState('all')
   const [expanded,      setExpanded]      = useState(null)
@@ -643,22 +709,57 @@ export default function Trips() {
   const [editBooking,   setEditBooking]   = useState(null)
   const [assignBooking, setAssignBooking] = useState(null)
 
+  // ── Pagination: 5 cards per page + go-to-page ─────────────
+  const PAGE_SIZE = 5
+  const [page, setPage] = useState(1)
+  const [goPage, setGoPage] = useState('')
+
   const filtered = useMemo(() =>
     bookings.filter(b => {
       if (isDriver) return b.driver === user?.name
-      const matchSearch = !search || [b.customer,b.bookingNo,b.pickup,b.drop,b.driver,b.vehicle].some(v => v?.toLowerCase().includes(search.toLowerCase()))
-      const matchStatus = statusFilter === 'all' || b.status === statusFilter
+      // 'approved' pill counts confirmed too — match both so taps aren't empty
+      const matchStatus = statusFilter === 'all' || b.status === statusFilter ||
+        (statusFilter === 'approved' && b.status === 'confirmed')
       const matchType   = typeFilter   === 'all' || b.type   === typeFilter
-      return matchSearch && matchStatus && matchType
+      return matchStatus && matchType
     })
-  , [bookings, search, statusFilter, typeFilter, isDriver, user])
+  , [bookings, statusFilter, typeFilter, isDriver, user])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(Math.max(1, page), totalPages)
+  const pageRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  // Reset/clamp page whenever the list identity changes
+  useEffect(() => { setPage(1) }, [statusFilter, typeFilter, tab, bookings.length])
+
+  const pageItems = (() => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1)
+    const set = new Set([1, 2, safePage - 1, safePage, safePage + 1, totalPages - 1, totalPages])
+    const nums = [...set].filter(n => n >= 1 && n <= totalPages).sort((a, b) => a - b)
+    const out = []
+    nums.forEach((n, i) => {
+      if (i > 0 && n - nums[i - 1] > 1) out.push('…')
+      out.push(n)
+    })
+    return out
+  })()
+
+  const goToPage = () => {
+    const n = parseInt(goPage, 10)
+    if (!Number.isNaN(n)) setPage(Math.min(Math.max(1, n), totalPages))
+    setGoPage('')
+  }
 
   const reload = useCallback(async () => {
-    const [b, d, v] = await Promise.allSettled([loadBookings(), loadDrivers(), loadVehicles()])
-    setBookings(b.status==='fulfilled' && Array.isArray(b.value) ? b.value : [])
-    setDrivers( d.status==='fulfilled' && Array.isArray(d.value) ? d.value : [])
-    setVehicles(v.status==='fulfilled' && Array.isArray(v.value) ? v.value : [])
-    setLoadError([b,d,v].some(r=>r.status==='rejected') ? 'Some data failed to load. Retry.' : null)
+    setLoading(true)
+    try {
+      const [b, d, v] = await Promise.allSettled([loadBookings(), loadDrivers(), loadVehicles()])
+      setBookings(b.status==='fulfilled' && Array.isArray(b.value) ? b.value : [])
+      setDrivers( d.status==='fulfilled' && Array.isArray(d.value) ? d.value : [])
+      setVehicles(v.status==='fulfilled' && Array.isArray(v.value) ? v.value : [])
+      setLoadError([b,d,v].some(r=>r.status==='rejected') ? 'Some data failed to load. Retry.' : null)
+    } finally {
+      setLoading(false)
+    }
   }, [])
   useEffect(() => { reload() }, [reload])
 
@@ -726,21 +827,19 @@ export default function Trips() {
     reload()
   }
 
-  // ── Summary counts ────────────────────────────────────────
+  // ── Summary counts (only the four shown pills) ────────────
   const counts = useMemo(() => ({
     total:     bookings.length,
-    draft:     bookings.filter(b=>b.status==='draft').length,
     pending:   bookings.filter(b=>b.status==='pending').length,
-    approved:  bookings.filter(b=>['approved','confirmed'].includes(b.status)).length,
     assigned:  bookings.filter(b=>b.status==='assigned').length,
-    active:    bookings.filter(b=>b.status==='started').length,
     completed: bookings.filter(b=>b.status==='completed').length,
-    cancelled: bookings.filter(b=>b.status==='cancelled').length,
   }), [bookings])
 
+  // Compact density fits one screen at 100% zoom; the page flows
+  // naturally (sticky pagination included) so 90–110% zoom never clips.
   return (
-    <div className="space-y-5 animate-fade-up">
-      <PageHeader
+    <div className="space-y-3 md:space-y-2 animate-fade-up">
+      <PageHeader compact
         title={isDriver ? 'My Assigned Trips' : 'Bookings & Trips'}
         subtitle={isDriver ? 'Trips assigned to you' : `${counts.total} total bookings · operational center`}
         action={canCreate && (
@@ -758,36 +857,49 @@ export default function Trips() {
         </div>
       )}
 
-      {/* Summary pills — full lifecycle */}
+      {/* Summary pills — one row, no slider */}
       {!isDriver && (
-        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+        <div className="grid grid-cols-4 gap-2">
           {[
             { label:'Total',     value:counts.total,     color:'text-slate-700 dark:text-slate-200',     filter:'all'       },
-            { label:'Draft',     value:counts.draft,     color:'text-slate-500 dark:text-slate-400',     filter:'draft'     },
             { label:'Pending',   value:counts.pending,   color:'text-yellow-600 dark:text-yellow-400',   filter:'pending'   },
-            { label:'Approved',  value:counts.approved,  color:'text-violet-600 dark:text-violet-400',   filter:'approved'  },
             { label:'Assigned',  value:counts.assigned,  color:'text-blue-600 dark:text-blue-400',       filter:'assigned'  },
-            { label:'Active',    value:counts.active,    color:'text-amber-600 dark:text-amber-400',     filter:'started'   },
             { label:'Completed', value:counts.completed, color:'text-emerald-600 dark:text-emerald-400', filter:'completed' },
-            { label:'Cancelled', value:counts.cancelled, color:'text-red-500 dark:text-red-400',         filter:'cancelled' },
-          ].map(s => (
-            <div key={s.label} className="glass-card rounded-lg px-2 py-2 text-center cursor-pointer hover:shadow-md transition-all" onClick={() => setStatusFilter(s.filter)}>
-              <p className={`text-xl font-display font-black ${s.color}`}>{s.value}</p>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{s.label}</p>
+          ].map(s => {
+            const active = statusFilter === s.filter
+            return (
+            <div key={s.label} role="button" tabIndex={0} aria-pressed={active}
+              onClick={() => { setStatusFilter(s.filter); setPage(1) }}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setStatusFilter(s.filter); setPage(1) } }}
+              className={`rounded-xl px-2 py-2.5 text-center cursor-pointer transition-all ${active ? 'bg-white dark:bg-navy-700 shadow-md ring-2 ring-blue-500/40' : 'glass-card hover:shadow-md'}`}>
+              <p className={`text-xl font-display font-black tabular-nums leading-tight ${s.color}`}>{s.value}</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight mt-0.5">{s.label}</p>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
-      {/* Tabs */}
+      {/* Tabs + type filter in one row */}
       {!isDriver && (
-        <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1 w-fit">
-          {[['list','≡ List'],['calendar','📅 Calendar']].map(([key,lbl]) => (
-            <button key={key} onClick={() => setTab(key)}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${tab===key?'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow':'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
-              {lbl}
-            </button>
-          ))}
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1 w-fit" role="group" aria-label="Trips view">
+            {[
+              { key: 'list', label: 'List', Icon: List },
+              { key: 'calendar', label: 'Calendar', Icon: CalendarDays },
+            ].map(({ key, label, Icon }) => (
+              <button key={key} onClick={() => { setTab(key); setPage(1) }}
+                aria-pressed={tab === key}
+                className={`flex items-center gap-1.5 px-3.5 min-h-[32px] rounded-lg text-xs font-bold transition-all ${tab===key?'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow':'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
+                <Icon size={13} /> {label}
+              </button>
+            ))}
+          </div>
+          <select value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setPage(1) }} aria-label="Filter by trip type"
+            className="px-3 min-h-[36px] text-xs font-bold rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
+            <option value="all">All Types</option>
+            {TRIP_TYPE_LIST.map(t => <option key={t.id} value={t.id}>{t.icon} {t.label}</option>)}
+          </select>
         </div>
       )}
 
@@ -795,30 +907,35 @@ export default function Trips() {
 
       {(tab === 'list' || isDriver) && (
         <>
-          {!isDriver && (
-            <div className="flex flex-wrap gap-2.5 items-center">
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white/70 dark:bg-navy-800/60 flex-1 min-w-[160px] max-w-xs">
-                <Search size={14} className="text-slate-400 flex-shrink-0" />
-                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search bookings…"
-                  className="bg-transparent text-sm text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 outline-none w-full font-body" />
-              </div>
-              <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1 overflow-x-auto no-scrollbar">
-                {['all','draft','pending','approved','assigned','started','completed','cancelled'].map(s => (
-                  <button key={s} onClick={() => setStatusFilter(s)}
-                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap capitalize ${statusFilter===s?'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow':'text-slate-500 dark:text-slate-400'}`}>
-                    {s==='all'?'All':s==='started'?'Active':s.charAt(0).toUpperCase()+s.slice(1)}
-                  </button>
-                ))}
-              </div>
-              <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
-                className="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
-                <option value="all">All Types</option>
-                {TRIP_TYPE_LIST.map(t => <option key={t.id} value={t.id}>{t.icon} {t.label}</option>)}
-              </select>
+          {!isDriver && (statusFilter !== 'all' || typeFilter !== 'all') && (
+            <div className="flex items-center gap-2 text-[11px] text-slate-400 dark:text-slate-500">
+              <span className="tabular-nums">
+                {filtered.length} booking{filtered.length !== 1 ? 's' : ''}
+                {statusFilter !== 'all' && <> · {statusFilter === 'started' ? 'Active' : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}</>}
+                {typeFilter !== 'all' && <> · {TRIP_TYPE_LIST.find(t => t.id === typeFilter)?.label}</>}
+              </span>
+              <button onClick={() => { setStatusFilter('all'); setTypeFilter('all'); setPage(1) }}
+                className="font-bold text-blue-600 dark:text-blue-400 hover:underline">
+                Clear
+              </button>
             </div>
           )}
 
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="space-y-2" role="status" aria-busy="true" aria-label="Loading trips">
+              <span className="sr-only">Loading trips…</span>
+              {[1, 2, 3, 4, 5].map(i => (
+                <div key={i} className="glass-card rounded-xl p-2.5 flex items-center gap-2.5" aria-hidden="true">
+                  <div className="skeleton w-8 h-8 rounded-[10px] flex-shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="skeleton h-3.5 w-1/3 rounded" />
+                    <div className="skeleton h-3 w-2/3 rounded" />
+                  </div>
+                  <div className="skeleton h-5 w-16 rounded-full flex-shrink-0" />
+                </div>
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
             <div className="glass-card rounded-2xl p-12 text-center">
               <Calendar size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
               <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">No bookings found</p>
@@ -829,37 +946,30 @@ export default function Trips() {
               )}
             </div>
           ) : (
-            <div className="space-y-2.5">
-              {filtered.map(booking => {
+            <div className="space-y-2">
+              {pageRows.map(booking => {
                 const isOpen  = expanded === booking.id
                 const typeCfg = TRIP_TYPE_CONFIG[booking.type]
                 return (
-                  <div key={booking.id} className="glass-card rounded-2xl overflow-hidden hover:shadow-md transition-all duration-200">
+                  <div key={booking.id} className="glass-card rounded-xl overflow-hidden hover:shadow-md transition-all duration-200">
                     <div className={`h-0.5 bg-gradient-to-r ${typeCfg?.gradient||'from-slate-400 to-slate-500'}`} />
-                    <div className="flex items-center gap-3 p-4 cursor-pointer select-none" onClick={() => setExpanded(isOpen ? null : booking.id)}>
-                      <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${typeCfg?.gradient||'from-slate-400 to-slate-500'} flex items-center justify-center text-lg flex-shrink-0 shadow-sm`}>
+                    <div className="flex items-center gap-2.5 px-3 py-2 cursor-pointer select-none" onClick={() => setExpanded(isOpen ? null : booking.id)}>
+                      <div className={`w-8 h-8 rounded-[10px] bg-gradient-to-br ${typeCfg?.gradient||'from-slate-400 to-slate-500'} flex items-center justify-center text-sm flex-shrink-0 shadow-sm`}>
                         {typeCfg?.icon}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                          <p className="font-bold text-slate-800 dark:text-white text-sm">{booking.customer}</p>
-                          <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500">{booking.bookingNo}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-bold text-slate-800 dark:text-white text-[13px] truncate">{booking.customer}</p>
+                          <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500 hidden sm:block flex-shrink-0">{booking.bookingNo}</p>
                         </div>
-                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 flex-wrap">
-                          <MapPin size={9} className="flex-shrink-0" />
-                          <span className="truncate max-w-[160px]">{booking.pickup}</span>
-                          {booking.drop && <><span>→</span><span className="truncate max-w-[120px]">{booking.drop}</span></>}
-                        </div>
-                        <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
-                          <Calendar size={9} /><span>{booking.startDate}</span>
-                          {booking.startTime && <span>{booking.startTime}</span>}
-                          {booking.driver && <><User size={9} /><span>{booking.driver}</span></>}
-                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate leading-tight mt-0.5">
+                          {booking.pickup}{booking.drop ? ` → ${booking.drop}` : ''} · {booking.startDate}{booking.driver ? ` · ${booking.driver}` : ''}
+                        </p>
                       </div>
-                      <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         <StatusBadge status={booking.status} />
-                        {booking.fare > 0 && <p className="text-sm font-black text-navy-800 dark:text-blue-300">Rs. {booking.fare.toLocaleString('en-IN')}</p>}
-                        {isOpen ? <ChevronUp size={13} className="text-slate-400" /> : <ChevronDown size={13} className="text-slate-400" />}
+                        {booking.fare > 0 && <p className="text-[13px] font-black text-navy-800 dark:text-blue-300 tabular-nums whitespace-nowrap">Rs. {booking.fare.toLocaleString('en-IN')}</p>}
+                        {isOpen ? <ChevronUp size={13} className="text-slate-400 flex-shrink-0" /> : <ChevronDown size={13} className="text-slate-400 flex-shrink-0" />}
                       </div>
                     </div>
                     {isOpen && (
@@ -880,6 +990,52 @@ export default function Trips() {
                 )
               })}
             </div>
+          )}
+
+          {/* Pagination — 5 cards per page (hidden while a row is open) */}
+          {!loading && filtered.length > 0 && !expanded && (
+          <div className="glass-card rounded-2xl px-3 py-2 flex items-center justify-between gap-3 flex-wrap sticky bottom-3 z-10 shadow-lg">
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 tabular-nums">
+              Page {safePage} of {totalPages} · {filtered.length} booking{filtered.length !== 1 ? 's' : ''}
+            </p>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button onClick={() => setPage(safePage - 1)} disabled={safePage <= 1}
+                aria-label="Previous page"
+                className="min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                ←
+              </button>
+              {pageItems.map((n, i) => n === '…'
+                ? <span key={`e${i}`} className="text-xs text-slate-400 px-1">…</span>
+                : (
+                  <button key={n} onClick={() => setPage(n)}
+                    aria-label={`Go to page ${n}`}
+                    aria-current={n === safePage ? 'page' : undefined}
+                    className={`min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] text-xs font-bold tabular-nums active:scale-95 transition-all ${
+                      n === safePage
+                        ? 'bg-navy-900 dark:bg-blue-600 text-white shadow'
+                        : 'border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700'
+                    }`}>
+                    {n}
+                  </button>
+                ))}
+              <button onClick={() => setPage(safePage + 1)} disabled={safePage >= totalPages}
+                aria-label="Next page"
+                className="min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                →
+              </button>
+              <span className="text-[11px] text-slate-400 dark:text-slate-500 ml-1">Go to</span>
+              <input
+                value={goPage}
+                onChange={e => setGoPage(e.target.value.replace(/[^0-9]/g, ''))}
+                onKeyDown={e => { if (e.key === 'Enter') goToPage() }}
+                onBlur={() => { if (goPage) goToPage() }}
+                placeholder={String(totalPages)}
+                inputMode="numeric"
+                aria-label={`Go to page, 1 to ${totalPages}`}
+                className="w-14 min-h-[36px] rounded-[12px] border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 px-2 text-center text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500 tabular-nums"
+              />
+            </div>
+          </div>
           )}
         </>
       )}

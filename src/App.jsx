@@ -91,7 +91,7 @@ export default function App() {
             <Route element={<ProtectedRoute><CommunicationProvider><AdminProvider><GpsHistoryProvider><AppShell /></GpsHistoryProvider></AdminProvider></CommunicationProvider></ProtectedRoute>}>
               {/* Admin + Manager */}
               <Route path="/"            element={<ProtectedRoute allowedRoles={['admin','manager']}><Dashboard /></ProtectedRoute>} />
-              <Route path="/invoices"    element={<ProtectedRoute allowedRoles={['admin']}><Invoices /></ProtectedRoute>} />
+              <Route path="/invoices"    element={<ProtectedRoute allowedRoles={['admin','manager']}><Invoices /></ProtectedRoute>} />
               <Route path="/trips"       element={<ProtectedRoute allowedRoles={['admin','manager']}><Trips /></ProtectedRoute>} />
               <Route path="/create-trip" element={<ProtectedRoute allowedRoles={['admin','manager']}><CreateTrip /></ProtectedRoute>} />
               <Route path="/customers"   element={<ProtectedRoute allowedRoles={['admin','manager']}><Customers /></ProtectedRoute>} />

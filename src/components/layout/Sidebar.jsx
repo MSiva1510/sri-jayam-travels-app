@@ -16,7 +16,7 @@ import Avatar      from '../ui/Avatar'
 const NAV_ITEMS = [
   // Admin + Manager
   { to: '/',               label: 'Dashboard',    icon: LayoutDashboard, roles: ['admin','manager'] },
-  { to: '/invoices',       label: 'Invoices',      icon: FileText,        roles: ['admin'],           perm: 'invoices' },
+  { to: '/invoices',       label: 'Invoices',      icon: FileText,        roles: ['admin','manager'], perm: 'view_invoices' },
   { to: '/trips',          label: 'Trips',         icon: Route,           roles: ['admin','manager'], perm: 'trips'    },
   { to: '/customers',      label: 'Customers',     icon: Users,           roles: ['admin','manager'], perm: 'customers'},
   { to: '/expenses',       label: 'Expenses',      icon: Receipt,         roles: ['admin','manager'], perm: 'expenses' },

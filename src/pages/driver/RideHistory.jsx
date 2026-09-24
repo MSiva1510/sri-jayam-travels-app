@@ -38,12 +38,13 @@ function buildMergedHistory(bookingTrips, lifecycleHistory, gpsHistory) {
     pauseCount:   lc.pauseCount || 0,
     pauseReason:  lc.pauseReason || null,
     fare:         lc.fare || 0,
+    bata:         Number(lc.bata) || 0,
     km:           lc.km   || 0,
     vehicle:      lc.vehicle || '—',
     driverId:     lc.driverId || '—',
     events:       lc.events  || [],
     gps:          gpsHistory.find(g => g.tripId === lc.tripId) || null,
-    earnings:     lc.fare ? Math.round(lc.fare * 0.12) : 0,
+    earnings:     Number(lc.bata) || 0,
     tripType:     lc.tripType || 'local',
   }))
 
@@ -99,7 +100,7 @@ export default function RideHistory() {
       status:   b.status,
       fare:     b.fare || 0,
       km:       b.km || 0,
-      earnings: b.fare ? Math.round(b.fare * 0.12) : 0,
+      earnings: Number(b.bata) || 0,
       tripType: b.type || 'local',
       driver:   b.driver,
       driver_name: b.driver,
@@ -190,24 +191,20 @@ export default function RideHistory() {
         </div>
       )}
 
-      {/* Earnings bar */}
+      {/* Earnings bar — fare is the company's, bata is yours */}
       <div className="glass-card rounded-2xl p-4">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-1">
           <div>
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Fare Collected</p>
-            <p className="font-display font-black text-slate-800 dark:text-white text-base">Rs. {totalFare.toLocaleString('en-IN')}</p>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Fare Collected (company)</p>
+            <p className="font-display font-black text-slate-800 dark:text-white text-base tabular-nums">Rs. {totalFare.toLocaleString('en-IN')}</p>
           </div>
           <div className="text-right">
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Your Share</p>
-            <p className="font-display font-black text-emerald-600 dark:text-emerald-400 text-base">Rs. {totalEarnings.toLocaleString('en-IN')}</p>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Your Bata</p>
+            <p className="font-display font-black text-emerald-600 dark:text-emerald-400 text-base tabular-nums">Rs. {totalEarnings.toLocaleString('en-IN')}</p>
           </div>
         </div>
-        <div className="h-2 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full"
-            style={{ width: `${totalFare ? Math.round((totalEarnings / totalFare) * 100) : 0}%`, transition: 'width .5s' }} />
-        </div>
-        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5 text-right">
-          {totalFare ? Math.round((totalEarnings / totalFare) * 100) : 0}% of fare is your pay
+        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+          Bata goes straight to you across {history.length} trip{history.length !== 1 ? 's' : ''}.
         </p>
       </div>
 
@@ -218,8 +215,8 @@ export default function RideHistory() {
             { key: 'all',        label: 'All',       count: history.length },
             { key: 'completed',  label: 'Completed', count: history.filter(t => t.rideState === 'completed').length },
             { key: 'cancelled',  label: 'Cancelled', count: history.filter(t => t.rideState === 'cancelled').length },
-            { key: 'gps',        label: '📍 GPS',    count: tripsWithGPS },
-            { key: 'lifecycle',  label: '⚡ Tracked', count: tripsWithLC },
+            { key: 'gps',        label: 'GPS',    count: tripsWithGPS },
+            { key: 'lifecycle',  label: 'Tracked', count: tripsWithLC },
           ].map(f => (
             <button key={f.key} onClick={() => setFilter(f.key)}
               className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${

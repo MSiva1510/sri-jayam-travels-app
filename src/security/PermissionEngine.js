@@ -24,6 +24,7 @@ export const PERMISSIONS = {
   REJECT_EXPENSE:           'reject_expense',
   // Finance
   GENERATE_INVOICE:         'generate_invoice',
+  VIEW_INVOICES:            'view_invoices',
   VIEW_FINANCE:             'view_finance',
   MANAGE_PAYROLL:           'manage_payroll',
   EXPORT_REPORTS:           'export_reports',
@@ -60,6 +61,7 @@ const DEFAULT_MATRIX = {
     [PERMISSIONS.APPROVE_EXPENSE]:         true,
     [PERMISSIONS.REJECT_EXPENSE]:          true,
     [PERMISSIONS.GENERATE_INVOICE]:        false,
+    [PERMISSIONS.VIEW_INVOICES]:           true,
     [PERMISSIONS.VIEW_FINANCE]:            false,
     [PERMISSIONS.MANAGE_PAYROLL]:          true,
     [PERMISSIONS.EXPORT_REPORTS]:          false,

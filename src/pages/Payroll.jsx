@@ -11,7 +11,8 @@ import { useAuth } from '../context/AuthContext'
 import {
   loadSettlements, saveSettlement, deleteSettlement, generateSettlementId,
   loadPayrollSettings, savePayrollSettings,
-  buildSettlement, calculateIncentive,
+  buildSettlement, calculateIncentive, resolveDailyWage,
+  tripDriverAmount,
   SETTLEMENT_STATUSES, getSettlementStatusCfg,
   PAYMENT_METHODS, DEDUCTION_TYPES,
   DEFAULT_PAYROLL_SETTINGS, monthLabel, settlementExists,
@@ -19,6 +20,7 @@ import {
   loadTripPayslips, saveTripPayslip,
 } from '../data/settlementData'
 import { loadExpenses } from '../data/expenseData'
+import { loadBookings } from '../data/tripTypes'
 import { driverRepository } from '../repositories'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import { addAuditEvent } from '../data/auditLogData'
@@ -94,10 +96,14 @@ function SalaryConfigPanel({ drivers, onClose }) {
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState('')
 
-  const updDriver = (name, field, val) => {
+  // Daily wage per driver, keyed by driver id (names change — ids don't).
+  // Number(val) can yield NaN for empty input; normalize so resolveDailyWage
+  // always sees a usable value or falls back cleanly.
+  const updDriver = (id, val) => {
+    const wage = val === '' ? 0 : Number(val)
     setCfg(prev => ({
       ...prev,
-      drivers: { ...prev.drivers, [name]: { ...prev.drivers[name], [field]: Number(val) } }
+      drivers: { ...prev.drivers, [id]: { ...prev.drivers?.[id], dailyWage: Number.isNaN(wage) ? 0 : wage } }
     }))
   }
   const updRule = (i, field, val) => {
@@ -130,24 +136,24 @@ function SalaryConfigPanel({ drivers, onClose }) {
         </div>
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
 
-          {/* Per-driver settings */}
+          {/* Per-driver settings — daily wage (Rs./day, paid only for days driven) */}
           <div>
-            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Driver Salary Settings</p>
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Driver Daily-Wage Settings</p>
             {(drivers || []).map(d => (
               <div key={d.id} className="mb-4 p-3 bg-slate-50 dark:bg-navy-800/50 rounded-xl">
                 <div className="flex items-center gap-2 mb-3">
                   <Avatar name={d.name} size={26} />
                   <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{d.name}</p>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {[['baseSalary','Base Salary (Rs.)'],['dailyBata','Daily Bata (Rs.)']].map(([f,l]) => (
-                    <div key={f}>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{l}</label>
-                      <input type="number" value={cfg.drivers?.[d.name]?.[f] ?? ''}
-                        onChange={e => updDriver(d.name, f, e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-800 dark:text-slate-100 focus:outline-none" />
-                    </div>
-                  ))}
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Daily Wage (Rs./day — paid only for days driven)</label>
+                  <input type="number" min="0" value={cfg.drivers?.[d.id]?.dailyWage ?? cfg.drivers?.[d.name]?.dailyWage ?? ''}
+                    placeholder={`Default Rs. ${cfg.defaultDailyWage ?? 600}/day`}
+                    onChange={e => updDriver(d.id, e.target.value)}
+                    className="w-full px-2.5 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-800 dark:text-slate-100 focus:outline-none" />
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                    Effective: Rs. {resolveDailyWage(d.id, cfg, d.name).toLocaleString('en-IN')}/day · Bata goes straight to the driver, never through payroll.
+                  </p>
                 </div>
               </div>
             ))}
@@ -199,27 +205,49 @@ function SalaryConfigPanel({ drivers, onClose }) {
 function SettlementModal({ settlement, drivers, onClose, onSave, currentUser }) {
   const [settings, setSettings] = useState(DEFAULT_PAYROLL_SETTINGS)
   const [expenses, setExpenses] = useState([])
+  const [bookings, setBookings] = useState([])
   useEffect(() => {
-    Promise.all([loadPayrollSettings(), loadExpenses()]).then(([s, e]) => {
+    Promise.all([loadPayrollSettings(), loadExpenses(), loadBookings()]).then(([s, e, b]) => {
       setSettings(s ?? DEFAULT_PAYROLL_SETTINGS)
       setExpenses(Array.isArray(e) ? e : [])
-    })
+      setBookings(Array.isArray(b) ? b : [])
+    }).catch(() => {})
   }, [])
   const isEdit   = !!settlement?.id
 
   const [form, setForm] = useState(() => settlement || {
     driver: drivers?.[0]?.name || '',
     month: CUR_MONTH, year: CUR_YEAR,
-    workingDays: 26, completedTrips: 0, totalTrips: 0,
+    daysWorked: 0, completedTrips: 0, totalTrips: 0,
     bonus: 0, deductions: [], notes: '',
-    manualBata: 0, manualFuel: 0, manualParking: 0,
+    manualFuel: 0, manualParking: 0,
   })
   const [error, setError] = useState('')
 
   const upd = (field, val) => setForm(f => ({ ...f, [field]: val }))
 
-  // Live calculation
-  const calc = useMemo(() => buildSettlement(form, expenses, settings), [form, expenses, settings])
+  // Auto-fill days driven + trip counts from completed bookings
+  // (editable afterwards — a driven day = a date with a completed trip).
+  useEffect(() => {
+    if (isEdit || bookings.length === 0) return
+    setForm(f => {
+      if (!f.driver || !f.month || !f.year) return f
+      const key = `${f.year}-${String(f.month).padStart(2, '0')}`
+      const mine = bookings.filter(b =>
+        b.driver === f.driver &&
+        (b.startDate || '').startsWith(key)
+      )
+      const done = mine.filter(b => ['completed', 'closed'].includes(b.status))
+      const days = new Set(done.map(b => b.startDate)).size
+      return { ...f, daysWorked: days, completedTrips: done.length, totalTrips: mine.length }
+    })
+  }, [isEdit, bookings, form.driver, form.month, form.year])
+
+  // Live calculation (daily wage × days driven; bata stays with the driver)
+  const calc = useMemo(() => {
+    const d = (drivers || []).find(x => x.name === form.driver)
+    return buildSettlement({ ...form, driverId: d?.id }, expenses, settings)
+  }, [form, expenses, settings, drivers])
 
   // Deductions management
   const addDeduction = () => setForm(f => ({ ...f, deductions: [...(f.deductions||[]), { type:'advance', label:'Advance Salary', amount:0 }] }))
@@ -241,13 +269,15 @@ function SettlementModal({ settlement, drivers, onClose, onSave, currentUser }) 
       }
     }
     const now  = new Date().toISOString()
+    const days = Number(form.daysWorked ?? form.workingDays ?? 0)
     const full = {
       ...form,
       ...calc,
       id:         form.id || generateSettlementId(),
       month:      Number(form.month),
       year:       Number(form.year),
-      workingDays:Number(form.workingDays),
+      daysWorked: days,
+      workingDays: days,
       completedTrips:Number(form.completedTrips),
       totalTrips: Number(form.totalTrips),
       status:     form.status || 'draft',
@@ -287,16 +317,17 @@ function SettlementModal({ settlement, drivers, onClose, onSave, currentUser }) 
               {MONTHS.map((m,i) => <option key={i+1} value={i+1}>{m}</option>)}
             </FSelect>
             <FInput label="Year" field="year" value={form.year} onChange={upd} type="number" required />
-            <FInput label="Working Days" field="workingDays" value={form.workingDays} onChange={upd} type="number" />
+            <FInput label="Days Worked (driven days)" field="daysWorked" value={form.daysWorked} onChange={upd} type="number" />
             <FInput label="Completed Trips" field="completedTrips" value={form.completedTrips} onChange={upd} type="number" />
             <FInput label="Total Trips" field="totalTrips" value={form.totalTrips} onChange={upd} type="number" />
           </div>
+          <p className="text-[10px] text-slate-400 dark:text-slate-500">Days, completed & total trips auto-fill from completed bookings — editable.</p>
 
-          {/* Salary preview — live */}
+          {/* Salary preview — live (daily wage × days driven; bata goes to driver) */}
           <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-4 border border-slate-200 dark:border-navy-700">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Live Calculation</p>
-            <AmtRow label="Base Salary"        value={calc.baseSalary}   />
-            <AmtRow label="Driver Bata"         value={calc.bataAmt}      sub />
+            <AmtRow label={`Daily Wage × ${calc.daysWorked} day${calc.daysWorked !== 1 ? 's' : ''} (Rs. ${calc.dailyWage.toLocaleString('en-IN')}/day)`} value={calc.wagePay} />
+            {calc.bataDirect > 0 && <AmtRow label="Bata — direct to driver (not in payout)" value={calc.bataDirect} sub />}
             <AmtRow label="Fuel Reimbursement"  value={calc.fuelAmt}      sub />
             <AmtRow label="Parking"             value={calc.parkingAmt}   sub />
             <AmtRow label={`Incentive (${form.completedTrips} trips)`} value={calc.incentive} sub />
@@ -310,8 +341,7 @@ function SettlementModal({ settlement, drivers, onClose, onSave, currentUser }) 
 
           {/* Manual overrides */}
           <SectionHead title="Manual Overrides (if not from expenses)" />
-          <div className="grid grid-cols-3 gap-2">
-            <FInput label="Bata (Rs.)"    field="manualBata"    value={form.manualBata}    onChange={upd} type="number" placeholder="0" />
+          <div className="grid grid-cols-2 gap-2">
             <FInput label="Fuel (Rs.)"    field="manualFuel"    value={form.manualFuel}    onChange={upd} type="number" placeholder="0" />
             <FInput label="Parking (Rs.)" field="manualParking" value={form.manualParking} onChange={upd} type="number" placeholder="0" />
           </div>
@@ -362,16 +392,18 @@ function SettlementModal({ settlement, drivers, onClose, onSave, currentUser }) 
 //  Module 4: Payslip View
 // ─────────────────────────────────────────────────────────────
 function PayslipView({ settlement, onClose }) {
-  const tripAllowance  = Number(settlement.trip_allowance  || settlement.bataAmt  || 0)
+  const wagePay        = Number(settlement.wagePay ?? settlement.baseSalary ?? 0)
+  const daysWorked     = Number(settlement.daysWorked ?? settlement.workingDays ?? 0)
+  const dailyWage      = Number(settlement.dailyWage ?? (daysWorked > 0 ? Math.round(wagePay / daysWorked) : 0))
+  const bataDirect     = Number(settlement.bataDirect ?? settlement.bataAmt ?? 0)
   const nightAllowance = Number(settlement.night_allowance || 0)
   const fuelIncentive  = Number(settlement.fuel_incentive  || settlement.fuelAmt  || 0)
   const perfBonus      = Number(settlement.performance_bonus || settlement.bonus  || 0)
   const penalty        = Number(settlement.penalty  || 0)
   const advance        = Number(settlement.advance  || 0)
-  const baseSalary     = Number(settlement.baseSalary || 0)
   const parking        = Number(settlement.parkingAmt || 0)
   const incentive      = Number(settlement.incentive  || 0)
-  const totalEarnings  = baseSalary + tripAllowance + nightAllowance + fuelIncentive + perfBonus + parking + incentive
+  const totalEarnings  = wagePay + nightAllowance + fuelIncentive + perfBonus + parking + incentive
   const totalDeductions= Number(settlement.totalDeductions || 0) + penalty + advance
   const netSalary      = totalEarnings - totalDeductions
 
@@ -382,13 +414,14 @@ function PayslipView({ settlement, onClose }) {
     </head><body><div class="header"><div style="font-size:10px;opacity:.6;text-transform:uppercase">Sri Jayam Travels</div><h2 style="margin:4px 0">Monthly Payslip</h2><p style="margin:0;opacity:.6">${monthLabel(settlement.month,settlement.year)} · ${settlement.driver}</p></div>
     <div style="border:1px solid #e2e8f0;border-top:none;padding:16px;border-radius:0 0 8px 8px">
     <table><thead><tr><th>Attendance</th><th style="text-align:right"></th></tr></thead><tbody>
-    <tr><td style="padding:6px 4px">Working Days</td><td style="padding:6px 4px;text-align:right;font-weight:700">${settlement.workingDays||0}</td></tr>
+    <tr><td style="padding:6px 4px">Days Driven</td><td style="padding:6px 4px;text-align:right;font-weight:700">${daysWorked}</td></tr>
     <tr><td style="padding:6px 4px">Total Trips</td><td style="padding:6px 4px;text-align:right;font-weight:700">${settlement.totalTrips||0}</td></tr>
     <tr><td style="padding:6px 4px">Completed Trips</td><td style="padding:6px 4px;text-align:right;font-weight:700">${settlement.completedTrips||0}</td></tr>
     </tbody></table>
     <table style="margin-top:12px"><thead><tr><th>Earnings</th><th></th></tr></thead><tbody>
-    ${tableRow('Base Salary',baseSalary)}
-    ${tripAllowance?tableRow('Trip Allowance',tripAllowance):''}${nightAllowance?tableRow('Night Allowance',nightAllowance):''}
+    ${tableRow(`Daily Wage x ${daysWorked} days`,wagePay)}
+    ${bataDirect?`<tr><td style="padding:6px 4px">Bata (direct to driver — not in payout)</td><td style="padding:6px 4px;text-align:right;font-weight:700">Rs. ${bataDirect.toLocaleString('en-IN')}</td></tr>`:''}
+    ${nightAllowance?tableRow('Night Allowance',nightAllowance):''}
     ${fuelIncentive?tableRow('Fuel Incentive',fuelIncentive):''}${parking?tableRow('Parking',parking):''}
     ${incentive?tableRow('Trip Incentive',incentive):''}${perfBonus?tableRow('Performance Bonus',perfBonus):''}
     <tr style="font-weight:900;background:#f8fafc"><td style="padding:8px 4px">Gross Earnings</td><td style="padding:8px 4px;text-align:right">Rs. ${totalEarnings.toLocaleString('en-IN')}</td></tr>
@@ -434,7 +467,7 @@ function PayslipView({ settlement, onClose }) {
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
           {/* Attendance */}
           <div className="grid grid-cols-3 gap-2">
-            {[{label:'Work Days',value:settlement.workingDays||0},{label:'Trips',value:settlement.totalTrips||0},{label:'Completed',value:settlement.completedTrips||0}].map(s=>(
+            {[{label:'Days Driven',value:daysWorked},{label:'Trips',value:settlement.totalTrips||0},{label:'Completed',value:settlement.completedTrips||0}].map(s=>(
               <div key={s.label} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-2.5 text-center border border-slate-100 dark:border-navy-700">
                 <p className="text-base font-black text-slate-700 dark:text-slate-200">{s.value}</p>
                 <p className="text-[10px] text-slate-400 dark:text-slate-500">{s.label}</p>
@@ -445,8 +478,12 @@ function PayslipView({ settlement, onClose }) {
           {/* Earnings */}
           <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700">
             <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-2">Earnings</p>
-            <AmtRow label="Base Salary"       value={baseSalary}    />
-            {tripAllowance  > 0 && <AmtRow label="Trip Allowance"    value={tripAllowance}  sub />}
+            <AmtRow label={`Daily Wage × ${daysWorked} day${daysWorked !== 1 ? 's' : ''}`} value={wagePay} />
+            {bataDirect > 0 && (
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                Bata Rs. {bataDirect.toLocaleString('en-IN')} went straight to the driver — not in payout.
+              </p>
+            )}
             {nightAllowance > 0 && <AmtRow label="Night Allowance"   value={nightAllowance} sub />}
             {fuelIncentive  > 0 && <AmtRow label="Fuel Incentive"    value={fuelIncentive}  sub />}
             {parking        > 0 && <AmtRow label="Parking Reimb."    value={parking}        sub />}
@@ -633,8 +670,12 @@ function SettlementDetail({ s, onEdit, onDelete, onApprove, onSubmit, onMarkPaid
     <div className="border-t border-slate-100 dark:border-navy-700 p-4 bg-slate-50/50 dark:bg-navy-800/20 space-y-3">
       {/* Breakdown */}
       <div className="bg-white dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700">
-        <AmtRow label="Base Salary"         value={s.baseSalary}       />
-        <AmtRow label="Bata"                value={s.bataAmt}          sub />
+        <AmtRow label={`Daily Wage × ${Number(s.daysWorked ?? s.workingDays ?? 0)} days`} value={s.wagePay ?? s.baseSalary} />
+        {Number(s.bataDirect ?? s.bataAmt ?? 0) > 0 && (
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+            Bata Rs. {Number(s.bataDirect ?? s.bataAmt ?? 0).toLocaleString('en-IN')} direct to driver — not in payout.
+          </p>
+        )}
         <AmtRow label="Fuel"                value={s.fuelAmt}          sub />
         <AmtRow label="Parking"             value={s.parkingAmt}       sub />
         <AmtRow label="Incentive"           value={s.incentive}        sub />
@@ -720,6 +761,7 @@ function SettlementDetail({ s, onEdit, onDelete, onApprove, onSubmit, onMarkPaid
 function TripPayslipCard({ p }) {
   const [open, setOpen] = useState(false)
   const isPaid = p.status === 'paid'
+  const driverGets = tripDriverAmount(p)
   return (
     <div className="glass-card rounded-2xl overflow-hidden">
       <div className="flex items-center gap-3 p-4 cursor-pointer" onClick={() => setOpen(v => !v)}>
@@ -736,7 +778,7 @@ function TripPayslipCard({ p }) {
           <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500">{p.bookingNo}</p>
         </div>
         <div className="text-right flex-shrink-0">
-          <p className="text-base font-black text-emerald-600 dark:text-emerald-400">Rs. {p.net.toLocaleString('en-IN')}</p>
+          <p className="text-base font-black text-emerald-600 dark:text-emerald-400">Rs. {driverGets.toLocaleString('en-IN')}</p>
           <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${isPaid ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'}`}>
             {isPaid ? '✓ Paid' : 'Pending'}
           </span>
@@ -747,13 +789,13 @@ function TripPayslipCard({ p }) {
       {open && (
         <div className="border-t border-slate-100 dark:border-navy-700 px-4 pb-4 pt-3 space-y-2 bg-slate-50/50 dark:bg-navy-800/20">
           <div className="bg-white dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700 space-y-1.5">
-            <div className="flex justify-between text-xs"><span className="text-slate-500 dark:text-slate-400">Trip Fare</span><span className="font-bold text-slate-700 dark:text-slate-200">Rs. {p.fare.toLocaleString('en-IN')}</span></div>
-            {p.bata > 0 && <div className="flex justify-between text-xs"><span className="text-slate-500 dark:text-slate-400 pl-2">+ Daily Bata</span><span className="font-bold text-emerald-600 dark:text-emerald-400">Rs. {p.bata.toLocaleString('en-IN')}</span></div>}
+            <div className="flex justify-between text-xs"><span className="text-slate-500 dark:text-slate-400">Trip Fare (company)</span><span className="font-bold text-slate-700 dark:text-slate-200">Rs. {p.fare.toLocaleString('en-IN')}</span></div>
+            {p.bata > 0 && <div className="flex justify-between text-xs"><span className="text-slate-500 dark:text-slate-400 pl-2">+ Bata (straight to driver)</span><span className="font-bold text-emerald-600 dark:text-emerald-400">Rs. {p.bata.toLocaleString('en-IN')}</span></div>}
             {p.fuel > 0 && <div className="flex justify-between text-xs"><span className="text-slate-500 dark:text-slate-400 pl-2">+ Fuel</span><span className="font-bold text-emerald-600 dark:text-emerald-400">Rs. {p.fuel.toLocaleString('en-IN')}</span></div>}
             {p.parking > 0 && <div className="flex justify-between text-xs"><span className="text-slate-500 dark:text-slate-400 pl-2">+ Parking</span><span className="font-bold text-emerald-600 dark:text-emerald-400">Rs. {p.parking.toLocaleString('en-IN')}</span></div>}
             <div className="flex justify-between pt-1.5 border-t border-slate-100 dark:border-navy-700">
-              <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Net</span>
-              <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">Rs. {p.net.toLocaleString('en-IN')}</span>
+              <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Driver Gets</span>
+              <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">Rs. {driverGets.toLocaleString('en-IN')}</span>
             </div>
           </div>
           {isPaid && p.paidAt && (
@@ -776,9 +818,9 @@ function DriverPayslipPortal({ user }) {
   useEffect(()=>{ loadTripPayslips().then(p=>setAllPay(Array.isArray(p)?p:[])) },[])
   const mine = _allPay.filter(p => p.driver === user?.name)
 
-  const totalEarned = mine.reduce((s, p) => s + p.net, 0)
-  const totalPaid   = mine.filter(p => p.status === 'paid').reduce((s, p) => s + p.net, 0)
-  const pending     = mine.filter(p => p.status === 'pending').reduce((s, p) => s + p.net, 0)
+  const totalEarned = mine.reduce((s, p) => s + tripDriverAmount(p), 0)
+  const totalPaid   = mine.filter(p => p.status === 'paid').reduce((s, p) => s + tripDriverAmount(p), 0)
+  const pending     = mine.filter(p => p.status === 'pending').reduce((s, p) => s + tripDriverAmount(p), 0)
 
   return (
     <div className="space-y-4">
@@ -1000,8 +1042,8 @@ export default function Payroll() {
         const filteredTP = tripPayslips.filter(p =>
           (driverFilter === 'all' || p.driver === driverFilter)
         )
-        const tpPending = tripPayslips.filter(p => p.status === 'pending').reduce((s,p) => s+p.net, 0)
-        const tpPaid    = tripPayslips.filter(p => p.status === 'paid').reduce((s,p) => s+p.net, 0)
+        const tpPending = tripPayslips.filter(p => p.status === 'pending').reduce((s,p) => s+tripDriverAmount(p), 0)
+        const tpPaid    = tripPayslips.filter(p => p.status === 'paid').reduce((s,p) => s+tripDriverAmount(p), 0)
         return (
           <div className="space-y-4">
             {/* KPIs */}
@@ -1036,7 +1078,7 @@ export default function Payroll() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-slate-50/80 dark:bg-navy-800/50 border-b border-slate-100 dark:border-navy-700">
-                        {['Payslip ID','Driver','Customer','Date','Booking','Fare','Bata','Net','Status','Action'].map(h => (
+                        {['Payslip ID','Driver','Customer','Date','Booking','Fare (Co.)','Bata (Driver)','Driver Gets','Status','Action'].map(h => (
                           <th key={h} className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
@@ -1051,7 +1093,7 @@ export default function Payroll() {
                           <td className="px-3 py-2.5 text-[10px] font-mono text-slate-400">{p.bookingNo}</td>
                           <td className="px-3 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">Rs.{p.fare.toLocaleString('en-IN')}</td>
                           <td className="px-3 py-2.5 text-xs text-emerald-600 dark:text-emerald-400">Rs.{p.bata.toLocaleString('en-IN')}</td>
-                          <td className="px-3 py-2.5 text-xs font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">Rs.{p.net.toLocaleString('en-IN')}</td>
+                          <td className="px-3 py-2.5 text-xs font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">Rs.{tripDriverAmount(p).toLocaleString('en-IN')}</td>
                           <td className="px-3 py-2.5">
                             <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
                               p.status === 'paid'

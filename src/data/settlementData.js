@@ -25,11 +25,11 @@ export const DEDUCTION_TYPES = [
 ]
 
 export const DEFAULT_PAYROLL_SETTINGS = {
-  drivers: {
-    Ramanan:      { baseSalary: 18000, dailyBata: 300, perTripIncentive: 0 },
-    Babu:         { baseSalary: 17000, dailyBata: 300, perTripIncentive: 0 },
-    Rajasekharan: { baseSalary: 16000, dailyBata: 300, perTripIncentive: 0 },
-  },
+  // Per-driver daily wage, keyed by driver id (legacy rows may use the name).
+  // No punched-in names here — wages resolve from Supabase drivers + settings.
+  drivers: {},
+  // Fallback daily wage (Rs./day) when a driver has no configured wage.
+  defaultDailyWage: 600,
   incentiveRules: [
     { minTrips: 1,   maxTrips: 20,  bonus: 0    },
     { minTrips: 21,  maxTrips: 40,  bonus: 500  },
@@ -37,6 +37,32 @@ export const DEFAULT_PAYROLL_SETTINGS = {
     { minTrips: 61,  maxTrips: 999, bonus: 2000 },
   ],
   updatedAt: null,
+}
+
+// ── Daily wage resolution ───────────────────────────────────────
+// Prefers driver-specific wage (by id, then name); understands legacy
+// monthly shapes ({ baseSalary } → per-day, { dailyBata } as wage).
+export function resolveDailyWage(driverIdOrName, settings, driverNameFallback) {
+  const table = settings?.drivers || {}
+  const byId = driverIdOrName != null ? table[driverIdOrName] : undefined
+  const byName = driverNameFallback ? table[driverNameFallback] : undefined
+  const cfg = byId || byName || table[driverIdOrName]
+  if (cfg) {
+    if (Number(cfg.dailyWage) > 0) return Number(cfg.dailyWage)
+    if (Number(cfg.dailyBata) > 0) return Number(cfg.dailyBata)
+    if (Number(cfg.baseSalary) > 0) return Math.round(Number(cfg.baseSalary) / 26)
+  }
+  return Number(settings?.defaultDailyWage) > 0 ? Number(settings.defaultDailyWage) : 600
+}
+
+// ── Trip money split ────────────────────────────────────────────
+// Bata goes straight to the driver (never company money).
+// A trip payslip therefore records: fare = company, bata = driver.
+export function tripDriverAmount(p = {}) {
+  return Number(p.driver_amount ?? p.bata ?? 0)
+}
+export function tripCompanyAmount(p = {}) {
+  return Number(p.company_amount ?? p.fare ?? 0)
 }
 
 // ── Supabase payroll settings ─────────────────────────────────
@@ -79,18 +105,23 @@ export function calculateIncentive(completedTrips, rules) {
 }
 
 // ── Build settlement (pure computation — no storage) ──────────
+// Daily-wage model: drivers are paid per day they drive
+// (wagePay = dailyWage × daysWorked). Bata goes straight to the
+// driver, so it is reported as info (bataDirect) and NEVER added
+// to the company payout.
 export function buildSettlement({
-  driver, month, year, workingDays,
+  driver, driverId, month, year, workingDays, daysWorked,
   completedTrips, totalTrips,
   deductions = [],
-  manualBata = 0, manualFuel = 0, manualParking = 0,
+  manualFuel = 0, manualParking = 0,
   bonus = 0, notes = '',
   addedBy = '',
 }, expenses, settings) {
-  const driverCfg   = settings?.drivers?.[driver] || { baseSalary: 15000, dailyBata: 250 }
-  const monthKey    = `${year}-${String(month).padStart(2,'0')}`
-  const driverExps  = (expenses || []).filter(e =>
-    e.driver === driver &&
+  const dailyWage     = resolveDailyWage(driverId || driver, settings, driver)
+  const days          = Number(daysWorked ?? workingDays ?? 0)
+  const monthKey      = `${year}-${String(month).padStart(2,'0')}`
+  const driverExps    = (expenses || []).filter(e =>
+    (e.driver === driver || (driverId != null && e.driverId === driverId)) &&
     e.date?.startsWith(monthKey) &&
     e.status === 'approved'
   )
@@ -98,18 +129,19 @@ export function buildSettlement({
   const expFuel    = driverExps.filter(e => e.type === 'fuel').reduce((s,e) => s+e.amount, 0)
   const expParking = driverExps.filter(e => e.type === 'parking').reduce((s,e) => s+e.amount, 0)
 
-  const bataAmt    = expBata    || manualBata
+  const bataDirect = expBata
   const fuelAmt    = expFuel    || manualFuel
   const parkingAmt = expParking || manualParking
 
-  const baseSalary      = driverCfg.baseSalary || 15000
+  const wagePay         = dailyWage * days
   const incentive       = calculateIncentive(completedTrips, settings?.incentiveRules || DEFAULT_PAYROLL_SETTINGS.incentiveRules)
   const totalDeductions = deductions.reduce((s,d) => s + (d.amount || 0), 0)
-  const grossAmount     = baseSalary + bataAmt + fuelAmt + parkingAmt + incentive + bonus
+  const grossAmount     = wagePay + fuelAmt + parkingAmt + incentive + bonus
   const netAmount       = Math.max(0, grossAmount - totalDeductions)
 
   return {
-    baseSalary, bataAmt, fuelAmt, parkingAmt,
+    dailyWage, daysWorked: days, wagePay,
+    bataDirect, fuelAmt, parkingAmt,
     incentive, bonus,
     grossAmount, totalDeductions, netAmount,
     deductions,
@@ -159,14 +191,22 @@ export function normalizeSettlement(row = {}) {
     ? row.deductions.reduce((s, d) => s + (Number(d.amount) || 0), 0)
     : Number(row.totalDeductions ?? row.deductions ?? 0)
   const baseSalary = Number(row.baseSalary ?? row.basic_pay ?? 0)
+  const dailyWage = Number(row.dailyWage ?? row.daily_wage ?? 0)
+  const daysWorked = Number(row.daysWorked ?? row.days_worked ?? row.workingDays ?? row.working_days ?? 0)
+  const wagePay = Number(row.wagePay ?? row.wage_pay ?? (dailyWage > 0 && daysWorked > 0 ? dailyWage * daysWorked : baseSalary))
+  const bataDirect = Number(row.bataDirect ?? row.bata_direct ?? row.bataAmt ?? row.bata_amt ?? 0)
   const incentive = Number(row.incentive ?? 0)
   const bonus = Number(row.bonus ?? 0)
-  const grossAmount = Number(row.grossAmount ?? row.gross_amount ?? (baseSalary + incentive + bonus))
+  const grossAmount = Number(row.grossAmount ?? row.gross_amount ?? (wagePay + incentive + bonus))
   return {
     ...row,
     id: row.id || row.settlement_id,
     driver: row.driver ?? row.driver_name ?? row.driver_id ?? '',
     baseSalary,
+    dailyWage,
+    daysWorked,
+    wagePay,
+    bataDirect,
     incentive,
     bonus,
     grossAmount,
@@ -263,17 +303,22 @@ async function _loadTripPayslips() {
 export const loadTripPayslips = withCache('tripPayslips', _loadTripPayslips)
 
 export function normalizeTripPayslip(row = {}) {
+  const fare = Number(row.fare ?? row.base_amount ?? 0)
+  const bata = Number(row.bata ?? row.incentive_amount ?? 0)
   return {
     ...row,
     id: row.id || row.payslip_id,
     bookingId: row.bookingId ?? row.booking_id ?? '',
     bookingNo: row.bookingNo ?? row.booking_number ?? row.booking_id ?? '',
     driver: row.driver ?? row.driver_name ?? row.driver_id ?? '',
-    fare: Number(row.fare ?? row.base_amount ?? 0),
-    bata: Number(row.bata ?? row.incentive_amount ?? 0),
+    fare,
+    bata,
     fuel: Number(row.fuel ?? 0),
     parking: Number(row.parking ?? 0),
-    net: Number(row.net ?? row.net_amount ?? 0),
+    // Driver's take = bata (straight to driver); company keeps the fare.
+    driver_amount: Number(row.driver_amount ?? bata),
+    company_amount: Number(row.company_amount ?? fare),
+    net: Number(row.net ?? row.net_amount ?? bata),
     paidAt: row.paidAt ?? row.paid_at ?? null,
     createdAt: row.createdAt ?? row.created_at ?? row.generated_at ?? '',
   }
@@ -298,11 +343,11 @@ export async function saveTripPayslip(payslip) {
 }
 
 // ── Build a per-trip payslip from a completed booking ────────
-export function buildTripPayslip(booking, settings) {
-  const driverCfg = settings?.drivers?.[booking.driver] || {}
-  const bata      = driverCfg.dailyBata || 0
-  const fare      = booking.fare || 0
-  const net       = fare + bata
+// Bata goes straight to the driver: the trip's own bata is the
+// driver's take, the fare stays with the company.
+export function buildTripPayslip(booking) {
+  const fare      = Number(booking.fare || 0)
+  const bata      = Number(booking.bata || 0)
   return {
     id:        generateTripPayslipId(),
     bookingId: booking.id,
@@ -317,7 +362,9 @@ export function buildTripPayslip(booking, settings) {
     bata,
     fuel:      0,
     parking:   0,
-    net,
+    driver_amount:  bata,
+    company_amount: fare,
+    net:       bata,
     status:    'pending',
     paidAt:    null,
     paidBy:    null,

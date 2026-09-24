@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Plus, Search, Phone, MapPin, Edit2, Trash2,
+  Plus, Phone, MapPin, Edit2, Trash2,
   X, ChevronDown, ChevronUp, Building2,
-  FileText, Star, Calendar, CheckCircle,
+  FileText, Star, Repeat, Ban, Calendar, CheckCircle,
   AlertTriangle, User, Navigation,
 } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
@@ -329,8 +329,8 @@ function CustomerModal({ customer, onClose, onSave }) {
               {isEdit ? form.name : 'New Customer'}
             </h3>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700">
-            <X size={15} />
+          <button onClick={onClose} aria-label="Close customer form" className="min-w-[36px] min-h-[36px] w-9 h-9 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700 active:scale-95 transition-all">
+            <X size={16} />
           </button>
         </div>
 
@@ -523,21 +523,31 @@ function CustomerModal({ customer, onClose, onSave }) {
 // ─────────────────────────────────────────────────────────────
 //  Customer Profile (expanded details)
 // ─────────────────────────────────────────────────────────────
-function CustomerProfile({ customer, bookings, onEdit, onDelete, onBooking, canEdit, canDelete }) {
+function CustomerProfile({ customer, bookings, onEdit, onDelete, onBooking, onFlag, canEdit, canDelete }) {
   const isCorp = customer.type === 'corporate' || customer.type === 'agent'
   const stats = getCustomerStats(customer.id, customer.name, bookings)
 
-  const renderField = (label, value, icon = null) => (
+  const renderField = (label, value, icon = null, href = null) => (
     value ? (
       <div className="flex items-start gap-2.5">
         {icon && <span className="text-slate-400 dark:text-slate-500 flex-shrink-0 mt-0.5">{icon}</span>}
         <div className="flex-1 min-w-0">
           <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">{label}</p>
-          <p className="text-slate-800 dark:text-slate-100 text-sm break-words">{value}</p>
+          {href ? (
+            <a href={href} className="text-blue-600 dark:text-blue-400 text-sm font-semibold break-words hover:underline">{value}</a>
+          ) : (
+            <p className="text-slate-800 dark:text-slate-100 text-sm break-words">{value}</p>
+          )}
         </div>
       </div>
     ) : null
   )
+
+  const flags = [
+    { key: 'isVip',               label: 'VIP',      Icon: Star,   on: 'border-amber-400 bg-amber-50 dark:bg-amber-900/15 text-amber-700 dark:text-amber-300'  },
+    { key: 'isFrequentTraveller', label: 'Frequent', Icon: Repeat, on: 'border-blue-400 bg-blue-50 dark:bg-blue-900/15 text-blue-700 dark:text-blue-300'      },
+    { key: 'isBlacklisted',       label: 'Listed',   Icon: Ban,    on: 'border-red-400 bg-red-50 dark:bg-red-900/15 text-red-700 dark:text-red-300'            },
+  ]
 
   return (
     <div className="bg-slate-50/50 dark:bg-navy-800/30 border-t border-slate-100 dark:border-navy-700 px-4 py-4 space-y-4">
@@ -556,7 +566,7 @@ function CustomerProfile({ customer, bookings, onEdit, onDelete, onBooking, canE
         {renderField('Customer No.', customer.customer_id)}
         {renderField('Name', customer.name)}
         {renderField('Type', getCustomerTypeCfg(customer.type).label)}
-        {renderField('Mobile', customer.mobile, <Phone size={14} />)}
+        {renderField('Mobile', customer.mobile, <Phone size={14} />, `tel:${customer.mobile}`)}
         {renderField('Alternate', customer.altMobile)}
         {renderField('Email', customer.email)}
         {renderField('Status', customer.status)}
@@ -637,18 +647,39 @@ function CustomerProfile({ customer, bookings, onEdit, onDelete, onBooking, canE
         </>
       )}
 
+      {/* Quick flags — tap to flag/unflag without opening Edit */}
+      {canEdit && (
+        <div className="border-t border-slate-200 dark:border-navy-600 pt-3 flex gap-2 flex-wrap">
+          {flags.map(({ key, label, Icon, on }) => {
+            const isOn = !!customer[key]
+            return (
+              <button key={key} onClick={() => onFlag && onFlag(customer, key)}
+                aria-pressed={isOn}
+                className={`flex items-center gap-1.5 px-3 min-h-[32px] rounded-lg border text-[11px] font-bold transition-all active:scale-95 ${
+                  isOn ? on : 'border-slate-200 dark:border-navy-700 text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-navy-800'
+                }`}>
+                <Icon size={12} /> {label}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       {/* Actions */}
       <div className="border-t border-slate-200 dark:border-navy-600 pt-3 flex gap-2">
         {canEdit && (
-          <button onClick={() => onEdit(customer)} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-bold hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all flex-1">
+          <button onClick={() => onEdit(customer)} aria-label={`Edit ${customer.name}`}
+            className="flex items-center gap-2 px-3 py-2 min-h-[36px] rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-bold hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all flex-1">
             <Edit2 size={12} /> Edit
           </button>
         )}
-        <button onClick={() => onBooking(customer)} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-xs font-bold hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-all flex-1">
+        <button onClick={() => onBooking(customer)} aria-label={`Book trip for ${customer.name}`}
+          className="flex items-center gap-2 px-3 py-2 min-h-[36px] rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-xs font-bold hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-all flex-1">
           <Calendar size={12} /> Book Trip
         </button>
         {canDelete && (
-          <button onClick={() => onDelete(customer.id)} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-xs font-bold hover:bg-red-200 dark:hover:bg-red-900/50 transition-all">
+          <button onClick={() => onDelete(customer.id)} aria-label={`Delete ${customer.name}`}
+            className="flex items-center gap-2 px-3 py-2 min-h-[36px] rounded-lg bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-xs font-bold hover:bg-red-200 dark:hover:bg-red-900/50 transition-all">
             <Trash2 size={12} />
           </button>
         )}
@@ -676,34 +707,6 @@ function CustomerProfile({ customer, bookings, onEdit, onDelete, onBooking, canE
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Quick Booking Modal
-// ─────────────────────────────────────────────────────────────
-function QuickBookingModal({ customer, onClose }) {
-  const navigate = useNavigate()
-  const handleQuickBook = () => {
-    navigate(`/trips?customer=${encodeURIComponent(customer.name)}`)
-    onClose()
-  }
-  return (
-    <ModalOverlay center onClose={onClose}>
-      <div className="relative bg-white dark:bg-navy-900 rounded-3xl shadow-2xl p-6 max-w-sm mx-4">
-        <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
-          Start a new trip for <span className="font-bold">{customer.name}</span>?
-        </p>
-        <div className="flex gap-2">
-          <button onClick={onClose} className="flex-1 px-4 py-2 rounded-lg border border-slate-200 dark:border-navy-600 text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-navy-800 transition-all">
-            Cancel
-          </button>
-          <button onClick={handleQuickBook} className="flex-1 px-4 py-2 rounded-lg bg-navy-900 dark:bg-blue-700 text-white text-sm font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all">
-            Start Booking
-          </button>
-        </div>
-      </div>
-    </ModalOverlay>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────
 //  Main Customers List
 // ─────────────────────────────────────────────────────────────export default function Customers() {
 export default function Customers() {
@@ -716,14 +719,20 @@ export default function Customers() {
   const [loading,      setLoading]      = useState(true)
   const [showAdd,      setShowAdd]      = useState(false)
   const [editCustomer, setEditCustomer] = useState(null)
-  const [bookingFor,   setBookingFor]   = useState(null)
-  const [search,       setSearch]       = useState('')
   const [typeFilter,   setTypeFilter]   = useState('all')
   const [flagFilter,   setFlagFilter]   = useState('all')
   const [sortBy,       setSortBy]       = useState('name')
   const [expanded,     setExpanded]     = useState(null)
   const [toast,        setToast]        = useState('')
   const [loadError,    setLoadError]    = useState(null)
+
+  // ── Pagination: 5 per page + go-to-page ─────────────────────
+  const PAGE_SIZE = 5
+  const [page, setPage] = useState(1)
+  const [goPage, setGoPage] = useState('')
+
+  // Book Trip goes straight to Trips with the customer prefilled (no confirm modal)
+  const bookTripFor = (c) => navigate('/trips', { state: { prefill: { customer: c.name, contact: c.mobile || '' } } })
 
   const canAdd    = ['admin', 'manager'].includes(user?.role)
   const canEdit   = ['admin', 'manager'].includes(user?.role)
@@ -780,6 +789,18 @@ export default function Customers() {
     }
   }
 
+  // Quick flag toggle (VIP / Frequent / Blacklisted) — saves immediately
+  const handleFlag = async (customer, key) => {
+    try {
+      await saveCustomer({ ...customer, [key]: !customer[key], updatedAt: new Date().toISOString() })
+      await reload()
+      showToast(`${customer.name} ${!customer[key] ? 'flagged' : 'unflagged'}`)
+    } catch (err) {
+      console.error('[Customers] flag failed:', err)
+      showToast('Could not update flag. Please try again.')
+    }
+  }
+
   const filtered = useMemo(() => {
     return customers
       .filter(c => typeFilter === 'all' || c.type === typeFilter)
@@ -789,20 +810,36 @@ export default function Customers() {
         if (flagFilter === 'blacklisted') return c.isBlacklisted
         return true
       })
-      .filter(c =>
-        !search ||
-        (c.name ?? '').toLowerCase().includes((search ?? '').toLowerCase()) ||
-        (c.mobile ?? '').includes(search) ||
-        (c.city ?? '').toLowerCase().includes((search ?? '').toLowerCase()) ||
-        (c.email ?? '').toLowerCase().includes((search ?? '').toLowerCase())
-      )
       .sort((a, b) =>
         sortBy === 'name'   ? (a.name ?? '').localeCompare(b.name ?? '') :
         sortBy === 'city'   ? (a.city || '').localeCompare(b.city || '') :
         sortBy === 'recent' ? (b.updatedAt || '').localeCompare(a.updatedAt || '') :
         0
       )
-  }, [customers, search, typeFilter, flagFilter, sortBy])
+  }, [customers, typeFilter, flagFilter, sortBy])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(Math.max(1, page), totalPages)
+  const pageRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  useEffect(() => { setPage(1) }, [typeFilter, flagFilter, sortBy, customers.length])
+
+  const pageItems = (() => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1)
+    const set = new Set([1, 2, safePage - 1, safePage, safePage + 1, totalPages - 1, totalPages])
+    const nums = [...set].filter(n => n >= 1 && n <= totalPages).sort((a, b) => a - b)
+    const out = []
+    nums.forEach((n, i) => {
+      if (i > 0 && n - nums[i - 1] > 1) out.push('…')
+      out.push(n)
+    })
+    return out
+  })()
+
+  const goToPage = () => {
+    const n = parseInt(goPage, 10)
+    if (!Number.isNaN(n)) setPage(Math.min(Math.max(1, n), totalPages))
+    setGoPage('')
+  }
 
   const corporateCount = customers.filter(c => c.type === 'corporate' || c.type === 'agent').length
   const newThisMonth = customers.filter(c => {
@@ -823,9 +860,11 @@ export default function Customers() {
     )
   }
 
+  // Compact density fits one screen at 100% zoom; the page flows
+  // naturally (sticky pagination included) so 90–110% zoom never clips.
   return (
-    <div className="space-y-5 animate-fade-up">
-      <PageHeader
+    <div className="space-y-3 md:space-y-2 animate-fade-up">
+      <PageHeader compact
         title="Customers"
         subtitle={`${customers.length} customers in directory`}
         action={canAdd
@@ -857,75 +896,69 @@ export default function Customers() {
         </div>
       )}
 
-      {/* Module 8: Dashboard widgets */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* Widgets — one row, New This Month is display-only */}
+      <div className="grid grid-cols-4 gap-2">
         {[
-          { label:'Total Customers',   value: customers.length,  color:'text-navy-800 dark:text-blue-300',          filter:'all'        },
-          { label:'Individual',        value: customers.filter(c=>c.type==='individual').length, color:'text-blue-600 dark:text-blue-400', filter:'individual' },
-          { label:'Corporate / Agent', value: corporateCount,    color:'text-violet-600 dark:text-violet-400',       filter:'corporate'  },
-          { label:'New This Month',    value: newThisMonth,      color:'text-emerald-600 dark:text-emerald-400',     filter:'all'        },
+          { label:'Total',      value: customers.length,  color:'text-slate-700 dark:text-slate-200',     filter:'all',        tap:true  },
+          { label:'Individual', value: customers.filter(c=>c.type==='individual').length, color:'text-blue-600 dark:text-blue-400', filter:'individual', tap:true },
+          { label:'Corporate',  value: corporateCount,    color:'text-violet-600 dark:text-violet-400',   filter:'corporate',  tap:true  },
+          { label:'New Mo.',    value: newThisMonth,      color:'text-emerald-600 dark:text-emerald-400', filter:null,         tap:false },
         ].map(s => (
-          <div key={s.label} onClick={() => setTypeFilter(s.filter)}
-            className="glass-card rounded-xl p-4 text-center hover:shadow-md transition-all cursor-pointer hover:-translate-y-0.5">
-            <p className={`text-2xl font-display font-black ${s.color}`}>{s.value}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">{s.label}</p>
+          <div key={s.label}
+            onClick={s.tap ? () => { setTypeFilter(s.filter); setPage(1) } : undefined}
+            role={s.tap ? 'button' : undefined} tabIndex={s.tap ? 0 : undefined}
+            aria-pressed={s.tap ? typeFilter === s.filter : undefined}
+            onKeyDown={s.tap ? (e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTypeFilter(s.filter); setPage(1) } }) : undefined}
+            className={`rounded-xl px-2 py-2 text-center transition-all ${s.tap ? 'cursor-pointer glass-card hover:shadow-md active:scale-[0.98]' : 'glass-card'}`}>
+            <p className={`text-lg font-display font-black tabular-nums leading-tight ${s.color}`}>{s.value}</p>
+            <p className="text-[9px] text-slate-400 dark:text-slate-500 leading-tight mt-0.5">{s.label}</p>
           </div>
         ))}
       </div>
 
-      {/* Filters + Sort */}
-      <div className="flex flex-wrap gap-2.5 items-center">
-        {/* Search */}
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white/70 dark:bg-navy-800/60 flex-1 min-w-[160px] max-w-xs">
-          <Search size={14} className="text-slate-400 flex-shrink-0" />
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Name, mobile, city…"
-            className="bg-transparent text-sm text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 outline-none w-full font-body" />
+      {/* Single slim filter row — no sliders */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <p className="text-[11px] text-slate-400 dark:text-slate-500 tabular-nums">
+          {filtered.length} customer{filtered.length !== 1 ? 's' : ''}
+        </p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <select value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setPage(1) }} aria-label="Filter by type"
+            className="px-2.5 min-h-[36px] text-xs font-bold rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
+            <option value="all">All Types</option>
+            {CUSTOMER_TYPES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+          </select>
+          <select value={flagFilter} onChange={e => { setFlagFilter(e.target.value); setPage(1) }} aria-label="Filter by flag"
+            className="px-2.5 min-h-[36px] text-xs font-bold rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
+            <option value="all">All Flags</option>
+            <option value="vip">VIP</option>
+            <option value="frequent">Frequent</option>
+            <option value="blacklisted">Listed</option>
+          </select>
+          <select value={sortBy} onChange={e => setSortBy(e.target.value)} aria-label="Sort customers"
+            className="px-2.5 min-h-[36px] text-xs font-bold rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
+            <option value="name">Name</option>
+            <option value="city">City</option>
+            <option value="recent">Recent</option>
+          </select>
         </div>
-
-        {/* Type filter */}
-        <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1">
-          {[['all','All'], ...CUSTOMER_TYPES.map(t => [t.key, t.label])].map(([k,l]) => (
-            <button key={k} onClick={() => setTypeFilter(k)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-                typeFilter === k
-                  ? 'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow'
-                  : 'text-slate-500 dark:text-slate-400'
-              }`}>{l}
-            </button>
-          ))}
-        </div>
-
-        {/* Flag filter chips */}
-        <div className="flex gap-1 flex-wrap">
-          {[
-            { key:'all',         label:'All'         },
-            { key:'vip',         label:'⭐ VIP'      },
-            { key:'frequent',    label:'🔁 Frequent' },
-            { key:'blacklisted', label:'🚫 Listed'   },
-          ].map(f => (
-            <button key={f.key} onClick={() => setFlagFilter(f.key)}
-              className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
-                flagFilter === f.key
-                  ? 'bg-navy-900 dark:bg-blue-700 text-white shadow'
-                  : 'bg-slate-100 dark:bg-navy-800 text-slate-500 dark:text-slate-400'
-              }`}>
-              {f.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Sort */}
-        <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-          className="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
-          <option value="name">Sort: Name</option>
-          <option value="city">Sort: City</option>
-          <option value="recent">Sort: Recent</option>
-        </select>
       </div>
 
       {/* Customer list */}
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div className="space-y-2" role="status" aria-busy="true" aria-label="Loading customers">
+          <span className="sr-only">Loading customers…</span>
+          {[1, 2, 3, 4, 5, 6].map(i => (
+            <div key={i} className="glass-card rounded-xl p-2.5 flex items-center gap-2.5" aria-hidden="true">
+              <div className="skeleton w-9 h-9 rounded-full flex-shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <div className="skeleton h-3.5 w-1/3 rounded" />
+                <div className="skeleton h-3 w-1/2 rounded" />
+              </div>
+              <div className="skeleton h-5 w-16 rounded-full flex-shrink-0" />
+            </div>
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="glass-card rounded-2xl p-12 text-center">
           <User size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
           <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">No customers found</p>
@@ -937,50 +970,47 @@ export default function Customers() {
           )}
         </div>
       ) : (
-        <div className="space-y-2.5">
-          {filtered.map(c => {
+        <div className="space-y-2">
+          {pageRows.map(c => {
             const isOpen  = expanded === c.id
-            const isCorp  = c.type === 'corporate' || c.type === 'agent'
             const stats   = getCustomerStats(c.id, c.name, bookings)
+            const subParts = [
+              c.mobile || null,
+              c.city || null,
+              stats.totalTrips > 0 ? `${stats.totalTrips} trip${stats.totalTrips !== 1 ? 's' : ''}` : null,
+            ].filter(Boolean)
 
             return (
-              <div key={c.id} className="glass-card rounded-2xl overflow-hidden hover:shadow-md transition-all duration-200">
+              <div key={c.id} className="glass-card rounded-xl overflow-hidden hover:shadow-md transition-all duration-200">
                 {/* Row */}
-                <div className="flex items-center gap-3 p-4 cursor-pointer select-none"
+                <div className="flex items-center gap-2.5 px-3 py-2 cursor-pointer select-none"
                      onClick={() => setExpanded(isOpen ? null : c.id)}>
                   <div className="relative flex-shrink-0">
-                    <Avatar name={c.name} size={40} />
+                    <Avatar name={c.name} size={36} />
                     {c.notes && (
                       <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-amber-400 border-2 border-white dark:border-navy-800" title="Has notes" />
                     )}
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                      <p className="font-bold text-slate-800 dark:text-white text-sm">{c.name}</p>
-                      {c.customer_id && (
-                        <span className="text-[9px] font-mono text-slate-400 dark:text-slate-500">{c.customer_id}</span>
-                      )}
-                      {isCorp && c.companyName && (
-                        <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium truncate max-w-[100px]">{c.companyName}</span>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-bold text-slate-800 dark:text-white text-[13px] truncate">{c.name}</p>
+                      {(c.isVip || c.isBlacklisted) && (
+                        c.isBlacklisted
+                          ? <span title="Blacklisted" className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
+                          : <Star size={11} className="text-amber-500 flex-shrink-0" aria-label="VIP customer" />
                       )}
                     </div>
-                    <div className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
-                      <Phone size={9} className="flex-shrink-0" />
-                      <span>{c.mobile}</span>
-                      {c.city && <><span className="text-slate-300 dark:text-navy-600 mx-1">·</span><MapPin size={9} className="flex-shrink-0" /><span>{c.city}</span></>}
-                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate leading-tight mt-0.5 tabular-nums">
+                      {subParts.length > 0 ? subParts.join(' · ') : 'No details yet'}
+                    </p>
                   </div>
 
-                  <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <TypeBadge type={c.type} />
-                    {stats.totalTrips > 0 && (
-                      <p className="text-[10px] text-slate-400 dark:text-slate-500">{stats.totalTrips} trip{stats.totalTrips !== 1 ? 's' : ''}</p>
-                    )}
+                    {isOpen ? <ChevronUp size={13} className="text-slate-400 flex-shrink-0" />
+                             : <ChevronDown size={13} className="text-slate-400 flex-shrink-0" />}
                   </div>
-
-                  {isOpen ? <ChevronUp size={14} className="text-slate-400 flex-shrink-0 ml-1" />
-                           : <ChevronDown size={14} className="text-slate-400 flex-shrink-0 ml-1" />}
                 </div>
 
                 {/* Expanded profile */}
@@ -990,7 +1020,8 @@ export default function Customers() {
                     bookings={bookings}
                     onEdit={setEditCustomer}
                     onDelete={handleDelete}
-                    onBooking={setBookingFor}
+                    onBooking={bookTripFor}
+                    onFlag={handleFlag}
                     canEdit={canEdit}
                     canDelete={canDelete}
                   />
@@ -1001,6 +1032,52 @@ export default function Customers() {
         </div>
       )}
 
+      {/* Pagination — 5 per page (hidden while a profile is open) */}
+      {!loading && filtered.length > 0 && !expanded && (
+      <div className="rounded-2xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-3 py-2 flex items-center justify-between gap-3 flex-wrap sticky bottom-3 z-10 shadow-lg">
+        <p className="text-[11px] text-slate-400 dark:text-slate-500 tabular-nums">
+          Page {safePage} of {totalPages} · {filtered.length} customer{filtered.length !== 1 ? 's' : ''}
+        </p>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button onClick={() => setPage(safePage - 1)} disabled={safePage <= 1}
+            aria-label="Previous page"
+            className="min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+            ←
+          </button>
+          {pageItems.map((n, i) => n === '…'
+            ? <span key={`e${i}`} className="text-xs text-slate-400 px-1">…</span>
+            : (
+              <button key={n} onClick={() => setPage(n)}
+                aria-label={`Go to page ${n}`}
+                aria-current={n === safePage ? 'page' : undefined}
+                className={`min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] text-xs font-bold tabular-nums active:scale-95 transition-all ${
+                  n === safePage
+                    ? 'bg-navy-900 dark:bg-blue-600 text-white shadow'
+                    : 'border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700'
+                }`}>
+                {n}
+              </button>
+            ))}
+          <button onClick={() => setPage(safePage + 1)} disabled={safePage >= totalPages}
+            aria-label="Next page"
+            className="min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+            →
+          </button>
+          <span className="text-[11px] text-slate-400 dark:text-slate-500 ml-1">Go to</span>
+          <input
+            value={goPage}
+            onChange={e => setGoPage(e.target.value.replace(/[^0-9]/g, ''))}
+            onKeyDown={e => { if (e.key === 'Enter') goToPage() }}
+            onBlur={() => { if (goPage) goToPage() }}
+            placeholder={String(totalPages)}
+            inputMode="numeric"
+            aria-label={`Go to page, 1 to ${totalPages}`}
+            className="w-14 min-h-[36px] rounded-[12px] border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 px-2 text-center text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500 tabular-nums"
+          />
+        </div>
+      </div>
+      )}
+
       {/* Modals */}
       {(showAdd || editCustomer) && (
         <CustomerModal
@@ -1008,9 +1085,6 @@ export default function Customers() {
           onClose={() => { setShowAdd(false); setEditCustomer(null) }}
           onSave={handleSave}
         />
-      )}
-      {bookingFor && (
-        <QuickBookingModal customer={bookingFor} onClose={() => setBookingFor(null)} />
       )}
     </div>
   )

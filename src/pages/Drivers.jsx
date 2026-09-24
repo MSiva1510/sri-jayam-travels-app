@@ -6,9 +6,13 @@ import Button      from '../components/ui/Button'
 import PageHeader  from '../components/ui/PageHeader'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import { driverRepository }  from '../repositories/driverRepository'
+import { authRepository }     from '../repositories/authRepository'
 import { loadDrivers }        from '../data/driverData'
 import { loadBookings }       from '../data/tripTypes'
-import { loadTripPayslips }   from '../data/settlementData'
+import {
+  loadTripPayslips, tripDriverAmount,
+  loadPayrollSettings, savePayrollSettings,
+} from '../data/settlementData'
 
 // ── Status badge colours ──────────────────────────────────────
 const STATUS_COLORS = {
@@ -26,6 +30,7 @@ function AddDriverModal({ onClose, onSaved }) {
     licenseExpiry:'', badge:'', medicalExpiry:'',
     bankName:'', accountNo:'', ifscCode:'',
     emergencyName:'', emergencyContact:'',
+    email:'', password:'', createLogin:true, dailyWage:'',
   })
   const [licenceImg, setLicenceImg] = useState(null)
   const [preview,    setPreview]    = useState(null)
@@ -49,6 +54,11 @@ function AddDriverModal({ onClose, onSaved }) {
     if (!form.name.trim())                          e.name    = 'Required'
     if (!form.mobile.trim() || form.mobile.length < 10) e.mobile = '10 digits required'
     if (!form.license.trim())                       e.license = 'Required'
+    if (form.createLogin) {
+      if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) e.email = 'Valid email required for login'
+      if (!form.password || form.password.length < 6) e.password = 'Min 6 characters'
+    }
+    if (form.dailyWage !== '' && !(Number(form.dailyWage) >= 0)) e.dailyWage = 'Invalid wage'
     return e
   }
 
@@ -57,14 +67,47 @@ function AddDriverModal({ onClose, onSaved }) {
     if (Object.keys(e).length) { setErrors(e); return }
     setSaving(true)
     try {
+      const { email, password, createLogin, dailyWage, ...driverFields } = form
       const payload = {
-        ...form,
+        ...driverFields,
         id:           `DRV-${Date.now()}`,
         license_photo_url: licenceImg || null,
         createdAt:    new Date().toISOString(),
       }
       const created = await driverRepository.create(payload)
-      onSaved(created || payload)
+      const savedDriver = created || payload
+
+      // Daily wage lives in Supabase payroll settings, keyed by driver id.
+      if (dailyWage !== '' && Number(dailyWage) >= 0) {
+        try {
+          const settings = await loadPayrollSettings()
+          const key = savedDriver.driver_id || savedDriver.id
+          await savePayrollSettings({
+            ...settings,
+            drivers: { ...(settings?.drivers || {}), [key]: { dailyWage: Number(dailyWage) } },
+          })
+        } catch (wageErr) {
+          console.error('Daily wage save failed:', wageErr)
+        }
+      }
+
+      // Driver login: auth user + driver profile (admin session is restored after).
+      if (createLogin) {
+        try {
+          await authRepository.adminCreateUser({
+            email: email.trim(),
+            password,
+            full_name: form.name.trim(),
+            role: 'driver',
+            phone: form.mobile.trim() || null,
+          })
+        } catch (userErr) {
+          console.error('Driver login creation failed:', userErr)
+          alert(`Driver saved, but login creation failed: ${userErr.message || userErr}`)
+        }
+      }
+
+      onSaved(savedDriver)
       onClose()
     } catch (err) {
       console.error('AddDriver failed:', err)
@@ -86,8 +129,8 @@ function AddDriverModal({ onClose, onSaved }) {
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Add Driver</p>
             <h3 className="font-display font-black text-slate-800 dark:text-white text-base">New Driver</h3>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700">
-            <X size={15} />
+          <button onClick={onClose} aria-label="Close driver form" className="min-w-[36px] min-h-[36px] w-9 h-9 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700 active:scale-95 transition-all">
+            <X size={16} />
           </button>
         </div>
 
@@ -140,6 +183,39 @@ function AddDriverModal({ onClose, onSaved }) {
               <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Join Date</label>
               <input type="date" className={`${inp} border-slate-200 dark:border-navy-700`}
                 value={form.joined} onChange={e => upd('joined', e.target.value)} />
+            </div>
+          </div>
+
+          {/* Login (driver app) + Daily Wage */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Driver Login & Wage</p>
+              <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300 cursor-pointer">
+                <input type="checkbox" checked={form.createLogin}
+                  onChange={e => upd('createLogin', e.target.checked)}
+                  className="w-4 h-4 rounded accent-teal-600" />
+                Create login
+              </label>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Login Email {form.createLogin && <span className="text-red-500">*</span>}</label>
+                <input className={`${inp} ${errors.email ? 'border-red-400' : 'border-slate-200 dark:border-navy-700'}`}
+                  value={form.email} onChange={e => upd('email', e.target.value)} placeholder="driver@example.com" autoComplete="off" />
+                {errors.email && <p className="text-[10px] text-red-500 mt-0.5">{errors.email}</p>}
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Temp Password {form.createLogin && <span className="text-red-500">*</span>}</label>
+                <input type="password" className={`${inp} ${errors.password ? 'border-red-400' : 'border-slate-200 dark:border-navy-700'}`}
+                  value={form.password} onChange={e => upd('password', e.target.value)} placeholder="Min 6 characters" autoComplete="new-password" />
+                {errors.password && <p className="text-[10px] text-red-500 mt-0.5">{errors.password}</p>}
+              </div>
+              <div className="col-span-2">
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Daily Wage (Rs./day — paid only for days driven)</label>
+                <input type="number" min="0" className={`${inp} ${errors.dailyWage ? 'border-red-400' : 'border-slate-200 dark:border-navy-700'}`}
+                  value={form.dailyWage} onChange={e => upd('dailyWage', e.target.value)} placeholder="e.g. 600" />
+                {errors.dailyWage && <p className="text-[10px] text-red-500 mt-0.5">{errors.dailyWage}</p>}
+              </div>
             </div>
           </div>
 
@@ -205,8 +281,8 @@ function AddDriverModal({ onClose, onSaved }) {
 function DriverModal({ driver, bookings, payslips, onClose }) {
   const mine        = bookings.filter(b => b.driver === driver.name)
   const mySlips     = payslips.filter(p => p.driver === driver.name)
-  const totalEarned = mySlips.reduce((s, p) => s + p.net, 0)
-  const pendingPay  = mySlips.filter(p => p.status === 'pending').reduce((s, p) => s + p.net, 0)
+  const totalEarned = mySlips.reduce((s, p) => s + tripDriverAmount(p), 0)
+  const pendingPay  = mySlips.filter(p => p.status === 'pending').reduce((s, p) => s + tripDriverAmount(p), 0)
 
   return (
     <ModalOverlay center onClose={onClose}>
@@ -267,8 +343,8 @@ function DriverModal({ driver, bookings, payslips, onClose }) {
           <div className="grid grid-cols-3 gap-2">
             {[
               { label:'Total Trips',  value: mine.length,                                color:'text-blue-600 dark:text-blue-400'    },
-              { label:'Total Earned', value:`Rs.${(totalEarned/1000).toFixed(1)}k`,      color:'text-emerald-600 dark:text-emerald-400' },
-              { label:'Pending Pay',  value:`Rs.${(pendingPay/1000).toFixed(1)}k`,       color:'text-amber-600 dark:text-amber-400'  },
+              { label:'Bata Earned',  value:`Rs.${(totalEarned/1000).toFixed(1)}k`,      color:'text-emerald-600 dark:text-emerald-400' },
+              { label:'Bata Pending', value:`Rs.${(pendingPay/1000).toFixed(1)}k`,       color:'text-amber-600 dark:text-amber-400'  },
             ].map(s => (
               <div key={s.label} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3 text-center">
                 <p className={`text-base font-black ${s.color}`}>{s.value}</p>
@@ -338,7 +414,7 @@ export default function Drivers() {
     const mySlips   = payslips.filter(p => p.driver === d.name)
     const completed = mine.filter(b => b.status === 'completed').length
     const totalFare = mine.reduce((s, b) => s + (b.fare || 0), 0)
-    const totalPay  = mySlips.reduce((s, p) => s + p.net, 0)
+    const totalPay  = mySlips.reduce((s, p) => s + tripDriverAmount(p), 0)
     return { ...d, tripCount: completed, fareCollected: totalFare, totalPay }
   })
 
@@ -407,7 +483,7 @@ export default function Drivers() {
                     { label:'Vehicle',    value: d.vehicle },
                     { label:'Licence',    value: d.license?.slice(-8) || '—' },
                     { label:'Trips Done', value: d.tripCount },
-                    { label:'Total Pay',  value:`Rs. ${d.totalPay.toLocaleString('en-IN')}` },
+                    { label:'Bata Pay',   value:`Rs. ${d.totalPay.toLocaleString('en-IN')}` },
                   ].map(s => (
                     <div key={s.label} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3">
                       <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold tracking-wide">{s.label}</p>
@@ -445,7 +521,7 @@ export default function Drivers() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 dark:border-navy-700 bg-slate-50/80 dark:bg-navy-800/50">
-                  {['Driver','Date','Route','Vehicle','Fare','Bata','Net Pay','Status'].map(h => (
+                  {['Driver','Date','Route','Vehicle','Fare (Co.)','Bata (Driver)','Driver Pay','Status'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -470,7 +546,7 @@ export default function Drivers() {
                     <td className="px-4 py-3 text-xs font-mono text-slate-400">{p.vehicle || '—'}</td>
                     <td className="px-4 py-3 text-xs font-bold text-slate-700 dark:text-slate-200">Rs. {p.fare.toLocaleString('en-IN')}</td>
                     <td className="px-4 py-3 text-xs text-emerald-600 dark:text-emerald-400">{p.bata > 0 ? `Rs. ${p.bata}` : '—'}</td>
-                    <td className="px-4 py-3 text-xs font-bold text-navy-700 dark:text-blue-300 whitespace-nowrap">Rs. {p.net.toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-3 text-xs font-bold text-navy-700 dark:text-blue-300 whitespace-nowrap">Rs. {tripDriverAmount(p).toLocaleString('en-IN')}</td>
                     <td className="px-4 py-3">
                       <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
                         p.status === 'paid'

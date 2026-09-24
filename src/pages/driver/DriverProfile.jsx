@@ -39,7 +39,8 @@ export default function DriverProfile() {
 
   const totalKm       = bookings.reduce((s, t) => s + (Number(t.total_km)   || 0), 0)
   const totalFare     = bookings.reduce((s, t) => s + (Number(t.total_fare) || 0), 0)
-  const totalEarnings = totalFare * 0.15   // bata estimate
+  // Driver's money = actual bata from trips (straight to driver, not a % of fare)
+  const totalEarnings = bookings.reduce((s, t) => s + (Number(t.bata) || 0), 0)
 
   // Payroll strip data
   const latest  = settlements[0]

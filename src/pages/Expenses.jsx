@@ -3,7 +3,7 @@ import {
   Plus, Search, ChevronDown, ChevronUp,
   X, Edit2, Trash2, CheckCircle, AlertTriangle,
   Receipt, Calendar, User, Car, FileText,
-  TrendingDown, Filter,
+  TrendingDown, Filter, BarChart3, Paperclip,
 } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
 import ModalOverlay from '../components/ui/ModalOverlay'
@@ -135,8 +135,8 @@ function ExpenseModal({ expense, drivers, vehicles, onClose, onSave, currentUser
               {isEdit ? form.id : 'New Expense'}
             </h3>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700">
-            <X size={15} />
+          <button onClick={onClose} aria-label="Close expense form" className="min-w-[36px] min-h-[36px] w-9 h-9 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700 active:scale-95 transition-all">
+            <X size={16} />
           </button>
         </div>
 
@@ -226,8 +226,8 @@ function ExpenseModal({ expense, drivers, vehicles, onClose, onSave, currentUser
                 placeholder="receipt_filename.jpg"
                 className="flex-1 px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
               <button type="button" onClick={() => upd('receiptName', `receipt_${form.type}_${form.date}.jpg`)}
-                className="px-3 py-2 rounded-lg bg-slate-100 dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-200 dark:hover:bg-navy-700 transition-colors whitespace-nowrap">
-                📎 Attach
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-100 dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-200 dark:hover:bg-navy-700 transition-colors whitespace-nowrap">
+                <Paperclip size={12} /> Attach
               </button>
             </div>
             {form.receiptName && (
@@ -292,12 +292,12 @@ function CategoryBar({ expenses }) {
 //  Monthly trend sparkline — Module 9
 // ─────────────────────────────────────────────────────────────
 function TrendBars({ expenses }) {
-  // Last 6 months
+  // Last 6 months (local YYYY-MM keys — toISOString drifts for IST)
   const months = []
   for (let i = 5; i >= 0; i--) {
     const d = new Date()
     d.setMonth(d.getMonth() - i)
-    const key = d.toISOString().slice(0, 7)
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
     const lbl = d.toLocaleString('en-IN', { month: 'short' })
     const tot = expenses.filter(e => (getExpenseDate(e) || '').startsWith(key)).reduce((s,e) => s+(e.amount||0), 0)
     months.push({ key, lbl, tot })
@@ -417,6 +417,7 @@ export default function Expenses() {
   const [expenses,   setExpenses]  = useState([])
   const [drivers,    setDrivers]   = useState([])
   const [vehicles,   setVehicles]  = useState([])
+  const [loading,    setLoading]   = useState(true)
   const [search,     setSearch]    = useState('')
   const [typeFilter, setTypeFilter]= useState('all')
   const [statFilter, setStatFilter]= useState('all')
@@ -426,22 +427,29 @@ export default function Expenses() {
   const [editExp,    setEditExp]   = useState(null)
   const [toast,      setToast]     = useState('')
   const [page,       setPage]      = useState(1)
+  const [goPage,     setGoPage]    = useState('')
+  const [showAnalytics, setShowAnalytics] = useState(false)
 
-  const PAGE_SIZE = 10
+  const PAGE_SIZE = 5
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 3000) }
   const [loadError, setLoadError] = useState(null)
   const reload = async () => {
-    const [e, d, v] = await Promise.allSettled([
-      loadExpenses(), loadDrivers(), loadVehicles(),
-    ])
-    setExpenses(e.status === 'fulfilled' && Array.isArray(e.value) ? e.value : [])
-    setDrivers( d.status === 'fulfilled' && Array.isArray(d.value) ? d.value : [])
-    setVehicles(v.status === 'fulfilled' && Array.isArray(v.value) ? v.value : [])
-    if (e.status === 'rejected') {
-      console.error('[Expenses] load failed:', e.reason)
-      setLoadError('Could not load expenses. Try refreshing.')
-    } else {
-      setLoadError(null)
+    setLoading(true)
+    try {
+      const [e, d, v] = await Promise.allSettled([
+        loadExpenses(), loadDrivers(), loadVehicles(),
+      ])
+      setExpenses(e.status === 'fulfilled' && Array.isArray(e.value) ? e.value : [])
+      setDrivers( d.status === 'fulfilled' && Array.isArray(d.value) ? d.value : [])
+      setVehicles(v.status === 'fulfilled' && Array.isArray(v.value) ? v.value : [])
+      if (e.status === 'rejected') {
+        console.error('[Expenses] load failed:', e.reason)
+        setLoadError('Could not load expenses. Try refreshing.')
+      } else {
+        setLoadError(null)
+      }
+    } finally {
+      setLoading(false)
     }
   }
   useEffect(() => { reload() }, [])
@@ -474,9 +482,29 @@ export default function Expenses() {
     })
   }, [rangeFiltered, search, typeFilter, statFilter])
 
-  // Pagination
-  const totalPages   = Math.ceil(filtered.length / PAGE_SIZE)
-  const paginated    = filtered.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE)
+  // Pagination: 6 per page + go-to-page
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(Math.max(1, page), totalPages)
+  const paginated = filtered.slice((safePage-1)*PAGE_SIZE, safePage*PAGE_SIZE)
+  useEffect(() => { setPage(1) }, [search, typeFilter, statFilter, dateRange, filtered.length])
+
+  const pageItems = (() => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1)
+    const set = new Set([1, 2, safePage - 1, safePage, safePage + 1, totalPages - 1, totalPages])
+    const nums = [...set].filter(n => n >= 1 && n <= totalPages).sort((a, b) => a - b)
+    const out = []
+    nums.forEach((n, i) => {
+      if (i > 0 && n - nums[i - 1] > 1) out.push('…')
+      out.push(n)
+    })
+    return out
+  })()
+
+  const goToPage = () => {
+    const n = parseInt(goPage, 10)
+    if (!Number.isNaN(n)) setPage(Math.min(Math.max(1, n), totalPages))
+    setGoPage('')
+  }
 
   // Summary totals for dashboard (Module 1)
   const totalAmt     = rangeFiltered.reduce((s,e) => s + e.amount, 0)
@@ -539,9 +567,11 @@ export default function Expenses() {
     }
   }
 
+  // Compact density fits one screen at 100% zoom; the page flows
+  // naturally (sticky pagination included) so 90–110% zoom never clips.
   return (
-    <div className="space-y-5 animate-fade-up">
-      <PageHeader
+    <div className="space-y-3 md:space-y-2 animate-fade-up">
+      <PageHeader compact
         title={isDriver ? 'My Expenses' : 'Expense Management'}
         subtitle={isDriver ? 'Submit and track your expenses' : 'Operational cost tracker & approval'}
         action={
@@ -588,38 +618,49 @@ export default function Expenses() {
         </div>
       )}
 
-      {/* Module 1: Dashboard summary */}
-      {/* Date range tabs */}
-      <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1 w-fit">
-        {[['today','Today'],['week','This Week'],['month','This Month'],['all','All Time']].map(([k,l]) => (
-          <button key={k} onClick={() => setDateRange(k)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-              dateRange === k
-                ? 'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow'
-                : 'text-slate-500 dark:text-slate-400'
-            }`}>{l}
-          </button>
-        ))}
+      {/* Date range tabs + analytics toggle in one row */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1 w-fit" role="group" aria-label="Date range">
+          {[['today','Today'],['week','This Week'],['month','This Month'],['all','All Time']].map(([k,l]) => (
+            <button key={k} onClick={() => { setDateRange(k); setPage(1) }}
+              aria-pressed={dateRange === k}
+              className={`px-3 min-h-[32px] rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                dateRange === k
+                  ? 'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow'
+                  : 'text-slate-500 dark:text-slate-400'
+              }`}>{l}
+            </button>
+          ))}
+        </div>
+        <button onClick={() => setShowAnalytics(v => !v)}
+          aria-pressed={showAnalytics}
+          className="flex items-center gap-1.5 px-3 min-h-[36px] rounded-[12px] border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 active:scale-95 transition-all">
+          <BarChart3 size={14} /> Analytics
+          {showAnalytics
+            ? <ChevronUp size={13} className="text-slate-400" />
+            : <ChevronDown size={13} className="text-slate-400" />}
+        </button>
       </div>
 
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      {/* KPI strip — one row */}
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
         {[
-          { label:'Total',     value: `Rs.${(totalAmt/1000).toFixed(1)}k`, color:'text-amber-600 dark:text-amber-400' },
-          { label:'Fuel',      value: `Rs.${(fuelAmt/1000).toFixed(1)}k`,  color:'text-orange-600 dark:text-orange-400' },
-          { label:'Toll',      value: `Rs.${(tollAmt).toLocaleString()}`,   color:'text-blue-600 dark:text-blue-400' },
-          { label:'Parking',   value: `Rs.${(parkAmt).toLocaleString()}`,   color:'text-teal-600 dark:text-teal-400' },
-          { label:'Bata',      value: `Rs.${(bataAmt).toLocaleString()}`,   color:'text-emerald-600 dark:text-emerald-400' },
+          { label:'Total',     value: `Rs. ${(totalAmt/1000).toFixed(1)}k`, color:'text-amber-600 dark:text-amber-400' },
+          { label:'Fuel',      value: `Rs. ${(fuelAmt/1000).toFixed(1)}k`,  color:'text-orange-600 dark:text-orange-400' },
+          { label:'Toll',      value: `Rs. ${tollAmt.toLocaleString('en-IN')}`,   color:'text-blue-600 dark:text-blue-400' },
+          { label:'Parking',   value: `Rs. ${parkAmt.toLocaleString('en-IN')}`,   color:'text-teal-600 dark:text-teal-400' },
+          { label:'Bata',      value: `Rs. ${bataAmt.toLocaleString('en-IN')}`,   color:'text-emerald-600 dark:text-emerald-400' },
           { label:'Entries',   value: rangeFiltered.length,                 color:'text-slate-600 dark:text-slate-300' },
         ].map(s => (
-          <div key={s.label} className="glass-card rounded-lg px-3 py-2.5 text-center">
-            <p className={`text-lg font-display font-black ${s.color}`}>{s.value}</p>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{s.label}</p>
+          <div key={s.label} className="ios-card px-2 py-2 text-center">
+            <p className={`text-base font-display font-black tabular-nums leading-tight ${s.color}`}>{s.value}</p>
+            <p className="text-[9px] text-slate-400 dark:text-slate-500 leading-tight mt-0.5">{s.label}</p>
           </div>
         ))}
       </div>
 
-      {/* Module 9: Analytics row */}
+      {/* Module 9: Analytics (collapsible — keeps the page to one screen) */}
+      {showAnalytics && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Category breakdown */}
         <div className="glass-card rounded-2xl p-5">
@@ -670,56 +711,69 @@ export default function Expenses() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Module 3: Expense list */}
-      <div className="glass-card rounded-2xl overflow-hidden">
-        {/* List controls */}
-        <div className="px-4 py-3 border-b border-slate-100 dark:border-navy-700 space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="font-display font-black text-slate-800 dark:text-white text-base">
-              {filtered.length} Expenses
-            </h3>
+      <div className="glass-card rounded-[20px] overflow-hidden">
+        {/* List controls — single slim row */}
+        <div className="px-3 py-2 border-b border-slate-100 dark:border-navy-700 flex items-center gap-2 flex-wrap">
+          <h3 className="font-display font-black text-slate-800 dark:text-white text-sm tabular-nums">
+            {filtered.length} Expenses
+          </h3>
+          <div className="flex items-center gap-2 px-2.5 min-h-[36px] rounded-xl border border-slate-200 dark:border-navy-700 bg-white/70 dark:bg-navy-800/60 flex-1 min-w-[120px] max-w-[220px]">
+            <Search size={13} className="text-slate-400 flex-shrink-0" />
+            <input type="text" value={search} onChange={e=>{ setSearch(e.target.value); setPage(1) }}
+              placeholder="Search…" aria-label="Search expenses"
+              className="bg-transparent text-sm text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 outline-none w-full font-body" />
           </div>
-          <div className="flex flex-wrap gap-2">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/70 dark:bg-navy-800/60 flex-1 min-w-[140px] max-w-xs">
-              <Search size={13} className="text-slate-400 flex-shrink-0" />
-              <input type="text" value={search} onChange={e=>{ setSearch(e.target.value); setPage(1) }}
-                placeholder="Search…"
-                className="bg-transparent text-sm text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 outline-none w-full font-body" />
-            </div>
-
-            <select value={typeFilter} onChange={e=>{ setTypeFilter(e.target.value); setPage(1) }}
-              className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
-              <option value="all">All Types</option>
-              {EXPENSE_TYPES.map(t => <option key={t.key} value={t.key}>{t.icon} {t.label}</option>)}
-            </select>
-
-            {/* Approval status pill tabs */}
-            <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1">
-              {[
-                { key:'all',       label:'All',         count: rangeFiltered.length },
-                { key:'submitted', label:'⏳ Pending',  count: rangeFiltered.filter(e=>e.status==='submitted').length },
-                { key:'approved',  label:'✅ Approved', count: rangeFiltered.filter(e=>e.status==='approved').length  },
-                { key:'rejected',  label:'❌ Rejected', count: rangeFiltered.filter(e=>e.status==='rejected').length  },
-              ].map(s => (
-                <button key={s.key} onClick={()=>{setStatFilter(s.key);setPage(1)}}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all whitespace-nowrap ${
-                    statFilter===s.key
-                      ? 'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow'
-                      : 'text-slate-500 dark:text-slate-400'
-                  }`}>
-                  {s.label}
-                  <span className={`text-[9px] px-1 rounded-full ${statFilter===s.key?'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400':'bg-slate-200 dark:bg-navy-600 text-slate-400'}`}>
-                    {s.count}
-                  </span>
-                </button>
-              ))}
-            </div>
+          <select value={typeFilter} onChange={e=>{ setTypeFilter(e.target.value); setPage(1) }} aria-label="Filter by type"
+            className="px-2.5 min-h-[36px] text-xs font-bold rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
+            <option value="all">All Types</option>
+            {EXPENSE_TYPES.map(t => <option key={t.key} value={t.key}>{t.icon} {t.label}</option>)}
+          </select>
+          {/* Approval status pill tabs */}
+          <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1" role="group" aria-label="Filter by approval status">
+            {[
+              { key:'all',       label:'All',      count: rangeFiltered.length },
+              { key:'submitted', label:'Pending',  count: rangeFiltered.filter(e=>e.status==='submitted').length },
+              { key:'approved',  label:'Approved', count: rangeFiltered.filter(e=>e.status==='approved').length  },
+              { key:'rejected',  label:'Rejected', count: rangeFiltered.filter(e=>e.status==='rejected').length  },
+            ].map(s => (
+              <button key={s.key} onClick={()=>{setStatFilter(s.key);setPage(1)}}
+                aria-pressed={statFilter===s.key}
+                className={`flex items-center gap-1.5 px-2.5 min-h-[32px] rounded-lg text-[10px] font-bold transition-all whitespace-nowrap ${
+                  statFilter===s.key
+                    ? 'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow'
+                    : 'text-slate-500 dark:text-slate-400'
+                }`}>
+                {s.label}
+                <span className={`text-[9px] px-1 rounded-full tabular-nums ${statFilter===s.key?'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400':'bg-slate-200 dark:bg-navy-600 text-slate-400'}`}>
+                  {s.count}
+                </span>
+              </button>
+            ))}
           </div>
         </div>
 
         {/* Expense rows */}
-        {paginated.length === 0 ? (
+        {loading ? (
+          <div className="p-3 space-y-2" role="status" aria-busy="true" aria-label="Loading expenses">
+            <span className="sr-only">Loading expenses…</span>
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="flex items-center gap-2.5" aria-hidden="true">
+                <div className="skeleton w-8 h-8 rounded-[10px] flex-shrink-0" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="skeleton h-3.5 w-1/3 rounded" />
+                  <div className="skeleton h-3 w-2/3 rounded" />
+                </div>
+                <div className="space-y-1.5 flex flex-col items-end flex-shrink-0">
+                  <div className="skeleton h-4 w-14 rounded" />
+                  <div className="skeleton h-5 w-16 rounded-full" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : paginated.length === 0 ? (
           <div className="p-10 text-center">
             <TrendingDown size={32} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
             <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">No expenses found</p>
@@ -732,32 +786,31 @@ export default function Expenses() {
               return (
                 <div key={exp.id} className="border-b border-slate-50 dark:border-navy-800 last:border-0">
                   {/* Row */}
-                  <div className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-amber-50/30 dark:hover:bg-navy-800/40 transition-colors select-none"
+                  <div className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-amber-50/30 dark:hover:bg-navy-800/40 transition-colors select-none"
                        onClick={() => setExpanded(isOpen ? null : exp.id)}>
                     {/* Type icon */}
-                    <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${typeCfg.color} flex items-center justify-center text-lg flex-shrink-0 shadow-sm`}>
+                    <div className={`w-8 h-8 rounded-[10px] bg-gradient-to-br ${typeCfg.color} flex items-center justify-center text-base flex-shrink-0 shadow-sm`}>
                       {typeCfg.icon}
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{exp.description || typeCfg.label}</p>
-                      <div className="flex items-center gap-2 text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 flex-wrap">
-                        <span className="flex items-center gap-1"><Calendar size={9} />{exp.date}</span>
-                        {exp.driver  && <span className="flex items-center gap-1"><User size={9} />{exp.driver}</span>}
-                        {exp.tripRef && <span className="flex items-center gap-1 font-mono">{exp.tripRef}</span>}
-                        {exp.receiptName && <span className="flex items-center gap-1 text-blue-500">📎</span>}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                      <p className="text-sm font-black text-amber-600 dark:text-amber-400">
-                        Rs. {exp.amount.toLocaleString('en-IN')}
+                      <p className="text-[13px] font-bold text-slate-700 dark:text-slate-200 truncate">{exp.description || typeCfg.label}</p>
+                      <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate leading-tight mt-0.5 tabular-nums">
+                        {exp.date}{exp.driver ? ` · ${exp.driver}` : ''}{exp.tripRef ? ` · ${exp.tripRef}` : ''}
                       </p>
-                      <ApprovalBadge status={exp.status} />
                     </div>
 
-                    {isOpen ? <ChevronUp size={13} className="text-slate-400 ml-1 flex-shrink-0" />
-                             : <ChevronDown size={13} className="text-slate-400 ml-1 flex-shrink-0" />}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="flex flex-col items-end gap-1">
+                        <p className="text-[13px] font-black text-amber-600 dark:text-amber-400 tabular-nums whitespace-nowrap">
+                          Rs. {exp.amount.toLocaleString('en-IN')}
+                        </p>
+                        <ApprovalBadge status={exp.status} />
+                      </div>
+                      {exp.receiptName && <Paperclip size={12} className="text-blue-500 flex-shrink-0" aria-label="Has receipt" />}
+                      {isOpen ? <ChevronUp size={13} className="text-slate-400 flex-shrink-0" />
+                               : <ChevronDown size={13} className="text-slate-400 flex-shrink-0" />}
+                    </div>
                   </div>
 
                   {isOpen && (
@@ -777,39 +830,55 @@ export default function Expenses() {
             })}
           </div>
         )}
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 dark:border-navy-700 bg-slate-50/50 dark:bg-navy-800/30">
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Showing {(page-1)*PAGE_SIZE+1}–{Math.min(page*PAGE_SIZE, filtered.length)} of {filtered.length}
-            </p>
-            <div className="flex gap-1">
-              <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page===1}
-                className="w-8 h-8 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors disabled:opacity-40">
-                ‹
-              </button>
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                const pg = page <= 3 ? i+1 : page-2+i
-                if (pg > totalPages) return null
-                return (
-                  <button key={pg} onClick={() => setPage(pg)}
-                    className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
-                      pg === page
-                        ? 'bg-amber-500 text-white shadow'
-                        : 'border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-navy-700'
-                    }`}>{pg}
-                  </button>
-                )
-              })}
-              <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page===totalPages}
-                className="w-8 h-8 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors disabled:opacity-40">
-                ›
-              </button>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Pagination — 5 per page (hidden while a row is open) */}
+      {!loading && filtered.length > 0 && !expanded && (
+      <div className="mt-3 mb-1 rounded-2xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-2.5 sm:px-3 py-2 flex items-center justify-between gap-2 sm:gap-3 flex-wrap shadow-lg">
+        <p className="text-[11px] text-slate-400 dark:text-slate-500 tabular-nums">
+          Page {safePage} of {totalPages} · {filtered.length} expense{filtered.length !== 1 ? 's' : ''}
+        </p>
+        <div className="flex items-center gap-1 sm:gap-1.5">
+          <button onClick={() => setPage(safePage - 1)} disabled={safePage <= 1}
+            aria-label="Previous page"
+            className="min-w-[32px] min-h-[32px] sm:min-w-[36px] sm:min-h-[36px] px-2 sm:px-2.5 rounded-[10px] sm:rounded-[12px] border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+            ←
+          </button>
+          <span className="hidden sm:contents">
+          {pageItems.map((n, i) => n === '…'
+            ? <span key={`e${i}`} className="text-xs text-slate-400 px-1">…</span>
+            : (
+              <button key={n} onClick={() => setPage(n)}
+                aria-label={`Go to page ${n}`}
+                aria-current={n === safePage ? 'page' : undefined}
+                className={`min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] text-xs font-bold tabular-nums active:scale-95 transition-all ${
+                  n === safePage
+                    ? 'bg-navy-900 dark:bg-blue-600 text-white shadow'
+                    : 'border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700'
+                }`}>
+                {n}
+              </button>
+            ))}
+          </span>
+          <button onClick={() => setPage(safePage + 1)} disabled={safePage >= totalPages}
+            aria-label="Next page"
+            className="min-w-[32px] min-h-[32px] sm:min-w-[36px] sm:min-h-[36px] px-2 sm:px-2.5 rounded-[10px] sm:rounded-[12px] border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+            →
+          </button>
+          <span className="text-[11px] text-slate-400 dark:text-slate-500 ml-0.5 sm:ml-1">Go to</span>
+          <input
+            value={goPage}
+            onChange={e => setGoPage(e.target.value.replace(/[^0-9]/g, ''))}
+            onKeyDown={e => { if (e.key === 'Enter') goToPage() }}
+            onBlur={() => { if (goPage) goToPage() }}
+            placeholder={String(totalPages)}
+            inputMode="numeric"
+            aria-label={`Go to page, 1 to ${totalPages}`}
+            className="w-12 sm:w-14 min-h-[32px] sm:min-h-[36px] rounded-[10px] sm:rounded-[12px] border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 px-2 text-center text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500 tabular-nums"
+          />
+        </div>
+      </div>
+      )}
 
       {/* Modals */}
       {(showAdd || editExp) && (

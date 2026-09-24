@@ -43,7 +43,8 @@ function AccessBlocked({ label }) {
   )
 }
 
-function BarChart({ data }) {
+function BarChart({ data, format }) {
+  const fmt = format || (v => `Rs. ${Number(v || 0).toLocaleString('en-IN')}`)
   const max = Math.max(1, ...data.map(d => d.fare))
   const fares = data.map(d => d.fare || 0)
   const hi = Math.max(...fares)
@@ -51,7 +52,7 @@ function BarChart({ data }) {
   const hasSpread = hi > 0 && hi !== lo
   const total = data.reduce((s, d) => s + (d.fare || 0), 0)
   return (
-    <div className="flex items-end gap-1.5 h-24 w-full" role="img" aria-label={`Fare trend, total Rs. ${total.toLocaleString('en-IN')}`}>
+    <div className="flex items-end gap-1.5 h-24 w-full" role="img" aria-label={`Trend, total ${fmt(total)}`}>
       {data.map((d, i) => {
         const pct    = Math.round((d.fare / max) * 100)
         const isLast = i === data.length - 1
@@ -66,11 +67,11 @@ function BarChart({ data }) {
           : 'bg-slate-200 dark:bg-navy-700 group-hover:bg-slate-300 dark:group-hover:bg-navy-600 group-focus-within:bg-slate-300 dark:group-focus-within:bg-navy-600'
         return (
           <div key={d.month} className="flex flex-col items-center gap-1 flex-1">
-            <div className="w-full relative group" tabIndex={0} aria-label={`${d.month}: Rs. ${d.fare.toLocaleString('en-IN')}${isHi ? ' (highest)' : isLo ? ' (lowest)' : ''}`}>
+            <div className="w-full relative group" tabIndex={0} aria-label={`${d.month}: ${fmt(d.fare)}${isHi ? ' (highest)' : isLo ? ' (lowest)' : ''}`}>
               <div className={`w-full rounded-t-md transition-all duration-500 ${barCls}`}
                    style={{ height: `${Math.max(pct * 0.88, 6)}px` }} />
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity bg-navy-900 text-white text-[10px] font-bold px-2 py-1 rounded-lg whitespace-nowrap pointer-events-none z-10">
-                Rs. {d.fare.toLocaleString('en-IN')}
+                {fmt(d.fare)}
               </div>
             </div>
             <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500">{d.month}</span>
@@ -260,6 +261,33 @@ export default function Dashboard() {
   })()
   const trendData  = period === 'year' ? yearlyFare : monthlyFare
   const trendTitle = period === 'year' ? '12-month trend' : '6-month trend'
+
+  // ── Trip-volume trend (no money figures — safe for manager roles) ──
+  const monthlyTrips = (() => {
+    const now = new Date()
+    const out = []
+    for (let i = 5; i >= 0; i--) {
+      const d     = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const key   = toLocalMonthStr(d)
+      const label = d.toLocaleDateString('en-IN', { month: 'short' })
+      out.push({ month: label, fare: bookings.filter(b => b.startDate?.startsWith(key)).length })
+    }
+    return out
+  })()
+  const tripTotal = monthlyTrips.reduce((s, m) => s + m.fare, 0)
+
+  // ── Needs-attention queue (operational roles without finance access) ──
+  const unassignedCount = bookingPending.filter(b => !b.driver).length
+  const attentionItems = [
+    can('trips') && unassignedCount > 0
+      ? { label: `${unassignedCount} trip${unassignedCount !== 1 ? 's' : ''} need a driver`, to: '/trips' } : null,
+    can('expenses') && pendingApprovals > 0
+      ? { label: `${pendingApprovals} expense${pendingApprovals !== 1 ? 's' : ''} awaiting approval`, to: '/expenses' } : null,
+    can('vehicles') && vehicleDocAlerts.length > 0
+      ? { label: `${vehicleDocAlerts.length} vehicle document${vehicleDocAlerts.length !== 1 ? 's' : ''} need attention`, to: '/vehicles' } : null,
+    can('payroll') && settledPending > 0
+      ? { label: `${settledPending} settlement${settledPending !== 1 ? 's' : ''} awaiting approval`, to: '/payroll' } : null,
+  ].filter(Boolean)
 
   // ── Recent trips (max 5 on the dashboard) ─────────────────
   const recentTrips = [...bookings]
@@ -810,6 +838,21 @@ export default function Dashboard() {
               <span className="font-bold text-blue-600 dark:text-blue-400">Rs. {periodFare.toLocaleString('en-IN')}</span>
             </div>
           </div>
+        ) : can('trips') ? (
+          <div className="glass-card rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Trip Volume</p>
+                <p className="text-lg font-display font-black text-slate-800 dark:text-white">6-month trend</p>
+              </div>
+              <span className="badge badge-active">{monthlyTrips[monthlyTrips.length - 1]?.month}</span>
+            </div>
+            <BarChart data={monthlyTrips} format={v => `${v} trip${v !== 1 ? 's' : ''}`} />
+            <div className="mt-3 pt-3 border-t border-slate-100 dark:border-navy-700 flex justify-between text-xs text-slate-500 dark:text-slate-400">
+              <span>Total (6 mo.)</span>
+              <span className="font-bold text-blue-600 dark:text-blue-400">{tripTotal} trips</span>
+            </div>
+          </div>
         ) : (
           <AccessBlocked label="Revenue Chart" />
         )}
@@ -841,6 +884,22 @@ export default function Dashboard() {
                   <div className="flex items-center gap-2"><div className={`w-2.5 h-2.5 rounded-full ${r.color}`} /><span className="text-slate-500 dark:text-slate-400">{r.label}</span></div>
                   <span className="font-bold text-slate-700 dark:text-slate-200">Rs. {r.amt.toLocaleString('en-IN')}</span>
                 </div>
+              ))}
+            </div>
+          </div>
+        ) : attentionItems.length > 0 ? (
+          <div className="glass-card rounded-2xl p-5 flex flex-col">
+            <div className="mb-4">
+              <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Needs Attention</p>
+              <p className="text-lg font-display font-black text-slate-800 dark:text-white">Action queue</p>
+            </div>
+            <div className="flex-1 space-y-2">
+              {attentionItems.map(item => (
+                <button key={item.label} onClick={() => navigate(item.to)}
+                  className="w-full flex items-center justify-between gap-2 rounded-xl border border-slate-100 dark:border-navy-700 bg-slate-50/60 dark:bg-navy-800/40 px-3.5 py-2.5 text-left hover:shadow-md active:scale-[0.99] transition-all min-h-[44px]">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{item.label}</span>
+                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400 flex-shrink-0">Review →</span>
+                </button>
               ))}
             </div>
           </div>

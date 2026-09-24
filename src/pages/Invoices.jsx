@@ -5,6 +5,7 @@ import Button        from '../components/ui/Button'
 import PageHeader    from '../components/ui/PageHeader'
 import ModalOverlay  from '../components/ui/ModalOverlay'
 import InvoiceModal  from '../components/invoice/InvoiceModal'
+import { useAuth }   from '../context/AuthContext'
 import { loadBookings, getStatusCfg } from '../data/tripTypes'
 
 // ── Customizable columns (Actions is always on; preference persists) ──
@@ -78,6 +79,10 @@ function StatusBadge({ status }) {
 }
 
 export default function Invoices() {
+  const { can } = useAuth()
+  // Managers get read-only list + preview; only invoice creators can
+  // open the picker / manual bill / quotation flows.
+  const canCreate = can('invoices')
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
@@ -206,17 +211,37 @@ export default function Invoices() {
   // Main list shows completed trips only — ongoing lives in Trips + picker
   const filtered = completedList
 
-  // ── Pagination: 7 rows per page + go-to-page ────────────────
-  const PAGE_SIZE = 7
+  // ── Pagination: rows per viewport (zoom-adaptive) ──────────
+  // 90% zoom (tall viewport) → 10 rows · 100% → 8 rows · 110% → 7 rows.
+  // Phones keep 5 tall cards per page.
+  const rowsForViewport = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) return 5
+    const h = typeof window !== 'undefined' ? window.innerHeight : 800
+    if (h >= 950) return 10
+    if (h >= 800) return 8
+    return 7
+  }
+  const [pageSize, setPageSize] = useState(rowsForViewport)
   const [page, setPage] = useState(1)
   const [goPage, setGoPage] = useState('')
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  useEffect(() => {
+    const onResize = () => {
+      setPageSize(prev => {
+        const next = rowsForViewport()
+        if (next !== prev) setPage(1)
+        return next
+      })
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const safePage = Math.min(Math.max(1, page), totalPages)
-  const pageRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  const pageRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
   // Clamp back into range when the list shrinks (e.g. fresh load)
   useEffect(() => {
-    setPage(p => Math.min(Math.max(1, p), Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))))
-  }, [filtered.length])
+    setPage(p => Math.min(Math.max(1, p), Math.max(1, Math.ceil(filtered.length / pageSize))))
+  }, [filtered.length, pageSize])
 
   // Compact page buttons: 1 … window … last
   const pageItems = (() => {
@@ -432,7 +457,7 @@ export default function Invoices() {
       <PageHeader
         title="Invoices"
         subtitle="Trip bills, pay slips & invoice management"
-        action={<Button icon={Plus} variant="primary" onClick={() => setPickerOpen(true)}>New Invoice</Button>}
+        action={canCreate ? <Button icon={Plus} variant="primary" onClick={() => setPickerOpen(true)}>New Invoice</Button> : null}
       />
 
       {/* Loading skeleton (iPhone shimmer, mirrors the real layout) */}
@@ -639,7 +664,7 @@ export default function Invoices() {
         ))}
       </div>
 
-      {/* Pagination — 7 rows per page */}
+      {/* Pagination — viewport-adaptive rows per page */}
       {filtered.length > 0 && (
       <div className="flex items-center justify-between gap-3 flex-wrap md:shrink-0">
         <p className="text-[11px] text-slate-400 dark:text-slate-500 tabular-nums">
