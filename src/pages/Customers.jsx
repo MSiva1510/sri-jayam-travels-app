@@ -16,6 +16,7 @@ import {
 import { loadBookings, TRIP_TYPE_CONFIG, getStatusCfg } from '../data/tripTypes'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import { addAuditEvent } from '../data/auditLogData'
+import { pageSizeFor } from '../utils/zoomPageSize'
 
 // ─────────────────────────────────────────────────────────────
 //  Type badge
@@ -726,10 +727,22 @@ export default function Customers() {
   const [toast,        setToast]        = useState('')
   const [loadError,    setLoadError]    = useState(null)
 
-  // ── Pagination: 5 per page + go-to-page ─────────────────────
-  const PAGE_SIZE = 5
+  // ── Pagination: zoom-adaptive rows per page + go-to-page ───
+  // 90% → 7 · 100% → 6 · 110%+ → 5 (phones stay at 5).
+  const [pageSize, setPageSize] = useState(() => pageSizeFor(6, 5))
   const [page, setPage] = useState(1)
   const [goPage, setGoPage] = useState('')
+  useEffect(() => {
+    const onResize = () => {
+      setPageSize(prev => {
+        const next = pageSizeFor(6, 5)
+        if (next !== prev) setPage(1)
+        return next
+      })
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   // Book Trip goes straight to Trips with the customer prefilled (no confirm modal)
   const bookTripFor = (c) => navigate('/trips', { state: { prefill: { customer: c.name, contact: c.mobile || '' } } })
@@ -818,10 +831,10 @@ export default function Customers() {
       )
   }, [customers, typeFilter, flagFilter, sortBy])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const safePage = Math.min(Math.max(1, page), totalPages)
-  const pageRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
-  useEffect(() => { setPage(1) }, [typeFilter, flagFilter, sortBy, customers.length])
+  const pageRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
+  useEffect(() => { setPage(1) }, [typeFilter, flagFilter, sortBy, customers.length, pageSize])
 
   const pageItems = (() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1)
@@ -909,9 +922,9 @@ export default function Customers() {
             role={s.tap ? 'button' : undefined} tabIndex={s.tap ? 0 : undefined}
             aria-pressed={s.tap ? typeFilter === s.filter : undefined}
             onKeyDown={s.tap ? (e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTypeFilter(s.filter); setPage(1) } }) : undefined}
-            className={`rounded-xl px-2 py-2 text-center transition-all ${s.tap ? 'cursor-pointer glass-card hover:shadow-md active:scale-[0.98]' : 'glass-card'}`}>
-            <p className={`text-lg font-display font-black tabular-nums leading-tight ${s.color}`}>{s.value}</p>
-            <p className="text-[9px] text-slate-400 dark:text-slate-500 leading-tight mt-0.5">{s.label}</p>
+            className={`rounded-2xl px-3 py-3.5 text-center transition-all ${s.tap ? 'cursor-pointer glass-card hover:shadow-md active:scale-[0.98]' : 'glass-card'}`}>
+            <p className={`text-2xl font-display font-black tabular-nums leading-tight ${s.color}`}>{s.value}</p>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight mt-1">{s.label}</p>
           </div>
         ))}
       </div>

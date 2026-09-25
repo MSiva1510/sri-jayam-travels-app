@@ -20,6 +20,7 @@ import { loadBookings } from '../data/tripTypes'
 import { loadDrivers } from '../data/driverData'
 import { loadVehicles } from '../data/vehicleData'
 import { addAuditEvent } from '../data/auditLogData'
+import { pageSizeFor } from '../utils/zoomPageSize'
 
 // ─────────────────────────────────────────────────────────────
 //  Shared badges
@@ -430,7 +431,20 @@ export default function Expenses() {
   const [goPage,     setGoPage]    = useState('')
   const [showAnalytics, setShowAnalytics] = useState(false)
 
-  const PAGE_SIZE = 5
+  // ── Pagination: zoom-adaptive rows per page ─────────────────
+  // 90% → 6 · 100% → 5 · 110%+ → 4 (phones stay at 5).
+  const [pageSize, setPageSize] = useState(() => pageSizeFor(5, 5))
+  useEffect(() => {
+    const onResize = () => {
+      setPageSize(prev => {
+        const next = pageSizeFor(5, 5)
+        if (next !== prev) setPage(1)
+        return next
+      })
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 3000) }
   const [loadError, setLoadError] = useState(null)
   const reload = async () => {
@@ -482,11 +496,11 @@ export default function Expenses() {
     })
   }, [rangeFiltered, search, typeFilter, statFilter])
 
-  // Pagination: 6 per page + go-to-page
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  // Pagination: zoom-adaptive rows per page + go-to-page
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const safePage = Math.min(Math.max(1, page), totalPages)
-  const paginated = filtered.slice((safePage-1)*PAGE_SIZE, safePage*PAGE_SIZE)
-  useEffect(() => { setPage(1) }, [search, typeFilter, statFilter, dateRange, filtered.length])
+  const paginated = filtered.slice((safePage-1)*pageSize, safePage*pageSize)
+  useEffect(() => { setPage(1) }, [search, typeFilter, statFilter, dateRange, filtered.length, pageSize])
 
   const pageItems = (() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1)

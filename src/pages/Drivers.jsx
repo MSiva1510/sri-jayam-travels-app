@@ -12,6 +12,7 @@ import { loadBookings }       from '../data/tripTypes'
 import {
   loadTripPayslips, tripDriverAmount,
   loadPayrollSettings, savePayrollSettings,
+  buildTripPayslip, saveTripPayslip,
 } from '../data/settlementData'
 
 // ── Status badge colours ──────────────────────────────────────
@@ -277,16 +278,27 @@ function AddDriverModal({ onClose, onSaved }) {
   )
 }
 
+// Compact money: full figure below 1k, k-suffix above (never "Rs.0.0k").
+function fmtK(v) {
+  const n = Number(v) || 0
+  return n >= 1000 ? `Rs. ${(n / 1000).toFixed(1)}k` : `Rs. ${n.toLocaleString('en-IN')}`
+}
+
 // ── Driver Detail Modal ───────────────────────────────────────
 function DriverModal({ driver, bookings, payslips, onClose }) {
   const mine        = bookings.filter(b => b.driver === driver.name)
   const mySlips     = payslips.filter(p => p.driver === driver.name)
-  const totalEarned = mySlips.reduce((s, p) => s + tripDriverAmount(p), 0)
-  const pendingPay  = mySlips.filter(p => p.status === 'pending').reduce((s, p) => s + tripDriverAmount(p), 0)
+  // Ledger bata + bata sitting on completed trips that have no payslip yet.
+  const slipBookingIds = new Set(mySlips.map(p => p.bookingId).filter(Boolean))
+  const unsyncedBata   = mine
+    .filter(b => ['completed', 'closed'].includes(b.status) && !slipBookingIds.has(b.id))
+    .reduce((s, b) => s + (Number(b.bata) || 0), 0)
+  const totalEarned = mySlips.reduce((s, p) => s + tripDriverAmount(p), 0) + unsyncedBata
+  const pendingPay  = mySlips.filter(p => p.status === 'pending').reduce((s, p) => s + tripDriverAmount(p), 0) + unsyncedBata
 
   return (
     <ModalOverlay center onClose={onClose}>
-      <div className="w-full max-w-lg glass-card rounded-3xl overflow-hidden shadow-2xl animate-fade-up" onClick={e => e.stopPropagation()}>
+      <div className="w-full sm:max-w-2xl glass-card rounded-3xl overflow-hidden shadow-2xl animate-fade-up" onClick={e => e.stopPropagation()}>
         <div className="bg-gradient-to-br from-navy-900 to-navy-800 p-6">
           <div className="flex items-center gap-4">
             <Avatar name={driver.name} size={52} />
@@ -301,23 +313,23 @@ function DriverModal({ driver, bookings, payslips, onClose }) {
                 </span>
               </div>
             </div>
-            <button onClick={onClose} className="w-8 h-8 rounded-xl bg-white/10 text-white/70 flex items-center justify-center hover:bg-white/20 transition-colors text-sm font-bold">✕</button>
+            <button onClick={onClose} aria-label="Close driver details" className="min-w-[36px] min-h-[36px] w-9 h-9 rounded-xl bg-white/10 text-white/70 flex items-center justify-center hover:bg-white/20 active:scale-95 transition-all"><X size={16} /></button>
           </div>
         </div>
-        <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+        <div className="p-5 sm:p-6 space-y-4 max-h-[75vh] overflow-y-auto">
           <div className="grid grid-cols-2 gap-3">
             {[
               { label:'Mobile',          value: driver.mobile           },
               { label:'Vehicle',         value: driver.vehicle          },
               { label:'Licence No.',     value: driver.license          },
               { label:'Joined',          value: driver.joined           },
-              { label:'Licence Expiry',  value: driver.licenseExpiry || '—' },
-              { label:'Badge No.',       value: driver.badge            || '—' },
-              { label:'Medical Expiry',  value: driver.medicalExpiry    || '—' },
-            ].filter(r=>r.value&&r.value!=='—'||['Licence Expiry','Badge No.','Medical Expiry'].includes(r.label)).map(r => (
+              { label:'Licence Expiry',  value: driver.licenseExpiry || '' },
+              { label:'Badge No.',       value: driver.badge            || '' },
+              { label:'Medical Expiry',  value: driver.medicalExpiry    || '' },
+            ].filter(r => r.value && r.value !== '—').map(r => (
               <div key={r.label} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3">
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">{r.label}</p>
-                <p className="text-xs font-bold text-slate-700 dark:text-slate-200 mt-0.5">{r.value||'—'}</p>
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-200 mt-0.5">{r.value}</p>
               </div>
             ))}
           </div>
@@ -339,34 +351,40 @@ function DriverModal({ driver, bookings, payslips, onClose }) {
               )}
             </div>
           )}
-          </div>
           <div className="grid grid-cols-3 gap-2">
             {[
-              { label:'Total Trips',  value: mine.length,                                color:'text-blue-600 dark:text-blue-400'    },
-              { label:'Bata Earned',  value:`Rs.${(totalEarned/1000).toFixed(1)}k`,      color:'text-emerald-600 dark:text-emerald-400' },
-              { label:'Bata Pending', value:`Rs.${(pendingPay/1000).toFixed(1)}k`,       color:'text-amber-600 dark:text-amber-400'  },
+              { label:'Total Trips',  value: mine.length,             color:'text-blue-600 dark:text-blue-400'    },
+              { label:'Bata Earned',  value: fmtK(totalEarned),       color:'text-emerald-600 dark:text-emerald-400' },
+              { label:'Bata Pending', value: fmtK(pendingPay),        color:'text-amber-600 dark:text-amber-400'  },
             ].map(s => (
               <div key={s.label} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3 text-center">
-                <p className={`text-base font-black ${s.color}`}>{s.value}</p>
+                <p className={`text-base font-black tabular-nums ${s.color}`}>{s.value}</p>
                 <p className="text-[10px] text-slate-400 mt-0.5">{s.label}</p>
               </div>
             ))}
           </div>
+          {unsyncedBata > 0 && (
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Includes Rs. {unsyncedBata.toLocaleString('en-IN')} bata on trips with no payslip yet — press <span className="font-bold">Sync Trip Payslips</span> on the Drivers page to ledger it.
+            </p>
+          )}
           <div>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Recent Trips</p>
             {mine.length === 0 ? (
               <p className="text-xs text-slate-400 text-center py-4">No trips yet</p>
             ) : (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {mine.slice(0, 5).map(b => (
-                  <div key={b.id} className="flex items-center gap-3 px-3 py-2 bg-slate-50 dark:bg-navy-800/50 rounded-xl">
+                  <div key={b.id} className="flex items-center gap-3 px-4 py-3 bg-slate-50 dark:bg-navy-800/50 rounded-xl">
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{b.customer}</p>
-                      <p className="text-[10px] text-slate-400 truncate">{b.pickup} → {b.drop}</p>
+                      <p className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{b.customer}</p>
+                      <p className="text-[11px] text-slate-400 truncate mt-0.5">{b.pickup} → {b.drop}</p>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{b.fare ? `Rs.${b.fare.toLocaleString('en-IN')}` : '—'}</p>
-                      <p className="text-[10px] text-slate-400">{b.startDate}</p>
+                      <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                        {b.bata ? `Bata Rs. ${Number(b.bata).toLocaleString('en-IN')}` : 'Bata —'}
+                      </p>
+                      <p className="text-[11px] text-slate-400 tabular-nums mt-0.5">{b.startDate}{b.fare ? ` · Fare Rs. ${Number(b.fare).toLocaleString('en-IN')}` : ''}</p>
                     </div>
                   </div>
                 ))}
@@ -374,6 +392,7 @@ function DriverModal({ driver, bookings, payslips, onClose }) {
             )}
           </div>
         </div>
+      </div>
       </ModalOverlay>
   )
 }
@@ -423,6 +442,36 @@ export default function Drivers() {
   // ── Handlers ─────────────────────────────────────────────
   const handleDriverSaved = (newDriver) => {
     setDrivers(prev => [newDriver, ...prev.filter(d => d.id !== newDriver.id)])
+  }
+
+  // ── Fill the Bata Ledger: generate trip payslips for completed
+  // bookings (with a fare) that don't have one yet. Bata goes to
+  // the driver, fare stays with the company.
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState('')
+  const handleSyncPayslips = async () => {
+    setSyncing(true)
+    setSyncMsg('')
+    try {
+      const haveIds = new Set(payslips.map(p => p.bookingId).filter(Boolean))
+      const missing = bookings.filter(b =>
+        ['completed', 'closed'].includes(b.status) &&
+        Number(b.fare) > 0 &&
+        !haveIds.has(b.id)
+      )
+      let done = 0
+      for (const b of missing) {
+        const saved = await saveTripPayslip(buildTripPayslip(b))
+        if (saved) done++
+      }
+      await reload()
+      setSyncMsg(done > 0 ? `Generated ${done} trip payslip${done !== 1 ? 's' : ''}.` : 'Ledger is already up to date.')
+    } catch (err) {
+      console.error('Payslip sync failed:', err)
+      setSyncMsg('Sync failed. Check connection and retry.')
+    } finally {
+      setSyncing(false)
+    }
   }
 
   if (loading) {
@@ -515,7 +564,16 @@ export default function Drivers() {
 
       {/* Bata Ledger */}
       <div>
-        <h3 className="font-display font-black text-slate-800 dark:text-white text-lg mb-3">Bata Ledger</h3>
+        <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+          <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">Bata Ledger</h3>
+          <button onClick={handleSyncPayslips} disabled={syncing}
+            className="flex items-center gap-1.5 px-3 min-h-[36px] rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold transition-all active:scale-95 shadow-md disabled:opacity-50">
+            {syncing ? 'Syncing…' : 'Sync Trip Payslips'}
+          </button>
+        </div>
+        {syncMsg && (
+          <p className="text-[11px] font-semibold text-teal-600 dark:text-teal-400 mb-2">{syncMsg}</p>
+        )}
         <div className="glass-card rounded-2xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

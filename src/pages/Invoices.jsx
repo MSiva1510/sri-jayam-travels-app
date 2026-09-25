@@ -7,6 +7,7 @@ import ModalOverlay  from '../components/ui/ModalOverlay'
 import InvoiceModal  from '../components/invoice/InvoiceModal'
 import { useAuth }   from '../context/AuthContext'
 import { loadBookings, getStatusCfg } from '../data/tripTypes'
+import { pageSizeFor } from '../utils/zoomPageSize'
 
 // ── Customizable columns (Actions is always on; preference persists) ──
 const ALL_COLUMNS = [
@@ -211,23 +212,16 @@ export default function Invoices() {
   // Main list shows completed trips only — ongoing lives in Trips + picker
   const filtered = completedList
 
-  // ── Pagination: rows per viewport (zoom-adaptive) ──────────
-  // 90% zoom (tall viewport) → 10 rows · 100% → 8 rows · 110% → 7 rows.
+  // ── Pagination: rows per browser zoom level ─────────────────
+  // 90% zoom → 9 rows · 100% → 8 rows · 110%+ → 7 rows.
   // Phones keep 5 tall cards per page.
-  const rowsForViewport = () => {
-    if (typeof window !== 'undefined' && window.innerWidth < 768) return 5
-    const h = typeof window !== 'undefined' ? window.innerHeight : 800
-    if (h >= 950) return 10
-    if (h >= 800) return 8
-    return 7
-  }
-  const [pageSize, setPageSize] = useState(rowsForViewport)
+  const [pageSize, setPageSize] = useState(() => pageSizeFor(8, 5))
   const [page, setPage] = useState(1)
   const [goPage, setGoPage] = useState('')
   useEffect(() => {
     const onResize = () => {
       setPageSize(prev => {
-        const next = rowsForViewport()
+        const next = pageSizeFor(8, 5)
         if (next !== prev) setPage(1)
         return next
       })

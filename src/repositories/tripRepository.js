@@ -32,6 +32,14 @@ function toDbBooking(data = {}) {
     total_km: data.total_km ?? data.km,
     base_fare: data.base_fare,
     total_fare: data.total_fare ?? data.fare,
+    // Trip charges — driver's bata goes straight to the driver.
+    // Columns are added by migration 20260925_booking_charges; if the
+    // project hasn't applied it yet, the write path retries without them.
+    bata: data.bata ?? data.driver_bata,
+    toll: data.toll ?? data.toll_charges,
+    petrol: data.petrol ?? data.fuel_amount ?? data.fuel,
+    parking: data.parking ?? data.parking_charges,
+    extras: data.extras ?? data.other_charges,
     notes: data.notes,
     type_data: { ...typeData, ...data.typeData },
     approved_by: data.approved_by ?? data.approvedBy,
@@ -246,6 +254,19 @@ export class TripRepository extends BaseRepository {
     }
   }
 
+  // Charge columns may not exist until migration 20260925_booking_charges
+  // is applied — retry the write without them instead of failing the save.
+  _withoutChargeColumns(obj = {}) {
+    const { bata, toll, petrol, parking, extras, ...rest } = obj
+    return rest
+  }
+
+  _isMissingColumnError(error) {
+    const msg = String(error?.message || '')
+    return /column .* does not exist|Could not find the '.*' column/i.test(msg) &&
+      /(bata|toll|petrol|parking|extras)/i.test(msg)
+  }
+
   async _createInSupabase(data) {
     try {
       // Never pass a non-UUID 'id' — let Supabase auto-generate the PK.
@@ -259,13 +280,25 @@ export class TripRepository extends BaseRepository {
         created_at: payload.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }
-      const { data: created, error } = await supabase
-        .from('bookings')
-        .insert([trip])
-        .select()
-        .single()
-      if (error) throw error
-      return created
+      try {
+        const { data: created, error } = await supabase
+          .from('bookings')
+          .insert([trip])
+          .select()
+          .single()
+        if (error) throw error
+        return created
+      } catch (error) {
+        if (!this._isMissingColumnError(error)) throw error
+        console.warn('[tripRepository] charge columns missing — saving trip without bata/toll/fuel/parking. Apply migration 20260925_booking_charges.')
+        const { data: created, error: retryError } = await supabase
+          .from('bookings')
+          .insert([this._withoutChargeColumns(trip)])
+          .select()
+          .single()
+        if (retryError) throw retryError
+        return created
+      }
     } catch (error) {
       console.error('Error creating trip in Supabase:', error)
       throw error
@@ -274,17 +307,33 @@ export class TripRepository extends BaseRepository {
 
   async _updateInSupabase(id, data) {
     try {
-      const { data: updated, error } = await supabase
-        .from('bookings')
-        .update({
-          ...toDbBooking(data),
-          updated_at: new Date().toISOString(),
-        })
-        .eq(UUID_RE.test(String(id)) ? 'id' : 'booking_id', id)
-        .select()
-        .single()
-      if (error) throw error
-      return updated
+      try {
+        const { data: updated, error } = await supabase
+          .from('bookings')
+          .update({
+            ...toDbBooking(data),
+            updated_at: new Date().toISOString(),
+          })
+          .eq(UUID_RE.test(String(id)) ? 'id' : 'booking_id', id)
+          .select()
+          .single()
+        if (error) throw error
+        return updated
+      } catch (error) {
+        if (!this._isMissingColumnError(error)) throw error
+        console.warn('[tripRepository] charge columns missing — updating trip without bata/toll/fuel/parking. Apply migration 20260925_booking_charges.')
+        const { data: updated, error: retryError } = await supabase
+          .from('bookings')
+          .update({
+            ...this._withoutChargeColumns(toDbBooking(data)),
+            updated_at: new Date().toISOString(),
+          })
+          .eq(UUID_RE.test(String(id)) ? 'id' : 'booking_id', id)
+          .select()
+          .single()
+        if (retryError) throw retryError
+        return updated
+      }
     } catch (error) {
       console.error('Error updating trip in Supabase:', error)
       throw error

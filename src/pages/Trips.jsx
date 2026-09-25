@@ -26,6 +26,7 @@ import { loadGPSHistory }   from '../hooks/useGPS'
 import { loadTimeline, addTimelineEvent, fmtTimelineTime, getEventCfg } from '../data/tripTimelineData'
 import { upsertCustomerFromBooking, findCustomerByMobile, loadCustomers } from '../data/customerData'
 import { notify } from '../services/notificationService'
+import { pageSizeFor } from '../utils/zoomPageSize'
 
 // ── WhatsApp builder ──────────────────────────────────────────
 function buildWhatsAppUrl(booking, messageType = 'assigned') {
@@ -85,7 +86,7 @@ function BookingModal({ booking, onClose, onSave, userName }) {
   const [form, setForm] = useState(() => booking || {
     customer:'', contact:'', type:'one_way',
     pickup:'', drop:'', startDate:'', startTime:'',
-    returnDate:'', returnTime:'', notes:'', fare:'', status:'draft',
+    returnDate:'', returnTime:'', notes:'', fare:'', bata:'', status:'draft',
   })
   const [errors, setErrors] = useState({})
   const [suggestions, setSuggestions] = useState([])
@@ -120,7 +121,7 @@ function BookingModal({ booking, onClose, onSave, userName }) {
     const e = validate(); if (Object.keys(e).length) { setErrors(e); return }
     const now = new Date().toISOString()
     const saved = { ...form, id:form.id||generateBookingNumber(), bookingNo:form.bookingNo||generateBookingNumber(),
-      fare:Number(form.fare)||0, createdAt:form.createdAt||now, updatedAt:now,
+      fare:Number(form.fare)||0, bata:Number(form.bata)||0, createdAt:form.createdAt||now, updatedAt:now,
       createdBy:form.createdBy||userName||'manager', driver:form.driver||null, vehicle:form.vehicle||null }
     upsertCustomerFromBooking({ name:form.customer, mobile:form.contact })
     onSave(saved)
@@ -192,10 +193,14 @@ function BookingModal({ booking, onClose, onSave, userName }) {
           )}
           <Grid2>
             <div>
-              <FieldLabel>Fare (Rs.)</FieldLabel>
+              <FieldLabel>Fare (Rs. — company)</FieldLabel>
               <Input type="number" value={form.fare} onChange={e=>upd({fare:e.target.value})} placeholder="0" field="fare" />
             </div>
             <div>
+              <FieldLabel>Bata (Rs. — driver direct)</FieldLabel>
+              <Input type="number" value={form.bata ?? ''} onChange={e=>upd({bata:e.target.value})} placeholder="0" field="fare" />
+            </div>
+            <div className="col-span-2">
               <FieldLabel>Status</FieldLabel>
               <Select value={form.status} onChange={e=>upd({status:e.target.value})}>
                 {BOOKING_STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
@@ -709,10 +714,22 @@ export default function Trips() {
   const [editBooking,   setEditBooking]   = useState(null)
   const [assignBooking, setAssignBooking] = useState(null)
 
-  // ── Pagination: 5 cards per page + go-to-page ─────────────
-  const PAGE_SIZE = 5
+  // ── Pagination: zoom-adaptive cards per page + go-to-page ─
+  // 90% → 7 · 100% → 6 · 110%+ → 5 (phones stay at 5).
+  const [pageSize, setPageSize] = useState(() => pageSizeFor(6, 5))
   const [page, setPage] = useState(1)
   const [goPage, setGoPage] = useState('')
+  useEffect(() => {
+    const onResize = () => {
+      setPageSize(prev => {
+        const next = pageSizeFor(6, 5)
+        if (next !== prev) setPage(1)
+        return next
+      })
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   const filtered = useMemo(() =>
     bookings.filter(b => {
@@ -725,11 +742,11 @@ export default function Trips() {
     })
   , [bookings, statusFilter, typeFilter, isDriver, user])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const safePage = Math.min(Math.max(1, page), totalPages)
-  const pageRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  const pageRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
   // Reset/clamp page whenever the list identity changes
-  useEffect(() => { setPage(1) }, [statusFilter, typeFilter, tab, bookings.length])
+  useEffect(() => { setPage(1) }, [statusFilter, typeFilter, tab, bookings.length, pageSize])
 
   const pageItems = (() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1)

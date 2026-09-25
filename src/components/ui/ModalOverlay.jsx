@@ -21,6 +21,7 @@
 //   children — the modal panel
 
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 
 export default function ModalOverlay({ onClose, center = false, children }) {
   const align = center
@@ -34,10 +35,13 @@ export default function ModalOverlay({ onClose, center = false, children }) {
     return () => cancelAnimationFrame(id)
   }, [])
 
-  return (
+  // Portal to <body>: escapes every ancestor stacking context
+  // (sticky topbars, animated wrappers) so the dim layer always
+  // covers the full viewport — including the topbar.
+  return createPortal(
     <>
       {/* Layer 1 — blurred backdrop, own stacking context at z-[100].
-          backdrop-blur is isolated here and cannot bleed into Layer 2. */}
+         backdrop-blur is isolated here and cannot bleed into Layer 2. */}
       <div
         aria-hidden="true"
         className={`fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm transition-opacity duration-200 ease-out ${
@@ -47,9 +51,9 @@ export default function ModalOverlay({ onClose, center = false, children }) {
       />
 
       {/* Layer 2 — modal panel, separate stacking context at z-[101].
-          Rendered AFTER the backdrop in DOM order and at a higher z,
-          so it always paints above. No backdrop-filter here — the panel
-          content is fully crisp regardless of what's in Layer 1. */}
+         Rendered AFTER the backdrop in DOM order and at a higher z,
+         so it always paints above. No backdrop-filter here — the panel
+         content is fully crisp regardless of what's in Layer 1. */}
       <div
         className={`fixed inset-0 z-[101] flex pointer-events-none ${align}`}
       >
@@ -58,6 +62,7 @@ export default function ModalOverlay({ onClose, center = false, children }) {
           {children}
         </div>
       </div>
-    </>
+    </>,
+    document.body
   )
 }
