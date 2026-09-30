@@ -24,6 +24,8 @@ function toDbDriver(data = {}) {
     bank_name: data.bank_name,
     emergency_contact: data.emergency_contact,
     license_photo_url: data.licenceImage ?? data.licence_image ?? data.license_photo_url,
+    // FCM push token registered by the driver mobile app (migration 20260927).
+    push_token: data.push_token ?? data.pushToken,
     updated_at: data.updated_at ?? data.updatedAt,
   }
   return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined))
@@ -362,14 +364,31 @@ export class DriverRepository extends BaseRepository {
 
   // ── SUPABASE METHODS ──────────────────────────────────────────
 
+  // push_token may not exist until migration 20260927_drivers_push_token
+  // is applied — retry the read without it instead of failing the page.
+  _driverColumns(withToken = true) {
+    const base = 'id, driver_id, name, phone, license_number, status, joined_date, license_expiry, bank_name, emergency_contact, license_photo_url, created_at, updated_at'
+    return withToken ? `${base}, push_token` : base
+  }
+  _isMissingColumnError(error) {
+    return /column .* does not exist|Could not find the '.*' column/i.test(String(error?.message || ''))
+  }
+
   async _getAllFromSupabase() {
     try {
       const { data, error } = await supabase
         .from('drivers')
-        .select('id, driver_id, name, phone, license_number, status, joined_date, license_expiry, bank_name, emergency_contact, license_photo_url, created_at, updated_at')
+        .select(this._driverColumns(true))
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        if (this._isMissingColumnError(error)) {
+          const retry = await supabase.from('drivers').select(this._driverColumns(false)).order('created_at', { ascending: false })
+          if (retry.error) throw retry.error
+          return retry.data || []
+        }
+        throw error
+      }
       return data || []
     } catch (error) {
       console.error('Error fetching drivers from Supabase:', error)
@@ -381,7 +400,7 @@ export class DriverRepository extends BaseRepository {
     try {
       const { data, error } = await supabase
         .from('drivers')
-        .select('id, driver_id, name, phone, license_number, status, joined_date, license_expiry, bank_name, emergency_contact, license_photo_url, created_at, updated_at')
+        .select(this._driverColumns(true))
         .eq(UUID_RE.test(String(id)) ? 'id' : 'driver_id', id)
         .single()
 
@@ -389,7 +408,17 @@ export class DriverRepository extends BaseRepository {
         return null
       }
 
-      if (error) throw error
+      if (error) {
+        if (this._isMissingColumnError(error)) {
+          const retry = await supabase.from('drivers')
+            .select(this._driverColumns(false))
+            .eq(UUID_RE.test(String(id)) ? 'id' : 'driver_id', id)
+            .single()
+          if (retry.error && retry.error.code !== 'PGRST116') throw retry.error
+          return retry.data || null
+        }
+        throw error
+      }
       return data || null
     } catch (error) {
       console.error('Error fetching driver from Supabase:', error)

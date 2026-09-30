@@ -3,6 +3,7 @@
 // Routes through CommunicationEngine → Adapters → Logs.
 // Also provides backward-compatible in-app notification helpers.
 
+import supabase from '../lib/supabase'
 import { communicationEngine, CHANNELS, RECIPIENT_TYPE, sendCommunication } from '../communication/CommunicationEngine'
 import { publish, EVENTS }       from '../communication/EventBus'
 import { scheduler }             from '../communication/Scheduler'
@@ -11,7 +12,9 @@ import {
   communicationLogRepository,
   notificationPreferenceRepository,
   providerRepository,
+  mobilePushSettingsRepository,
 } from '../repositories/communicationRepository'
+import { loadDrivers } from '../data/driverData'
 
 // ── Re-export core ────────────────────────────────────────────
 export { CHANNELS, RECIPIENT_TYPE }
@@ -223,6 +226,99 @@ export function openWhatsApp(phone, message) {
 
 export function whatsAppLink(phone, message) {
   return whatsapp.deepLink(phone, message)
+}
+
+// ── Mobile app push ───────────────────────────────────────────
+// Master switch + registered-device broadcast for the driver mobile app.
+// Sends through the engine push channel to every driver with a registered
+// FCM token. Results are truthful: unconfigured providers log as failed.
+export async function getMobilePushSettings() {
+  return mobilePushSettingsRepository.get()
+}
+export async function saveMobilePushSettings(cfg) {
+  return mobilePushSettingsRepository.save(cfg)
+}
+export async function getPushableDrivers() {
+  const all = await loadDrivers()
+  const list = Array.isArray(all) ? all : []
+  return list.filter(d => String(d.push_token || d.pushToken || '').trim() !== '')
+}
+export async function broadcastMobilePush({ title, body }) {
+  const settings = await mobilePushSettingsRepository.get()
+  if (!settings.enabled) return { ok: false, reason: 'disabled', sent: 0, failed: 0, total: 0 }
+  const targets = await getPushableDrivers()
+  if (targets.length === 0) return { ok: false, reason: 'no_tokens', sent: 0, failed: 0, total: 0 }
+  const subject = title || 'Sri Jayam Travels'
+
+  // Preferred path: send-push Edge Function (real FCM delivery).
+  const edge = await _invokePushEdge(targets.map(d => d.push_token || d.pushToken), subject, body || '')
+  if (edge && !edge.error && edge.error !== 'not_configured') {
+    const byToken = new Map((edge.results || []).map(r => [r.token, r]))
+    let sent = 0, failed = 0
+    for (const d of targets) {
+      const r = byToken.get(d.push_token || d.pushToken)
+      const ok = !!r?.ok
+      if (ok) sent++
+      else failed++
+      try {
+        await communicationLogRepository.create({
+          channel: CHANNELS.PUSH,
+          recipient_id: d.driver_id || d.id,
+          recipient_type: RECIPIENT_TYPE.DRIVER,
+          recipient_name: d.name || null,
+          recipient_contact: d.phone || null,
+          category: 'driver',
+          event_type: 'MOBILE_ANNOUNCEMENT',
+          subject,
+          body: body || '',
+          status: ok ? 'delivered' : 'failed',
+          sent_at: ok ? new Date().toISOString() : null,
+          failure_reason: ok ? null : (r?.error || 'Edge send failed'),
+          related_entity_type: 'driver',
+          related_entity_id: d.driver_id || d.id,
+          metadata: { via: 'edge', messageId: r?.messageId || null },
+        })
+      } catch {}
+    }
+    return { ok: true, reason: null, via: 'edge', sent, failed, total: targets.length }
+  }
+
+  // Fallback path: engine push channel per token (honest logging —
+  // unconfigured providers record as failed, never fake-delivered).
+  let sent = 0, failed = 0
+  for (const d of targets) {
+    try {
+      const results = await sendCommunication({
+        eventType: 'MOBILE_ANNOUNCEMENT',
+        channels: [CHANNELS.PUSH],
+        recipient: {
+          id: d.driver_id || d.id, type: RECIPIENT_TYPE.DRIVER,
+          name: d.name, contact: d.phone,
+          pushToken: d.push_token || d.pushToken,
+        },
+        subject,
+        body: body || '',
+        relatedEntity: { type: 'driver', id: d.driver_id || d.id },
+      })
+      const ok = (Array.isArray(results) ? results : []).some(r => !['failed', 'not_configured', 'skipped'].includes(r?.status))
+      if (ok) sent++
+      else failed++
+    } catch {
+      failed++
+    }
+  }
+  return { ok: true, reason: edge?.error === 'not_configured' ? 'sender_not_configured' : null, via: 'engine', sent, failed, total: targets.length }
+}
+
+async function _invokePushEdge(tokens, title, body) {
+  try {
+    if (!supabase) return null
+    const { data, error } = await supabase.functions.invoke('send-push', { body: { tokens, title, body } })
+    if (error) return null
+    return data
+  } catch {
+    return null
+  }
 }
 
 // ── User preferences ──────────────────────────────────────────

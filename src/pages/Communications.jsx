@@ -3,23 +3,25 @@
 // Accessible to Admin and Manager.
 
 import { useState, useMemo, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Bell, MessageSquare, BarChart2, Settings, Search,
   Filter, RefreshCw, CheckCheck, Archive, Trash2,
   AlertTriangle, CheckCircle, Clock, ChevronDown,
   Smartphone, Phone, Globe, BookOpen, Zap, Send,
-  Download,
+  Download, Eye, Copy, X, ChevronLeft, ChevronRight,
+  ExternalLink, XCircle,
 } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
 import { useCommunicationCtx } from '../hooks/useCommunication'
 import { exportToCSV } from '../data/reportData'
 import { fmtAuditTime } from '../data/auditLogData'
+import { getCommunicationLogs, openWhatsApp, scheduler } from '../services/communicationService'
 
 // ── Constants ─────────────────────────────────────────────────
 const TABS = [
   { key:'notifications', label:'Notifications', Icon:Bell         },
   { key:'logs',          label:'Comm Logs',     Icon:MessageSquare},
-  { key:'analytics',     label:'Analytics',     Icon:BarChart2    },
   { key:'schedule',      label:'Scheduled',     Icon:Clock        },
 ]
 
@@ -35,6 +37,7 @@ const CHANNEL_CFG = {
 const STATUS_CFG = {
   pending:    { label:'Pending',    badge:'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300' },
   processing: { label:'Processing', badge:'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'         },
+  queued:     { label:'Queued',     badge:'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'         },
   delivered:  { label:'Delivered',  badge:'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'},
   failed:     { label:'Failed',     badge:'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'             },
   retrying:   { label:'Retrying',   badge:'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' },
@@ -72,6 +75,179 @@ function ChannelChip({ channel }) {
     </span>
   )
 }
+
+// ── Shared ops UI ─────────────────────────────────────────────
+// Absolute timestamps (logs carry real created_at / sent_at only).
+function fmtDT(iso) {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return null
+  return {
+    date: d.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }),
+    time: d.toLocaleTimeString('en-IN', { hour:'numeric', minute:'2-digit', hour12:true }).toUpperCase(),
+  }
+}
+function TimeCell({ iso }) {
+  const t = fmtDT(iso)
+  if (!t) return <span className="text-slate-300 dark:text-slate-600">—</span>
+  return (
+    <span className="block leading-tight">
+      <span className="block text-xs font-semibold text-slate-600 dark:text-slate-300 whitespace-nowrap">{t.date}</span>
+      <span className="block text-[10px] text-slate-400 tabular-nums">{t.time}</span>
+    </span>
+  )
+}
+const copyText = async (t) => { try { await navigator.clipboard.writeText(String(t ?? '')); return true } catch { return false } };
+
+// Compact KPI card (icon tile + value + label + sub note)
+function Kpi({ icon, value, label, sub, tone }) {
+  const tones = {
+    navy:     'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+    green:    'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400',
+    red:      'bg-red-100 dark:bg-red-900/30 text-red-500 dark:text-red-400',
+    amber:    'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
+    violet:   'bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400',
+    teal:     'bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400',
+    slate:    'bg-slate-100 dark:bg-navy-800 text-slate-500 dark:text-slate-400',
+  }
+  return (
+    <div className="glass-card rounded-xl px-3 py-3 flex items-center gap-2.5">
+      <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-base ${tones[tone] || tones.slate}`}>
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p className="text-xl font-display font-black text-slate-800 dark:text-white tabular-nums leading-none">{value}</p>
+        <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mt-1">{label}</p>
+        {sub && <p className="text-[9px] text-slate-400 truncate">{sub}</p>}
+      </div>
+    </div>
+  )
+}
+function KpiSkeleton() {
+  return (
+    <div className="glass-card rounded-xl px-3 py-3 flex items-center gap-2.5">
+      <div className="w-9 h-9 rounded-xl skeleton flex-shrink-0" />
+      <div className="flex-1 space-y-1.5"><div className="h-4 w-12 rounded skeleton" /><div className="h-2 w-16 rounded skeleton" /></div>
+    </div>
+  )
+}
+function SectionTitle({ children, right }) {
+  return (
+    <div className="flex items-center justify-between gap-2 mb-2.5">
+      <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{children}</p>
+      {right}
+    </div>
+  )
+}
+function EmptyState({ icon, title, sub }) {
+  return (
+    <div className="glass-card rounded-2xl p-10 text-center">
+      <div className="text-3xl mb-2 opacity-60">{icon}</div>
+      <p className="text-slate-500 dark:text-slate-400 font-bold text-sm">{title}</p>
+      {sub && <p className="text-slate-400 text-xs mt-1">{sub}</p>}
+    </div>
+  )
+}
+function SkeletonRows({ n = 6 }) {
+  return (
+    <div className="glass-card rounded-2xl overflow-hidden">
+      {Array.from({ length: n }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3 px-4 py-3 border-b border-slate-50 dark:border-navy-800 last:border-0">
+          <div className="h-3 w-8 rounded skeleton" />
+          <div className="flex-1 space-y-1.5"><div className="h-3 w-40 rounded skeleton" /><div className="h-2 w-24 rounded skeleton" /></div>
+          <div className="h-5 w-16 rounded-full skeleton" />
+          <div className="h-3 w-20 rounded skeleton hidden sm:block" />
+        </div>
+      ))}
+    </div>
+  )
+}
+function Pager({ page, totalPages, total, pageSize, onPage }) {
+  if (total === 0) return null
+  const from = (page - 1) * pageSize + 1
+  const to = Math.min(page * pageSize, total)
+  return (
+    <div className="flex items-center justify-between gap-2 flex-wrap">
+      <p className="text-xs text-slate-400 tabular-nums">Showing {from} to {to} of {total} records</p>
+      {totalPages > 1 && (
+        <div className="flex items-center gap-1.5">
+          <button disabled={page <= 1} onClick={() => onPage(page - 1)} aria-label="Previous page"
+            className="w-8 h-8 rounded-lg border border-slate-200 dark:border-navy-700 flex items-center justify-center text-slate-500 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+            <ChevronLeft size={14} />
+          </button>
+          <span className="min-w-[32px] h-8 px-2 rounded-lg bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold flex items-center justify-center tabular-nums">{page}</span>
+          <button disabled={page >= totalPages} onClick={() => onPage(page + 1)} aria-label="Next page"
+            className="w-8 h-8 rounded-lg border border-slate-200 dark:border-navy-700 flex items-center justify-center text-slate-500 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+            <ChevronRight size={14} />
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+// Right-side detail drawer (full-screen sheet on mobile)
+function Drawer({ title, sub, onClose, children, actions }) {
+  return createPortal(
+    <div className="fixed inset-0 z-[100]">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="absolute inset-x-0 bottom-0 sm:inset-x-auto sm:right-0 sm:top-0 sm:bottom-0 sm:w-[440px] max-h-[92vh] sm:max-h-none bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-none shadow-2xl flex flex-col animate-fade-up">
+        <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
+        <div className="flex items-start justify-between gap-3 px-5 pt-4 sm:pt-5 pb-3 border-b border-slate-100 dark:border-navy-700 flex-shrink-0">
+          <div className="min-w-0">
+            <h3 className="font-display font-black text-slate-800 dark:text-white text-base">{title}</h3>
+            {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+          </div>
+          <button onClick={onClose} aria-label="Close details"
+            className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700 transition-colors flex-shrink-0">
+            <X size={15} />
+          </button>
+        </div>
+        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">{children}</div>
+        {actions && (
+          <div className="px-5 py-3.5 border-t border-slate-100 dark:border-navy-700 flex gap-2 flex-shrink-0">{actions}</div>
+        )}
+      </div>
+    </div>,
+    document.body
+  )
+}
+function MetaGrid({ items }) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {items.map(m => (
+        <div key={m.label} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl px-3 py-2 border border-slate-100 dark:border-navy-700 min-w-0">
+          <p className="text-[9px] text-slate-400 uppercase tracking-wide font-bold">{m.label}</p>
+          <div className="text-xs font-bold text-slate-700 dark:text-slate-200 mt-0.5 break-words">{m.value}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+// Date-range presets (absolute ranges over real record timestamps)
+const RANGE_OPTS = [
+  { key:'today', label:'Today' },
+  { key:'7d',    label:'7 Days' },
+  { key:'30d',   label:'30 Days' },
+  { key:'month', label:'This Month' },
+  { key:'last',  label:'Last Month' },
+  { key:'all',   label:'All Time' },
+]
+function rangeStartMs(key) {
+  const now = new Date()
+  const sod = new Date(now); sod.setHours(0, 0, 0, 0)
+  if (key === 'today') return sod.getTime()
+  if (key === '7d')  return sod.getTime() - 6 * 86400000
+  if (key === '30d') return sod.getTime() - 29 * 86400000
+  if (key === 'month') return new Date(now.getFullYear(), now.getMonth(), 1).getTime()
+  if (key === 'last')  return new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime()
+  return 0
+}
+function rangeEndMs(key) {
+  const now = new Date()
+  if (key === 'last') return new Date(now.getFullYear(), now.getMonth(), 1).getTime() - 1
+  return now.getTime()
+}
+const prettyEvent = (e) => String(e || 'general').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 
 // ── Notifications Tab ─────────────────────────────────────────
 function NotificationsTab() {
@@ -193,96 +369,229 @@ function NotificationsTab() {
 }
 
 // ── Comm Logs Tab ─────────────────────────────────────────────
+// Technical audit of every communication. Real communication_logs records
+// only: no attempts/provider/read fields exist, and no retry API exists —
+// so the UI shows exactly what the backend stores (View + Copy + optional
+// WhatsApp follow-up), never a fake Retry.
+const LOG_PAGE_SIZE = 10
 function CommLogsTab() {
-  const { commLogs, logsTotal, logsLoading, loadLogs } = useCommunicationCtx()
-  const [channelFilter, setChannelFilter] = useState('all')
-  const [statusFilter,  setStatusFilter]  = useState('all')
-  const [search, setSearch] = useState('')
+  const [logs, setLogs]       = useState([])
+  const [total, setTotal]     = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(null)
+  const [search, setSearch]   = useState('')
+  const [channel, setChannel] = useState('all')
+  const [status, setStatus]   = useState('all')
+  const [recipient, setRecipient] = useState('all')
+  const [trigger, setTrigger] = useState('all')
+  const [range, setRange]     = useState('all')
+  const [page, setPage]       = useState(1)
+  const [drawer, setDrawer]   = useState(null)
+  const [copied, setCopied]   = useState(false)
 
-  useEffect(() => { loadLogs() }, [])
+  const reload = async () => {
+    setLoading(true); setLoadError(null)
+    try {
+      const { data, count } = await getCommunicationLogs({ limit: 200 })
+      setLogs(Array.isArray(data) ? data : [])
+      setTotal(count || 0)
+    } catch {
+      setLoadError('Unable to load communication logs')
+    }
+    setLoading(false)
+  }
+  useEffect(() => { reload() }, [])
+  useEffect(() => { setPage(1) }, [search, channel, status, recipient, trigger, range])
 
-  const filtered = useMemo(() =>
-    commLogs.filter(l => {
-      if (channelFilter !== 'all' && l.channel !== channelFilter) return false
-      if (statusFilter  !== 'all' && l.status  !== statusFilter)  return false
+  const channels = useMemo(() => [...new Set(logs.map(l => l.channel).filter(Boolean))], [logs])
+  const recipients = useMemo(() => [...new Set(logs.map(l => l.recipient_name).filter(Boolean))].sort(), [logs])
+  const triggers = useMemo(() => [...new Set(logs.map(l => l.event_type || l.category).filter(Boolean))].sort(), [logs])
+  const statuses = useMemo(() => [...new Set(logs.map(l => l.status).filter(Boolean))], [logs])
+
+  const filtered = useMemo(() => {
+    const from = rangeStartMs(range), to = rangeEndMs(range)
+    return logs.filter(l => {
+      if (channel !== 'all' && l.channel !== channel) return false
+      if (status !== 'all' && l.status !== status) return false
+      if (recipient !== 'all' && l.recipient_name !== recipient) return false
+      if (trigger !== 'all' && (l.event_type || l.category) !== trigger) return false
+      const t = l.created_at ? new Date(l.created_at).getTime() : 0
+      if (t < from || t > to) return false
       if (search) {
         const q = search.toLowerCase()
-        return [l.subject,l.body,l.recipient_name,l.event_type,l.category].some(v=>v?.toLowerCase().includes(q))
+        if (![l.subject, l.body, l.recipient_name, l.recipient_contact, l.event_type, l.category, l.id]
+          .some(v => String(v ?? '').toLowerCase().includes(q))) return false
       }
       return true
     })
-  , [commLogs, channelFilter, statusFilter, search])
+  }, [logs, channel, status, recipient, trigger, range, search])
+
+  // KPIs from the loaded window (real records only)
+  const kTotal = logs.length
+  const kDelivered = logs.filter(l => l.status === 'delivered').length
+  const kFailed = logs.filter(l => l.status === 'failed').length
+  const kPending = logs.filter(l => ['pending', 'processing', 'queued', 'retrying'].includes(l.status)).length
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / LOG_PAGE_SIZE))
+  const safePage = Math.min(Math.max(1, page), totalPages)
+  const pageRows = filtered.slice((safePage - 1) * LOG_PAGE_SIZE, safePage * LOG_PAGE_SIZE)
+
+  const selCls = 'px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none max-w-[150px]'
+  const clearFilters = () => { setSearch(''); setChannel('all'); setStatus('all'); setRecipient('all'); setTrigger('all'); setRange('all') }
+  const hasFilters = search || channel !== 'all' || status !== 'all' || recipient !== 'all' || trigger !== 'all' || range !== 'all'
 
   const handleExport = () => exportToCSV(filtered, [
-    {label:'Time',      key:'created_at'},
-    {label:'Channel',   key:'channel'},
-    {label:'Category',  key:'category'},
-    {label:'Event',     key:'event_type'},
-    {label:'Recipient', key:'recipient_name'},
-    {label:'Subject',   key:'subject'},
-    {label:'Status',    key:'status'},
-    {label:'Priority',  key:'priority'},
+    { label:'ID', key:'id' },
+    { label:'Created', key:'created_at' },
+    { label:'Sent', key:'sent_at' },
+    { label:'Channel', key:'channel' },
+    { label:'Category', key:'category' },
+    { label:'Trigger', key:'event_type' },
+    { label:'Recipient', key:'recipient_name' },
+    { label:'Contact', key:'recipient_contact' },
+    { label:'Subject', key:'subject' },
+    { label:'Body', key:'body' },
+    { label:'Status', key:'status' },
+    { label:'Failure Reason', key:'failure_reason' },
+    { label:'Priority', key:'priority' },
   ], 'comm_logs')
+
+  const doCopy = async (l) => {
+    const ok = await copyText(`${l.subject || ''}\n${l.body || ''}`.trim())
+    setCopied(ok)
+    setTimeout(() => setCopied(false), 1500)
+  }
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
-      <div className="flex flex-wrap gap-2 items-center">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white/70 dark:bg-navy-800/60 flex-1 min-w-[160px] max-w-xs">
-          <Search size={13} className="text-slate-400"/>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search logs…"
-            className="bg-transparent text-sm text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none w-full"/>
+      <div>
+        <h3 className="font-display font-black text-slate-800 dark:text-white text-base">Communication Logs</h3>
+        <p className="text-xs text-slate-400 mt-0.5">Track message delivery, failures, retries and communication history</p>
+      </div>
+
+      {loading ? (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{[0, 1, 2, 3].map(i => <KpiSkeleton key={i} />)}</div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <Kpi icon="📨" value={kTotal} label="TOTAL MESSAGES" sub={`${total} in store`} tone="navy" />
+          <Kpi icon="✅" value={kDelivered} label="DELIVERED" sub={kTotal ? `${Math.round(kDelivered / kTotal * 100)}% of loaded` : '—'} tone="green" />
+          <Kpi icon="❌" value={kFailed} label="FAILED" sub={kFailed ? 'Needs attention' : 'None'} tone="red" />
+          <Kpi icon="⏳" value={kPending} label="PENDING" sub="Awaiting delivery" tone="amber" />
         </div>
-        <select value={channelFilter} onChange={e=>setChannelFilter(e.target.value)}
-          className="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none">
+      )}
+
+      {/* Filter toolbar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white/70 dark:bg-navy-800/60 flex-1 min-w-[180px] max-w-xs">
+          <Search size={13} className="text-slate-400 flex-shrink-0" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search message, recipient, ID…"
+            className="bg-transparent text-xs text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none w-full" />
+        </div>
+        <select value={channel} onChange={e => setChannel(e.target.value)} className={selCls}>
           <option value="all">All Channels</option>
-          {Object.entries(CHANNEL_CFG).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+          {channels.map(c => <option key={c} value={c}>{CHANNEL_CFG[c]?.label || c}</option>)}
         </select>
-        <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}
-          className="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none">
+        <select value={status} onChange={e => setStatus(e.target.value)} className={selCls}>
           <option value="all">All Status</option>
-          {Object.entries(STATUS_CFG).filter(([k])=>!['unread','read','archived'].includes(k)).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+          {statuses.map(s => <option key={s} value={s}>{STATUS_CFG[s]?.label || s}</option>)}
         </select>
-        <p className="text-xs text-slate-400">{filtered.length} / {logsTotal}</p>
+        <select value={recipient} onChange={e => setRecipient(e.target.value)} className={selCls}>
+          <option value="all">All Recipients</option>
+          {recipients.map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
+        <select value={trigger} onChange={e => setTrigger(e.target.value)} className={selCls}>
+          <option value="all">All Triggers</option>
+          {triggers.map(t => <option key={t} value={t}>{prettyEvent(t)}</option>)}
+        </select>
+        <select value={range} onChange={e => setRange(e.target.value)} className={selCls}>
+          {RANGE_OPTS.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
+        </select>
+        {hasFilters && (
+          <button onClick={clearFilters}
+            className="px-3 py-2 text-xs font-bold rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+            Clear
+          </button>
+        )}
         <div className="flex gap-2 ml-auto">
-          <button onClick={()=>loadLogs()} className="w-8 h-8 rounded-lg border border-slate-200 dark:border-navy-700 flex items-center justify-center text-slate-400 hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors"><RefreshCw size={13}/></button>
-          <button onClick={handleExport} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors"><Download size={13}/> CSV</button>
+          <button onClick={reload} title="Refresh" aria-label="Refresh logs"
+            className="w-8 h-8 rounded-lg border border-slate-200 dark:border-navy-700 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
+            <RefreshCw size={13} />
+          </button>
+          <button onClick={handleExport}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
+            <Download size={13} /> Export Logs
+          </button>
         </div>
       </div>
 
-      {/* Table */}
-      {logsLoading ? (
-        <div className="space-y-2">{[1,2,3].map(i=><div key={i} className="h-12 glass-card rounded-xl animate-pulse"/>)}</div>
-      ) : filtered.length === 0 ? (
-        <div className="glass-card rounded-2xl p-12 text-center">
-          <MessageSquare size={32} className="mx-auto text-slate-300 dark:text-slate-600 mb-3"/>
-          <p className="text-slate-400 text-sm">No communication logs found</p>
+      {/* Table / states */}
+      {loading ? (
+        <SkeletonRows n={7} />
+      ) : loadError ? (
+        <div className="glass-card rounded-2xl p-10 text-center">
+          <AlertTriangle size={28} className="mx-auto text-red-400 mb-2" />
+          <p className="text-sm font-bold text-slate-600 dark:text-slate-300">{loadError}</p>
+          <button onClick={reload}
+            className="mt-3 px-4 py-2 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 transition-all">
+            Retry
+          </button>
         </div>
-      ) : (
-        <div className="glass-card rounded-2xl overflow-hidden">
+      ) : filtered.length === 0 ? (
+        <EmptyState icon="📭" title={hasFilters ? 'No logs match these filters' : 'No communication logs yet'}
+          sub={hasFilters ? 'Try clearing search or choosing a different filter.' : 'Logs appear here once the system sends communications.'} />
+      ) : (<>
+        <div className="glass-card rounded-2xl overflow-hidden hidden md:block">
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-navy-800/60 border-b border-slate-100 dark:border-navy-700">
-                  {['Time','Channel','Category','Event','Recipient','Subject','Status','Priority'].map(h=>(
-                    <th key={h} className="px-3 py-2.5 text-left font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
+            <table className="w-full text-sm">
+              <thead className="sticky top-0">
+                <tr className="bg-slate-50/95 dark:bg-navy-800/95 border-b border-slate-100 dark:border-navy-700">
+                  {['#', 'Message', 'Channel', 'Recipient', 'Trigger', 'Status', 'Sent At', 'Delivered At', 'Actions'].map(h => (
+                    <th key={h} className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50 dark:divide-navy-800">
-                {filtered.map((l,i)=>(
-                  <tr key={l.id||i} className="hover:bg-slate-50/50 dark:hover:bg-navy-800/20 transition-colors">
-                    <td className="px-3 py-2.5 whitespace-nowrap text-slate-400 dark:text-slate-500 font-mono">{fmtAuditTime(l.created_at)}</td>
-                    <td className="px-3 py-2.5"><ChannelChip channel={l.channel}/></td>
-                    <td className="px-3 py-2.5">
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full capitalize ${CAT_COLORS[l.category]||CAT_COLORS.general}`}>{l.category||'—'}</span>
+              <tbody>
+                {pageRows.map((l, i) => (
+                  <tr key={l.id || i} onClick={() => setDrawer(l)}
+                    className="border-b border-slate-50 dark:border-navy-800 hover:bg-slate-50/50 dark:hover:bg-navy-800/30 transition-colors cursor-pointer">
+                    <td className="px-3 py-2.5 text-xs text-slate-400 tabular-nums">{(safePage - 1) * LOG_PAGE_SIZE + i + 1}</td>
+                    <td className="px-3 py-2.5 max-w-[220px]">
+                      <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{l.subject || prettyEvent(l.event_type)}</p>
+                      <p className="text-[10px] text-slate-400 truncate">{l.body ? l.body.slice(0, 60) : String(l.id || '').slice(0, 12)}</p>
+                      {l.status === 'failed' && l.failure_reason && (
+                        <p className="text-[10px] text-red-500 truncate">⚠ {l.failure_reason}</p>
+                      )}
                     </td>
-                    <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300 whitespace-nowrap">{l.event_type?.replace(/_/g,' ')||'—'}</td>
-                    <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300 max-w-[100px] truncate">{l.recipient_name||'—'}</td>
-                    <td className="px-3 py-2.5 text-slate-700 dark:text-slate-200 max-w-[180px] truncate">{l.subject||l.body?.slice(0,40)||'—'}</td>
-                    <td className="px-3 py-2.5"><StatusBadge status={l.status}/></td>
-                    <td className="px-3 py-2.5">
-                      <span className={`text-[9px] font-bold capitalize ${l.priority==='critical'?'text-red-500':l.priority==='high'?'text-amber-500':l.priority==='low'?'text-slate-400':'text-slate-500 dark:text-slate-400'}`}>{l.priority||'medium'}</span>
+                    <td className="px-3 py-2.5"><ChannelChip channel={l.channel} /></td>
+                    <td className="px-3 py-2.5 max-w-[140px]">
+                      <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{l.recipient_name || '—'}</p>
+                      {l.recipient_contact && <p className="text-[10px] text-slate-400 truncate">{l.recipient_contact}</p>}
+                    </td>
+                    <td className="px-3 py-2.5 max-w-[130px]">
+                      <p className="text-xs text-slate-600 dark:text-slate-300 truncate">{prettyEvent(l.event_type)}</p>
+                      {l.category && <p className="text-[10px] text-slate-400 capitalize">{l.category}</p>}
+                    </td>
+                    <td className="px-3 py-2.5"><StatusBadge status={l.status} /></td>
+                    <td className="px-3 py-2.5"><TimeCell iso={l.created_at} /></td>
+                    <td className="px-3 py-2.5"><TimeCell iso={l.sent_at} /></td>
+                    <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => setDrawer(l)} title="View details" aria-label="View details"
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+                          <Eye size={13} />
+                        </button>
+                        <button onClick={() => doCopy(l)} title="Copy message" aria-label="Copy message"
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+                          <Copy size={13} />
+                        </button>
+                        {l.channel === 'whatsapp' && l.recipient_contact && (
+                          <button onClick={() => openWhatsApp(l.recipient_contact, `${l.subject || ''}\n${l.body || ''}`.trim())}
+                            title="Open in WhatsApp" aria-label="Open in WhatsApp"
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors">
+                            <ExternalLink size={13} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -290,124 +599,359 @@ function CommLogsTab() {
             </table>
           </div>
         </div>
+        {/* Mobile cards */}
+        <div className="space-y-2 md:hidden">
+          {pageRows.map((l, i) => (
+            <div key={l.id || i} onClick={() => setDrawer(l)}
+              className="glass-card rounded-2xl p-3.5 cursor-pointer active:scale-[0.99] transition-transform">
+              <div className="flex items-center gap-2 mb-1.5">
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate flex-1">{l.subject || prettyEvent(l.event_type)}</p>
+                <StatusBadge status={l.status} />
+              </div>
+              <p className="text-[11px] text-slate-400 truncate mb-2">{l.body ? l.body.slice(0, 80) : String(l.id || '')}</p>
+              {l.status === 'failed' && l.failure_reason && (
+                <p className="text-[11px] text-red-500 truncate mb-2">⚠ {l.failure_reason}</p>
+              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                <ChannelChip channel={l.channel} />
+                <span className="text-[10px] text-slate-400 truncate">{l.recipient_name || '—'}</span>
+                <span className="text-[10px] text-slate-400 ml-auto tabular-nums">{fmtDT(l.created_at)?.date || '—'}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <Pager page={safePage} totalPages={totalPages} total={filtered.length} pageSize={LOG_PAGE_SIZE} onPage={setPage} />
+      </>)}
+
+      {/* Detail drawer */}
+      {drawer && (
+        <Drawer title="Communication Details" sub={`${drawer.subject || prettyEvent(drawer.event_type)}`}
+          onClose={() => setDrawer(null)}
+          actions={<>
+            <button onClick={() => doCopy(drawer)}
+              className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+              <Copy size={13} /> {copied ? 'Copied!' : 'Copy'}
+            </button>
+            {drawer.channel === 'whatsapp' && drawer.recipient_contact && (
+              <button onClick={() => openWhatsApp(drawer.recipient_contact, `${drawer.subject || ''}\n${drawer.body || ''}`.trim())}
+                className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500 transition-all active:scale-95">
+                <ExternalLink size={13} /> WhatsApp
+              </button>
+            )}
+            <button onClick={() => setDrawer(null)}
+              className="flex-1 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 transition-all">
+              Close
+            </button>
+          </>}>
+          <div className="flex items-center gap-2">
+            <StatusBadge status={drawer.status} />
+            <ChannelChip channel={drawer.channel} />
+          </div>
+          {drawer.status === 'failed' && (
+            <div className="bg-red-50 dark:bg-red-900/15 border border-red-200 dark:border-red-800/30 rounded-xl px-3.5 py-3">
+              <p className="text-xs font-black text-red-600 dark:text-red-400">Delivery failed</p>
+              <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-0.5">Reason: {drawer.failure_reason || 'Unknown'}</p>
+              <p className="text-[10px] text-red-500/70 dark:text-red-400/60 mt-1">No automatic retry is configured — copy the message or follow up on {drawer.channel || 'the channel'} manually.</p>
+            </div>
+          )}
+          <div>
+            <SectionTitle>Message Info</SectionTitle>
+            <MetaGrid items={[
+              { label: 'Message ID', value: <span className="font-mono text-[10px]">{drawer.id || '—'}</span> },
+              { label: 'Trigger', value: prettyEvent(drawer.event_type) },
+              { label: 'Category', value: <span className="capitalize">{drawer.category || '—'}</span> },
+              { label: 'Priority', value: <span className="capitalize">{drawer.priority || 'medium'}</span> },
+              { label: 'Created At', value: drawer.created_at ? `${fmtDT(drawer.created_at).date} ${fmtDT(drawer.created_at).time}` : '—' },
+              { label: 'Delivered At', value: drawer.sent_at ? `${fmtDT(drawer.sent_at).date} ${fmtDT(drawer.sent_at).time}` : '—' },
+              { label: 'Recipient', value: drawer.recipient_name || '—' },
+            ]} />
+          </div>
+          <div>
+            <SectionTitle>Message Content</SectionTitle>
+            <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl px-3.5 py-3 border border-slate-100 dark:border-navy-700">
+              <p className="text-xs text-slate-700 dark:text-slate-200 whitespace-pre-wrap break-words">{drawer.body || drawer.subject || '—'}</p>
+            </div>
+          </div>
+          <div>
+            <SectionTitle>Delivery Information</SectionTitle>
+            <MetaGrid items={[
+              { label: 'Contact', value: drawer.recipient_contact || '—' },
+              { label: 'Recipient Type', value: <span className="capitalize">{drawer.recipient_type || '—'}</span> },
+              { label: 'Related', value: drawer.related_entity_type ? `${drawer.related_entity_type} · ${String(drawer.related_entity_id || '').slice(0, 14)}` : '—' },
+              { label: 'Scheduled For', value: drawer.scheduled_at ? `${fmtDT(drawer.scheduled_at).date} ${fmtDT(drawer.scheduled_at).time}` : '—' },
+              ...(drawer.failure_reason ? [{ label: 'Error Message', value: drawer.failure_reason }] : []),
+              ...((drawer.metadata && typeof drawer.metadata === 'object' && Object.keys(drawer.metadata).length)
+                ? Object.entries(drawer.metadata).slice(0, 6).map(([k, v]) => ({ label: k, value: String(v).slice(0, 40) }))
+                : []),
+            ]} />
+          </div>
+          <div>
+            <SectionTitle>Recipients (1)</SectionTitle>
+            <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-navy-800/60 rounded-xl px-3 py-2.5 border border-slate-100 dark:border-navy-700">
+              <div className="w-8 h-8 rounded-full bg-navy-100 dark:bg-navy-700 flex items-center justify-center text-xs font-black text-navy-700 dark:text-blue-300 flex-shrink-0">
+                {(drawer.recipient_name || '?').charAt(0).toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{drawer.recipient_name || '—'}</p>
+                <p className="text-[10px] text-slate-400 truncate">{drawer.recipient_contact || '—'}</p>
+              </div>
+              <StatusBadge status={drawer.status} />
+            </div>
+          </div>
+        </Drawer>
       )}
     </div>
   )
 }
 
-// ── Analytics Tab ─────────────────────────────────────────────
-function AnalyticsTab() {
-  const { analytics, engineStats, loadAnalytics } = useCommunicationCtx()
+// ── Scheduled Tab ─────────────────────────────────────────────
+// Upcoming system automations (trip reminders, expiry reminders, summaries).
+// Jobs carry type + run time + payload only: no channel, recipients, message
+// body, edit or pause exist in the backend — so the UI shows exactly that,
+// with the one real action available (Cancel). No fake scheduling form.
+const SCHED_PAGE_SIZE = 10
+const SCHED_STATUS = {
+  scheduled: { label: 'Scheduled', badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+  active:    { label: 'Active',    badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
+  overdue:   { label: 'Overdue',   badge: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+}
+function schedStatus(job) {
+  if (job.recurring) return 'active'
+  if (job.runAt && new Date(job.runAt).getTime() < Date.now()) return 'overdue'
+  return 'scheduled'
+}
+function schedDetail(payload = {}) {
+  if (payload.bookingId) return `Booking ${payload.bookingId}`
+  if (payload.docType || payload.entityId)
+    return `${prettyEvent(payload.docType)}${payload.daysLeft != null ? ` — ${payload.daysLeft}d left` : ''}${payload.expiryDate ? ` · exp ${payload.expiryDate}` : ''}`
+  if (payload.auto) return 'Automatic summary'
+  const keys = Object.keys(payload)
+  return keys.length ? keys.slice(0, 2).map(k => `${k}: ${String(payload[k]).slice(0, 20)}`).join(' · ') : 'System automation'
+}
+function schedRepeat(job) {
+  if (!job.recurring) return 'Once'
+  const h = (job.intervalMs || 0) / 3600000
+  if (h >= 24 && h % 24 === 0) return `Every ${h / 24}d`
+  return `Every ${Math.round(h * 10) / 10}h`
+}
+function ScheduledTab() {
+  const { scheduledJobs, setScheduledJobs } = useCommunicationCtx()
+  const [search, setSearch] = useState('')
+  const [type, setType] = useState('all')
+  const [status, setStatus] = useState('all')
+  const [page, setPage] = useState(1)
+  const [drawer, setDrawer] = useState(null)
 
-  useEffect(() => { loadAnalytics() }, [])
+  const refresh = () => setScheduledJobs([...scheduler.getJobs()])
+  useEffect(() => { refresh() }, [])
+  useEffect(() => { setPage(1) }, [search, type, status])
 
-  const totalSent      = analytics.reduce((s,a)=>s+(a.total||0),0)
-  const totalDelivered = analytics.reduce((s,a)=>s+(a.delivered||0),0)
-  const totalFailed    = analytics.reduce((s,a)=>s+(a.failed||0),0)
-  const totalPending   = analytics.reduce((s,a)=>s+(a.pending||0),0)
-  const deliveryRate   = totalSent > 0 ? Math.round((totalDelivered/totalSent)*100) : 0
+  const types = useMemo(() => [...new Set(scheduledJobs.map(j => j.type).filter(Boolean))].sort(), [scheduledJobs])
+
+  const filtered = useMemo(() => scheduledJobs.filter(j => {
+    if (type !== 'all' && j.type !== type) return false
+    if (status !== 'all' && schedStatus(j) !== status) return false
+    if (search) {
+      const q = search.toLowerCase()
+      if (![j.id, j.type, schedDetail(j.payload)].some(v => String(v ?? '').toLowerCase().includes(q))) return false
+    }
+    return true
+  }), [scheduledJobs, type, status, search])
+
+  const now = Date.now()
+  const sod = new Date(); sod.setHours(0, 0, 0, 0)
+  const eod = sod.getTime() + 86400000
+  const kTotal = scheduledJobs.length
+  const kToday = scheduledJobs.filter(j => !j.recurring && j.runAt && new Date(j.runAt).getTime() >= sod.getTime() && new Date(j.runAt).getTime() < eod).length
+  const k24 = scheduledJobs.filter(j => !j.recurring && j.runAt && new Date(j.runAt).getTime() >= now && new Date(j.runAt).getTime() < now + 86400000).length
+  const kRecurring = scheduledJobs.filter(j => j.recurring).length
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / SCHED_PAGE_SIZE))
+  const safePage = Math.min(Math.max(1, page), totalPages)
+  const pageRows = filtered.slice((safePage - 1) * SCHED_PAGE_SIZE, safePage * SCHED_PAGE_SIZE)
+
+  const selCls = 'px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none max-w-[150px]'
+  const hasFilters = search || type !== 'all' || status !== 'all'
+
+  const handleCancel = (job) => {
+    if (!window.confirm(`Cancel scheduled ${prettyEvent(job.type)} (${job.id})?`)) return
+    scheduler.cancel(job.id)
+    refresh()
+    if (drawer?.id === job.id) setDrawer(null)
+  }
 
   return (
-    <div className="space-y-5">
-      {/* Summary stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { label:'Total Sent',    value:totalSent,      color:'text-slate-700 dark:text-slate-200',      bg:'bg-slate-50 dark:bg-navy-800/60'                  },
-          { label:'Delivered',     value:totalDelivered, color:'text-emerald-600 dark:text-emerald-400',  bg:'bg-emerald-50 dark:bg-emerald-900/10'              },
-          { label:'Failed',        value:totalFailed,    color:'text-red-600 dark:text-red-400',           bg:'bg-red-50 dark:bg-red-900/10'                     },
-          { label:'Delivery Rate', value:`${deliveryRate}%`, color:'text-blue-600 dark:text-blue-400',   bg:'bg-blue-50 dark:bg-blue-900/10'                   },
-        ].map(s=>(
-          <div key={s.label} className={`${s.bg} glass-card rounded-xl p-3 text-center`}>
-            <p className={`text-2xl font-display font-black ${s.color}`}>{s.value}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">{s.label}</p>
-          </div>
-        ))}
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex-1 min-w-[180px]">
+          <h3 className="font-display font-black text-slate-800 dark:text-white text-base">Scheduled Communications</h3>
+          <p className="text-xs text-slate-400 mt-0.5">Manage upcoming messages and automated notifications</p>
+        </div>
+        <button onClick={refresh} title="Refresh" aria-label="Refresh schedules"
+          className="w-8 h-8 rounded-lg border border-slate-200 dark:border-navy-700 flex items-center justify-center text-slate-400 hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
+          <RefreshCw size={13} />
+        </button>
       </div>
 
-      {/* Per-channel breakdown */}
-      <div className="glass-card rounded-2xl p-4 space-y-3">
-        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">By Channel</p>
-        {analytics.length === 0 ? (
-          <p className="text-xs text-slate-400 text-center py-4">No data yet. Send some communications first.</p>
-        ) : (
-          analytics.map(a=>{
-            const cfg = CHANNEL_CFG[a.channel] || { label:a.channel, icon:'📨', bg:'bg-slate-100 dark:bg-slate-800', color:'text-slate-500' }
-            const pct = a.total > 0 ? Math.round(((a.delivered||0)/a.total)*100) : 0
-            return (
-              <div key={a.channel} className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className={`w-5 h-5 rounded-md flex items-center justify-center ${cfg.bg} text-sm`}>{cfg.icon}</span>
-                    <span className="font-bold text-slate-700 dark:text-slate-200">{cfg.label}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-[10px] text-slate-400">
-                    <span>{a.total} total</span>
-                    <span className="text-emerald-500">{a.delivered||0} ok</span>
-                    <span className="text-red-500">{a.failed||0} fail</span>
-                    <span className="font-bold text-slate-600 dark:text-slate-300">{pct}%</span>
-                  </div>
-                </div>
-                <div className="h-1.5 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full" style={{width:`${pct}%`}}/>
-                </div>
-              </div>
-            )
-          })
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Kpi icon="🗓️" value={kTotal} label="SCHEDULED" sub="Upcoming jobs" tone="navy" />
+        <Kpi icon="📌" value={kToday} label="TODAY" sub="Runs due today" tone="amber" />
+        <Kpi icon="⏰" value={k24} label="NEXT 24 HOURS" sub="Due within a day" tone="violet" />
+        <Kpi icon="🔁" value={kRecurring} label="RECURRING" sub="Active automations" tone="green" />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white/70 dark:bg-navy-800/60 flex-1 min-w-[180px] max-w-xs">
+          <Search size={13} className="text-slate-400 flex-shrink-0" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search scheduled messages…"
+            className="bg-transparent text-xs text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none w-full" />
+        </div>
+        <select value={type} onChange={e => setType(e.target.value)} className={selCls}>
+          <option value="all">All Types</option>
+          {types.map(t => <option key={t} value={t}>{prettyEvent(t)}</option>)}
+        </select>
+        <select value={status} onChange={e => setStatus(e.target.value)} className={selCls}>
+          <option value="all">All Status</option>
+          <option value="scheduled">Scheduled</option>
+          <option value="active">Active</option>
+          <option value="overdue">Overdue</option>
+        </select>
+        {hasFilters && (
+          <button onClick={() => { setSearch(''); setType('all'); setStatus('all') }}
+            className="px-3 py-2 text-xs font-bold rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+            Clear
+          </button>
         )}
       </div>
 
-      {/* Provider status */}
-      <div className="glass-card rounded-2xl p-4 space-y-3">
-        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Adapter Status</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {[
-            { name:'WhatsApp',  status:'Ready (deep-link)', ready:true,  note:'API provider not configured' },
-            { name:'SMS',       status:'Not Configured',    ready:false, note:'Connect MSG91 / Twilio'      },
-            { name:'Push',      status:'Not Configured',    ready:false, note:'Connect FCM / APNs'          },
-            { name:'Webhook',   status:'Not Configured',    ready:false, note:'Register endpoint URL'       },
-          ].map(a=>(
-            <div key={a.name} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border ${a.ready?'border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-900/10':'border-slate-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-800/40'}`}>
-              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${a.ready?'bg-emerald-500':'bg-slate-400'}`}/>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{a.name}</p>
-                <p className="text-[10px] text-slate-400">{a.note}</p>
+      {filtered.length === 0 ? (
+        <EmptyState icon="🗓️" title={hasFilters ? 'No schedules match these filters' : 'No scheduled communications'}
+          sub={hasFilters ? 'Try clearing search or choosing a different filter.' : 'Schedules are created automatically when bookings, documents, or trips are added.'} />
+      ) : (<>
+        <div className="glass-card rounded-2xl overflow-hidden hidden md:block">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0">
+                <tr className="bg-slate-50/95 dark:bg-navy-800/95 border-b border-slate-100 dark:border-navy-700">
+                  {['#', 'Schedule', 'Detail', 'Scheduled For', 'Repeat', 'Status', 'Actions'].map(h => (
+                    <th key={h} className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {pageRows.map((j, i) => {
+                  const st = schedStatus(j)
+                  return (
+                    <tr key={j.id || i} onClick={() => setDrawer(j)}
+                      className="border-b border-slate-50 dark:border-navy-800 hover:bg-slate-50/50 dark:hover:bg-navy-800/30 transition-colors cursor-pointer">
+                      <td className="px-3 py-2.5 text-xs text-slate-400 tabular-nums">{(safePage - 1) * SCHED_PAGE_SIZE + i + 1}</td>
+                      <td className="px-3 py-2.5 max-w-[200px]">
+                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{prettyEvent(j.type)}</p>
+                        <p className="text-[10px] font-mono text-slate-400 truncate">{j.id}</p>
+                      </td>
+                      <td className="px-3 py-2.5 text-xs text-slate-600 dark:text-slate-300 max-w-[200px] truncate">{schedDetail(j.payload)}</td>
+                      <td className="px-3 py-2.5">
+                        {j.recurring
+                          ? <span className="text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">{schedRepeat(j)}</span>
+                          : <TimeCell iso={j.runAt} />}
+                      </td>
+                      <td className="px-3 py-2.5 text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">{schedRepeat(j)}</td>
+                      <td className="px-3 py-2.5">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${SCHED_STATUS[st].badge}`}>{SCHED_STATUS[st].label}</span>
+                      </td>
+                      <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => setDrawer(j)} title="View details" aria-label="View details"
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+                            <Eye size={13} />
+                          </button>
+                          <button onClick={() => handleCancel(j)} title="Cancel schedule" aria-label="Cancel schedule"
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                            <XCircle size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div className="space-y-2 md:hidden">
+          {pageRows.map((j, i) => {
+            const st = schedStatus(j)
+            return (
+              <div key={j.id || i} onClick={() => setDrawer(j)}
+                className="glass-card rounded-2xl p-3.5 cursor-pointer active:scale-[0.99] transition-transform">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate flex-1">{prettyEvent(j.type)}</p>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${SCHED_STATUS[st].badge}`}>{SCHED_STATUS[st].label}</span>
+                </div>
+                <p className="text-[11px] text-slate-400 truncate mb-1.5">{schedDetail(j.payload)}</p>
+                <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                  <Clock size={10} />
+                  <span>{j.recurring ? schedRepeat(j) : (fmtDT(j.runAt) ? `${fmtDT(j.runAt).date} ${fmtDT(j.runAt).time}` : '—')}</span>
+                  <span className="ml-auto">{schedRepeat(j)}</span>
+                </div>
               </div>
-              <span className={`text-[10px] font-bold ${a.ready?'text-emerald-600 dark:text-emerald-400':'text-slate-400'}`}>{a.status}</span>
-            </div>
-          ))}
+            )
+          })}
         </div>
-      </div>
-    </div>
-  )
-}
+        <Pager page={safePage} totalPages={totalPages} total={filtered.length} pageSize={SCHED_PAGE_SIZE} onPage={setPage} />
+      </>)}
 
-// ── Scheduled Tab ─────────────────────────────────────────────
-function ScheduledTab() {
-  const { scheduledJobs } = useCommunicationCtx()
-  if (scheduledJobs.length === 0) return (
-    <div className="glass-card rounded-2xl p-12 text-center">
-      <Clock size={32} className="mx-auto text-slate-300 dark:text-slate-600 mb-3"/>
-      <p className="text-slate-400 text-sm">No scheduled notifications</p>
-      <p className="text-[11px] text-slate-400 mt-1">Schedules are created automatically when bookings, documents, or trips are added.</p>
-    </div>
-  )
-  return (
-    <div className="space-y-2">
-      {scheduledJobs.map(job=>(
-        <div key={job.id} className="glass-card rounded-xl p-3.5 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
-            <Clock size={14} className="text-amber-600 dark:text-amber-400"/>
+      {drawer && (
+        <Drawer title="Schedule Details" sub={prettyEvent(drawer.type)}
+          onClose={() => setDrawer(null)}
+          actions={<>
+            <button onClick={() => handleCancel(drawer)}
+              className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-600 text-white text-xs font-bold hover:bg-red-500 transition-all active:scale-95">
+              <XCircle size={13} /> Cancel Schedule
+            </button>
+            <button onClick={() => setDrawer(null)}
+              className="flex-1 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 transition-all">
+              Close
+            </button>
+          </>}>
+          <div>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${SCHED_STATUS[schedStatus(drawer)].badge}`}>
+              {SCHED_STATUS[schedStatus(drawer)].label}
+            </span>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{job.type.replace(/_/g,' ')}</p>
-            {job.runAt&&<p className="text-[10px] text-slate-400">Runs at: {new Date(job.runAt).toLocaleString('en-IN')}</p>}
-            {job.recurring&&<p className="text-[10px] text-slate-400">Every {Math.round(job.intervalMs/3600000)}h</p>}
+          <div>
+            <SectionTitle>Schedule Info</SectionTitle>
+            <MetaGrid items={[
+              { label: 'Schedule ID', value: <span className="font-mono text-[10px]">{drawer.id || '—'}</span> },
+              { label: 'Type', value: prettyEvent(drawer.type) },
+              { label: 'Scheduled', value: drawer.recurring ? schedRepeat(drawer) : (drawer.runAt && fmtDT(drawer.runAt) ? `${fmtDT(drawer.runAt).date} ${fmtDT(drawer.runAt).time}` : '—') },
+              { label: 'Repeat', value: schedRepeat(drawer) },
+              { label: 'Detail', value: schedDetail(drawer.payload) },
+              { label: 'Status', value: SCHED_STATUS[schedStatus(drawer)].label },
+            ]} />
           </div>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 flex-shrink-0">
-            {job.recurring?'Recurring':'Once'}
-          </span>
-        </div>
-      ))}
+          <div>
+            <SectionTitle>Trigger Payload</SectionTitle>
+            <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl px-3.5 py-3 border border-slate-100 dark:border-navy-700">
+              {drawer.payload && Object.keys(drawer.payload).length ? (
+                <div className="space-y-1">
+                  {Object.entries(drawer.payload).map(([k, v]) => (
+                    <div key={k} className="flex justify-between gap-3 text-xs">
+                      <span className="text-slate-400 capitalize flex-shrink-0">{k.replace(/_/g, ' ')}</span>
+                      <span className="font-bold text-slate-700 dark:text-slate-200 text-right break-all">{String(v)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400">No payload attached.</p>
+              )}
+            </div>
+          </div>
+          <p className="text-[10px] text-slate-400">
+            System automation — cancelling stops future runs. Completed runs are removed automatically.
+          </p>
+        </Drawer>
+      )}
     </div>
   )
 }
@@ -451,7 +995,6 @@ export default function Communications() {
 
       {tab==='notifications' && <NotificationsTab/>}
       {tab==='logs'          && <CommLogsTab/>}
-      {tab==='analytics'     && <AnalyticsTab/>}
       {tab==='schedule'      && <ScheduledTab/>}
     </div>
   )

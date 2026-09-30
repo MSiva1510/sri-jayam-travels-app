@@ -222,6 +222,8 @@ export function normalizeBooking(row = {}) {
     km: Number(row.km ?? row.total_km ?? 0),
     fare: Number(row.fare ?? row.total_fare ?? row.base_fare ?? 0),
     bata: Number(row.bata ?? row.driver_bata ?? 0),
+    // Per-trip driver allowance (salary) set by the manager at approval.
+    driverAllowance: Number(row.driver_allowance ?? row.driverAllowance ?? 0),
     toll: Number(row.toll ?? row.toll_charges ?? 0),
     petrol: Number(row.petrol ?? row.fuel_amount ?? row.fuel ?? 0),
     parking: Number(row.parking ?? row.parking_charges ?? 0),

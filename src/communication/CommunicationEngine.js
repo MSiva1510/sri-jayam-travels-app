@@ -142,8 +142,20 @@ class CommunicationEngineImpl {
           this._stats.queued++
         } else {
           result = await this._dispatch(channel, recipient, subject, body, eventType)
-          await this._updateLog(logEntry?.id, { status:'delivered', sent_at: new Date().toISOString() })
-          this._stats.sent++
+          // Adapter-reported non-delivery must never be logged as delivered.
+          if (['not_configured', 'skipped', 'unknown_channel'].includes(result?.status)) {
+            const reason = result?.reason
+              ? `${result.status}: ${result.reason}`
+              : result?.status === 'not_configured'
+                ? `${channel} provider not configured`
+                : `${channel} dispatch ${result.status}`
+            await this._updateLog(logEntry?.id, { status:'failed', failure_reason: reason })
+            this._stats.failed++
+            result = { ...result, status:'failed', error: reason }
+          } else {
+            await this._updateLog(logEntry?.id, { status:'delivered', sent_at: new Date().toISOString() })
+            this._stats.sent++
+          }
         }
 
         results.push(result)

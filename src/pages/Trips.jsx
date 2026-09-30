@@ -86,7 +86,7 @@ function BookingModal({ booking, onClose, onSave, userName }) {
   const [form, setForm] = useState(() => booking || {
     customer:'', contact:'', type:'one_way',
     pickup:'', drop:'', startDate:'', startTime:'',
-    returnDate:'', returnTime:'', notes:'', fare:'', bata:'', status:'draft',
+    returnDate:'', returnTime:'', notes:'', fare:'', bata:'', driverAllowance:'', status:'draft',
   })
   const [errors, setErrors] = useState({})
   const [suggestions, setSuggestions] = useState([])
@@ -121,7 +121,7 @@ function BookingModal({ booking, onClose, onSave, userName }) {
     const e = validate(); if (Object.keys(e).length) { setErrors(e); return }
     const now = new Date().toISOString()
     const saved = { ...form, id:form.id||generateBookingNumber(), bookingNo:form.bookingNo||generateBookingNumber(),
-      fare:Number(form.fare)||0, bata:Number(form.bata)||0, createdAt:form.createdAt||now, updatedAt:now,
+      fare:Number(form.fare)||0, bata:Number(form.bata)||0, driverAllowance:Number(form.driverAllowance)||0, createdAt:form.createdAt||now, updatedAt:now,
       createdBy:form.createdBy||userName||'manager', driver:form.driver||null, vehicle:form.vehicle||null }
     upsertCustomerFromBooking({ name:form.customer, mobile:form.contact })
     onSave(saved)
@@ -197,7 +197,11 @@ function BookingModal({ booking, onClose, onSave, userName }) {
               <Input type="number" value={form.fare} onChange={e=>upd({fare:e.target.value})} placeholder="0" field="fare" />
             </div>
             <div>
-              <FieldLabel>Bata (Rs. — driver direct)</FieldLabel>
+              <FieldLabel>Driver Allowance (Rs. — salary)</FieldLabel>
+              <Input type="number" value={form.driverAllowance ?? ''} onChange={e=>upd({driverAllowance:e.target.value})} placeholder="e.g. 1000" field="fare" />
+            </div>
+            <div>
+              <FieldLabel>Bata (Rs. — customer extra)</FieldLabel>
               <Input type="number" value={form.bata ?? ''} onChange={e=>upd({bata:e.target.value})} placeholder="0" field="fare" />
             </div>
             <div className="col-span-2">

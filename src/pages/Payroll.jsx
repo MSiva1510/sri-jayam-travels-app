@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Plus, X, ChevronDown, ChevronUp, CheckCircle,
   Clock, IndianRupee, User, Calendar, Edit2,
-  Trash2, FileText, Settings, AlertTriangle,
-  Printer, Send, Wallet,
+  Trash2, FileText, AlertTriangle,
+  Printer, Send, Wallet, ChevronLeft, ChevronRight,
+  Download, Eye, Search,
 } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
 import Avatar     from '../components/ui/Avatar'
@@ -12,15 +14,15 @@ import {
   loadSettlements, saveSettlement, deleteSettlement, generateSettlementId,
   loadPayrollSettings, savePayrollSettings,
   buildSettlement, calculateIncentive, resolveDailyWage,
-  tripDriverAmount,
+  tripDriverAmount, buildDriverMonthlyPayroll,
   SETTLEMENT_STATUSES, getSettlementStatusCfg,
   PAYMENT_METHODS, DEDUCTION_TYPES,
   DEFAULT_PAYROLL_SETTINGS, monthLabel, settlementExists,
   savePayslip, loadPayslips,
   loadTripPayslips, saveTripPayslip,
 } from '../data/settlementData'
-import { loadExpenses } from '../data/expenseData'
 import { loadBookings } from '../data/tripTypes'
+import { loadExpenses } from '../data/expenseData'
 import { driverRepository } from '../repositories'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import { addAuditEvent } from '../data/auditLogData'
@@ -90,114 +92,6 @@ function FSelect({ label, field, value, onChange, children, required }) {
 // ─────────────────────────────────────────────────────────────
 //  Module 6: Salary Configuration Panel
 // ─────────────────────────────────────────────────────────────
-function SalaryConfigPanel({ drivers, onClose }) {
-  const [cfg, setCfg] = useState(DEFAULT_PAYROLL_SETTINGS)
-  useEffect(() => { loadPayrollSettings().then(s => setCfg(s ?? DEFAULT_PAYROLL_SETTINGS)) }, [])
-  const [saved, setSaved] = useState(false)
-  const [saveError, setSaveError] = useState('')
-
-  // Daily wage per driver, keyed by driver id (names change — ids don't).
-  // Number(val) can yield NaN for empty input; normalize so resolveDailyWage
-  // always sees a usable value or falls back cleanly.
-  const updDriver = (id, val) => {
-    const wage = val === '' ? 0 : Number(val)
-    setCfg(prev => ({
-      ...prev,
-      drivers: { ...prev.drivers, [id]: { ...prev.drivers?.[id], dailyWage: Number.isNaN(wage) ? 0 : wage } }
-    }))
-  }
-  const updRule = (i, field, val) => {
-    setCfg(prev => ({
-      ...prev,
-      incentiveRules: prev.incentiveRules.map((r, idx) => idx === i ? { ...r, [field]: Number(val) } : r)
-    }))
-  }
-  const handleSave = async () => {
-    try {
-      await savePayrollSettings(cfg)
-      setSaveError('')
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
-    } catch (err) {
-      setSaveError('Could not save settings. Please try again.')
-    }
-  }
-
-  return (
-    <ModalOverlay onClose={onClose}>
-      <div className="relative w-full sm:w-[500px] max-h-[90vh] sm:max-h-[85vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
-        <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-navy-700 flex-shrink-0">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Admin Only</p>
-            <h3 className="font-display font-black text-slate-800 dark:text-white text-base">Salary Configuration</h3>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700"><X size={15} /></button>
-        </div>
-        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
-
-          {/* Per-driver settings — daily wage (Rs./day, paid only for days driven) */}
-          <div>
-            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Driver Daily-Wage Settings</p>
-            {(drivers || []).map(d => (
-              <div key={d.id} className="mb-4 p-3 bg-slate-50 dark:bg-navy-800/50 rounded-xl">
-                <div className="flex items-center gap-2 mb-3">
-                  <Avatar name={d.name} size={26} />
-                  <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{d.name}</p>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Daily Wage (Rs./day — paid only for days driven)</label>
-                  <input type="number" min="0" value={cfg.drivers?.[d.id]?.dailyWage ?? cfg.drivers?.[d.name]?.dailyWage ?? ''}
-                    placeholder={`Default Rs. ${cfg.defaultDailyWage ?? 600}/day`}
-                    onChange={e => updDriver(d.id, e.target.value)}
-                    className="w-full px-2.5 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-800 dark:text-slate-100 focus:outline-none" />
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-                    Effective: Rs. {resolveDailyWage(d.id, cfg, d.name).toLocaleString('en-IN')}/day · Bata goes straight to the driver, never through payroll.
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Module 7: Incentive rules */}
-          <div>
-            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Incentive Rules</p>
-            <div className="space-y-2">
-              {(cfg.incentiveRules || DEFAULT_PAYROLL_SETTINGS.incentiveRules).map((rule, i) => (
-                <div key={i} className="flex items-center gap-2 bg-slate-50 dark:bg-navy-800/50 rounded-xl p-2.5">
-                  <span className="text-[10px] font-bold text-slate-400 w-8 flex-shrink-0">#{i+1}</span>
-                  <div className="flex items-center gap-1.5 flex-1">
-                    <input type="number" value={rule.minTrips} onChange={e => updRule(i,'minTrips',e.target.value)}
-                      className="w-14 px-2 py-1 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-800 dark:text-slate-100 focus:outline-none text-center" />
-                    <span className="text-[10px] text-slate-400">–</span>
-                    <input type="number" value={rule.maxTrips} onChange={e => updRule(i,'maxTrips',e.target.value)}
-                      className="w-14 px-2 py-1 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-800 dark:text-slate-100 focus:outline-none text-center" />
-                    <span className="text-[10px] text-slate-400">trips</span>
-                  </div>
-                  <span className="text-[10px] text-slate-400 mx-1">=</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-slate-400">Rs.</span>
-                    <input type="number" value={rule.bonus} onChange={e => updRule(i,'bonus',e.target.value)}
-                      className="w-16 px-2 py-1 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-800 dark:text-slate-100 focus:outline-none text-center" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="px-5 py-4 border-t border-slate-100 dark:border-navy-700 flex-shrink-0 space-y-2">
-          {saveError && <p className="text-xs font-semibold text-red-600 dark:text-red-400">{saveError}</p>}
-          <div className="flex gap-2">
-            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">Cancel</button>
-            <button onClick={handleSave} className={`flex-1 py-2.5 rounded-xl text-white text-sm font-bold transition-all shadow-md active:scale-95 ${saved ? 'bg-emerald-600' : 'bg-navy-900 dark:bg-blue-700 hover:bg-navy-800 dark:hover:bg-blue-600'}`}>
-              {saved ? '✓ Saved' : 'Save Settings'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </ModalOverlay>
-  )
-}
 
 // ─────────────────────────────────────────────────────────────
 //  Create / Edit Settlement Modal
@@ -391,6 +285,103 @@ function SettlementModal({ settlement, drivers, onClose, onSave, currentUser }) 
 // ─────────────────────────────────────────────────────────────
 //  Module 4: Payslip View
 // ─────────────────────────────────────────────────────────────
+/* Trip-based monthly payslip — renders the exact buildDriverMonthlyPayroll
+   object shown in the table and drawer (single source of truth). */
+function TripPayrollPayslipView({ payroll: P, onClose }) {
+  const tripRows = P.trips.map(t => ({
+    key: t.id ?? t.bookingNo ?? t.booking_id,
+    date: (t.startDate || '').slice(0, 10),
+    id: t.bookingNo || t.booking_id || t.id,
+    customer: t.customer || '—',
+    route: `${t.pickup || '—'} → ${t.drop || '—'}`,
+    allowance: Number(t.driverAllowance ?? t.driver_allowance) || 0,
+    bata: Number(t.bata) || 0,
+  }))
+  const printPayroll = () => {
+    const row = (l, v, neg) => `<tr><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9">${l}</td><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700${neg ? ';color:#dc2626' : ''}">${neg ? '− ' : ''}Rs. ${Number(v || 0).toLocaleString('en-IN')}</td></tr>`
+    const html = `<!DOCTYPE html><html><head><title>Payslip – ${P.driver} – ${monthLabel(Number(P.monthKey.slice(5)), Number(P.monthKey.slice(0, 4)))}</title>
+    <style>body{font-family:Arial,sans-serif;max-width:560px;margin:24px auto;color:#111;font-size:13px}.header{background:#0d1b4b;color:white;padding:20px;border-radius:8px 8px 0 0}.net{background:#065f46;color:white;padding:12px;border-radius:8px;text-align:center;margin-top:12px}.footer{text-align:center;font-size:10px;color:#94a3b8;margin-top:12px}table{width:100%;border-collapse:collapse}th{background:#f8fafc;padding:8px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase}</style>
+    </head><body><div class="header"><div style="font-size:10px;opacity:.6;text-transform:uppercase">Sri Jayam Travels</div><h2 style="margin:4px 0">Driver Payslip</h2><p style="margin:0;opacity:.6">${monthLabel(Number(P.monthKey.slice(5)), Number(P.monthKey.slice(0, 4)))} · ${P.driver}</p></div>
+    <div style="border:1px solid #e2e8f0;border-top:none;padding:16px;border-radius:0 0 8px 8px">
+    <table><tbody>
+    <tr><td style="padding:6px 4px">Total Trips</td><td style="padding:6px 4px;text-align:right;font-weight:700">${P.tripCount}</td></tr>
+    <tr><td style="padding:6px 4px">Days Worked</td><td style="padding:6px 4px;text-align:right;font-weight:700">${P.daysWorked}</td></tr>
+    </tbody></table>
+    <table style="margin-top:12px"><thead><tr><th>Earnings</th><th></th></tr></thead><tbody>
+    ${row('Salary (trip allowances)', P.salaryTotal)}
+    ${row('Bata Extra (customer)', P.bataExtra)}
+    <tr style="font-weight:900;background:#f8fafc"><td style="padding:8px 4px">Total Payable</td><td style="padding:8px 4px;text-align:right">Rs. ${P.gross.toLocaleString('en-IN')}</td></tr>
+    </tbody></table>
+    <table style="margin-top:12px"><thead><tr><th>Date</th><th>Trip</th><th>Customer</th><th>Route</th><th style="text-align:right">Allowance</th><th style="text-align:right">Bata Extra</th></tr></thead><tbody>
+    ${tripRows.map(r => `<tr><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9">${r.date}</td><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9">${r.id}</td><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9">${r.customer}</td><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9">${r.route}</td><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9;text-align:right">Rs. ${r.allowance.toLocaleString('en-IN')}</td><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700">Rs. ${r.bata.toLocaleString('en-IN')}</td></tr>`).join('')}
+    </tbody></table>
+    <div class="net"><div style="font-size:11px;opacity:.7;text-transform:uppercase">Total Payable</div><div style="font-size:28px;font-weight:900">Rs. ${P.gross.toLocaleString('en-IN')}</div><div style="font-size:10px;opacity:.6;margin-top:2px">Paid Rs. ${P.paidAmount.toLocaleString('en-IN')} · Balance Rs. ${P.balance.toLocaleString('en-IN')}</div></div>
+    <p class="footer">Generated by Sri Jayam Travels ERP · ${new Date().toLocaleDateString('en-IN')}</p></div></body></html>`
+    const w = window.open('', '_blank', 'width=640,height=800')
+    w.document.write(html); w.document.close(); w.focus(); setTimeout(() => { w.print(); w.close() }, 350)
+  }
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div className="relative w-full sm:w-[560px] max-h-[92vh] sm:max-h-[88vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
+        <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
+        <div className="bg-gradient-to-r from-navy-900 to-navy-800 rounded-t-3xl p-5 flex-shrink-0">
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div>
+              <p className="text-white/50 text-[10px] font-bold uppercase tracking-widest">Sri Jayam Travels</p>
+              <h3 className="font-display font-black text-white text-lg">Driver Payslip</h3>
+              <p className="text-white/60 text-xs">{monthLabel(Number(P.monthKey.slice(5)), Number(P.monthKey.slice(0, 4)))} · {P.driver}</p>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button onClick={printPayroll} title="Print / Download PDF"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition-colors">
+                <Printer size={12} /> Print
+              </button>
+              <button onClick={onClose} aria-label="Close payslip" className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-white/60 hover:bg-white/20"><X size={15} /></button>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Avatar name={P.driver} size={36} />
+            <div><p className="font-bold text-white">{P.driver}</p><p className="text-white/50 text-xs">{P.tripCount} trips · {P.daysWorked} days worked</p></div>
+            <div className="ml-auto"><StatusBadge status={P.status} /></div>
+          </div>
+        </div>
+        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
+          <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700">
+            <AmtRow label="Salary (trip allowances)" value={P.salaryTotal} />
+            <AmtRow label="Bata Extra (customer)" value={P.bataExtra} sub />
+            <div className="flex justify-between pt-2 mt-1 border-t border-slate-200 dark:border-navy-700">
+              <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Total Payable</span>
+              <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">Rs. {P.gross.toLocaleString('en-IN')}</span>
+            </div>
+            <div className="flex justify-between text-xs mt-1">
+              <span className="text-slate-500 dark:text-slate-400">Paid Rs. {P.paidAmount.toLocaleString('en-IN')}</span>
+              <span className="font-bold text-slate-700 dark:text-slate-200">Balance Rs. {P.balance.toLocaleString('en-IN')}</span>
+            </div>
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Trip Details ({P.tripCount})</p>
+            <div className="space-y-1.5">
+              {tripRows.map(r => (
+                <div key={r.key} className="flex items-center gap-2 text-xs bg-white dark:bg-navy-800/60 rounded-lg px-3 py-2 border border-slate-100 dark:border-navy-700">
+                  <span className="text-slate-400 tabular-nums flex-shrink-0">{String(r.date).slice(5)}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-slate-700 dark:text-slate-200 truncate">{r.customer}</p>
+                    <p className="text-[10px] text-slate-400 truncate">{r.route}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="font-bold text-slate-700 dark:text-slate-200 tabular-nums">Rs. {r.allowance.toLocaleString('en-IN')}</p>
+                    {r.bata > 0 && <p className="text-[10px] text-teal-600 dark:text-teal-400 tabular-nums">+ Rs. {r.bata.toLocaleString('en-IN')}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </ModalOverlay>
+  )
+}
+
 function PayslipView({ settlement, onClose }) {
   const wagePay        = Number(settlement.wagePay ?? settlement.baseSalary ?? 0)
   const daysWorked     = Number(settlement.daysWorked ?? settlement.workingDays ?? 0)
@@ -884,38 +875,55 @@ export default function Payroll() {
   const canDelete  = isAdmin
   const canApprove = isAdmin
 
-  const [tab,          setTab]          = useState('settlements') // 'settlements' | 'trip_payslips'
+  const now0 = new Date()
+  const [month,        setMonth]        = useState(now0.getMonth() + 1)
+  const [year,         setYear]         = useState(now0.getFullYear())
   const [settlements,  setSettlements]  = useState([])
   const [tripPayslips, setTripPayslips] = useState([])
-  const [expanded,     setExpanded]     = useState(null)
+  const [bookings,     setBookings]     = useState([])
+  const [loading,      setLoading]      = useState(true)
   const [showCreate,   setShowCreate]   = useState(false)
   const [editItem,     setEditItem]     = useState(null)
   const [payslipItem,  setPayslipItem]  = useState(null)
   const [markPaidItem, setMarkPaidItem] = useState(null)
-  const [showConfig,   setShowConfig]   = useState(false)
   const [driverFilter, setDriverFilter] = useState('all')
   const [statFilter,   setStatFilter]   = useState('all')
+  const [search,       setSearch]       = useState('')
+  const [page,         setPage]         = useState(1)
+  const [drawerDriver, setDrawerDriver] = useState(null)
+  const [payslipDriver, setPayslipDriver] = useState(null)
   const [toast,        setToast]        = useState('')
   const [drivers,      setDrivers]      = useState([])
   const [loadError,    setLoadError]    = useState(null)
 
+  const navigate = useNavigate()
+  const monthKey = `${year}-${String(month).padStart(2, '0')}`
+  const hideMoney = !can('revenueDashboard')
+  const money = (v) => hideMoney ? '—' : `Rs. ${Number(v || 0).toLocaleString('en-IN')}`
+
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 3000) }
   const reload = useCallback(async () => {
-    const [s, p, d] = await Promise.allSettled([loadSettlements(), loadTripPayslips(), loadDrivers()])
-    setSettlements( s.status === 'fulfilled' && Array.isArray(s.value) ? s.value : [])
-    setTripPayslips(p.status === 'fulfilled' && Array.isArray(p.value) ? p.value : [])
-    setDrivers(     d.status === 'fulfilled' && Array.isArray(d.value) ? d.value : [])
-    const failed = [s, p, d].some(r => r.status === 'rejected')
-    if (failed) {
-      [s, p, d].forEach(r => { if (r.status === 'rejected') console.error('[Payroll] load failed:', r.reason) })
-      setLoadError('Some payroll data failed to load. Try refreshing.')
-    } else {
-      setLoadError(null)
+    setLoading(true)
+    try {
+      const [s, p, d, b] = await Promise.allSettled([loadSettlements(), loadTripPayslips(), loadDrivers(), loadBookings()])
+      setSettlements( s.status === 'fulfilled' && Array.isArray(s.value) ? s.value : [])
+      setTripPayslips(p.status === 'fulfilled' && Array.isArray(p.value) ? p.value : [])
+      setDrivers(     d.status === 'fulfilled' && Array.isArray(d.value) ? d.value : [])
+      setBookings(    b.status === 'fulfilled' && Array.isArray(b.value) ? b.value : [])
+      const failed = [s, p, d, b].some(r => r.status === 'rejected')
+      if (failed) {
+        [s, p, d, b].forEach(r => { if (r.status === 'rejected') console.error('[Payroll] load failed:', r.reason) })
+        setLoadError('Some payroll data failed to load. Try refreshing.')
+      } else {
+        setLoadError(null)
+      }
+    } finally {
+      setLoading(false)
     }
   }, [])
   useEffect(() => { reload() }, [reload])
 
-  // Driver gets their own portal
+  // Driver gets their own portal (unchanged)
   if (isDriver) return (
     <div className="space-y-5 animate-fade-up max-w-lg mx-auto">
       <PageHeader title="My Payslips" subtitle="Per-trip payslip history" />
@@ -923,18 +931,57 @@ export default function Payroll() {
     </div>
   )
 
-  // ── Filtered list ─────────────────────────────────────────
-  const filtered = useMemo(() => settlements.filter(s => {
-    const matchD = driverFilter === 'all' || s.driver === driverFilter
-    const matchS = statFilter   === 'all' || s.status === statFilter
-    return matchD && matchS
-  }), [settlements, driverFilter, statFilter])
+  // ── One payroll row per driver with eligible trips this month ──
+  // Single source of truth: buildDriverMonthlyPayroll.
+  const monthSettlements = useMemo(
+    () => settlements.filter(s => Number(s.month) === Number(month) && Number(s.year) === Number(year)),
+    [settlements, month, year]
+  )
+  const payrolls = useMemo(() => {
+    const byDriver = new Map()
+    bookings.forEach(b => {
+      if ((b.startDate || '').startsWith(monthKey) && ['completed', 'closed'].includes(b.status) && b.driver) {
+        if (!byDriver.has(b.driver)) byDriver.set(b.driver, [])
+        byDriver.get(b.driver).push(b)
+      }
+    })
+    return [...byDriver.keys()].sort((a, b) => a.localeCompare(b)).map(name => {
+      const d = drivers.find(x => x.name === name)
+      const settlement = monthSettlements.find(s => s.driver === name) || null
+      return buildDriverMonthlyPayroll({
+        driver: name, driverId: d?.id ?? null, monthKey,
+        bookings, tripPayslips, settlement,
+      })
+    })
+  }, [bookings, monthKey, monthSettlements, tripPayslips, drivers])
 
-  // Module 3: KPI counts
-  const totalPayroll  = settlements.filter(s => s.status === 'paid').reduce((sum,s) => sum + s.netAmount, 0)
-  const pendingCount  = settlements.filter(s => s.status === 'pending').length
-  const approvedCount = settlements.filter(s => s.status === 'approved').length
-  const paidCount     = settlements.filter(s => s.status === 'paid').length
+  // Completed trips in month with no driver — accuracy warning, not payroll.
+  const orphanTrips = useMemo(() => bookings.filter(b =>
+    (b.startDate || '').startsWith(monthKey) &&
+    ['completed', 'closed'].includes(b.status) && !b.driver
+  ), [bookings, monthKey])
+
+  const filtered = useMemo(() => payrolls.filter(p => {
+    const matchD = driverFilter === 'all' || p.driver === driverFilter
+    const matchS = statFilter   === 'all' || p.status === statFilter
+    const q = search.trim().toLowerCase()
+    const matchQ = !q || p.driver.toLowerCase().includes(q)
+    return matchD && matchS && matchQ
+  }), [payrolls, driverFilter, statFilter, search])
+
+  // ── KPIs (real month data) ────────────────────────────────
+  const kpiDrivers  = payrolls.length
+  const kpiTrips    = payrolls.reduce((s, p) => s + p.tripCount, 0)
+  const kpiSalary = payrolls.reduce((s, p) => s + p.salaryTotal, 0)
+  const kpiBata   = payrolls.reduce((s, p) => s + p.bataExtra, 0)
+  const kpiPending  = monthSettlements.filter(s => s.status === 'pending').length
+  const kpiPaid     = monthSettlements.filter(s => s.status === 'paid').length
+
+  const PAGE_SIZE = 10
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(Math.max(1, page), totalPages)
+  const pageRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  useEffect(() => { setPage(1) }, [month, year, search, driverFilter, statFilter])
 
   // Actions
   const handleSave = async s => {
@@ -976,24 +1023,97 @@ export default function Payroll() {
       driver: s.driver,
     })
   }
+  // Generate a draft monthly settlement from the driver's trips (existing
+  // saveSettlement flow — no new backend). Idempotent per driver/month.
+  const handleGenerate = async ( payroll ) => {
+    if (payroll.tripCount === 0) { showToast('No eligible trips for this driver this month.'); return }
+    if (payroll.settlement) {
+      setDrawerDriver(payroll.driver)
+      setPayslipDriver(payroll.driver)
+      return
+    }
+    const now = new Date().toISOString()
+    const rec = {
+      id: generateSettlementId(),
+      driver: payroll.driver,
+      month: Number(month), year: Number(year),
+      daysWorked: payroll.daysWorked,
+      workingDays: payroll.daysWorked,
+      completedTrips: payroll.tripCount,
+      totalTrips: payroll.tripCount,
+      salaryTotal: payroll.salaryTotal,
+      bataExtra: payroll.bataExtra,
+      grossAmount: payroll.gross, netAmount: payroll.gross,
+      status: 'draft',
+      createdBy: user?.name || '', createdAt: now, updatedAt: now,
+    }
+    const result = await saveSettlement(rec)
+    if (!result) { showToast('Could not generate payslip. Please try again.'); return }
+    await reload()
+    setDrawerDriver(payroll.driver)
+    setPayslipDriver(payroll.driver)
+    showToast(`Draft payslip generated for ${payroll.driver}`)
+  }
+  const handleGenerateAll = async () => {
+    const targets = payrolls.filter(p => p.tripCount > 0 && !p.settlement)
+    if (targets.length === 0) { showToast('Nothing to generate — all drivers already have settlements.'); return }
+    let done = 0
+    for (const p of targets) {
+      const now = new Date().toISOString()
+      const result = await saveSettlement({
+        id: generateSettlementId(),
+        driver: p.driver, month: Number(month), year: Number(year),
+        daysWorked: p.daysWorked, workingDays: p.daysWorked,
+        completedTrips: p.tripCount, totalTrips: p.tripCount,
+        salaryTotal: p.salaryTotal, bataExtra: p.bataExtra,
+        grossAmount: p.gross, netAmount: p.gross, status: 'draft',
+        createdBy: user?.name || '', createdAt: now, updatedAt: now,
+      })
+      if (result) done++
+    }
+    await reload()
+    showToast(`Generated ${done} draft payslip${done === 1 ? '' : 's'}`)
+  }
+  const exportCsv = () => {
+    const rows = [['Driver', 'Trips', 'Salary - Allowance (Rs)', 'Bata Extra (Rs)', 'Total (Rs)', 'Paid (Rs)', 'Balance (Rs)', 'Status']]
+    filtered.forEach(p => rows.push([
+      p.driver, p.tripCount, p.salaryTotal,
+      p.bataExtra, p.gross, p.paidAmount, p.balance, p.status,
+    ]))
+    const csv = rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `payroll-${monthKey}.csv`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+  const setMonthDelta = (d) => {
+    let m = month + d, y = year
+    if (m < 1) { m = 12; y-- }
+    if (m > 12) { m = 1; y++ }
+    setMonth(m); setYear(y)
+  }
+  const periodStatus = (() => {
+    if (payrolls.length === 0) return null
+    const sts = monthSettlements.map(s => s.status)
+    if (sts.length > 0 && sts.every(s => s === 'paid')) return 'paid'
+    if (sts.includes('pending') || sts.includes('approved')) return 'pending'
+    if (sts.includes('draft')) return 'draft'
+    return 'draft'
+  })()
 
   return (
     <div className="space-y-5 animate-fade-up">
       <PageHeader
         title="Payroll & Settlements"
-        subtitle={`${settlements.length} settlements · ${tripPayslips.length} trip payslips`}
+        subtitle={`${monthLabel(month, year)} · ${kpiDrivers} driver${kpiDrivers !== 1 ? 's' : ''} · ${kpiTrips} trips`}
         action={
           <div className="flex items-center gap-2">
-            {isAdmin && (
-              <button onClick={() => setShowConfig(true)}
-                className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
-                <Settings size={15} />
-              </button>
-            )}
-            {canCreate && tab === 'settlements' && (
-              <button onClick={() => setShowCreate(true)}
+            {canCreate && (
+              <button onClick={handleGenerateAll}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white font-bold text-sm hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-lg active:scale-95">
-                <Plus size={15} /> New Settlement
+                <Plus size={15} /> Generate Payroll
               </button>
             )}
           </div>
@@ -1013,22 +1133,94 @@ export default function Payroll() {
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1 w-fit">
-        {[['settlements','Monthly Settlements'],['trip_payslips','Trip Payslips'],['history','Salary History']].map(([key, lbl]) => (
-          <button key={key} onClick={() => setTab(key)}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-              tab === key
-                ? 'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-            }`}>
-            {lbl}
-            <span className={`ml-1.5 text-[10px] ${tab === key ? 'text-blue-500' : 'text-slate-400'}`}>
-              {key === 'settlements' ? settlements.length : tripPayslips.length}
-            </span>
+      {/* ── Period selector + period status ── */}
+      <div className="glass-card rounded-2xl px-4 py-3 flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-1">
+          <button onClick={() => setMonthDelta(-1)} aria-label="Previous month"
+            className="w-8 h-8 rounded-lg hover:bg-slate-100 dark:hover:bg-navy-700 flex items-center justify-center text-slate-500 transition-colors">
+            <ChevronLeft size={16} />
           </button>
+          <p className="font-display font-black text-slate-800 dark:text-white text-sm min-w-[132px] text-center tabular-nums">
+            {monthLabel(month, year)}
+          </p>
+          <button onClick={() => setMonthDelta(1)} aria-label="Next month"
+            className="w-8 h-8 rounded-lg hover:bg-slate-100 dark:hover:bg-navy-700 flex items-center justify-center text-slate-500 transition-colors">
+            <ChevronRight size={16} />
+          </button>
+        </div>
+        <div className="h-6 w-px bg-slate-200 dark:bg-navy-700 hidden sm:block" />
+        {periodStatus ? (
+          <div className="flex items-center gap-2">
+            <StatusBadge status={periodStatus} />
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              {kpiPaid} of {payrolls.length} driver{payrolls.length !== 1 ? 's' : ''} paid
+            </span>
+          </div>
+        ) : (
+          <span className="text-xs text-slate-400 dark:text-slate-500">No trips completed this month yet</span>
+        )}
+      </div>
+
+      {/* ── KPIs ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
+        {[
+          { label:'Total Drivers',    value: kpiDrivers,                        color:'text-navy-800 dark:text-blue-300',        filter:null },
+          { label:'Total Trips',      value: kpiTrips,                          color:'text-navy-800 dark:text-blue-300',        filter:null },
+          { label:'Salary Payable',   value: hideMoney ? '—' : `Rs.${(kpiSalary/1000).toFixed(1)}k`, color:'text-emerald-600 dark:text-emerald-400', filter:null },
+          { label:'Bata Extra',       value: hideMoney ? '—' : `Rs.${(kpiBata/1000).toFixed(1)}k`,   color:'text-teal-600 dark:text-teal-400',       filter:null },
+          { label:'Pending Approval', value: kpiPending,                        color:'text-blue-600 dark:text-blue-400',        filter:'pending' },
+          { label:'Paid',             value: kpiPaid,                           color:'text-emerald-600 dark:text-emerald-400',   filter:'paid' },
+        ].map(s => (
+          <div key={s.label} onClick={() => s.filter && setStatFilter(s.filter)}
+            className={`glass-card rounded-xl px-3 py-3 text-center ${s.filter ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all' : ''}`}>
+            <p className={`text-xl font-display font-black tabular-nums ${s.color}`}>{s.value}</p>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">{s.label}</p>
+          </div>
         ))}
       </div>
+
+      {/* ── Toolbar ── */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[160px] max-w-xs">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search driver…"
+            className="w-full pl-8 pr-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/40 font-body" />
+        </div>
+        <select value={driverFilter} onChange={e => setDriverFilter(e.target.value)}
+          className="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
+          <option value="all">All Drivers</option>
+          {payrolls.map(p => <option key={p.driver} value={p.driver}>{p.driver}</option>)}
+        </select>
+        <select value={statFilter} onChange={e => setStatFilter(e.target.value)}
+          className="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
+          <option value="all">All Status</option>
+          {SETTLEMENT_STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+        </select>
+        {(search || driverFilter !== 'all' || statFilter !== 'all') && (
+          <button onClick={() => { setSearch(''); setDriverFilter('all'); setStatFilter('all') }}
+            className="px-3 py-2 text-xs font-bold rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+            Clear
+          </button>
+        )}
+        <button onClick={exportCsv} title="Export filtered rows as CSV"
+          className="ml-auto flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+          <Download size={13} /> Export
+        </button>
+      </div>
+
+      {/* Completed trips with no driver — accuracy warning, not payroll */}
+      {orphanTrips.length > 0 && (
+        <div className="bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-800/30 rounded-2xl px-4 py-3 flex items-center gap-2.5 flex-wrap">
+          <AlertTriangle size={15} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
+          <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 flex-1 min-w-[200px]">
+            {orphanTrips.length} completed trip{orphanTrips.length !== 1 ? 's' : ''} in {monthLabel(month, year)} {orphanTrips.length !== 1 ? 'have' : 'has'} no driver assigned — payroll below excludes {orphanTrips.length !== 1 ? 'them' : 'it'}.
+          </p>
+          <button onClick={() => navigate('/trips')}
+            className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-white text-xs font-bold transition-colors flex-shrink-0">
+            Fix in Trips
+          </button>
+        </div>
+      )}
 
       {toast && (
         <div className="flex items-center gap-2.5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 rounded-xl px-4 py-2.5">
@@ -1037,214 +1229,250 @@ export default function Payroll() {
         </div>
       )}
 
-      {/* ── Trip Payslips tab ── */}
-      {tab === 'trip_payslips' && (() => {
-        const filteredTP = tripPayslips.filter(p =>
-          (driverFilter === 'all' || p.driver === driverFilter)
-        )
-        const tpPending = tripPayslips.filter(p => p.status === 'pending').reduce((s,p) => s+tripDriverAmount(p), 0)
-        const tpPaid    = tripPayslips.filter(p => p.status === 'paid').reduce((s,p) => s+tripDriverAmount(p), 0)
-        return (
-          <div className="space-y-4">
-            {/* KPIs */}
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { label:'Total Payslips', value: tripPayslips.length,           color:'text-navy-800 dark:text-blue-300' },
-                { label:'Pending Pay',    value:`Rs.${(tpPending/1000).toFixed(1)}k`, color:'text-amber-600 dark:text-amber-400' },
-                { label:'Total Paid',     value:`Rs.${(tpPaid/1000).toFixed(1)}k`,   color:'text-emerald-600 dark:text-emerald-400' },
-              ].map(s => (
-                <div key={s.label} className="glass-card rounded-xl px-3 py-3 text-center">
-                  <p className={`text-xl font-display font-black ${s.color}`}>{s.value}</p>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{s.label}</p>
-                </div>
-              ))}
-            </div>
-            {/* Driver filter */}
-            <select value={driverFilter} onChange={e => setDriverFilter(e.target.value)}
-              className="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
-              <option value="all">All Drivers</option>
-              {drivers.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
-            </select>
-            {/* List */}
-            {filteredTP.length === 0 ? (
-              <div className="glass-card rounded-2xl p-12 text-center">
-                <FileText size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-                <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">No trip payslips yet</p>
-                <p className="text-slate-400 text-xs mt-1">Auto-generated when a driver completes a trip</p>
-              </div>
-            ) : (
-              <div className="glass-card rounded-2xl overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-slate-50/80 dark:bg-navy-800/50 border-b border-slate-100 dark:border-navy-700">
-                        {['Payslip ID','Driver','Customer','Date','Booking','Fare (Co.)','Bata (Driver)','Driver Gets','Status','Action'].map(h => (
-                          <th key={h} className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredTP.map(p => (
-                        <tr key={p.id} className="border-b border-slate-50 dark:border-navy-800 hover:bg-slate-50/50 dark:hover:bg-navy-800/30 transition-colors">
-                          <td className="px-3 py-2.5 text-[10px] font-mono text-slate-500 whitespace-nowrap">{p.id}</td>
-                          <td className="px-3 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">{p.driver}</td>
-                          <td className="px-3 py-2.5 text-xs text-slate-600 dark:text-slate-300 truncate max-w-[120px]">{p.customer}</td>
-                          <td className="px-3 py-2.5 text-xs text-slate-500 whitespace-nowrap">{p.date}</td>
-                          <td className="px-3 py-2.5 text-[10px] font-mono text-slate-400">{p.bookingNo}</td>
-                          <td className="px-3 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">Rs.{p.fare.toLocaleString('en-IN')}</td>
-                          <td className="px-3 py-2.5 text-xs text-emerald-600 dark:text-emerald-400">Rs.{p.bata.toLocaleString('en-IN')}</td>
-                          <td className="px-3 py-2.5 text-xs font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">Rs.{tripDriverAmount(p).toLocaleString('en-IN')}</td>
-                          <td className="px-3 py-2.5">
-                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                              p.status === 'paid'
-                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                            }`}>
-                              {p.status === 'paid' ? '✓ Paid' : 'Pending'}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2.5">
-                            {p.status === 'pending' && isAdmin && (
-                              <button
-                                onClick={() => {
-                                  const updated = { ...p, status:'paid', paidAt: new Date().toISOString(), paidBy: user?.name }
-                                  saveTripPayslip(updated)
-                                  reload()
-                                  showToast(`${p.id} marked as paid`)
-                                }}
-                                className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[10px] font-bold hover:bg-emerald-500 transition-colors whitespace-nowrap">
-                                Mark Paid
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-        )
-      })()}
-      {tab === 'settlements' && (<>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          // Module 3 (Day 20.5): company-wide Rs. total is a revenue-dashboard
-          // figure — managers can operate payroll but must not see totals.
-          { label:'Total Paid',          value: can('revenueDashboard') ? `Rs.${(totalPayroll/1000).toFixed(1)}k` : '—', color:'text-emerald-600 dark:text-emerald-400', filter:null, hidden: !can('revenueDashboard') },
-          { label:'Pending Approval',    value: pendingCount,                           color:'text-blue-600 dark:text-blue-400',       filter:'pending'  },
-          { label:'Approved (Unpaid)',   value: approvedCount,                          color:'text-violet-600 dark:text-violet-400',   filter:'approved' },
-          { label:'Paid This Cycle',     value: paidCount,                              color:'text-navy-800 dark:text-blue-300',       filter:'paid'     },
-        ].map(s => (
-          <div key={s.label} onClick={() => s.filter && setStatFilter(s.filter)}
-            className={`glass-card rounded-xl px-3 py-3 text-center ${s.filter ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all' : ''} ${s.hidden ? 'opacity-50' : ''}`}>
-            <p className={`text-xl font-display font-black ${s.color}`}>{s.value}</p>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">{s.label}</p>
-          </div>
-        ))}
-      </div>
+      <>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-2">
-        <select value={driverFilter} onChange={e => setDriverFilter(e.target.value)}
-          className="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
-          <option value="all">All Drivers</option>
-          {drivers.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
-        </select>
-        <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1">
-          {[['all','All'], ...SETTLEMENT_STATUSES.map(s => [s.key, s.label])].map(([k,l]) => (
-            <button key={k} onClick={() => setStatFilter(k)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-                statFilter === k
-                  ? 'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow'
-                  : 'text-slate-500 dark:text-slate-400'
-              }`}>{l}
-            </button>
+      {/* Driver payroll table — one row per driver, trip-based */}
+      {loading ? (
+        <div className="glass-card rounded-2xl overflow-hidden">
+          {[0, 1, 2, 3, 4].map(i => (
+            <div key={i} className="flex items-center gap-3 px-4 py-3.5 border-b border-slate-50 dark:border-navy-800 last:border-0">
+              <div className="w-9 h-9 rounded-full skeleton flex-shrink-0" />
+              <div className="flex-1 space-y-1.5"><div className="h-3 w-28 rounded skeleton" /><div className="h-2 w-20 rounded skeleton" /></div>
+              <div className="h-4 w-16 rounded skeleton" />
+            </div>
           ))}
         </div>
-      </div>
-
-      {/* Settlement list — Module 9 */}
-      {filtered.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div className="glass-card rounded-2xl p-12 text-center">
-          <IndianRupee size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-          <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">No settlements found</p>
-          {canCreate && (
-            <button onClick={() => setShowCreate(true)}
+          <Wallet size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
+          <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">
+            {payrolls.length === 0
+              ? `No trips completed in ${monthLabel(month, year)}`
+              : 'No drivers match these filters'}
+          </p>
+          <p className="text-slate-400 text-xs mt-1">
+            {payrolls.length === 0
+              ? 'Payroll appears here once drivers complete trips this month'
+              : 'Try clearing search or choosing a different status'}
+          </p>
+          {payrolls.length === 0 && (
+            <button onClick={() => navigate('/trips')}
               className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 transition-all">
-              <Plus size={13} /> Create First Settlement
+              View Trips
             </button>
           )}
         </div>
-      ) : (
-        <div className="space-y-2.5">
-          {filtered.map(s => {
-            const isOpen = expanded === s.id
-            return (
-              <div key={s.id} className="glass-card rounded-2xl overflow-hidden hover:shadow-md transition-all">
-                {/* Row */}
-                <div className="flex items-center gap-3 p-4 cursor-pointer select-none"
-                     onClick={() => setExpanded(isOpen ? null : s.id)}>
-                  {/* Month badge */}
-                  <div className="w-12 h-12 rounded-xl bg-navy-900 dark:bg-navy-800 flex flex-col items-center justify-center flex-shrink-0">
-                    <span className="text-[8px] font-bold text-blue-400 uppercase leading-none">
-                      {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][s.month-1]}
-                    </span>
-                    <span className="text-sm font-black text-white leading-tight">{s.year}</span>
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                      <p className="font-bold text-slate-800 dark:text-white text-sm">{s.driver}</p>
-                      <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500">{s.id}</p>
-                    </div>
-                    <div className="flex items-center gap-2 text-[10px] text-slate-400 dark:text-slate-500 flex-wrap">
-                      <span className="flex items-center gap-1"><Calendar size={9} />{s.workingDays} days</span>
-                      <span className="flex items-center gap-1"><User size={9} />{s.completedTrips} trips</span>
-                      {s.paymentDate && <span>· Paid {s.paymentDate}</span>}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                    <p className="text-base font-black text-emerald-600 dark:text-emerald-400">
-                      Rs. {s.netAmount.toLocaleString('en-IN')}
-                    </p>
-                    <StatusBadge status={s.status} />
-                  </div>
-
-                  {isOpen ? <ChevronUp size={13} className="text-slate-400 flex-shrink-0 ml-1" />
-                           : <ChevronDown size={13} className="text-slate-400 flex-shrink-0 ml-1" />}
-                </div>
-
-                {isOpen && (
-                  <SettlementDetail
-                    s={s}
-                    onEdit={setEditItem}
-                    onDelete={handleDelete}
-                    onApprove={handleApprove}
-                    onSubmit={handleSubmit}
-                    onMarkPaid={setMarkPaidItem}
-                    onViewPayslip={setPayslipItem}
-                    canEdit={canEdit}
-                    canDelete={canDelete}
-                    canApprove={canApprove}
-                    isAdmin={isAdmin}
-                  />
-                )}
-              </div>
-            )
-          })}
+      ) : (<>
+        {/* Desktop table */}
+        <div className="glass-card rounded-2xl overflow-hidden hidden md:block">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50/80 dark:bg-navy-800/50 border-b border-slate-100 dark:border-navy-700">
+                  {['Driver','Trips','Salary','Bata Extra','Total','Paid','Balance','Status',''].map(h => (
+                    <th key={h} className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {pageRows.map(p => (
+                  <tr key={p.driver} onClick={() => setDrawerDriver(p.driver)}
+                    className="border-b border-slate-50 dark:border-navy-800 hover:bg-slate-50/50 dark:hover:bg-navy-800/30 transition-colors cursor-pointer">
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <Avatar name={p.driver} size={28} />
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">{p.driver}</span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 tabular-nums">{p.tripCount}</td>
+                    <td className="px-3 py-2.5 text-xs text-slate-600 dark:text-slate-300 tabular-nums whitespace-nowrap">{money(p.salaryTotal)}</td>
+                    <td className="px-3 py-2.5 text-xs text-teal-600 dark:text-teal-400 tabular-nums whitespace-nowrap">{money(p.bataExtra)}</td>
+                    <td className="px-3 py-2.5 text-xs font-black text-emerald-600 dark:text-emerald-400 tabular-nums whitespace-nowrap">{money(p.gross)}</td>
+                    <td className="px-3 py-2.5 text-xs text-slate-600 dark:text-slate-300 tabular-nums whitespace-nowrap">{money(p.paidAmount)}</td>
+                    <td className="px-3 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 tabular-nums whitespace-nowrap">{money(p.balance)}</td>
+                    <td className="px-3 py-2.5"><StatusBadge status={p.status} /></td>
+                    <td className="px-3 py-2.5">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">
+                        <Eye size={12} /> View
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      )}
+        {/* Mobile cards */}
+        <div className="space-y-2.5 md:hidden">
+          {pageRows.map(p => (
+            <div key={p.driver} onClick={() => setDrawerDriver(p.driver)}
+              className="glass-card rounded-2xl p-4 cursor-pointer active:scale-[0.99] transition-transform">
+              <div className="flex items-center gap-2.5 mb-2.5">
+                <Avatar name={p.driver} size={32} />
+                <p className="font-bold text-slate-800 dark:text-white text-sm flex-1 truncate">{p.driver}</p>
+                <StatusBadge status={p.status} />
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-slate-50 dark:bg-navy-800/60 rounded-lg py-1.5">
+                  <p className="text-sm font-black text-slate-700 dark:text-slate-200 tabular-nums">{p.tripCount}</p>
+                  <p className="text-[9px] text-slate-400">Trips</p>
+                </div>
+                <div className="bg-slate-50 dark:bg-navy-800/60 rounded-lg py-1.5">
+                  <p className="text-sm font-black text-emerald-600 dark:text-emerald-400 tabular-nums">{hideMoney ? '—' : `Rs.${(p.gross / 1000).toFixed(1)}k`}</p>
+                  <p className="text-[9px] text-slate-400">Total</p>
+                </div>
+                <div className="bg-slate-50 dark:bg-navy-800/60 rounded-lg py-1.5">
+                  <p className="text-sm font-black text-slate-700 dark:text-slate-200 tabular-nums">{hideMoney ? '—' : `Rs.${(p.balance / 1000).toFixed(1)}k`}</p>
+                  <p className="text-[9px] text-slate-400">Balance</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 pt-1">
+            <button disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+              Prev
+            </button>
+            <span className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">Page {safePage} of {totalPages}</span>
+            <button disabled={safePage >= totalPages} onClick={() => setPage(safePage + 1)}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+              Next
+            </button>
+          </div>
+        )}
+      </>)}
 
-      {/* Salary History Tab */}
-      {tab === 'history' && (
-        <SalaryHistoryPanel settlements={settlements} onViewPayslip={setPayslipItem} />
-      )}
+      {/* ── Driver detail drawer (same payroll object as table) ── */}
+      {drawerDriver && (() => {
+        const p = payrolls.find(x => x.driver === drawerDriver)
+        if (!p) return null
+        const s = p.settlement
+        return (
+          <ModalOverlay onClose={() => setDrawerDriver(null)}>
+            <div className="relative w-full sm:w-[520px] max-h-[92vh] sm:max-h-[88vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
+              <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
+              <div className="flex items-center gap-3 px-5 pt-4 sm:pt-5 pb-3 flex-shrink-0">
+                <Avatar name={p.driver} size={40} />
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-display font-black text-slate-800 dark:text-white truncate">{p.driver}</h3>
+                  <p className="text-xs text-slate-400">{monthLabel(month, year)} · {p.tripCount} trips · {p.daysWorked} days</p>
+                </div>
+                <StatusBadge status={p.status} />
+                <button onClick={() => setDrawerDriver(null)} aria-label="Close details"
+                  className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700 transition-colors flex-shrink-0">
+                  <X size={15} />
+                </button>
+              </div>
+              <div className="overflow-y-auto flex-1 px-5 pb-5 space-y-3">
+                {/* Summary — salary collected + customer bata extra */}
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { l:'Salary',      v: money(p.salaryTotal), c:'text-slate-700 dark:text-slate-200' },
+                    { l:'Bata Extra',  v: money(p.bataExtra),   c:'text-teal-600 dark:text-teal-400' },
+                    { l:'Total',       v: money(p.gross),       c:'text-emerald-600 dark:text-emerald-400' },
+                  ].map(r => (
+                    <div key={r.l} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl px-3 py-2 border border-slate-100 dark:border-navy-700">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wide font-bold">{r.l}</p>
+                      <p className={`text-sm font-black tabular-nums ${r.c}`}>{r.v}</p>
+                    </div>
+                  ))}
+                </div>
+                {/* Trips */}
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">Trips ({p.tripCount})</p>
+                  {p.trips.some(t => !(Number(t.driverAllowance ?? t.driver_allowance) > 0)) && (
+                    <div className="flex items-center gap-2 bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-800/30 rounded-xl px-3 py-2 mb-1.5">
+                      <AlertTriangle size={12} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                      <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400">
+                        Some trips have no driver allowance set.{' '}
+                        <button onClick={() => navigate('/trips')} className="font-bold underline">Fix in Trips</button>
+                      </p>
+                    </div>
+                  )}
+                  <div className="space-y-1.5">
+                    {p.trips.map(t => {
+                      const allow = Number(t.driverAllowance ?? t.driver_allowance) || 0
+                      const extra = Number(t.bata) || 0
+                      return (
+                        <div key={t.id ?? t.bookingNo ?? t.booking_id} className="flex items-center gap-2 text-xs bg-white dark:bg-navy-800/60 rounded-lg px-3 py-2 border border-slate-100 dark:border-navy-700">
+                          <span className="text-slate-400 tabular-nums flex-shrink-0">{String(t.startDate || '').slice(5, 10)}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-slate-700 dark:text-slate-200 truncate">{t.customer || '—'}</p>
+                            <p className="text-[10px] text-slate-400 truncate">{t.pickup || '—'} → {t.drop || '—'}</p>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className={`font-bold tabular-nums ${allow > 0 ? 'text-slate-700 dark:text-slate-200' : 'text-amber-600 dark:text-amber-400'}`}>
+                              {allow > 0 ? money(allow) : 'Not set'}
+                            </p>
+                            {extra > 0 && <p className="text-[10px] text-teal-600 dark:text-teal-400 tabular-nums">+ {money(extra)} extra</p>}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+                {/* Totals + actions */}
+                <div className="bg-navy-900 dark:bg-navy-800 rounded-xl px-4 py-3">
+                  <div className="flex justify-between text-xs text-white/70"><span>Paid</span><span className="font-bold tabular-nums">{money(p.paidAmount)}</span></div>
+                  <div className="flex justify-between mt-1">
+                    <span className="text-xs text-white/70 font-bold">Balance</span>
+                    <span className="text-base font-black text-white tabular-nums">{money(p.balance)}</span>
+                  </div>
+                  {s?.status === 'paid' && (
+                    <p className="text-[10px] text-white/50 mt-1">
+                      Paid {s.paymentDate || ''}{s.paymentMethod ? ` · ${s.paymentMethod}` : ''}{s.transactionId ? ` · ${s.transactionId}` : ''}
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {!s && canCreate && (
+                    <button onClick={() => handleGenerate(p)}
+                      className="flex-1 min-w-[140px] flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 transition-all active:scale-95">
+                      <FileText size={13} /> Generate Payslip
+                    </button>
+                  )}
+                  {s?.status === 'draft' && canEdit && (
+                    <button onClick={() => handleSubmit(s)}
+                      className="flex-1 min-w-[140px] flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-500 transition-all active:scale-95">
+                      <Send size={13} /> Submit for Approval
+                    </button>
+                  )}
+                  {s?.status === 'pending' && canApprove && (
+                    <button onClick={() => handleApprove(s)}
+                      className="flex-1 min-w-[140px] flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500 transition-all active:scale-95">
+                      <CheckCircle size={13} /> Approve & Verify
+                    </button>
+                  )}
+                  {s?.status === 'approved' && isAdmin && (
+                    <button onClick={() => setMarkPaidItem(s)}
+                      className="flex-1 min-w-[140px] flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500 transition-all active:scale-95">
+                      <Wallet size={13} /> Mark Paid
+                    </button>
+                  )}
+                  {(s || p.tripCount > 0) && (
+                    <button onClick={() => setPayslipDriver(p.driver)}
+                      className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+                      <Printer size={13} /> Payslip
+                    </button>
+                  )}
+                  {s?.status === 'draft' && canDelete && (
+                    <button onClick={() => { handleDelete(s); setDrawerDriver(null) }} title="Delete draft"
+                      className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </ModalOverlay>
+        )
+      })()}
 
       {/* Modals */}
-      </>)}
+      </>
       {(showCreate || editItem) && (
         <SettlementModal
           settlement={editItem}
@@ -1254,9 +1482,13 @@ export default function Payroll() {
           currentUser={user}
         />
       )}
+      {payslipDriver && (() => {
+        const p = payrolls.find(x => x.driver === payslipDriver)
+        return p ? <TripPayrollPayslipView payroll={p} onClose={() => setPayslipDriver(null)} /> : null
+      })()}
       {payslipItem  && <PayslipView    settlement={payslipItem}  onClose={() => setPayslipItem(null)}  />}
       {markPaidItem && <MarkPaidModal  settlement={markPaidItem} onClose={() => setMarkPaidItem(null)} onSave={handleMarkPaid} />}
-      {showConfig   && <SalaryConfigPanel drivers={drivers} onClose={() => setShowConfig(false)} />}
+
     </div>
   )
 }

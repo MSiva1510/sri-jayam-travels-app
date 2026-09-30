@@ -32,14 +32,16 @@ function toDbBooking(data = {}) {
     total_km: data.total_km ?? data.km,
     base_fare: data.base_fare,
     total_fare: data.total_fare ?? data.fare,
-    // Trip charges — driver's bata goes straight to the driver.
-    // Columns are added by migration 20260925_booking_charges; if the
-    // project hasn't applied it yet, the write path retries without them.
+    // Trip charges — per-trip driver allowance (salary, set by manager at
+    // approval) plus customer bata (extra). Columns come from migrations
+    // 20260925_booking_charges and 20260926_booking_driver_allowance; if
+    // the project hasn't applied them yet, the write path retries without.
     bata: data.bata ?? data.driver_bata,
     toll: data.toll ?? data.toll_charges,
     petrol: data.petrol ?? data.fuel_amount ?? data.fuel,
     parking: data.parking ?? data.parking_charges,
     extras: data.extras ?? data.other_charges,
+    driver_allowance: data.driver_allowance ?? data.driverAllowance,
     notes: data.notes,
     type_data: { ...typeData, ...data.typeData },
     approved_by: data.approved_by ?? data.approvedBy,
@@ -84,7 +86,7 @@ export class TripRepository extends BaseRepository {
       try {
         const { data, error } = await supabase
           .from('bookings')
-          .select('id, booking_id, booking_number, type, status, customer_id, customer_name, customer_contact, driver_id, vehicle_id, pickup_location, drop_location, start_date, start_time, end_date, end_time, total_km, base_fare, total_fare, notes, type_data, approved_by, approved_at, remarks, last_modified_by, approval_history, driver_name, vehicle_reg, created_at, updated_at')
+          .select('id, booking_id, booking_number, type, status, customer_id, customer_name, customer_contact, driver_id, vehicle_id, pickup_location, drop_location, start_date, start_time, end_date, end_time, total_km, base_fare, total_fare, bata, toll, petrol, parking, extras, driver_allowance, notes, type_data, approved_by, approved_at, remarks, last_modified_by, approval_history, driver_name, vehicle_reg, created_at, updated_at')
           .eq('status', status)
         if (error) throw error
         return data || []
@@ -226,7 +228,7 @@ export class TripRepository extends BaseRepository {
     try {
       const { data, error } = await supabase
         .from('bookings')
-        .select('id, booking_id, booking_number, type, status, customer_id, customer_name, customer_contact, driver_id, vehicle_id, pickup_location, drop_location, start_date, start_time, end_date, end_time, total_km, base_fare, total_fare, notes, type_data, approved_by, approved_at, remarks, last_modified_by, approval_history, driver_name, vehicle_reg, created_at, updated_at')
+        .select('id, booking_id, booking_number, type, status, customer_id, customer_name, customer_contact, driver_id, vehicle_id, pickup_location, drop_location, start_date, start_time, end_date, end_time, total_km, base_fare, total_fare, bata, toll, petrol, parking, extras, driver_allowance, notes, type_data, approved_by, approved_at, remarks, last_modified_by, approval_history, driver_name, vehicle_reg, created_at, updated_at')
         .order('created_at', { ascending: false })
       if (error) throw error
       return data || []
@@ -240,7 +242,7 @@ export class TripRepository extends BaseRepository {
     try {
       const { data, error } = await supabase
         .from('bookings')
-        .select('id, booking_id, booking_number, type, status, customer_id, customer_name, customer_contact, driver_id, vehicle_id, pickup_location, drop_location, start_date, start_time, end_date, end_time, total_km, base_fare, total_fare, notes, type_data, approved_by, approved_at, remarks, last_modified_by, approval_history, driver_name, vehicle_reg, created_at, updated_at')
+        .select('id, booking_id, booking_number, type, status, customer_id, customer_name, customer_contact, driver_id, vehicle_id, pickup_location, drop_location, start_date, start_time, end_date, end_time, total_km, base_fare, total_fare, bata, toll, petrol, parking, extras, driver_allowance, notes, type_data, approved_by, approved_at, remarks, last_modified_by, approval_history, driver_name, vehicle_reg, created_at, updated_at')
         .eq(UUID_RE.test(String(id)) ? 'id' : 'booking_id', id)
         .single()
       if (error && error.code === 'PGRST116') {
@@ -254,17 +256,18 @@ export class TripRepository extends BaseRepository {
     }
   }
 
-  // Charge columns may not exist until migration 20260925_booking_charges
-  // is applied — retry the write without them instead of failing the save.
+  // Charge/allowance columns may not exist until migrations
+  // 20260925_booking_charges / 20260926_booking_driver_allowance are
+  // applied — retry the write without them instead of failing the save.
   _withoutChargeColumns(obj = {}) {
-    const { bata, toll, petrol, parking, extras, ...rest } = obj
+    const { bata, toll, petrol, parking, extras, driver_allowance, ...rest } = obj
     return rest
   }
 
   _isMissingColumnError(error) {
     const msg = String(error?.message || '')
     return /column .* does not exist|Could not find the '.*' column/i.test(msg) &&
-      /(bata|toll|petrol|parking|extras)/i.test(msg)
+      /(bata|toll|petrol|parking|extras|driver_allowance)/i.test(msg)
   }
 
   async _createInSupabase(data) {
@@ -290,7 +293,7 @@ export class TripRepository extends BaseRepository {
         return created
       } catch (error) {
         if (!this._isMissingColumnError(error)) throw error
-        console.warn('[tripRepository] charge columns missing — saving trip without bata/toll/fuel/parking. Apply migration 20260925_booking_charges.')
+        console.warn('[tripRepository] charge columns missing — saving trip without bata/toll/fuel/parking/allowance. Apply migrations 20260925_booking_charges + 20260926_booking_driver_allowance.')
         const { data: created, error: retryError } = await supabase
           .from('bookings')
           .insert([this._withoutChargeColumns(trip)])
@@ -321,7 +324,7 @@ export class TripRepository extends BaseRepository {
         return updated
       } catch (error) {
         if (!this._isMissingColumnError(error)) throw error
-        console.warn('[tripRepository] charge columns missing — updating trip without bata/toll/fuel/parking. Apply migration 20260925_booking_charges.')
+        console.warn('[tripRepository] charge columns missing — updating trip without bata/toll/fuel/parking/allowance. Apply migrations 20260925_booking_charges + 20260926_booking_driver_allowance.')
         const { data: updated, error: retryError } = await supabase
           .from('bookings')
           .update({

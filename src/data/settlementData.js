@@ -56,10 +56,14 @@ export function resolveDailyWage(driverIdOrName, settings, driverNameFallback) {
 }
 
 // ── Trip money split ────────────────────────────────────────────
-// Bata goes straight to the driver (never company money).
-// A trip payslip therefore records: fare = company, bata = driver.
+// Driver pay per trip = manager-set allowance (salary) + customer bata
+// (extra, before/after the trip). Fare stays with the company.
+export function tripAllowance(p = {}) {
+  return Number(p.driverAllowance ?? p.driver_allowance ?? 0)
+}
 export function tripDriverAmount(p = {}) {
-  return Number(p.driver_amount ?? p.bata ?? 0)
+  if (p.driver_amount != null) return Number(p.driver_amount)
+  return tripAllowance(p) + Number(p.bata ?? 0)
 }
 export function tripCompanyAmount(p = {}) {
   return Number(p.company_amount ?? p.fare ?? 0)
@@ -147,6 +151,43 @@ export function buildSettlement({
     deductions,
     expBata, expFuel, expParking,
     notes,
+  }
+}
+
+// ── Driver monthly payroll (single source of truth) ───────────
+// Trip-based model: a driver's month = eligible trips (completed /
+// closed in the month) + the month's settlement adjustments.
+// Bata on each trip is the driver's earning (straight to driver);
+// the settlement contributes bonus + deductions + workflow status.
+// Table, drawer, payslip and print ALL read this one object.
+export function buildDriverMonthlyPayroll({ driver, driverId, monthKey, bookings = [], tripPayslips = [], settlement = null }) {
+  const trips = bookings
+    .filter(b =>
+      (b.driver === driver || (driverId != null && (b.driver_id === driverId || b.driverId === driverId))) &&
+      (b.startDate || '').startsWith(monthKey) &&
+      ['completed', 'closed'].includes(b.status)
+    )
+    .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''))
+  const tripCount = trips.length
+  // Salary = collected per-trip allowances (manager-set at approval).
+  // Bata = customer extra (before/after trip), added on top of salary.
+  // No incentives, no bonus, no deductions.
+  const salaryTotal = trips.reduce((s, t) => s + tripAllowance(t), 0)
+  const bataExtra = trips.reduce((s, t) => s + (Number(t.bata) || 0), 0)
+  const daysWorked = new Set(trips.map(t => (t.startDate || '').slice(0, 10)).filter(Boolean)).size
+  const gross = salaryTotal + bataExtra
+  const paidTrip = tripPayslips
+    .filter(p => p.status === 'paid' && trips.some(t => t.id != null && t.id === p.bookingId))
+    .reduce((s, p) => s + tripDriverAmount(p), 0)
+  const paidAmount = settlement?.status === 'paid' ? Number(settlement.netAmount ?? gross) : paidTrip
+  const balance = Math.max(0, gross - paidAmount)
+  return {
+    driver, driverId: driverId ?? null, monthKey,
+    trips, tripCount, salaryTotal, bataExtra, daysWorked,
+    gross, paidAmount, balance,
+    status: settlement?.status ?? 'draft',
+    settlementId: settlement?.id ?? null,
+    settlement,
   }
 }
 
@@ -315,10 +356,10 @@ export function normalizeTripPayslip(row = {}) {
     bata,
     fuel: Number(row.fuel ?? 0),
     parking: Number(row.parking ?? 0),
-    // Driver's take = bata (straight to driver); company keeps the fare.
-    driver_amount: Number(row.driver_amount ?? bata),
+    // Driver's take = allowance (salary) + bata (extra); company keeps the fare.
+    driver_amount: Number(row.driver_amount ?? (Number(row.driverAllowance ?? row.driver_allowance ?? 0) + bata)),
     company_amount: Number(row.company_amount ?? fare),
-    net: Number(row.net ?? row.net_amount ?? bata),
+    net: Number(row.net ?? row.net_amount ?? (Number(row.driverAllowance ?? row.driver_allowance ?? 0) + bata)),
     paidAt: row.paidAt ?? row.paid_at ?? null,
     createdAt: row.createdAt ?? row.created_at ?? row.generated_at ?? '',
   }
@@ -343,11 +384,12 @@ export async function saveTripPayslip(payslip) {
 }
 
 // ── Build a per-trip payslip from a completed booking ────────
-// Bata goes straight to the driver: the trip's own bata is the
-// driver's take, the fare stays with the company.
+// Driver's take = manager-set allowance (salary) + customer bata
+// (extra). The fare stays with the company.
 export function buildTripPayslip(booking) {
   const fare      = Number(booking.fare || 0)
   const bata      = Number(booking.bata || 0)
+  const allowance = tripAllowance(booking)
   return {
     id:        generateTripPayslipId(),
     bookingId: booking.id,
@@ -360,11 +402,12 @@ export function buildTripPayslip(booking) {
     date:      booking.startDate || new Date().toISOString().slice(0, 10),
     fare,
     bata,
+    driverAllowance: allowance,
     fuel:      0,
     parking:   0,
-    driver_amount:  bata,
+    driver_amount:  allowance + bata,
     company_amount: fare,
-    net:       bata,
+    net:       allowance + bata,
     status:    'pending',
     paidAt:    null,
     paidBy:    null,

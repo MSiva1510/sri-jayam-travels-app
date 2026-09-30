@@ -14,7 +14,6 @@ import { loadDrivers }        from '../data/driverData'
 import { loadBookings }       from '../data/tripTypes'
 import {
   loadTripPayslips, tripDriverAmount,
-  loadPayrollSettings, savePayrollSettings,
   buildTripPayslip, saveTripPayslip,
 } from '../data/settlementData'
 
@@ -39,26 +38,15 @@ function AddDriverModal({ driver, onClose, onSaved }) {
     bankName: driver.bankName ?? driver.bank_name ?? '', accountNo: driver.accountNo || '',
     ifscCode: driver.ifscCode || '',
     emergencyName: driver.emergencyName || '', emergencyContact: driver.emergencyContact ?? driver.emergency_contact ?? '',
-    email:'', password:'', createLogin:false, dailyWage:'',
+    email:'', password:'', createLogin:false,
   } : {
     name:'', mobile:'', vehicle:'', license:'', vehicleType:'',
     joined: new Date().toISOString().slice(0,10), status:'active', rating: 4.5,
     licenseExpiry:'', badge:'', medicalExpiry:'',
     bankName:'', accountNo:'', ifscCode:'',
     emergencyName:'', emergencyContact:'',
-    email:'', password:'', createLogin:true, dailyWage:'',
+    email:'', password:'', createLogin:true,
   })
-  // Prefill daily wage from Supabase payroll settings in edit mode.
-  useEffect(() => {
-    if (!isEditMode) return
-    loadPayrollSettings()
-      .then(s => {
-        const key = driver.driver_id || driver.id
-        const wage = s?.drivers?.[key]?.dailyWage ?? s?.drivers?.[driver.name]?.dailyWage ?? ''
-        setForm(f => ({ ...f, dailyWage: wage }))
-      })
-      .catch(() => {})
-  }, [isEditMode, driver])
   const [licenceImg, setLicenceImg] = useState(null)
   const [preview,    setPreview]    = useState(null)
   const [errors,     setErrors]     = useState({})
@@ -85,21 +73,7 @@ function AddDriverModal({ driver, onClose, onSaved }) {
       if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) e.email = 'Valid email required for login'
       if (!form.password || form.password.length < 6) e.password = 'Min 6 characters'
     }
-    if (form.dailyWage !== '' && !(Number(form.dailyWage) >= 0)) e.dailyWage = 'Invalid wage'
     return e
-  }
-
-  const saveWage = async (driverId, dailyWage) => {
-    if (dailyWage === '' || !(Number(dailyWage) >= 0)) return
-    try {
-      const settings = await loadPayrollSettings()
-      await savePayrollSettings({
-        ...settings,
-        drivers: { ...(settings?.drivers || {}), [driverId]: { dailyWage: Number(dailyWage) } },
-      })
-    } catch (wageErr) {
-      console.error('Daily wage save failed:', wageErr)
-    }
   }
 
   const handleSave = async () => {
@@ -107,7 +81,7 @@ function AddDriverModal({ driver, onClose, onSaved }) {
     if (Object.keys(e).length) { setErrors(e); return }
     setSaving(true)
     try {
-      const { email, password, createLogin, dailyWage, ...driverFields } = form
+      const { email, password, createLogin, ...driverFields } = form
       if (isEditMode) {
         const payload = {
           ...driverFields,
@@ -115,7 +89,6 @@ function AddDriverModal({ driver, onClose, onSaved }) {
         }
         const updated = await driverRepository.update(driver.id, payload)
         const savedDriver = updated || { ...driver, ...payload }
-        await saveWage(savedDriver.driver_id || savedDriver.id, dailyWage)
         onSaved(savedDriver)
         onClose()
         return
@@ -128,9 +101,6 @@ function AddDriverModal({ driver, onClose, onSaved }) {
       }
       const created = await driverRepository.create(payload)
       const savedDriver = created || payload
-
-      // Daily wage lives in Supabase payroll settings, keyed by driver id.
-      await saveWage(savedDriver.driver_id || savedDriver.id, dailyWage)
 
       // Driver login: auth user + driver profile (admin session is restored after).
       if (createLogin) {
@@ -227,10 +197,10 @@ function AddDriverModal({ driver, onClose, onSaved }) {
             </div>
           </div>
 
-          {/* Login (driver app) + Daily Wage */}
+          {/* Login (driver app) */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Driver Login & Wage</p>
+              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Driver Login</p>
               {!isEditMode && (
               <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300 cursor-pointer">
                 <input type="checkbox" checked={form.createLogin}
@@ -257,12 +227,6 @@ function AddDriverModal({ driver, onClose, onSaved }) {
               </div>
               </>
               )}
-              <div className="col-span-2">
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Daily Wage (Rs./day — paid only for days driven)</label>
-                <input type="number" min="0" className={`${inp} ${errors.dailyWage ? 'border-red-400' : 'border-slate-200 dark:border-navy-700'}`}
-                  value={form.dailyWage} onChange={e => upd('dailyWage', e.target.value)} placeholder="e.g. 600" />
-                {errors.dailyWage && <p className="text-[10px] text-red-500 mt-0.5">{errors.dailyWage}</p>}
-              </div>
             </div>
           </div>
 

@@ -7,6 +7,19 @@ import supabase from '../lib/supabase'
 const LS_LOGS   = 'sjt_comm_logs'
 const LS_PREFS  = 'sjt_notif_prefs'
 const LS_QUEUE  = 'sjt_comm_queue'
+const LS_PROV   = 'sjt_comm_providers'
+const LS_PROV_CFG = 'sjt_comm_provider_cfg'
+// Local credential mirror: used when communication_providers has no
+// config column (or is unreachable). Keyed by provider row id.
+const rCfg = () => { try { return JSON.parse(localStorage.getItem(LS_PROV_CFG) || '{}') } catch { return {} } }
+const wCfg = (id, cfg) => {
+  try {
+    const all = rCfg()
+    if (cfg && Object.keys(cfg).length) all[id] = cfg
+    else delete all[id]
+    localStorage.setItem(LS_PROV_CFG, JSON.stringify(all))
+  } catch {}
+}
 
 const rLS = key => { try { return JSON.parse(localStorage.getItem(key)||'[]') } catch { return [] } }
 const wLS = (key, d) => { try { localStorage.setItem(key, JSON.stringify(d)) } catch {} }
@@ -135,15 +148,24 @@ export const communicationQueueRepository = {
 }
 
 // ── Provider Configuration ────────────────────────────────────
+// The communication_providers table has no repo-managed migration, so
+// writes are tolerant: full payload first, minimal retry on missing
+// columns, local registry fallback when the table is unreachable.
+const _isMissingColumn = (e) => /column .* does not exist|Could not find the '.*' column/i.test(String(e?.message || ''))
+const _provName = (p = {}) => p.provider ?? p.provider_name ?? p.name ?? ''
+
 export const providerRepository = {
   async getAll() {
+    let remote = []
     if (supabase) {
       try {
         const { data } = await supabase.from('communication_providers').select('*')
-        if (data) return data
+        if (data) remote = data
       } catch {}
     }
-    return []
+    const seen = new Set(remote.map(r => r.id))
+    const local = rLS(LS_PROV).filter(l => !seen.has(l.id))
+    return [...remote, ...local]
   },
 
   async getByChannel(channel) {
@@ -154,6 +176,104 @@ export const providerRepository = {
   async getActive() {
     const all = await this.getAll()
     return all.filter(p => p.is_active)
+  },
+
+  normalize(row = {}) {
+    return {
+      ...row,
+      id: row.id || `prov-local-${Date.now()}`,
+      channel: row.channel || '',
+      provider: _provName(row),
+      is_active: !!row.is_active,
+      config: row.config && typeof row.config === 'object' ? row.config : {},
+    }
+  },
+
+  _toLocal(entry) {
+    const all = rLS(LS_PROV)
+    const idx = all.findIndex(p => p.id === entry.id)
+    if (idx >= 0) all[idx] = { ...all[idx], ...entry }
+    else all.unshift(entry)
+    wLS(LS_PROV, all)
+    return entry
+  },
+
+  getLocalConfig(id) {
+    const rowCfg = rLS(LS_PROV).find(p => p.id === id)?.config
+    if (rowCfg && Object.keys(rowCfg).length) return rowCfg
+    return rCfg()[id] || {}
+  },
+
+  async create(provider) {
+    const entry = this.normalize({ ...provider, updated_at: new Date().toISOString() })
+    const mirrorCfg = () => wCfg(entry.id, entry.config)
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.from('communication_providers').insert(entry).select().single()
+        if (!error && data) { wCfg(data.id || entry.id, entry.config); return data }
+      } catch {}
+      // Retry without the config blob when columns differ
+      try {
+        const { config, ...minimal } = entry
+        const { data, error } = await supabase.from('communication_providers').insert(minimal).select().single()
+        if (!error && data) { wCfg(data.id || entry.id, config); return data }
+      } catch {}
+    }
+    mirrorCfg()
+    return this._toLocal(entry)
+  },
+
+  async update(id, updates) {
+    const payload = { ...updates, updated_at: new Date().toISOString() }
+    if (payload.config) wCfg(id, payload.config)
+    if (supabase && !String(id).startsWith('prov-local-')) {
+      try {
+        const { data, error } = await supabase.from('communication_providers').update(payload).eq('id', id).select().single()
+        if (!error && data) return data
+      } catch {}
+      try {
+        const { config, ...minimal } = payload
+        const { data, error } = await supabase.from('communication_providers').update(minimal).eq('id', id).select().single()
+        if (!error && data) return data
+      } catch {}
+    }
+    const all = rLS(LS_PROV).map(p => p.id === id ? { ...p, ...payload } : p)
+    wLS(LS_PROV, all)
+    return all.find(p => p.id === id) || null
+  },
+}
+
+// ── Mobile push settings (global) ─────────────────────────────
+// Stored in `settings` table: { key: 'mobile_push_settings', value: JSON }
+// Local fallback when the table is unreachable.
+const LS_MOBILE_PUSH = 'sjt_mobile_push_settings'
+export const mobilePushSettingsRepository = {
+  defaults() {
+    return { enabled: false, updated_at: null }
+  },
+  async get() {
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.from('settings').select('value').eq('key', 'mobile_push_settings').single()
+        if (!error && data?.value) return { ...this.defaults(), ...data.value }
+      } catch {}
+    }
+    try {
+      const raw = JSON.parse(localStorage.getItem(LS_MOBILE_PUSH) || 'null')
+      if (raw) return { ...this.defaults(), ...raw }
+    } catch {}
+    return this.defaults()
+  },
+  async save(cfg) {
+    const value = { ...this.defaults(), ...cfg, updated_at: new Date().toISOString() }
+    if (supabase) {
+      try {
+        const { error } = await supabase.from('settings').upsert({ key: 'mobile_push_settings', value }, { onConflict: 'key' })
+        if (!error) return value
+      } catch {}
+    }
+    try { localStorage.setItem(LS_MOBILE_PUSH, JSON.stringify(value)) } catch {}
+    return value
   },
 }
 
