@@ -4,6 +4,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import supabase from '../lib/supabase'
 import PageHeader from '../components/ui/PageHeader'
+import { pageSizeForZoom } from '../utils/zoomPageSize'
 
 export const AUDIT_LOG_KEY    = 'sjt_audit_log'
 export const AUDIT_MAX_ENTRIES = 500
@@ -188,6 +189,25 @@ export default function AuditLog() {
   const [fromCache, setFromCache] = useState(false)
   const [search, setSearch]     = useState('')
   const [moduleFilter, setModuleFilter] = useState('all')
+  const [page, setPage]           = useState(1)
+  // Base rows at 100% zoom — browser zoom adjusts ±1 row per 10% step
+  // (+1 per 10% zoomed out, −1 per 10% zoomed in) via resize listener.
+  const [baseSize, setBaseSize]   = useState(8)
+  const [pageSize, setPageSize]   = useState(() => pageSizeForZoom(8))
+  const [goTo, setGoTo]           = useState('')
+
+  useEffect(() => {
+    setPageSize(pageSizeForZoom(baseSize))
+    const onResize = () => {
+      setPageSize(prev => {
+        const next = pageSizeForZoom(baseSize)
+        if (next !== prev) setPage(1)
+        return next
+      })
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [baseSize])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -215,8 +235,28 @@ export default function AuditLog() {
     })
   }, [events, search, moduleFilter])
 
+  // Reset to first page whenever the result set or page size changes
+  useEffect(() => { setPage(1); setGoTo('') }, [search, moduleFilter, pageSize, baseSize, events.length])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const safePage = Math.min(Math.max(1, page), totalPages)
+  const pageRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
+  const from = filtered.length === 0 ? 0 : (safePage - 1) * pageSize + 1
+  const to = Math.min(safePage * pageSize, filtered.length)
+  // Compact numbered window (1 … 4 5 6 … 12)
+  const pageNums = useMemo(() => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1)
+    const set = new Set([1, 2, safePage - 1, safePage, safePage + 1, totalPages - 1, totalPages])
+    return [...set].filter(p => p >= 1 && p <= totalPages).sort((a, b) => a - b)
+  }, [totalPages, safePage])
+  const submitGoTo = () => {
+    const n = Number(goTo)
+    if (Number.isInteger(n) && n >= 1 && n <= totalPages) setPage(n)
+    setGoTo('')
+  }
+
   return (
-    <div className="p-6">
+    <div className="p-4">
       <PageHeader
         title="Audit Log"
         subtitle={`${events.length} recent event${events.length === 1 ? '' : 's'}${fromCache ? ' (showing cached copy — live sync unavailable)' : ''}`}
@@ -236,18 +276,18 @@ export default function AuditLog() {
         </div>
       )}
 
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
+      <div className="flex items-center gap-3 mb-3 flex-wrap">
         <input
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search action, table, user…"
-          className="px-3 py-2 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 text-sm w-64"
+          className="px-3 py-2 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 text-sm text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 w-64 focus:outline-none"
         />
         <select
           value={moduleFilter}
           onChange={e => setModuleFilter(e.target.value)}
-          className="px-3 py-2 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 text-sm"
+          className="px-3 py-2 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 text-sm text-slate-800 dark:text-white focus:outline-none dark:[&>option]:bg-navy-900"
         >
           {modules.map(m => <option key={m} value={m}>{m === 'all' ? 'All modules' : m}</option>)}
         </select>
@@ -262,8 +302,8 @@ export default function AuditLog() {
           </div>
         ) : (
           <div className="divide-y divide-slate-100 dark:divide-navy-800">
-            {filtered.map((e, i) => (
-              <div key={e.id || i} className="flex items-start gap-3 px-4 py-3">
+            {pageRows.map((e, i) => (
+              <div key={e.id || i} className="flex items-start gap-2.5 px-4 py-2">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-bold text-sm text-slate-800 dark:text-white">
@@ -285,6 +325,67 @@ export default function AuditLog() {
           </div>
         )}
       </div>
+
+      {!loading && filtered.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap mt-3">
+          <select
+            value={baseSize}
+            onChange={e => setBaseSize(Number(e.target.value))}
+            title="Base rows at 100% zoom — auto ±1 row per 10% browser zoom"
+            className="px-2.5 py-2 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 text-xs font-bold text-slate-600 dark:text-slate-300 focus:outline-none"
+          >
+            {[8, 12, 20].map(n => <option key={n} value={n}>{n} / page</option>)}
+          </select>
+          <p className="text-xs text-slate-400 tabular-nums mr-auto">
+            Showing {from} to {to} of {filtered.length} events
+          </p>
+          <button
+            disabled={safePage <= 1}
+            onClick={() => setPage(safePage - 1)}
+            className="px-3 py-2 rounded-xl border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-navy-800 transition-colors"
+          >
+            Prev
+          </button>
+          {pageNums.map((p, i, arr) => (
+            <span key={p} className="flex items-center gap-2">
+              {i > 0 && p - arr[i - 1] > 1 && <span className="text-xs text-slate-400">…</span>}
+              <button
+                onClick={() => setPage(p)}
+                className={`min-w-[32px] h-8 px-1.5 rounded-xl text-xs font-bold tabular-nums transition-colors ${p === safePage
+                  ? 'bg-navy-900 dark:bg-white text-white dark:text-navy-900'
+                  : 'border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-800'}`}
+              >
+                {p}
+              </button>
+            </span>
+          ))}
+          <button
+            disabled={safePage >= totalPages}
+            onClick={() => setPage(safePage + 1)}
+            className="px-3 py-2 rounded-xl border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-navy-800 transition-colors"
+          >
+            Next
+          </button>
+          {totalPages > 1 && (
+            <span className="flex items-center gap-1.5 ml-1">
+              <input
+                value={goTo}
+                onChange={e => setGoTo(e.target.value.replace(/\D/g, ''))}
+                onKeyDown={e => { if (e.key === 'Enter') submitGoTo() }}
+                placeholder={`1–${totalPages}`}
+                title={`Go to page (1–${totalPages})`}
+                className="w-16 px-2 py-2 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 text-xs font-bold tabular-nums text-slate-600 dark:text-slate-300 focus:outline-none text-center"
+              />
+              <button
+                onClick={submitGoTo}
+                className="px-3 py-2 rounded-xl bg-navy-900 dark:bg-white text-white dark:text-navy-900 text-xs font-bold hover:opacity-90 transition-all"
+              >
+                Go
+              </button>
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 }
