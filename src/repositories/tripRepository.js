@@ -80,15 +80,33 @@ export class TripRepository extends BaseRepository {
     return this._getByIdFromLocal(id)
   }
 
+  // Charge/allowance columns may not exist until migrations
+  // 20260925_booking_charges / 20260926_booking_driver_allowance are
+  // applied — retry reads without them instead of failing the page.
+  _bookingColumns(withCharges = true) {
+    const base = 'id, booking_id, booking_number, type, status, customer_id, customer_name, customer_contact, driver_id, vehicle_id, pickup_location, drop_location, start_date, start_time, end_date, end_time, total_km, base_fare, total_fare, notes, type_data, approved_by, approved_at, remarks, last_modified_by, approval_history, driver_name, vehicle_reg, created_at, updated_at'
+    return withCharges ? base.replace(', notes,', ', bata, toll, petrol, parking, extras, driver_allowance, notes,') : base
+  }
+  _isMissingColumnRead(error) {
+    return /column .* does not exist|Could not find the '.*' column/i.test(String(error?.message || ''))
+  }
+
   async getByStatus(status) {
     const provider = getDatabaseProvider()
     if (provider === DATABASE_PROVIDERS.SUPABASE) {
       try {
         const { data, error } = await supabase
           .from('bookings')
-          .select('id, booking_id, booking_number, type, status, customer_id, customer_name, customer_contact, driver_id, vehicle_id, pickup_location, drop_location, start_date, start_time, end_date, end_time, total_km, base_fare, total_fare, bata, toll, petrol, parking, extras, driver_allowance, notes, type_data, approved_by, approved_at, remarks, last_modified_by, approval_history, driver_name, vehicle_reg, created_at, updated_at')
+          .select(this._bookingColumns(true))
           .eq('status', status)
-        if (error) throw error
+        if (error) {
+          if (this._isMissingColumnRead(error)) {
+            const retry = await supabase.from('bookings').select(this._bookingColumns(false)).eq('status', status)
+            if (retry.error) throw retry.error
+            return retry.data || []
+          }
+          throw error
+        }
         return data || []
       } catch (error) {
         console.error('Get by status failed:', error)
@@ -228,9 +246,16 @@ export class TripRepository extends BaseRepository {
     try {
       const { data, error } = await supabase
         .from('bookings')
-        .select('id, booking_id, booking_number, type, status, customer_id, customer_name, customer_contact, driver_id, vehicle_id, pickup_location, drop_location, start_date, start_time, end_date, end_time, total_km, base_fare, total_fare, bata, toll, petrol, parking, extras, driver_allowance, notes, type_data, approved_by, approved_at, remarks, last_modified_by, approval_history, driver_name, vehicle_reg, created_at, updated_at')
+        .select(this._bookingColumns(true))
         .order('created_at', { ascending: false })
-      if (error) throw error
+      if (error) {
+        if (this._isMissingColumnRead(error)) {
+          const retry = await supabase.from('bookings').select(this._bookingColumns(false)).order('created_at', { ascending: false })
+          if (retry.error) throw retry.error
+          return retry.data || []
+        }
+        throw error
+      }
       return data || []
     } catch (error) {
       console.error('Error fetching trips from Supabase:', error)
@@ -242,13 +267,23 @@ export class TripRepository extends BaseRepository {
     try {
       const { data, error } = await supabase
         .from('bookings')
-        .select('id, booking_id, booking_number, type, status, customer_id, customer_name, customer_contact, driver_id, vehicle_id, pickup_location, drop_location, start_date, start_time, end_date, end_time, total_km, base_fare, total_fare, bata, toll, petrol, parking, extras, driver_allowance, notes, type_data, approved_by, approved_at, remarks, last_modified_by, approval_history, driver_name, vehicle_reg, created_at, updated_at')
+        .select(this._bookingColumns(true))
         .eq(UUID_RE.test(String(id)) ? 'id' : 'booking_id', id)
         .single()
       if (error && error.code === 'PGRST116') {
         return null
       }
-      if (error) throw error
+      if (error) {
+        if (this._isMissingColumnRead(error)) {
+          const retry = await supabase.from('bookings')
+            .select(this._bookingColumns(false))
+            .eq(UUID_RE.test(String(id)) ? 'id' : 'booking_id', id)
+            .single()
+          if (retry.error && retry.error.code !== 'PGRST116') throw retry.error
+          return retry.data || null
+        }
+        throw error
+      }
       return data || null
     } catch (error) {
       console.error('Error fetching trip from Supabase:', error)
