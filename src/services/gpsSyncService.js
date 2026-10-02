@@ -22,6 +22,7 @@ const state = {
   health: {
     ok: null, lastPoll: null, lastSuccess: null, lastError: null,
     responseTimeMs: 0, mock: false, consecutiveFailures: 0, lastVehicleCount: 0,
+    providerRows: 0, matchedCount: 0, unmatchedRegs: [],
   },
   subscribers: new Set(), visibilityHandler: null,
 }
@@ -72,15 +73,32 @@ async function _syncNow() {
   state.health.lastError = null; state.health.consecutiveFailures = 0
   state.retryAttempt = 0; state.backoffMs = 0
 
-  if (!snapshots?.length) { state.health.lastVehicleCount = 0; emit(); return }
+  state.health.providerRows = snapshots?.length ?? 0
+  if (!snapshots?.length) {
+    state.health.lastVehicleCount = 0; state.health.matchedCount = 0
+    state.health.unmatchedRegs = []; emit(); return
+  }
 
   await _ensureIndexes()
+  const matchId = (s) =>
+    state.vehicleIndex[s.registration]
+    ?? state.vehicleIndex[normalizeReg(s.registration)]
+    ?? (s.imei ? state.imeiIndex[String(s.imei).trim()] : null)
+    ?? null
+  // Provider rows that match no fleet vehicle (wrong reg/IMEI on either
+  // side, or a device outside this fleet) are recorded for diagnostics
+  // instead of silently vanishing.
+  state.health.unmatchedRegs = snapshots
+    .filter(s => !matchId(s))
+    .map(s => s.registration || (s.imei ? `IMEI ${s.imei}` : 'unknown'))
+    .slice(0, 10)
   const rows = snapshots.map(s => ({
     ...s,
-    vehicle_id: state.vehicleIndex[s.registration] ?? state.vehicleIndex[normalizeReg(s.registration)] ?? state.imeiIndex[s.imei] ?? null,
+    vehicle_id: matchId(s),
     timestamp:  new Date(s._epoch ?? Date.parse(s.timestamp) ?? Date.now()).toISOString(),
     raw:        s._raw ?? {},
   })).filter(s => s.vehicle_id)
+  state.health.matchedCount = rows.length
 
   await gpsHistoryRepository.insertBatch(rows)
   state.health.lastVehicleCount = rows.length
