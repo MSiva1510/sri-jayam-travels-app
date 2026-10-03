@@ -10,6 +10,7 @@ import FleetMap           from '../components/fleet/FleetMap'
 import FleetVehicleDetail from '../components/fleet/FleetVehicleDetail'
 import { useGpsHistory }  from '../context/GpsHistoryContext'
 import { gpsSyncService } from '../services/gpsSyncService'
+import { loadVehicles } from '../data/vehicleData'
 import { gpsHistoryRepository } from '../repositories/gpsHistoryRepository'
 import { geofenceZoneRepository, geofenceEventRepository } from '../repositories/geofenceRepository'
 import { fleetAlertRepository } from '../repositories/fleetAlertRepository'
@@ -128,6 +129,37 @@ function Donut({ segments, total, totalLabel }) {
 
 function EmptyBlock({ text }) {
   return <p className="text-xs text-slate-400 text-center py-8">{text}</p>
+}
+
+// Names the fleet vehicles with no live provider feed (not returned by
+// the API at all — device/SIM/account issue at the vendor, not matching).
+const normReg = (r) => String(r ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+function MissingVehiclesBanner({ health, snapshots }) {
+  const [regs, setRegs] = useState([])
+  useEffect(() => {
+    loadVehicles().then(v => setRegs((Array.isArray(v) ? v : []).map(x => x.registration).filter(Boolean))).catch(() => setRegs([]))
+  }, [])
+  if (!health?.ok || regs.length === 0) return null
+  if ((health.providerRows ?? 0) >= regs.length) return null
+  if ((health.unmatchedRegs?.length ?? 0) > 0) return null // covered by the mismatch banner
+  const live = new Set(
+    snapshots.filter(s => {
+      const ts = s.timestamp ? new Date(s.timestamp).getTime() : 0
+      return ts && (Date.now() - ts) < 5 * 60_000
+    }).map(s => normReg(s.registration))
+  )
+  const missing = regs.filter(r => !live.has(normReg(r)))
+  if (!missing.length) return null
+  return (
+    <div className="rounded-2xl border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/15 px-4 py-3">
+      <p className="text-xs font-bold text-amber-700 dark:text-amber-300">
+        API returned {health.providerRows} of {regs.length} fleet vehicles — not reporting: {missing.join(', ')}
+      </p>
+      <p className="text-[11px] text-amber-600/80 dark:text-amber-400/70 mt-0.5">
+        These trackers are offline at KingsTrack (device / SIM / account scope). The app cannot display what the API doesn't send.
+      </p>
+    </div>
+  )
 }
 
 // Live countdown to the next provider sync (isolated 1s ticker so the
@@ -410,13 +442,7 @@ export default function Fleet() {
           </p>
         </div>
       )}
-      {health?.ok && (health.providerRows ?? 0) < total && !(health?.unmatchedRegs?.length > 0) && total > 0 && (
-        <div className="rounded-2xl border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/15 px-4 py-3">
-          <p className="text-xs font-bold text-amber-700 dark:text-amber-300">
-            API returned {health.providerRows} of {total} fleet vehicles — the missing {total - (health.providerRows ?? 0)} may be offline at the provider.
-          </p>
-        </div>
-      )}
+      <MissingVehiclesBanner health={health} snapshots={snapshots} />
 
       {subtab === 'map' && (
         <MapView
