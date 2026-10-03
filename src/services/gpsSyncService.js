@@ -180,7 +180,10 @@ function parseRetryAfterMs(msg) {
 
 function _applyBackoff(extraMs = 0) {
   state.retryAttempt = Math.min(state.retryAttempt + 1, 6)
+  // Floor every auto-retry at the vendor minimum gap — retrying sooner
+  // (even the 1s exponential step) can itself extend a rate-limit ban.
   state.backoffMs = Math.max(
+    VENDOR_MIN_GAP_MS,
     Math.min(1000 * 2 ** (state.retryAttempt - 1), 30_000),
     Math.min(extraMs, 300_000)
   )
