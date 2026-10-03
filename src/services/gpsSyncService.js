@@ -16,7 +16,7 @@ import supabase                 from '../lib/supabase'
 
 const state = {
   running: false, intervalId: null, intervalMs: 60_000,
-  retryAttempt: 0, backoffMs: 0,
+  retryAttempt: 0, backoffMs: 0, retryTimer: null,
   vehicleIndex: {}, imeiIndex: {},
   provider: null, providerName: null,
   health: {
@@ -94,6 +94,10 @@ async function _syncNow() {
     .slice(0, 10)
   const rows = snapshots.map(s => ({
     ...s,
+    // Downstream consumers (geofence, alerts, status tables) read
+    // latitude/longitude — provider snapshots carry lat/lng.
+    latitude:  Number.isFinite(s.latitude) ? s.latitude : s.lat,
+    longitude: Number.isFinite(s.longitude) ? s.longitude : s.lng,
     vehicle_id: matchId(s),
     timestamp:  new Date(s._epoch ?? Date.parse(s.timestamp) ?? Date.now()).toISOString(),
     raw:        s._raw ?? {},
@@ -136,6 +140,15 @@ async function _updateStatuses(rows) {
 function _applyBackoff() {
   state.retryAttempt = Math.min(state.retryAttempt + 1, 6)
   state.backoffMs = Math.min(1000 * 2 ** (state.retryAttempt - 1), 30_000)
+  // The interval guard skips while backoffMs is set — without an explicit
+  // retry the poller would stall forever after a single failure.
+  if (state.running && !state.retryTimer) {
+    state.retryTimer = setTimeout(() => {
+      state.retryTimer = null
+      state.backoffMs = 0
+      _syncNow()
+    }, state.backoffMs)
+  }
 }
 
 function _auditFailure(error) {
@@ -314,7 +327,9 @@ async function start() {
 
 function stop() {
   if (state.intervalId) clearInterval(state.intervalId)
-  state.intervalId = null; state.running = false
+  if (state.retryTimer) clearTimeout(state.retryTimer)
+  state.intervalId = null; state.retryTimer = null; state.running = false
+  state.backoffMs = 0; state.retryAttempt = 0
   _uninstallVisibilityHandler(); _resetIndexes(); emit()
 }
 

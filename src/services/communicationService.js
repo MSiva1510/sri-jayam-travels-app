@@ -13,7 +13,9 @@ import {
   notificationPreferenceRepository,
   providerRepository,
   mobilePushSettingsRepository,
+  communicationQueueRepository,
 } from '../repositories/communicationRepository'
+import { queueManager } from '../communication/QueueManager'
 import { loadDrivers } from '../data/driverData'
 
 // ── Re-export core ────────────────────────────────────────────

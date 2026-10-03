@@ -26,6 +26,9 @@ export class BaseRepository {
     return this._deleteFromSupabase(id)
   }
 
+  // NOTE: real errors are thrown (never masked as empty success) so
+  // pages show error states instead of fake "no data". The no-supabase
+  // branches below are intentional offline fallbacks, not failures.
   async _getAllFromSupabase() {
     if (!supabase) return []
 
@@ -33,7 +36,7 @@ export class BaseRepository {
       .from(this.tableName)
       .select('*')
 
-    if (error) return []
+    if (error) throw error
     return data || []
   }
 
@@ -47,7 +50,7 @@ export class BaseRepository {
       .single()
 
     if (error && error.code === 'PGRST116') return null
-    if (error) return null
+    if (error) throw error
     return data || null
   }
 
@@ -65,7 +68,7 @@ export class BaseRepository {
       .select()
       .single()
 
-    if (error) return data
+    if (error) throw error
     return created
   }
 
@@ -84,7 +87,7 @@ export class BaseRepository {
       .select()
       .single()
 
-    if (error) return data
+    if (error) throw error
     return updated
   }
 
@@ -96,7 +99,7 @@ export class BaseRepository {
       .delete()
       .eq(this.primaryKey, id)
 
-    if (error) return true
+    if (error) return false
     return true
   }
 }
