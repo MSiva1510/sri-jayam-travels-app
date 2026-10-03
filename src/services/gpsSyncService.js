@@ -398,9 +398,17 @@ async function syncNow() {
 }
 
 async function healthCheck() {
+  // The vendor rate-limits the whole account (browsers hitting the raw
+  // URL count too) — never spend more than one check per minute here.
+  const now = Date.now()
+  if (state.lastHealthCheck && now - state.lastHealthCheck.at < 60_000) {
+    return state.lastHealthCheck.result
+  }
   if (!state.provider) await _bootstrapProvider()
   if (!state.provider) return { ok: false, error: 'Provider not configured' }
-  return state.provider.healthCheck()
+  const result = await state.provider.healthCheck()
+  state.lastHealthCheck = { at: Date.now(), result }
+  return result
 }
 
 function subscribe(fn) {
