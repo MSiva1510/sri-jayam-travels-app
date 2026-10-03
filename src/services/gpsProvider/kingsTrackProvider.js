@@ -37,7 +37,9 @@ function toNumber(value, fallback = 0) {
 
 export function createKingsTrackProvider(settings = {}) {
   const baseUrl = settings.api_url || DEFAULT_URL
-  const timeout = Number(settings.timeout ?? 30) * 1000
+  // Vendor handshakes alone can take ~15s — a 30s default timeout
+  // turns slow responses into failures. Floor at 60s unless configured.
+  const timeout = Math.max(60, Number(settings.timeout ?? 60)) * 1000
   const isMock  = import.meta.env.VITE_GPS_MOCK === 'true'
   const useProxy = settings.use_proxy !== false
 
