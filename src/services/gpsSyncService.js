@@ -66,8 +66,17 @@ async function _syncNow(opts = {}) {
     return { ok: false, error: 'too-soon' }
   }
   state.syncing = true
-  state.lastAttemptAt = Date.now()
   try {
+    // Serialize with every other caller (other tabs, reloads, manual
+    // retries): wait out the shared vendor gap instead of failing into it.
+    // Re-claim after waiting in case another context took the slot first.
+    for (let i = 0; i < 3; i++) {
+      const wait = claimSlot()
+      if (wait <= 0) break
+      await delay(wait)
+    }
+    if (claimSlot() > 0) return { ok: false, error: 'too-soon' }
+    state.lastAttemptAt = Date.now()
     return await _syncNowInner()
   } finally {
     state.syncing = false
@@ -165,6 +174,22 @@ async function _updateStatuses(rows) {
 // Vendor rate limit ("one API request every 30 seconds") — never fire
 // auto polls closer together, no matter the configured interval.
 const VENDOR_MIN_GAP_MS = 30_000
+// Cross-tab slot: the vendor counts every caller (tabs, reloads, manual
+// link hits share the account quota), so the last-call timestamp lives
+// in localStorage where all contexts see it.
+const LS_LAST_CALL = 'sjt_gps_last_call'
+function claimSlot() {
+  try {
+    const last = Number(localStorage.getItem(LS_LAST_CALL) || 0)
+    const wait = VENDOR_MIN_GAP_MS - (Date.now() - last)
+    if (wait > 0) return wait
+    localStorage.setItem(LS_LAST_CALL, String(Date.now()))
+    return 0
+  } catch {
+    return 0
+  }
+}
+const delay = (ms) => new Promise(r => setTimeout(r, ms))
 
 // Parse "Please try after 07:11:39 PM" style retry hints into ms.
 function parseRetryAfterMs(msg) {
@@ -406,6 +431,13 @@ async function healthCheck() {
   }
   if (!state.provider) await _bootstrapProvider()
   if (!state.provider) return { ok: false, error: 'Provider not configured' }
+  // Health pings count against the same vendor quota — wait out the
+  // shared slot (capped) instead of firing into a rate limit.
+  for (let i = 0; i < 4; i++) {
+    const wait = claimSlot()
+    if (wait <= 0) break
+    await delay(Math.min(wait, 10_000))
+  }
   const result = await state.provider.healthCheck()
   state.lastHealthCheck = { at: Date.now(), result }
   return result
