@@ -17,6 +17,7 @@ import supabase                 from '../lib/supabase'
 const state = {
   running: false, intervalId: null, intervalMs: 60_000,
   retryAttempt: 0, backoffMs: 0, retryTimer: null,
+  syncing: false, lastAttemptAt: 0,
   vehicleIndex: {}, imeiIndex: {},
   provider: null, providerName: null,
   health: {
@@ -55,7 +56,25 @@ function _resetIndexes() {
   state.imeiIndex = {}
 }
 
-async function _syncNow() {
+async function _syncNow(opts = {}) {
+  // Coalesce overlapping triggers (StrictMode double-mount, manual +
+  // interval racing) — the vendor rate-limits aggressively.
+  if (state.syncing) return { ok: false, error: 'sync-in-progress' }
+  // Auto polls never fire inside the vendor's minimum gap; manual syncs
+  // (Retry buttons) always attempt — the result lands in health either way.
+  if (opts.throttle && Date.now() - (state.lastAttemptAt || 0) < VENDOR_MIN_GAP_MS) {
+    return { ok: false, error: 'too-soon' }
+  }
+  state.syncing = true
+  state.lastAttemptAt = Date.now()
+  try {
+    return await _syncNowInner()
+  } finally {
+    state.syncing = false
+  }
+}
+
+async function _syncNowInner() {
   if (!state.provider) return
   const t0 = performance.now()
   state.health.lastPoll = new Date().toISOString()
@@ -65,12 +84,13 @@ async function _syncNow() {
   if (!ok) {
     state.health.ok = false; state.health.lastError = error || 'fetch failed'
     state.health.consecutiveFailures += 1
-    _applyBackoff(); _auditFailure(error); emit(); return
+    _applyBackoff(parseRetryAfterMs(error)); _auditFailure(error); emit(); return
   }
 
   state.health.mock = !!mock; state.health.ok = true
   state.health.lastSuccess = new Date().toISOString()
   state.health.lastError = null; state.health.consecutiveFailures = 0
+  state.health.nextRetryAt = null
   state.retryAttempt = 0; state.backoffMs = 0
 
   state.health.providerRows = snapshots?.length ?? 0
@@ -104,8 +124,13 @@ async function _syncNow() {
   })).filter(s => s.vehicle_id)
   state.health.matchedCount = rows.length
 
-  await gpsHistoryRepository.insertBatch(rows)
+  const write = await gpsHistoryRepository.insertBatch(rows).catch(() => ({ inserted: 0, skipped: rows.length }))
   state.health.lastVehicleCount = rows.length
+  state.health.lastWrite = {
+    inserted: write?.inserted ?? 0,
+    skipped: write?.skipped ?? 0,
+    at: new Date().toISOString(),
+  }
 
   // Detect and create geofence events from GPS data
   await geofenceService.detectAndGenerateEvents(rows)
@@ -137,15 +162,36 @@ async function _updateStatuses(rows) {
   }
 }
 
-function _applyBackoff() {
+// Vendor rate limit ("one API request every 30 seconds") — never fire
+// auto polls closer together, no matter the configured interval.
+const VENDOR_MIN_GAP_MS = 30_000
+
+// Parse "Please try after 07:11:39 PM" style retry hints into ms.
+function parseRetryAfterMs(msg) {
+  const m = String(msg || '').match(/try after\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)/i)
+  if (!m) return 0
+  let h = Number(m[1]) % 12 + (m[4].toUpperCase() === 'PM' ? 12 : 0)
+  const t = new Date()
+  t.setHours(h, Number(m[2]), Number(m[3] || 0), 0)
+  let ms = t.getTime() - Date.now()
+  if (ms < 0) ms += 86400000
+  return ms + 2000 // small buffer past the vendor's clock
+}
+
+function _applyBackoff(extraMs = 0) {
   state.retryAttempt = Math.min(state.retryAttempt + 1, 6)
-  state.backoffMs = Math.min(1000 * 2 ** (state.retryAttempt - 1), 30_000)
+  state.backoffMs = Math.max(
+    Math.min(1000 * 2 ** (state.retryAttempt - 1), 30_000),
+    Math.min(extraMs, 300_000)
+  )
   // The interval guard skips while backoffMs is set — without an explicit
   // retry the poller would stall forever after a single failure.
   if (state.running && !state.retryTimer) {
+    state.health.nextRetryAt = new Date(Date.now() + state.backoffMs).toISOString()
     state.retryTimer = setTimeout(() => {
       state.retryTimer = null
       state.backoffMs = 0
+      state.health.nextRetryAt = null
       _syncNow()
     }, state.backoffMs)
   }
@@ -321,7 +367,7 @@ async function start() {
   await _bootstrapProvider()
   if (!state.provider) { state.health.ok = false; state.health.lastError = 'GPS sync disabled or provider unconfigured'; emit(); return }
   state.running = true; _installVisibilityHandler(); _syncNow()
-  state.intervalId = setInterval(() => { if (!state.backoffMs) _syncNow() }, state.intervalMs)
+  state.intervalId = setInterval(() => { if (!state.backoffMs) _syncNow({ throttle: true }) }, state.intervalMs)
   emit()
 }
 
@@ -333,8 +379,18 @@ function stop() {
   _uninstallVisibilityHandler(); _resetIndexes(); emit()
 }
 
+function rateLimitedMs() {
+  if (state.backoffMs) return state.backoffMs
+  const t = state.health.nextRetryAt ? new Date(state.health.nextRetryAt).getTime() : 0
+  return Number.isFinite(t) ? Math.max(0, t - Date.now()) : 0
+}
+
 async function syncNow() {
   if (!state.provider) await _bootstrapProvider()
+  // Manual retries obey the vendor ban too — firing into a rate limit
+  // only slides the ban window further out.
+  const wait = rateLimitedMs()
+  if (wait > 0) return { ok: false, error: 'rate-limited', retryInMs: wait }
   return _syncNow()
 }
 
@@ -358,8 +414,8 @@ function _installVisibilityHandler() {
   const onVis = () => {
     if (document.hidden) { if (state.intervalId) { clearInterval(state.intervalId); state.intervalId = null } }
     else if (state.running && !state.intervalId) {
-      _syncNow()
-      state.intervalId = setInterval(() => { if (!state.backoffMs) _syncNow() }, state.intervalMs)
+      _syncNow({ throttle: true })
+      state.intervalId = setInterval(() => { if (!state.backoffMs) _syncNow({ throttle: true }) }, state.intervalMs)
     }
   }
   document.addEventListener('visibilitychange', onVis); state.visibilityHandler = onVis
@@ -371,4 +427,4 @@ function _uninstallVisibilityHandler() {
   state.visibilityHandler = null
 }
 
-export const gpsSyncService = { start, stop, syncNow, healthCheck, subscribe, getHealth, getProviderName }
+export const gpsSyncService = { start, stop, syncNow, healthCheck, subscribe, getHealth, getProviderName, rateLimitedMs }

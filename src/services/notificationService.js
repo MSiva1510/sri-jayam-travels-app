@@ -82,6 +82,7 @@ export async function loadNotifications(userId, { status, category, limit = 50 }
     } catch {}
   }
   let items = _getLocal()
+  if (userId)   items = items.filter(n => !n.user_id || n.user_id === userId)
   if (status)   items = items.filter(n => n.status === status)
   if (category) items = items.filter(n => n.category === category)
   return items.slice(0, limit)

@@ -131,8 +131,9 @@ function EmptyBlock({ text }) {
 }
 
 // Live countdown to the next provider sync (isolated 1s ticker so the
-// page itself doesn't re-render every second)
-function SyncCountdown({ intervalSec, lastSuccess, running }) {
+// page itself doesn't re-render every second). Honors vendor backoff:
+// when rate-limited, counts down to the scheduled retry instead.
+function SyncCountdown({ intervalSec, lastSuccess, nextRetryAt, running }) {
   const [now, setNow] = useState(Date.now())
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000)
@@ -141,9 +142,14 @@ function SyncCountdown({ intervalSec, lastSuccess, running }) {
   if (running === false) return null
   const base = lastSuccess ? new Date(lastSuccess).getTime() : now
   if (!Number.isFinite(base)) return null
-  const remain = Math.round((base + intervalSec * 1000 - now) / 1000)
+  const retryAt = nextRetryAt ? new Date(nextRetryAt).getTime() : 0
+  const target = Math.max(base + intervalSec * 1000, Number.isFinite(retryAt) ? retryAt : 0)
+  const remain = Math.round((target - now) / 1000)
+  const limited = Number.isFinite(retryAt) && retryAt > base + intervalSec * 1000
   return (
-    <span className="tabular-nums">Auto-sync {intervalSec}s{remain > 0 ? ` • next in ${remain}s` : ' • syncing…'}</span>
+    <span className="tabular-nums">
+      Auto-sync {intervalSec}s{remain > 0 ? ` • next in ${remain}s${limited ? ' (rate-limited)' : ''}` : ' • syncing…'}
+    </span>
   )
 }
 
@@ -315,7 +321,7 @@ export default function Fleet() {
             </p>
             <p className="text-[10px] text-slate-400 tabular-nums">Last updated: {lastUpd}</p>
             <p className="text-[10px] text-slate-400 tabular-nums">
-              <SyncCountdown intervalSec={intervalSec} lastSuccess={health?.lastSuccess} running={running} />
+              <SyncCountdown intervalSec={intervalSec} lastSuccess={health?.lastSuccess} nextRetryAt={health?.nextRetryAt} running={running} />
             </p>
           </div>
           <button onClick={handleSync}
@@ -364,6 +370,34 @@ export default function Fleet() {
         </button>
       </div>
 
+      {/* Provider fetch failure — the API (or proxy/credentials) is down.
+          Without this, stale data looks identical to live data. */}
+      {health?.ok === false && health?.lastError && (() => {
+        const retryAt = health?.nextRetryAt ? new Date(health.nextRetryAt).getTime() : 0
+        const limited = Number.isFinite(retryAt) && retryAt > Date.now()
+        const waitS = limited ? Math.max(1, Math.ceil((retryAt - Date.now()) / 1000)) : 0
+        return (
+          <div className="rounded-2xl border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/15 px-4 py-3 flex items-center gap-3 flex-wrap">
+            <p className="text-xs font-bold text-red-700 dark:text-red-300 flex-1 min-w-[200px]">
+              GPS sync failing: {health.lastError}. Positions below are stale.
+              {limited && <span className="block mt-0.5 font-semibold">Vendor rate limit — auto-retry in ~{waitS}s. Tapping retry early extends the ban.</span>}
+            </p>
+            <button onClick={handleSync} disabled={limited}
+              title={limited ? `Retry available in ~${waitS}s` : 'Retry GPS sync now'}
+              className="px-3 py-1.5 rounded-xl bg-red-600 text-white text-xs font-bold transition-colors flex-shrink-0 enabled:hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed tabular-nums">
+              {limited ? `Retry in ${waitS}s` : 'Retry Sync'}
+            </button>
+          </div>
+        )
+      })()}
+      {/* GPS write failure — provider OK but rows not persisting (RLS/policy). */}
+      {health?.ok && (health?.lastWrite?.skipped ?? 0) > 0 && (health?.lastWrite?.inserted ?? 0) === 0 && (
+        <div className="rounded-2xl border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/15 px-4 py-3">
+          <p className="text-xs font-bold text-amber-700 dark:text-amber-300">
+            GPS provider is reachable but {health.lastWrite.skipped} row{health.lastWrite.skipped !== 1 ? 's' : ''} failed to save — check gps_tracking table permissions (RLS).
+          </p>
+        </div>
+      )}
       {/* Provider mismatch diagnostics (e.g. a vehicle the API returns
           under an unknown reg/IMEI, or stops returning at all) */}
       {health?.unmatchedRegs?.length > 0 && (
