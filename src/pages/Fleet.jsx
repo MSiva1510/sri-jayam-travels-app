@@ -134,7 +134,7 @@ function EmptyBlock({ text }) {
 // Names the fleet vehicles with no live provider feed (not returned by
 // the API at all — device/SIM/account issue at the vendor, not matching).
 const normReg = (r) => String(r ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
-function MissingVehiclesBanner({ health, snapshots }) {
+function MissingVehiclesBanner({ health, snapshots, settings }) {
   const [regs, setRegs] = useState([])
   useEffect(() => {
     loadVehicles().then(v => setRegs((Array.isArray(v) ? v : []).map(x => x.registration).filter(Boolean))).catch(() => setRegs([]))
@@ -150,11 +150,19 @@ function MissingVehiclesBanner({ health, snapshots }) {
   )
   const missing = regs.filter(r => !live.has(normReg(r)))
   if (!missing.length) return null
+  const acct = settings?.company_id || settings?.user_id
+    ? `company_id=${settings?.company_id || '—'} user_id=${settings?.user_id || '—'}`
+    : null
   return (
     <div className="rounded-2xl border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/15 px-4 py-3">
       <p className="text-xs font-bold text-amber-700 dark:text-amber-300">
         API returned {health.providerRows} of {regs.length} fleet vehicles — not reporting: {missing.join(', ')}
       </p>
+      {acct && (
+        <p className="text-[11px] text-amber-600/80 dark:text-amber-400/70 mt-0.5 font-mono">
+          App queries {acct} — if your working browser link uses different IDs, update them in GPS Settings.
+        </p>
+      )}
       <p className="text-[11px] text-amber-600/80 dark:text-amber-400/70 mt-0.5">
         These trackers are offline at KingsTrack (device / SIM / account scope). The app cannot display what the API doesn't send.
       </p>
@@ -442,7 +450,7 @@ export default function Fleet() {
           </p>
         </div>
       )}
-      <MissingVehiclesBanner health={health} snapshots={snapshots} />
+      <MissingVehiclesBanner health={health} snapshots={snapshots} settings={settings} />
 
       {subtab === 'map' && (
         <MapView
