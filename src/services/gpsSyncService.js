@@ -17,7 +17,7 @@ import supabase                 from '../lib/supabase'
 const state = {
   running: false, intervalId: null, intervalMs: 60_000,
   retryAttempt: 0, backoffMs: 0, retryTimer: null,
-  syncing: false, lastAttemptAt: 0,
+  syncing: false, syncingSince: 0, lastAttemptPerf: 0,
   vehicleIndex: {}, imeiIndex: {},
   provider: null, providerName: null,
   health: {
@@ -59,6 +59,12 @@ function _resetIndexes() {
 async function _syncNow(opts = {}) {
   // Coalesce overlapping triggers (StrictMode double-mount, manual +
   // interval racing) — the vendor rate-limits aggressively.
+  // Watchdog: a wedged flag (sleep/wake, hung adapter) must never block
+  // polling forever — performance.now() is monotonic, immune to clock jumps.
+  if (state.syncing && performance.now() - (state.syncingSince || 0) > 120_000) {
+    state.syncing = false
+    state.health.lastSkip = 'watchdog-reset'
+  }
   if (state.syncing) {
     state.health.lastAttempt = new Date().toISOString()
     state.health.lastSkip = 'sync-in-progress'
@@ -67,13 +73,14 @@ async function _syncNow(opts = {}) {
   }
   // Auto polls never fire inside the vendor's minimum gap; manual syncs
   // (Retry buttons) always attempt — the result lands in health either way.
-  if (opts.throttle && Date.now() - (state.lastAttemptAt || 0) < VENDOR_MIN_GAP_MS) {
+  if (opts.throttle && performance.now() - (state.lastAttemptPerf || 0) < VENDOR_MIN_GAP_MS) {
     state.health.lastAttempt = new Date().toISOString()
     state.health.lastSkip = 'too-soon'
     emit()
     return { ok: false, error: 'too-soon' }
   }
   state.syncing = true
+  state.syncingSince = performance.now()
   try {
     // Serialize with every other caller (other tabs, reloads, manual
     // retries): wait out the shared vendor gap instead of failing into it.
@@ -84,7 +91,7 @@ async function _syncNow(opts = {}) {
       await delay(wait)
     }
     if (claimSlot() > 0) return { ok: false, error: 'too-soon' }
-    state.lastAttemptAt = Date.now()
+    state.lastAttemptPerf = performance.now()
     return await _syncNowInner()
   } finally {
     state.syncing = false
@@ -194,10 +201,18 @@ const VENDOR_MIN_GAP_MS = 30_000
 // in localStorage where all contexts see it.
 const LS_LAST_CALL = 'sjt_gps_last_call'
 function claimSlot() {
+  // All math here is gap-bounded and tolerates wall-clock jumps
+  // (sleep/wake, NTP steps): far-future stamps are ignored, waits are
+  // clamped to one vendor gap so a skew can never wedge the poller.
   try {
     const last = Number(localStorage.getItem(LS_LAST_CALL) || 0)
-    const wait = VENDOR_MIN_GAP_MS - (Date.now() - last)
-    if (wait > 0) return wait
+    const age = Date.now() - last
+    if (!Number.isFinite(age) || age < -60_000) {
+      localStorage.setItem(LS_LAST_CALL, String(Date.now()))
+      return 0
+    }
+    const wait = VENDOR_MIN_GAP_MS - age
+    if (wait > 0) return Math.min(wait, VENDOR_MIN_GAP_MS)
     localStorage.setItem(LS_LAST_CALL, String(Date.now()))
     return 0
   } catch {
