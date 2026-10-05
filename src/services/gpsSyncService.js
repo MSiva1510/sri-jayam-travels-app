@@ -59,10 +59,18 @@ function _resetIndexes() {
 async function _syncNow(opts = {}) {
   // Coalesce overlapping triggers (StrictMode double-mount, manual +
   // interval racing) — the vendor rate-limits aggressively.
-  if (state.syncing) return { ok: false, error: 'sync-in-progress' }
+  if (state.syncing) {
+    state.health.lastAttempt = new Date().toISOString()
+    state.health.lastSkip = 'sync-in-progress'
+    emit()
+    return { ok: false, error: 'sync-in-progress' }
+  }
   // Auto polls never fire inside the vendor's minimum gap; manual syncs
   // (Retry buttons) always attempt — the result lands in health either way.
   if (opts.throttle && Date.now() - (state.lastAttemptAt || 0) < VENDOR_MIN_GAP_MS) {
+    state.health.lastAttempt = new Date().toISOString()
+    state.health.lastSkip = 'too-soon'
+    emit()
     return { ok: false, error: 'too-soon' }
   }
   state.syncing = true
@@ -84,7 +92,14 @@ async function _syncNow(opts = {}) {
 }
 
 async function _syncNowInner() {
-  if (!state.provider) return
+  state.health.lastAttempt = new Date().toISOString()
+  state.health.lastSkip = null
+  if (!state.provider) {
+    state.health.ok = false
+    state.health.lastError = 'GPS provider not configured'
+    emit()
+    return { ok: false, error: 'no-provider' }
+  }
   const t0 = performance.now()
   state.health.lastPoll = new Date().toISOString()
   const { ok, snapshots, error, mock } = await state.provider.fetchFleet()
