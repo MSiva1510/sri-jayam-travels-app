@@ -8,14 +8,14 @@
 //   darkMode     – bool from AppContext
 
 import { useEffect, useRef, useMemo, memo } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { Maximize2 } from 'lucide-react'
 
-// Same tiles as FleetMap
-const LIGHT_TILES = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-const DARK_TILES  = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
+// Keyless OSM tiles in both themes (CARTO dark_all now needs an API
+// key); dark mode restyles tiles via the shared fleet-map-dark CSS.
+const TILES = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 
 // ── Icon factories ────────────────────────────────────────────
 function makeCurrentIcon(speed) {
@@ -33,25 +33,47 @@ function makeCurrentIcon(speed) {
 
 function makeEndpointIcon(type) {
   const cfg = type === 'start'
-    ? { bg: '#22c55e', label: 'S' }
-    : { bg: '#ef4444', label: 'E' }
+    ? { bg: '#22c55e' }
+    : type === 'stop'
+      ? { bg: '#f59e0b' }
+      : { bg: '#ef4444' }
+  if (type === 'stop') {
+    return L.divIcon({
+      className: 'replay-endpoint',
+      html: `<div style="width:22px;height:22px;border-radius:50%;background:${cfg.bg};border:2.5px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;color:white;">P</div>`,
+      iconSize: [22, 22], iconAnchor: [11, 11], popupAnchor: [0, -13],
+    })
+  }
+  // Teardrop pin
   return L.divIcon({
     className: 'replay-endpoint',
-    html: `<div style="width:22px;height:22px;border-radius:50%;background:${cfg.bg};border:2.5px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;color:white;">${cfg.label}</div>`,
-    iconSize: [22, 22], iconAnchor: [11, 11], popupAnchor: [0, -13],
+    html: `<div style="width:26px;height:36px;position:relative;">
+      <div style="width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:${cfg.bg};border:2.5px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.45);"></div>
+    </div>`,
+    iconSize: [26, 36], iconAnchor: [13, 34], popupAnchor: [0, -30],
+  })
+}
+
+function makePlaceLabel(text) {
+  return L.divIcon({
+    className: 'replay-place-label',
+    html: `<div style="background:rgba(2,6,23,0.85);color:#fff;font-size:11px;font-weight:800;padding:2px 8px;border-radius:8px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.4);">${text}</div>`,
+    iconSize: [0, 0], iconAnchor: [-14, 10],
   })
 }
 
 // ── Auto-fit bounds helper ────────────────────────────────────
-function FitBounds({ points }) {
+// Re-runs whenever the track identity changes (trip switch) so the map
+// always moves to the current customer route — not just on mount.
+function FitBounds({ points, trackKey }) {
   const map = useMap()
   useEffect(() => {
     const valid = points.filter(p => Number.isFinite(p.latitude) && Number.isFinite(p.longitude))
     if (!valid.length) return
     if (valid.length === 1) { map.setView([valid[0].latitude, valid[0].longitude], 14); return }
     const lats = valid.map(p => p.latitude), lngs = valid.map(p => p.longitude)
-    map.fitBounds([[Math.min(...lats), Math.min(...lngs)],[Math.max(...lats), Math.max(...lngs)]], { padding: [40, 40], maxZoom: 16 })
-  }, [])  // run once on mount
+    map.fitBounds([[Math.min(...lats), Math.min(...lngs)],[Math.max(...lats), Math.max(...lngs)]], { padding: [12, 12], maxZoom: 16 })
+  }, [trackKey]) // eslint-disable-line react-hooks/exhaustive-deps
   return null
 }
 
@@ -63,7 +85,7 @@ function FitAllButton({ points }) {
     if (!valid.length) return
     if (valid.length === 1) { map.setView([valid[0].latitude, valid[0].longitude], 14); return }
     const lats = valid.map(p => p.latitude), lngs = valid.map(p => p.longitude)
-    map.fitBounds([[Math.min(...lats), Math.min(...lngs)],[Math.max(...lats), Math.max(...lngs)]], { padding: [40, 40] })
+    map.fitBounds([[Math.min(...lats), Math.min(...lngs)],[Math.max(...lats), Math.max(...lngs)]], { padding: [12, 12] })
   }
   return (
     <button onClick={fit}
@@ -109,29 +131,34 @@ function AnimatedMarker({ points, currentIndex }) {
 }
 
 // ── Main export ───────────────────────────────────────────────
-const ReplayMap = memo(function ReplayMap({ points = [], currentIndex = 0, coloredPath = [], darkMode = false }) {
+// fallbackLine {positions:[[lat,lng]…], fromLabel, toLabel}: dashed
+// estimated route for trips without GPS. stops [{lat,lng,…}]: amber pins.
+const ReplayMap = memo(function ReplayMap({ points = [], currentIndex = 0, coloredPath = [], darkMode = false, fallbackLine = null, stops = [], height = 500 }) {
   const first = points[0]
   const last  = points[points.length - 1]
+  const fbPts = (fallbackLine?.positions || []).filter(p => Number.isFinite(p?.[0]) && Number.isFinite(p?.[1]))
+  const fbFit = fbPts.map(([lat, lng]) => ({ latitude: lat, longitude: lng }))
 
   const centre = useMemo(() => {
-    if (!first) return [11.9416, 79.8083]  // Puducherry default
-    return [first.latitude, first.longitude]
-  }, [first])
+    if (first) return [first.latitude, first.longitude]
+    if (fbPts.length) return fbPts[0]
+    return [11.9416, 79.8083]  // Puducherry default
+  }, [first]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasTrack = points.length > 1
 
   return (
-    <div className="glass-card rounded-2xl overflow-hidden h-[500px] relative">
+    <div className={`glass-card rounded-2xl overflow-hidden relative ${darkMode ? 'fleet-map-dark' : ''}`} style={{ height }}>
       <MapContainer center={centre} zoom={12} scrollWheelZoom style={{ height: '100%', width: '100%' }}>
         <TileLayer
-          key={darkMode ? 'dark' : 'light'}
-          url={darkMode ? DARK_TILES : LIGHT_TILES}
+          url={TILES}
           attribution={ATTRIBUTION}
           maxZoom={19}
         />
 
-        {/* Auto-fit on load */}
-        {hasTrack && <FitBounds points={points} />}
+        {/* Auto-fit on load + every track change */}
+        {hasTrack && <FitBounds points={points} trackKey={points.length ? `${points[0].timestamp}-${points.length}` : 'empty'} />}
+        {!hasTrack && fbFit.length > 0 && <FitBounds points={fbFit} trackKey={`fb-${fbFit.length}-${(fallbackLine?.fromLabel || '')}-${(fallbackLine?.toLabel || '')}`} />}
 
         {/* Route polyline — one Polyline per segment for colour variation */}
         {coloredPath.map((seg, i) => (
@@ -142,24 +169,66 @@ const ReplayMap = memo(function ReplayMap({ points = [], currentIndex = 0, color
           />
         ))}
 
+        {/* Estimated route (no GPS): solid green line + teardrop pins + labels */}
+        {!hasTrack && fbPts.length > 1 && (
+          <Polyline positions={fbPts} pathOptions={{ color: '#10b981', weight: 4, opacity: 0.95 }} />
+        )}
+        {!hasTrack && fbPts.length > 0 && (<>
+          <Marker position={fbPts[0]} icon={makeEndpointIcon('start')} zIndexOffset={500}>
+            <Popup><div className="text-xs"><p className="font-bold text-emerald-600">From (estimated)</p><p>{fallbackLine.fromLabel}</p></div></Popup>
+          </Marker>
+          <Marker position={fbPts[0]} icon={makePlaceLabel(fallbackLine.fromLabel?.split(',')[0] || 'Start')} interactive={false} keyboard={false} />
+        </>)}
+        {!hasTrack && fbPts.length > 1 && (<>
+          <Marker position={fbPts[fbPts.length - 1]} icon={makeEndpointIcon('end')} zIndexOffset={500}>
+            <Popup><div className="text-xs"><p className="font-bold text-red-600">To (estimated)</p><p>{fallbackLine.toLabel}</p></div></Popup>
+          </Marker>
+          <Marker position={fbPts[fbPts.length - 1]} icon={makePlaceLabel(fallbackLine.toLabel?.split(',')[0] || 'End')} interactive={false} keyboard={false} />
+        </>)}
+        {/* Waypoint dots along the estimated route */}
+        {!hasTrack && fbPts.length > 30 && fbPts.filter((_, i) => i % Math.ceil(fbPts.length / 30) === 0).map((p, i) => (
+          <CircleMarker key={i} center={p} radius={3.5} pathOptions={{ color: '#10b981', weight: 2, fillColor: '#10b981', fillOpacity: 1 }} />
+        ))}
+
+        {/* Waypoint dots along the GPS track */}
+        {hasTrack && points.length > 30 && points.filter((_, i) => i % Math.ceil(points.length / 30) === 0).map((p, i) => (
+          Number.isFinite(p.latitude) && (
+            <CircleMarker key={i} center={[p.latitude, p.longitude]} radius={3.5}
+              pathOptions={{ color: '#10b981', weight: 2, fillColor: '#10b981', fillOpacity: 1 }} />
+          )
+        ))}
+
         {/* Start marker */}
-        {first && Number.isFinite(first.latitude) && (
-          <Marker position={[first.latitude, first.longitude]} icon={makeEndpointIcon('start')}>
+        {first && Number.isFinite(first.latitude) && (<>
+          <Marker position={[first.latitude, first.longitude]} icon={makeEndpointIcon('start')} zIndexOffset={500}>
             <Popup><div className="text-xs"><p className="font-bold text-emerald-600">Trip Start</p><p>{new Date(first.timestamp).toLocaleString()}</p></div></Popup>
           </Marker>
-        )}
+          <Marker position={[first.latitude, first.longitude]} icon={makePlaceLabel((first.address || 'Start').split(',')[0])} interactive={false} keyboard={false} />
+        </>)}
 
         {/* End marker (only if we have > 1 point) */}
-        {last && last !== first && Number.isFinite(last.latitude) && (
-          <Marker position={[last.latitude, last.longitude]} icon={makeEndpointIcon('end')}>
+        {last && last !== first && Number.isFinite(last.latitude) && (<>
+          <Marker position={[last.latitude, last.longitude]} icon={makeEndpointIcon('end')} zIndexOffset={500}>
             <Popup><div className="text-xs"><p className="font-bold text-red-600">Trip End</p><p>{new Date(last.timestamp).toLocaleString()}</p></div></Popup>
           </Marker>
-        )}
+          <Marker position={[last.latitude, last.longitude]} icon={makePlaceLabel((last.address || 'End').split(',')[0])} interactive={false} keyboard={false} />
+        </>)}
+
+        {/* Stop pins */}
+        {stops.filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng)).map((s, i) => (
+          <Marker key={i} position={[s.lat, s.lng]} icon={makeEndpointIcon('stop')}>
+            <Popup><div className="text-xs">
+              <p className="font-bold text-amber-600">Stop {s.durationSec ? `· ${Math.round(s.durationSec / 60)}m` : ''}</p>
+              <p>{s.address || '—'}</p>
+              <p className="text-slate-500">{s.startTs ? new Date(s.startTs).toLocaleTimeString() : ''}</p>
+            </div></Popup>
+          </Marker>
+        ))}
 
         {/* Animated current-position marker */}
         {hasTrack && <AnimatedMarker points={points} currentIndex={currentIndex} />}
 
-        <FitAllButton points={points} />
+        <FitAllButton points={hasTrack ? points : fbFit} />
       </MapContainer>
 
       {/* Legend */}
