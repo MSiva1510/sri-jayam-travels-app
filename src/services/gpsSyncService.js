@@ -405,6 +405,27 @@ async function _detectAndCreateAlerts(rows) {
 
 async function _bootstrapProvider() {
   const settings = await gpsSettingsRepository.getAsObject()
+  // Self-heal a dead vendor selection: gpstrack without token credentials
+  // can never sync. Fall back to KingsTrack (keeping the account ids and
+  // restoring the KingsTrack endpoint), persist it, and audit the change.
+  // Runs once per process; a deliberate gpstrack+token setup is untouched.
+  if (!state.healedVendor &&
+      settings.provider === 'gpstrack' &&
+      !(settings.api_token && settings.api_email)) {
+    state.healedVendor = true
+    settings.provider = 'kingstrack'
+    settings.api_url = ''
+    try {
+      await gpsSettingsRepository.setMany(
+        { provider: 'kingstrack', api_url: '' },
+        { updated_by: 'auto-heal' }
+      )
+      addAuditEvent('SETTINGS_UPDATED', {
+        description: 'GPS provider auto-corrected gpstrack → kingstrack (no gpstrack credentials stored)',
+        module: 'security',
+      })
+    } catch {}
+  }
   if (!settings.enabled) { state.provider = null; state.providerName = settings.provider; return null }
   state.providerName = settings.provider
   state.provider     = createGpsProvider(settings.provider, settings)

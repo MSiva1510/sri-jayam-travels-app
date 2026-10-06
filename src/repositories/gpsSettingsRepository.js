@@ -171,7 +171,7 @@ async function setMany(updates, { updated_by } = {}) {
 function validate(settings = {}) {
   const errs = []
   if (!settings.provider) errs.push('provider is required')
-  if (settings.provider && settings.provider !== 'kingstrack') {
+  if (settings.provider && !['kingstrack', 'gpstrack'].includes(settings.provider)) {
     errs.push(`provider "${settings.provider}" is not registered`)
   }
   if (settings.api_url && !/^https?:\/\//i.test(settings.api_url)) {
