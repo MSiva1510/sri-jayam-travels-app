@@ -254,7 +254,10 @@ export default function Fleet() {
   // Guarantee provider auto-sync while this page is open (guarded no-op
   // when the centrally managed service is already running). Interval
   // comes from GPS Settings (default 60s).
-  useEffect(() => { gpsSyncService.start().catch(() => {}) }, [])
+  useEffect(() => {
+    gpsSyncService.start().catch(() => {})
+    gpsSyncService.refreshProvider().catch(() => {})
+  }, [])
   const intervalSec = Math.max(5, Number(settings?.refresh_interval ?? 60))
 
   const dayStart = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d }, [tick])

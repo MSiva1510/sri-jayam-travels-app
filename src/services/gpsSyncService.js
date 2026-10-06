@@ -464,10 +464,22 @@ function rateLimitedMs() {
   return Number.isFinite(t) ? Math.max(0, t - Date.now()) : 0
 }
 
+// Re-bootstrap when the stored vendor changes under a running service
+// (settings edits, auto-heal). Cheap: one small settings read.
+async function refreshProvider() {
+  try {
+    const settings = await gpsSettingsRepository.getAsObject()
+    if (!state.provider || settings.provider !== state.providerName) {
+      await _bootstrapProvider()
+    }
+  } catch {}
+}
+
 async function syncNow() {
   if (!state.provider) await _bootstrapProvider()
-  // Manual retries obey the vendor ban too — firing into a rate limit
-  // only slides the ban window further out.
+  else await refreshProvider()
+  // Manual retries obey the vendor ban window (Retry buttons) — firing into
+  // a rate limit only slides the ban window further out.
   const wait = rateLimitedMs()
   if (wait > 0) return { ok: false, error: 'rate-limited', retryInMs: wait }
   return _syncNow()
@@ -521,4 +533,4 @@ function _uninstallVisibilityHandler() {
   state.visibilityHandler = null
 }
 
-export const gpsSyncService = { start, stop, syncNow, healthCheck, subscribe, getHealth, getProviderName, rateLimitedMs }
+export const gpsSyncService = { start, stop, syncNow, healthCheck, subscribe, getHealth, getProviderName, rateLimitedMs, refreshProvider }
