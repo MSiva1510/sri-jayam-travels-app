@@ -86,6 +86,91 @@ export function estimateTravelTime(distanceKm, avgSpeedKph = 55) {
 }
 
 // ── Google Maps directions URL ────────────────────────────────
+// ── Forward geocoder (offline first, Nominatim fallback) ──────
+// Resolves a place name to { lat, lng, label, source }. Local AREA_MAP
+// answers instantly for service-area places; anything else goes to
+// Nominatim (single query, cached). Returns null when unresolvable.
+const LS_GEO_CACHE = 'sjt_geocode_cache'
+const _geoCache = () => {
+  try { return JSON.parse(localStorage.getItem(LS_GEO_CACHE) || '{}') } catch { return {} }
+}
+export function areaCentroid(name) {
+  const q = String(name || '').toLowerCase()
+  if (!q) return null
+  const hit = AREA_MAP.find(a => q.includes(a.name.toLowerCase()))
+  if (!hit) return null
+  return {
+    lat: (hit.latMin + hit.latMax) / 2,
+    lng: (hit.lngMin + hit.lngMax) / 2,
+    label: hit.name, source: 'local',
+  }
+}
+// Local spelling variants for fuzzy matching ("Manavelly" → "Manaveli")
+function spellVariants(q) {
+  const out = [q]
+  const collapsed = q.replace(/(.)\1+/g, '$1')
+  if (collapsed !== q) out.push(collapsed)
+  for (const base of [...out]) {
+    for (const suffix of [', Tamil Nadu', ', Puducherry']) {
+      const v = `${base}${suffix}`
+      if (!out.includes(v)) out.push(v)
+    }
+  }
+  return out
+}
+const sleep = (ms) => new Promise(r => setTimeout(r, ms))
+async function nominatimLookup(q) {
+  const res = await fetch(
+    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=in`,
+    { headers: { Accept: 'application/json' } }
+  )
+  if (!res.ok) return null
+  const [hit] = await res.json()
+  if (!hit || !Number.isFinite(Number(hit.lat)) || !Number.isFinite(Number(hit.lon))) return null
+  return { lat: Number(hit.lat), lng: Number(hit.lon), label: hit.display_name?.split(',').slice(0, 2).join(',') || q }
+}
+export async function forwardGeocode(query) {
+  const q = String(query || '').trim()
+  if (!q) return null
+  const local = areaCentroid(q)
+  if (local) return local
+  const cache = _geoCache()
+  if (cache[q]) return { ...cache[q], source: 'cache' }
+  // Try exact, spelling variants, then region-qualified variants.
+  const attempts = spellVariants(q)
+  for (let i = 0; i < attempts.length; i++) {
+    if (i > 0) await sleep(250) // be polite to the free gazetteer
+    try {
+      const hit = await nominatimLookup(attempts[i])
+      if (hit) {
+        try {
+          const c = _geoCache(); c[q] = hit
+          localStorage.setItem(LS_GEO_CACHE, JSON.stringify(c))
+        } catch {}
+        return { ...hit, source: 'nominatim' }
+      }
+    } catch { /* try next variant */ }
+  }
+  return null
+}
+
+// ── OSRM driving route (public demo server, keyless) ──────────
+// Returns { positions:[[lat,lng]…], distanceKm, durationSec } or null.
+export async function fetchDrivingRoute(from, to) {
+  if (!from || !to) return null
+  const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`
+  const res = await fetch(url)
+  if (!res.ok) return null
+  const json = await res.json()
+  const r = json?.routes?.[0]
+  if (!r || !Array.isArray(r.geometry?.coordinates)) return null
+  return {
+    positions: r.geometry.coordinates.map(([lng, lat]) => [lat, lng]),
+    distanceKm: Math.round((r.distance / 1000) * 10) / 10,
+    durationSec: Math.round(r.duration),
+  }
+}
+
 export function buildMapsUrl(origin, destination, mode = 'driving') {
   const base = 'https://www.google.com/maps/dir/?api=1'
   const o    = encodeURIComponent(origin      || '')

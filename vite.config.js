@@ -96,6 +96,10 @@ function gpsProxyDevMiddleware(env) {
 
 export default defineConfig(({ mode }) => ({
   plugins: [react(), gpsProxyDevMiddleware(loadEnv(mode, process.cwd(), 'VITE_'))],
+  // maplibre ships its own worker bundle — the dep optimizer chokes on
+  // it (maplibre-gl-worker.mjs error), so serve it unbundled in dev.
+  // Production uses rollup (unaffected).
+  optimizeDeps: { exclude: ['maplibre-gl'] },
   build: {
     chunkSizeWarningLimit: 1000,
     rollupOptions: {

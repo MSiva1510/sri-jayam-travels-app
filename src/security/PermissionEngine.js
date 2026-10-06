@@ -158,7 +158,8 @@ class PermissionEngineImpl {
 
   /** Save a permission change to DB. */
   async setPermission(role, permission, allowed) {
-    if (this._matrix[role]) this._matrix[role][permission] = allowed
+    if (!this._matrix[role]) this._matrix[role] = {}
+    this._matrix[role][permission] = allowed
     if (supabase) {
       try {
         await supabase.from('role_permissions')

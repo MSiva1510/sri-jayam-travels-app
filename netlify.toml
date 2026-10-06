@@ -39,7 +39,7 @@
     # No inline scripts exist in the build; styles need unsafe-inline (Tailwind
     # style attributes + the invoice print window). Origins below are the only
     # third parties the app talks to.
-    Content-Security-Policy   = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://travelsjayam.in https://*.supabase.co https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://tiles.openfreemap.org https://server.arcgisonline.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://mvt.apmkingstrack.com https://app.gpstrack.in https://nominatim.openstreetmap.org https://tiles.openfreemap.org https://server.arcgisonline.com; worker-src 'self' blob:; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
+    Content-Security-Policy   = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://travelsjayam.in https://*.supabase.co https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://tiles.openfreemap.org https://server.arcgisonline.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://mvt.apmkingstrack.com https://app.gpstrack.in https://nominatim.openstreetmap.org https://tiles.openfreemap.org https://server.arcgisonline.com https://router.project-osrm.org; worker-src 'self' blob:; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
 
 # Hashed Vite assets never change — cache for a year.
 [[headers]]

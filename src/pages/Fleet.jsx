@@ -244,6 +244,7 @@ export default function Fleet() {
   const [locateTarget, setLocateTarget] = useState(null)
   const [layer, setLayer] = useState('map')
   const [mapFocus, setMapFocus] = useState(false)
+  const [diagCopied, setDiagCopied] = useState(false)
   const [tick, setTick] = useState(0)
   const [histPts, setHistPts] = useState([])
   const [yestKm, setYestKm] = useState(null)
@@ -364,6 +365,31 @@ export default function Fleet() {
               <SyncCountdown intervalSec={intervalSec} lastSuccess={health?.lastSuccess} nextRetryAt={health?.nextRetryAt} running={running} />
             </p>
           </div>
+          <button onClick={async () => {
+              const diag = {
+                at: new Date().toISOString(),
+                running,
+                health,
+                gpsSettings: settings ? {
+                  provider: settings.provider, enabled: settings.enabled,
+                  refresh_interval: settings.refresh_interval,
+                  company_id: settings.company_id, user_id: settings.user_id,
+                  api_url: settings.api_url,
+                } : null,
+                snapshots: snapshots.map(s => ({
+                  registration: s.registration, speed: s.speed_kmh,
+                  ignition: s.ignition, gps_online: s.gps_online, timestamp: s.timestamp,
+                })),
+              }
+              try {
+                await navigator.clipboard.writeText(JSON.stringify(diag, null, 1))
+                setDiagCopied(true)
+                setTimeout(() => setDiagCopied(false), 2000)
+              } catch {}
+            }} title="Copy GPS diagnostics for support"
+            className="px-3 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+            {diagCopied ? 'Copied!' : 'Diagnostics'}
+          </button>
           <button onClick={handleSync}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition-all shadow-md active:scale-95">
             <RefreshCw size={14} /> Sync Now

@@ -28,7 +28,6 @@ const PAGE_TITLES = {
   '/live-location':   { label: 'Live Location',    sub: 'Real-time GPS tracking'          },
   '/fleet':           { label: 'Live Fleet',        sub: 'Real-time vehicle tracking'       },
   '/fleet/settings':  { label: 'GPS Settings',      sub: 'Configure GPS provider'           },
-  '/fleet-analytics': { label: 'Fleet Analytics',   sub: 'Utilization & performance'        },
   '/gps-history':     { label: 'GPS History',       sub: 'Past vehicle tracks'              },
   '/gps-history/replay': { label: 'Route Replay',   sub: 'Playback a vehicle route'         },
   '/reports':         { label: 'Reports',           sub: 'Business reports & analytics'     },
