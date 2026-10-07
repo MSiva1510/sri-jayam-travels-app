@@ -18,7 +18,8 @@ const state = {
   running: false, intervalId: null, intervalMs: 60_000,
   retryAttempt: 0, backoffMs: 0, retryTimer: null,
   syncing: false, syncingSince: 0, lastAttemptPerf: 0,
-  vehicleIndex: {}, imeiIndex: {},
+  vehicleIndex: {}, imeiIndex: {}, vehicleById: {},
+  alertMemory: {}, prevIgnition: {},
   provider: null, providerName: null,
   health: {
     ok: null, lastPoll: null, lastSuccess: null, lastError: null,
@@ -37,8 +38,9 @@ function emit() {
 async function _ensureIndexes() {
   if (!Object.keys(state.vehicleIndex).length) {
     const list = await loadVehicles()
-    const regIdx = {}, imeiIdx = {}
+    const regIdx = {}, imeiIdx = {}, byId = {}
     for (const v of list ?? []) {
+      byId[v.id] = v
       if (v.registration) {
         regIdx[v.registration] = v.id
         // vendors send "PY01DF1255"; the fleet may be stored as "PY 01 DF 1255" / "PY-01-DF-1255"
@@ -48,12 +50,14 @@ async function _ensureIndexes() {
     }
     state.vehicleIndex = regIdx
     state.imeiIndex    = imeiIdx
+    state.vehicleById  = byId
   }
 }
 
 function _resetIndexes() {
   state.vehicleIndex = {}
   state.imeiIndex = {}
+  state.vehicleById = {}
 }
 
 async function _syncNow(opts = {}) {
@@ -85,12 +89,16 @@ async function _syncNow(opts = {}) {
     // Serialize with every other caller (other tabs, reloads, manual
     // retries): wait out the shared vendor gap instead of failing into it.
     // Re-claim after waiting in case another context took the slot first.
+    // claimSlot() stamps the shared slot when it returns 0, so it must be
+    // called once per attempt — a second call right after always reads
+    // "0 ms ago" and would block every sync.
+    let claimed = false
     for (let i = 0; i < 3; i++) {
       const wait = claimSlot()
-      if (wait <= 0) break
+      if (wait <= 0) { claimed = true; break }
       await delay(wait)
     }
-    if (claimSlot() > 0) return { ok: false, error: 'too-soon' }
+    if (!claimed) return { ok: false, error: 'too-soon' }
     state.lastAttemptPerf = performance.now()
     return await _syncNowInner()
   } finally {
@@ -157,6 +165,10 @@ async function _syncNowInner() {
 
   const write = await gpsHistoryRepository.insertBatch(rows).catch(() => ({ inserted: 0, skipped: rows.length }))
   state.health.lastVehicleCount = rows.length
+  // A single all-skipped sync is normal (same-minute dedup on re-poll) —
+  // only a streak means rows genuinely aren't persisting (e.g. RLS).
+  const fullSkip = (write?.skipped ?? 0) > 0 && (write?.inserted ?? 0) === 0
+  state.health.writeStreak = fullSkip ? (state.health.writeStreak || 0) + 1 : 0
   state.health.lastWrite = {
     inserted: write?.inserted ?? 0,
     skipped: write?.skipped ?? 0,
@@ -175,22 +187,22 @@ async function _syncNowInner() {
 
 async function _updateStatuses(rows) {
   const ts = new Date().toISOString()
+  let failed = 0, lastErr = null
   for (const row of rows) {
-    try {
-      await supabase.from('vehicle_status').upsert(
-        { vehicle_id: row.vehicle_id, last_gps_at: ts, last_lat: row.lat, last_lng: row.lng, updated_at: ts },
-        { onConflict: 'vehicle_id' }
-      )
-    } catch {}
+    const { error } = await supabase.from('vehicle_status').upsert(
+      { vehicle_id: row.vehicle_id, last_gps_at: ts, last_lat: row.lat, last_lng: row.lng, updated_at: ts },
+      { onConflict: 'vehicle_id' }
+    ).then(r => r, e => ({ error: e }))
+    if (error) { failed++; lastErr = error.message || String(error) }
     if (row.driver_id) {
-      try {
-        await supabase.from('driver_status').upsert(
-          { driver_id: row.driver_id, latitude: row.lat, longitude: row.lng, speed_kmh: row.speed_kmh, last_heartbeat: ts, updated_at: ts },
-          { onConflict: 'driver_id' }
-        )
-      } catch {}
+      const r2 = await supabase.from('driver_status').upsert(
+        { driver_id: row.driver_id, latitude: row.lat, longitude: row.lng, speed_kmh: row.speed_kmh, last_heartbeat: ts, updated_at: ts },
+        { onConflict: 'driver_id' }
+      ).then(r => r, e => ({ error: e }))
+      if (r2.error) { failed++; lastErr = r2.error.message || String(r2.error) }
     }
   }
+  state.health.statusWriteError = failed ? `${failed} status write(s) failed: ${lastErr}` : null
 }
 
 // Vendor rate limit ("one API request every 30 seconds") — never fire
@@ -264,142 +276,68 @@ function _auditFailure(error) {
 }
 
 // ── Alert Detection ──────────────────────────────────────
+// Alerts fire on state CHANGE (ignition) or once per cooldown window
+// (overspeed / offline) — never on every poll.
+const ALERT_COOLDOWN_MS = 10 * 60_000
+
+function _shouldFire(vehicleId, type) {
+  const key = `${vehicleId}:${type}`
+  const last = state.alertMemory[key] || 0
+  if (Date.now() - last < ALERT_COOLDOWN_MS) return false
+  state.alertMemory[key] = Date.now()
+  return true
+}
+
 async function _detectAndCreateAlerts(rows) {
   const settings = await gpsSettingsRepository.getAsObject()
-  if (!settings.enabled) return []
+  if (!settings.enabled || settings.alerts_enabled === false) return []
 
   const alerts = []
-
   for (const row of rows) {
-    // Skip if no vehicle_id
     if (!row.vehicle_id) continue
+    // Cached fleet list — no per-row DB query on every poll
+    const vehicle = state.vehicleById[row.vehicle_id]
+    const reg = vehicle?.registration || row.registration || 'Unknown'
+    const location = { latitude: row.latitude, longitude: row.longitude, accuracy: row.accuracy }
+    const base = { vehicle_id: row.vehicle_id, driver_id: row.driver_id || null, location, detected_at: row.timestamp }
 
-    // Get vehicle info for context
-    const vehicle = await vehicleRepository.getById(row.vehicle_id)
-    if (!vehicle) continue
-
-    // Get driver info if available
-    let driver = null
-    if (row.driver_id) {
-      // We'd need to import driverRepository, but for now we'll skip
-      // In a real implementation, we'd fetch the driver info
-    }
-
-    // 1. Overspeed detection
-    if (settings.overspeed_limit && row.speed_kmh && row.speed_kmh > settings.overspeed_limit) {
-      alerts.push({
-        vehicle_id: row.vehicle_id,
-        driver_id: row.driver_id || null,
-        alert_type: 'overspeed',
-        priority: row.speed_kmh > (settings.overspeed_limit * 1.5) ? 'critical' : 'high',
-        title: `Overspeed Detected: ${vehicle.registration || 'Unknown'}`,
+    if (settings.overspeed_limit && row.speed_kmh > settings.overspeed_limit && _shouldFire(row.vehicle_id, 'overspeed')) {
+      alerts.push({ ...base, alert_type: 'overspeed',
+        priority: row.speed_kmh > settings.overspeed_limit * 1.5 ? 'critical' : 'high',
+        title: `Overspeed Detected: ${reg}`,
         description: `Vehicle exceeded speed limit of ${settings.overspeed_limit} km/h`,
-        location: {
-          latitude: row.latitude,
-          longitude: row.longitude,
-          accuracy: row.accuracy
-        },
-        speed_kmh: row.speed_kmh,
-        detected_at: row.timestamp
-      })
+        speed_kmh: row.speed_kmh })
     }
 
-    // 2. Vehicle offline detection (no GPS data for a while)
-    // This would typically be handled by checking last seen time vs current time
-    // For now, we'll rely on the status field from GPS data
-    if (row.status === 'offline') {
-      alerts.push({
-        vehicle_id: row.vehicle_id,
-        driver_id: row.driver_id || null,
-        alert_type: 'vehicle_offline',
-        priority: 'high',
-        title: `Vehicle Offline: ${vehicle.registration || 'Unknown'}`,
-        description: `Vehicle has not reported GPS data for more than ${settings.offline_timeout || 5} minutes`,
-        location: {
-          latitude: row.latitude,
-          longitude: row.longitude,
-          accuracy: row.accuracy
-        },
-        detected_at: row.timestamp
-      })
+    if (row.status === 'offline' && _shouldFire(row.vehicle_id, 'vehicle_offline')) {
+      alerts.push({ ...base, alert_type: 'vehicle_offline', priority: 'high',
+        title: `Vehicle Offline: ${reg}`,
+        description: `Vehicle has not reported GPS data for more than ${settings.offline_timeout || 5} minutes` })
     }
 
-    // 3. GPS offline detection
-    if (!row.gps_online && row.gps_online !== null) {
-      alerts.push({
-        vehicle_id: row.vehicle_id,
-        driver_id: row.driver_id || null,
-        alert_type: 'gps_offline',
-        priority: 'high',
-        title: `GPS Signal Lost: ${vehicle.registration || 'Unknown'}`,
-        description: `GPS module appears to be offline or malfunctioning`,
-        location: {
-          latitude: row.latitude,
-          longitude: row.longitude,
-          accuracy: row.accuracy
-        },
-        detected_at: row.timestamp
-      })
+    if (row.gps_online === false && _shouldFire(row.vehicle_id, 'gps_offline')) {
+      alerts.push({ ...base, alert_type: 'gps_offline', priority: 'high',
+        title: `GPS Signal Lost: ${reg}`,
+        description: 'GPS module appears to be offline or malfunctioning' })
     }
 
-    // 4. Ignition ON detection
-    if (row.ignition === true) {
-      // Check if we had previously recorded ignition OFF for this vehicle
-      // This would require storing previous state, which we'll simplify for now
-      alerts.push({
-        vehicle_id: row.vehicle_id,
-        driver_id: row.driver_id || null,
-        alert_type: 'ignition_on',
-        priority: 'information',
-        title: `Ignition ON: ${vehicle.registration || 'Unknown'}`,
-        description: `Vehicle ignition turned on`,
-        location: {
-          latitude: row.latitude,
-          longitude: row.longitude,
-          accuracy: row.accuracy
-        },
-        detected_at: row.timestamp
-      })
-    }
-
-    // 5. Ignition OFF detection
-    if (row.ignition === false) {
-      alerts.push({
-        vehicle_id: row.vehicle_id,
-        driver_id: row.driver_id || null,
-        alert_type: 'ignition_off',
-        priority: 'information',
-        title: `Ignition OFF: ${vehicle.registration || 'Unknown'}`,
-        description: `Vehicle ignition turned off`,
-        location: {
-          latitude: row.latitude,
-          longitude: row.longitude,
-          accuracy: row.accuracy
-        },
-        detected_at: row.timestamp
-      })
-    }
-
-    // 6. Long idle detection
-    // This would require tracking time spent with speed = 0 and ignition = on
-    // For simplicity, we'll implement a basic version
-    if (row.speed_kmh === 0 && row.ignition === true) {
-      // In a real implementation, we'd track how long the vehicle has been idle
-      // For now, we'll skip this complex logic
+    // Ignition: only when the state actually changed since the last poll
+    if (typeof row.ignition === 'boolean') {
+      const prev = state.prevIgnition[row.vehicle_id]
+      state.prevIgnition[row.vehicle_id] = row.ignition
+      if (prev !== undefined && prev !== row.ignition) {
+        alerts.push({ ...base, alert_type: row.ignition ? 'ignition_on' : 'ignition_off', priority: 'information',
+          title: `Ignition ${row.ignition ? 'ON' : 'OFF'}: ${reg}`,
+          description: `Vehicle ignition turned ${row.ignition ? 'on' : 'off'}` })
+      }
     }
   }
 
-  // Create alerts in batch
   const createdAlerts = []
   for (const alertData of alerts) {
-    try {
-      const alert = await fleetAlertRepository.create(alertData)
-      createdAlerts.push(alert)
-    } catch (error) {
-      console.error('Failed to create alert:', error)
-    }
+    try { createdAlerts.push(await fleetAlertRepository.create(alertData)) }
+    catch (error) { console.error('Failed to create alert:', error) }
   }
-
   return createdAlerts
 }
 
@@ -443,11 +381,22 @@ async function _bootstrapProvider() {
 
 async function start() {
   if (state.running) return
-  await _bootstrapProvider()
-  if (!state.provider) { state.health.ok = false; state.health.lastError = 'GPS sync disabled or provider unconfigured'; emit(); return }
-  state.running = true; _installVisibilityHandler(); _syncNow()
-  state.intervalId = setInterval(() => { if (!state.backoffMs) _syncNow({ throttle: true }) }, state.intervalMs)
-  emit()
+  // `running` is only set after an await, so two callers (app-level starter
+  // + Fleet page) used to both get through, creating two intervals (one
+  // leaked) and two immediate vendor calls. Share one in-flight start.
+  if (state.starting) return state.starting
+  state.starting = (async () => {
+    try {
+      await _bootstrapProvider()
+      if (!state.provider) { state.health.ok = false; state.health.lastError = 'GPS sync disabled or provider unconfigured'; emit(); return }
+      if (state.running) return
+      state.running = true; _installVisibilityHandler(); _syncNow()
+      if (state.intervalId) clearInterval(state.intervalId)
+      state.intervalId = setInterval(() => { if (!state.backoffMs) _syncNow({ throttle: true }) }, state.intervalMs)
+      emit()
+    } finally { state.starting = null }
+  })()
+  return state.starting
 }
 
 function stop() {
@@ -485,6 +434,17 @@ async function syncNow() {
   return _syncNow()
 }
 
+// Wait for the shared (cross-tab) 30 s vendor slot. Any code that talks to
+// the vendor outside the poller must go through this.
+async function waitForVendorSlot() {
+  for (let i = 0; i < 4; i++) {
+    const wait = claimSlot()
+    if (wait <= 0) return true
+    await delay(Math.min(wait, 10_000))
+  }
+  return false
+}
+
 async function healthCheck() {
   // The vendor rate-limits the whole account (browsers hitting the raw
   // URL count too) — never spend more than one check per minute here.
@@ -496,11 +456,7 @@ async function healthCheck() {
   if (!state.provider) return { ok: false, error: 'Provider not configured' }
   // Health pings count against the same vendor quota — wait out the
   // shared slot (capped) instead of firing into a rate limit.
-  for (let i = 0; i < 4; i++) {
-    const wait = claimSlot()
-    if (wait <= 0) break
-    await delay(Math.min(wait, 10_000))
-  }
+  await waitForVendorSlot()
   const result = await state.provider.healthCheck()
   state.lastHealthCheck = { at: Date.now(), result }
   return result
@@ -533,4 +489,13 @@ function _uninstallVisibilityHandler() {
   state.visibilityHandler = null
 }
 
-export const gpsSyncService = { start, stop, syncNow, healthCheck, subscribe, getHealth, getProviderName, rateLimitedMs, refreshProvider }
+// DB snapshot refresh failures are invisible to _syncNow (separate path).
+// Record them on health (with streak) so the page reports a stale view
+// instead of silently freezing. A single blip clears automatically.
+function noteRefreshError(msg) {
+  state.health.refreshError = msg || null
+  state.health.refreshFailStreak = msg ? (state.health.refreshFailStreak || 0) + 1 : 0
+  emit()
+}
+
+export const gpsSyncService = { waitForVendorSlot, start, stop, syncNow, healthCheck, subscribe, getHealth, getProviderName, rateLimitedMs, refreshProvider, noteRefreshError }

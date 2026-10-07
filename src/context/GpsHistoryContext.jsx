@@ -82,9 +82,10 @@ export function GpsHistoryProvider({ children }) {
           gpsHistoryRepository.getTodayDistanceKm(),
         ])
         setSnapshots(Array.isArray(f) ? f : []); setTodayDistance(dist)
-      } catch {
-        // Silently ignore errors to prevent infinite error loops
-        // Errors will be caught and displayed in the initial load
+        gpsSyncService.noteRefreshError(null)
+      } catch (err) {
+        // Surfaced (with streak) instead of silently freezing the view
+        try { gpsSyncService.noteRefreshError(err?.message || 'Snapshot refresh failed') } catch {}
       }
     }, 15_000)
     return () => clearInterval(t)

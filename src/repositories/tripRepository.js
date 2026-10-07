@@ -10,6 +10,10 @@ import { dataService } from '../services/dataService'
 
 const TRIPS_STORAGE_KEY = 'sjt_trips'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+// Session verdict on charge/allowance columns (null = untested).
+// Set by _readBookings after the first read — avoids a failed 400
+// attempt on every subsequent query when migrations are unapplied.
+let chargesSupported = null
 
 function toDbBooking(data = {}) {
   const typeData = data.type_data && typeof data.type_data === 'object' ? data.type_data : {}
@@ -83,6 +87,8 @@ export class TripRepository extends BaseRepository {
   // Charge/allowance columns may not exist until migrations
   // 20260925_booking_charges / 20260926_booking_driver_allowance are
   // applied — retry reads without them instead of failing the page.
+  // The verdict is remembered per session so only the first read pays
+  // for a failed attempt (no repeat 400s in the console).
   _bookingColumns(withCharges = true) {
     const base = 'id, booking_id, booking_number, type, status, customer_id, customer_name, customer_contact, driver_id, vehicle_id, pickup_location, drop_location, start_date, start_time, end_date, end_time, total_km, base_fare, total_fare, notes, type_data, approved_by, approved_at, remarks, last_modified_by, approval_history, driver_name, vehicle_reg, created_at, updated_at'
     return withCharges ? base.replace(', notes,', ', bata, toll, petrol, parking, extras, driver_allowance, notes,') : base
@@ -91,23 +97,33 @@ export class TripRepository extends BaseRepository {
     return /column .* does not exist|Could not find the '.*' column/i.test(String(error?.message || ''))
   }
 
+  // Runs a bookings read with charge columns, falling back to the base
+  // column set once per session (module verdict — no repeat failed calls).
+  async _readBookings(build) {
+    if (chargesSupported === false) {
+      const r = await build(false)
+      if (r.error) throw r.error
+      return r.data || []
+    }
+    const first = await build(true)
+    if (!first.error) { chargesSupported = true; return first.data || [] }
+    if (this._isMissingColumnRead(first.error)) {
+      chargesSupported = false
+      const retry = await build(false)
+      if (retry.error) throw retry.error
+      return retry.data || []
+    }
+    throw first.error
+  }
+
   async getByStatus(status) {
     const provider = getDatabaseProvider()
     if (provider === DATABASE_PROVIDERS.SUPABASE) {
       try {
-        const { data, error } = await supabase
+        return await this._readBookings((full) => supabase
           .from('bookings')
-          .select(this._bookingColumns(true))
-          .eq('status', status)
-        if (error) {
-          if (this._isMissingColumnRead(error)) {
-            const retry = await supabase.from('bookings').select(this._bookingColumns(false)).eq('status', status)
-            if (retry.error) throw retry.error
-            return retry.data || []
-          }
-          throw error
-        }
-        return data || []
+          .select(this._bookingColumns(full))
+          .eq('status', status))
       } catch (error) {
         console.error('Get by status failed:', error)
         throw error
@@ -244,19 +260,10 @@ export class TripRepository extends BaseRepository {
 
   async _getAllFromSupabase() {
     try {
-      const { data, error } = await supabase
+      return await this._readBookings((full) => supabase
         .from('bookings')
-        .select(this._bookingColumns(true))
-        .order('created_at', { ascending: false })
-      if (error) {
-        if (this._isMissingColumnRead(error)) {
-          const retry = await supabase.from('bookings').select(this._bookingColumns(false)).order('created_at', { ascending: false })
-          if (retry.error) throw retry.error
-          return retry.data || []
-        }
-        throw error
-      }
-      return data || []
+        .select(this._bookingColumns(full))
+        .order('created_at', { ascending: false }))
     } catch (error) {
       console.error('Error fetching trips from Supabase:', error)
       throw error
@@ -265,26 +272,26 @@ export class TripRepository extends BaseRepository {
 
   async _getByIdFromSupabase(id) {
     try {
-      const { data, error } = await supabase
+      const byKey = (full) => supabase
         .from('bookings')
-        .select(this._bookingColumns(true))
+        .select(this._bookingColumns(full))
         .eq(UUID_RE.test(String(id)) ? 'id' : 'booking_id', id)
         .single()
-      if (error && error.code === 'PGRST116') {
-        return null
+      if (chargesSupported === false) {
+        const r = await byKey(false)
+        if (r.error && r.error.code !== 'PGRST116') throw r.error
+        return r.data || null
       }
-      if (error) {
-        if (this._isMissingColumnRead(error)) {
-          const retry = await supabase.from('bookings')
-            .select(this._bookingColumns(false))
-            .eq(UUID_RE.test(String(id)) ? 'id' : 'booking_id', id)
-            .single()
-          if (retry.error && retry.error.code !== 'PGRST116') throw retry.error
-          return retry.data || null
-        }
-        throw error
+      const first = await byKey(true)
+      if (!first.error) { chargesSupported = true; return first.data || null }
+      if (first.error.code === 'PGRST116') return null
+      if (this._isMissingColumnRead(first.error)) {
+        chargesSupported = false
+        const retry = await byKey(false)
+        if (retry.error && retry.error.code !== 'PGRST116') throw retry.error
+        return retry.data || null
       }
-      return data || null
+      throw first.error
     } catch (error) {
       console.error('Error fetching trip from Supabase:', error)
       throw error

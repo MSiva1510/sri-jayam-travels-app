@@ -18,7 +18,7 @@ import { fleetAlertRepository } from '../repositories/fleetAlertRepository'
 // ── Vehicle status: single definition used everywhere on this page ──
 const isRecent = (s) => {
   const ts = s.timestamp ? new Date(s.timestamp).getTime() : 0
-  return ts && (Date.now() - ts) < 5 * 60_000
+  return ts && (Date.now() - ts) < 10 * 60_000
 }
 const vehStatus = (s) => {
   if (!isRecent(s)) return 'offline'
@@ -145,7 +145,7 @@ function MissingVehiclesBanner({ health, snapshots, settings }) {
   const live = new Set(
     snapshots.filter(s => {
       const ts = s.timestamp ? new Date(s.timestamp).getTime() : 0
-      return ts && (Date.now() - ts) < 5 * 60_000
+      return ts && (Date.now() - ts) < 10 * 60_000
     }).map(s => normReg(s.registration))
   )
   const missing = regs.filter(r => !live.has(normReg(r)))
@@ -459,12 +459,26 @@ export default function Fleet() {
           </div>
         )
       })()}
-      {/* GPS write failure — provider OK but rows not persisting (RLS/policy). */}
-      {health?.ok && (health?.lastWrite?.skipped ?? 0) > 0 && (health?.lastWrite?.inserted ?? 0) === 0 && (
+      {/* GPS write failure — provider OK but rows not persisting across
+          consecutive syncs (RLS/policy). A single skip is normal dedup. */}
+      {health?.ok && (health?.writeStreak ?? 0) >= 3 && (
         <div className="rounded-2xl border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/15 px-4 py-3">
           <p className="text-xs font-bold text-amber-700 dark:text-amber-300">
             GPS provider is reachable but {health.lastWrite.skipped} row{health.lastWrite.skipped !== 1 ? 's' : ''} failed to save — check gps_tracking table permissions (RLS).
           </p>
+        </div>
+      )}
+      {/* Snapshot refresh failing — provider sync may be fine but the
+          page cannot read fresh rows (network/RLS). Streak-gated. */}
+      {(health?.refreshFailStreak ?? 0) >= 2 && (
+        <div className="rounded-2xl border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/15 px-4 py-3 flex items-center gap-3 flex-wrap">
+          <p className="text-xs font-bold text-amber-700 dark:text-amber-300 flex-1 min-w-[200px]">
+            Live view not refreshing{health?.refreshError ? `: ${health.refreshError}` : ''}. Data below may be stale.
+          </p>
+          <button onClick={() => window.location.reload()}
+            className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition-colors flex-shrink-0">
+            Reload Page
+          </button>
         </div>
       )}
       {/* Provider mismatch diagnostics (e.g. a vehicle the API returns

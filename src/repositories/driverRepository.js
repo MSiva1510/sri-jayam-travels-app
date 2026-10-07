@@ -11,6 +11,9 @@ import { cacheClear } from '../utils/dataCache'
 
 const DRIVERS_STORAGE_KEY = 'sjt_drivers'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+// Session verdict on push_token (null = untested). Set after the first
+// read — avoids a failed 400 attempt on every subsequent query.
+let pushSupported = null
 
 function toDbDriver(data = {}) {
   const payload = {
@@ -374,22 +377,32 @@ export class DriverRepository extends BaseRepository {
     return /column .* does not exist|Could not find the '.*' column/i.test(String(error?.message || ''))
   }
 
+  // Runs a drivers read with push_token, falling back to the base column
+  // set once per session (module verdict — no repeat failed calls).
+  async _readDrivers(build, single = false) {
+    if (pushSupported === false) {
+      const r = await build(false)
+      if (r.error && (!single || r.error.code !== 'PGRST116')) throw r.error
+      return r.data || (single ? null : [])
+    }
+    const first = await build(true)
+    if (!first.error) { pushSupported = true; return first.data || (single ? null : []) }
+    if (single && first.error.code === 'PGRST116') return null
+    if (this._isMissingColumnError(first.error)) {
+      pushSupported = false
+      const retry = await build(false)
+      if (retry.error && (!single || retry.error.code !== 'PGRST116')) throw retry.error
+      return retry.data || (single ? null : [])
+    }
+    throw first.error
+  }
+
   async _getAllFromSupabase() {
     try {
-      const { data, error } = await supabase
+      return await this._readDrivers((full) => supabase
         .from('drivers')
-        .select(this._driverColumns(true))
-        .order('created_at', { ascending: false })
-
-      if (error) {
-        if (this._isMissingColumnError(error)) {
-          const retry = await supabase.from('drivers').select(this._driverColumns(false)).order('created_at', { ascending: false })
-          if (retry.error) throw retry.error
-          return retry.data || []
-        }
-        throw error
-      }
-      return data || []
+        .select(this._driverColumns(full))
+        .order('created_at', { ascending: false }))
     } catch (error) {
       console.error('Error fetching drivers from Supabase:', error)
       throw error
@@ -398,28 +411,11 @@ export class DriverRepository extends BaseRepository {
 
   async _getByIdFromSupabase(id) {
     try {
-      const { data, error } = await supabase
+      return await this._readDrivers((full) => supabase
         .from('drivers')
-        .select(this._driverColumns(true))
+        .select(this._driverColumns(full))
         .eq(UUID_RE.test(String(id)) ? 'id' : 'driver_id', id)
-        .single()
-
-      if (error && error.code === 'PGRST116') {
-        return null
-      }
-
-      if (error) {
-        if (this._isMissingColumnError(error)) {
-          const retry = await supabase.from('drivers')
-            .select(this._driverColumns(false))
-            .eq(UUID_RE.test(String(id)) ? 'id' : 'driver_id', id)
-            .single()
-          if (retry.error && retry.error.code !== 'PGRST116') throw retry.error
-          return retry.data || null
-        }
-        throw error
-      }
-      return data || null
+        .single(), true)
     } catch (error) {
       console.error('Error fetching driver from Supabase:', error)
       throw error
