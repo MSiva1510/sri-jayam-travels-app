@@ -3,7 +3,7 @@ import { Save, Navigation, RefreshCw, CheckCircle, AlertTriangle, ShieldCheck, L
 import Button     from '../components/ui/Button'
 import PageHeader from '../components/ui/PageHeader'
 import { gpsSettingsRepository, GPS_DEFAULT_SETTINGS, SENSITIVE_KEYS } from '../repositories/gpsSettingsRepository'
-import { createGpsProvider, GPS_PROVIDER_NAMES }                        from '../services/gpsProvider'
+import { createGpsProvider, GPS_PROVIDER_NAMES, parseProviderNames }                        from '../services/gpsProvider'
 import { GPSTRACK_DEFAULT_URL }                                         from '../services/gpsProvider/gpsTrackInProvider'
 import { addAuditEvent }                                                from '../data/auditLogData'
 import { useAuth }                                                      from '../context/AuthContext'
@@ -57,9 +57,13 @@ function Field({ label, name, value, onChange, type = 'text', options, rows = 3,
 }
 
 // ── Bare field metadata (one row per gps_settings key) ────────
+const PROVIDER_LABELS = {
+  kingstrack: { title: 'KingsTrack',  sub: 'mvt.apmkingstrack.com' },
+  gpstrack:   { title: 'GPSTrack.in', sub: 'app.gpstrack.in · 1 call / 30 s' },
+}
+
 const FIELDS = [
-  { key: 'provider',         label: 'GPS Provider',         type: 'select',  options: GPS_PROVIDER_NAMES, help: 'Swappable vendor adapter: kingstrack (APM KingsTrack) or gpstrack (app.gpstrack.in).' },
-  { key: 'api_url',          label: 'API URL',              sensitive: true, help: 'Vendor endpoint. kingstrack: POST JSON · gpstrack: GET get_current_data.' },
+  { key: 'api_url',          label: 'API URL',              sensitive: true, singleOnly: true, help: 'Vendor endpoint. Ignored when several vendors are polled — each then uses its own default.' },
   { key: 'company_id',       label: 'Company ID',           sensitive: true, providers: ['kingstrack'], help: 'Issued by KingsTrack.' },
   { key: 'user_id',          label: 'User ID',              sensitive: true, providers: ['kingstrack'], help: 'Issued by KingsTrack.' },
   { key: 'api_token',        label: 'API Token',            sensitive: true, providers: ['gpstrack'],   help: 'From app.gpstrack.in → API access.' },
@@ -96,14 +100,21 @@ export default function FleetSettings() {
       .finally(() => setLoading(false))
   }, [])
 
-  const update = (k, v) => setCfg(c => {
-    const next = { ...c, [k]: v }
-    // Switching vendor: swap in that vendor's endpoint unless the URL was customised
-    if (k === 'provider' && v !== c.provider) {
-      const defaults = { kingstrack: GPS_DEFAULT_SETTINGS.api_url, gpstrack: GPSTRACK_DEFAULT_URL }
-      if (!c.api_url || Object.values(defaults).includes(c.api_url)) next.api_url = defaults[v] ?? c.api_url
-    }
-    return next
+  const update = (k, v) => setCfg(c => ({ ...c, [k]: v }))
+
+  const active = parseProviderNames(cfg.provider)
+
+  // A fleet can carry devices from several vendors, so this is a set, not a
+  // choice: every ticked vendor is polled and the results merged.
+  const toggleProvider = (name) => setCfg(c => {
+    const names = parseProviderNames(c.provider)
+    const next  = names.includes(name) ? names.filter(n => n !== name) : [...names, name]
+    if (!next.length) return c                        // at least one must stay on
+    const defaults = { kingstrack: GPS_DEFAULT_SETTINGS.api_url, gpstrack: GPSTRACK_DEFAULT_URL }
+    const api_url = next.length === 1
+      ? (!c.api_url || Object.values(defaults).includes(c.api_url) ? defaults[next[0]] ?? c.api_url : c.api_url)
+      : ''                                            // ambiguous → each adapter uses its own
+    return { ...c, provider: next.join(','), api_url }
   })
 
   async function handleSave() {
@@ -194,8 +205,36 @@ export default function FleetSettings() {
       )}
 
       <SectionCard icon={Navigation} title="GPS Provider">
+        <div>
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">Vendors to poll</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {GPS_PROVIDER_NAMES.map(name => {
+              const on = active.includes(name)
+              return (
+                <button key={name} type="button" onClick={() => toggleProvider(name)}
+                  className={`flex items-start gap-2.5 text-left px-3 py-2.5 rounded-xl border transition-colors ${
+                    on ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-500/60'
+                       : 'border-slate-200 dark:border-navy-700 hover:bg-slate-50 dark:hover:bg-navy-800/60'}`}>
+                  <span className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center text-[10px] font-black flex-shrink-0 ${
+                    on ? 'bg-blue-600 text-white' : 'border border-slate-300 dark:border-navy-600'}`}>{on ? '✓' : ''}</span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-slate-700 dark:text-slate-200">{PROVIDER_LABELS[name]?.title ?? name}</span>
+                    <span className="block text-[11px] text-slate-400 dark:text-slate-500">{PROVIDER_LABELS[name]?.sub ?? name}</span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5">
+            Tick every vendor that holds devices for this fleet — their vehicles are polled together and merged.
+          </p>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {FIELDS.filter(f => !f.providers || f.providers.includes(cfg.provider)).map(f => (
+          {FIELDS
+            .filter(f => !f.providers || f.providers.some(p => active.includes(p)))
+            .filter(f => !f.singleOnly || active.length === 1)
+            .map(f => (
             <Field
               key={f.key}
               label={f.label}

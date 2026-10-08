@@ -10,6 +10,7 @@
 
 import supabase from '../lib/supabase'
 import { withTimeout } from '../utils/withTimeout'
+import { parseProviderNames, GPS_PROVIDER_NAMES } from '../services/gpsProvider'
 
 export const GPS_SETTINGS_CATEGORY = 'gps'
 export const SENSITIVE_KEYS = new Set(['api_url', 'company_id', 'user_id', 'api_token', 'api_email'])
@@ -31,7 +32,7 @@ export const GPS_DEFAULT_SETTINGS = {
 }
 
 export const GPS_SETTINGS_DESCRIPTIONS = {
-  provider:           'GPS vendor adapter name (kingstrack today, future providers added by config).',
+  provider:           'Vendor adapter(s) to poll. Several may be combined: "kingstrack,gpstrack".',
   api_url:            'Vendor endpoint URL (POST JSON).',
   company_id:         'Vendor account id (issued by provider).',
   user_id:            'Vendor user id (issued by provider).',
@@ -170,9 +171,12 @@ async function setMany(updates, { updated_by } = {}) {
 /** Test that sensitive credentials parse and api_url is well-formed. */
 function validate(settings = {}) {
   const errs = []
-  if (!settings.provider) errs.push('provider is required')
-  if (settings.provider && !['kingstrack', 'gpstrack'].includes(settings.provider)) {
-    errs.push(`provider "${settings.provider}" is not registered`)
+  // Validated against the live registry, and a list is allowed: a fleet can
+  // carry devices from more than one vendor ("kingstrack,gpstrack").
+  const names = parseProviderNames(settings.provider)
+  if (!names.length) errs.push('provider is required')
+  for (const name of names) {
+    if (!GPS_PROVIDER_NAMES.includes(name)) errs.push(`provider "${name}" is not registered`)
   }
   if (settings.api_url && !/^https?:\/\//i.test(settings.api_url)) {
     errs.push('api_url must be http(s)')

@@ -2,7 +2,7 @@
 // Module-singleton: polls GpsProvider → dedup → gps_tracking → status tables.
 // Pages never call provider methods directly.
 
-import { createGpsProvider }    from './gpsProvider'
+import { createGpsProvider, parseProviderNames }    from './gpsProvider'
 
 const normalizeReg = (r) => String(r ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
 import { gpsHistoryRepository } from '../repositories/gpsHistoryRepository'
@@ -25,6 +25,7 @@ const state = {
     ok: null, lastPoll: null, lastSuccess: null, lastError: null,
     responseTimeMs: 0, mock: false, consecutiveFailures: 0, lastVehicleCount: 0,
     providerRows: 0, matchedCount: 0, unmatchedRegs: [],
+    providers: null, degraded: false,
   },
   subscribers: new Set(), visibilityHandler: null,
 }
@@ -117,8 +118,9 @@ async function _syncNowInner() {
   }
   const t0 = performance.now()
   state.health.lastPoll = new Date().toISOString()
-  const { ok, snapshots, error, mock } = await state.provider.fetchFleet()
+  const { ok, snapshots, error, mock, partial, providers } = await state.provider.fetchFleet()
   state.health.responseTimeMs = Math.round(performance.now() - t0)
+  state.health.providers = providers ?? null
 
   if (!ok) {
     state.health.ok = false; state.health.lastError = error || 'fetch failed'
@@ -128,7 +130,10 @@ async function _syncNowInner() {
 
   state.health.mock = !!mock; state.health.ok = true
   state.health.lastSuccess = new Date().toISOString()
-  state.health.lastError = null; state.health.consecutiveFailures = 0
+  // Partial = at least one vendor answered. Keep syncing, but name the dead one.
+  state.health.degraded = !!partial
+  state.health.lastError = partial ? error : null
+  state.health.consecutiveFailures = 0
   state.health.nextRetryAt = null
   state.retryAttempt = 0; state.backoffMs = 0
 
@@ -347,8 +352,10 @@ async function _bootstrapProvider() {
   // can never sync. Fall back to KingsTrack (keeping the account ids and
   // restoring the KingsTrack endpoint), persist it, and audit the change.
   // Runs once per process; a deliberate gpstrack+token setup is untouched.
+  // Only heals a *sole* gpstrack selection: a multi-vendor list such as
+  // "kingstrack,gpstrack" is deliberate and must survive.
   if (!state.healedVendor &&
-      settings.provider === 'gpstrack' &&
+      parseProviderNames(settings.provider).join(',') === 'gpstrack' &&
       !(settings.api_token && settings.api_email)) {
     state.healedVendor = true
     settings.provider = 'kingstrack'
@@ -365,8 +372,19 @@ async function _bootstrapProvider() {
     } catch {}
   }
   if (!settings.enabled) { state.provider = null; state.providerName = settings.provider; return null }
-  state.providerName = settings.provider
-  state.provider     = createGpsProvider(settings.provider, settings)
+
+  try {
+    state.provider = createGpsProvider(settings.provider, settings)
+  } catch (err) {
+    // A bad provider name must not take the whole dashboard down.
+    state.provider = null
+    state.providerName = settings.provider
+    state.health.ok = false
+    state.health.lastError = err?.message ?? 'Invalid GPS provider'
+    emit()
+    return null
+  }
+  state.providerName = state.provider.name ?? settings.provider
   state.intervalMs   = Math.max(5_000, Number(settings.refresh_interval ?? 60) * 1000)
 
   // Initialize geofence service when GPS provider is initialized

@@ -2,8 +2,8 @@
 // GPS: 'A' = Active/Valid fix, 'V' = Void/No fix
 // Mock: VITE_GPS_MOCK=true bypasses network for dev/CI
 
-import { withTimeout } from '../../utils/withTimeout'
-import supabase from '../../lib/supabase'
+import { withTimeout } from '../../utils/withTimeout.js'
+import supabase from '../../lib/supabase.js'
 
 const DEFAULT_URL = 'https://mvt.apmkingstrack.com/fleettracking/api/live/json'
 const GPS_PROXY_PATH = '/api/gps-proxy'
@@ -40,7 +40,7 @@ export function createKingsTrackProvider(settings = {}) {
   // Vendor handshakes alone can take ~15s — a 30s default timeout
   // turns slow responses into failures. Floor at 60s unless configured.
   const timeout = Math.max(60, Number(settings.timeout ?? 60)) * 1000
-  const isMock  = import.meta.env.VITE_GPS_MOCK === 'true'
+  const isMock  = import.meta.env?.VITE_GPS_MOCK === 'true'
   const useProxy = settings.use_proxy !== false
 
   function normalizeResponse(raw) {
