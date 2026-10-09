@@ -123,19 +123,16 @@ export default function GpsHistory() {
 
   useEffect(() => {
     Promise.all([loadBookings(), loadVehicles()]).then(([b, v]) => {
-      const bl = Array.isArray(b) ? b : []
-      setBookings(bl)
+      setBookings(Array.isArray(b) ? b : [])
       setVehicles(Array.isArray(v) ? v : [])
-      // Default: latest completed trip
-      const done = bl.filter(x => ['completed', 'closed'].includes(x.status))
-        .sort((a, b2) => String(b2.startDate || '').localeCompare(String(a.startDate || '')))
-      const pick = done[0] || [...bl].sort((a, b2) => String(b2.startDate || '').localeCompare(String(a.startDate || '')))[0]
-      if (pick) {
-        setTripId(pick.bookingNo || pick.id)
-        setDateFrom((pick.startDate || '').slice(0, 10))
-        setDateTo(((pick.returnDate || pick.startDate) || '').slice(0, 10))
-      }
     }).catch(() => {})
+  }, [])
+
+  const setTripAndDates = useCallback((booking) => {
+    if (!booking) { setTripId(''); return }
+    setTripId(booking.bookingNo || booking.id)
+    setDateFrom((booking.startDate || '').slice(0, 10))
+    setDateTo(((booking.returnDate || booking.startDate) || '').slice(0, 10))
   }, [])
 
   const tripList = useMemo(() => bookings.filter(b => {
@@ -222,14 +219,29 @@ export default function GpsHistory() {
     }
   }, [resolveVehicleId])
 
-  // Auto-run once the default trip is picked
-  const autoRan = useRef(false)
+  // Filters drive the trip: whenever the current selection falls outside
+  // the filtered list (e.g. customer changed), auto-pick the first match
+  // (latest completed first) so the route always follows the filters.
+  const sortedList = useMemo(() => {
+    const done = tripList.filter(b => ['completed', 'closed'].includes(b.status))
+    return [...done, ...tripList.filter(b => !['completed', 'closed'].includes(b.status))]
+  }, [tripList])
   useEffect(() => {
-    if (!autoRan.current && trip && dateFrom) {
-      autoRan.current = true
-      runReport(trip, dateFrom, dateTo || dateFrom)
+    if (!bookings.length) return
+    if (!sortedList.some(b => (b.bookingNo || b.id) === tripId)) {
+      setTripAndDates(sortedList[0] || null)
     }
-  }, [trip, dateFrom, dateTo, runReport])
+  }, [sortedList, tripId, bookings.length, setTripAndDates])
+
+  // Any trip change (picked, auto-picked, or default) loads its route.
+  const lastRun = useRef('')
+  useEffect(() => {
+    if (!trip || !dateFrom || !bookings.length) return
+    const key = `${tripId}|${dateFrom}|${dateTo || dateFrom}`
+    if (lastRun.current === key) return
+    lastRun.current = key
+    runReport(trip, dateFrom, dateTo || dateFrom)
+  }, [trip, tripId, dateFrom, dateTo, bookings.length, runReport])
 
   // Playback ticker (same engine as Route Replay page)
   const stopTick = useCallback(() => {
@@ -333,10 +345,9 @@ export default function GpsHistory() {
             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Trip</label>
             <div className="relative">
               <select value={tripId} onChange={e => {
-                const id = e.target.value
-                setTripId(id)
-                const b = bookings.find(x => (x.bookingNo || x.id) === id)
-                if (b) { setDateFrom((b.startDate || '').slice(0, 10)); setDateTo(((b.returnDate || b.startDate) || '').slice(0, 10)) }
+                const b = bookings.find(x => (x.bookingNo || x.id) === e.target.value)
+                if (b) setTripAndDates(b)
+                else { setTripId(''); }
               }} className={`${selCls} ${tripId ? 'pr-8' : ''}`}>
                 <option value="">Select trip… ({tripList.length})</option>
                 {tripList.map(b => <option key={b.id} value={b.bookingNo || b.id}>{b.bookingNo} · {b.customer} · {(b.startDate || '').slice(0, 10)}</option>)}

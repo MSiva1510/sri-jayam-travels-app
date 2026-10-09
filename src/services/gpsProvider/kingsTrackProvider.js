@@ -99,7 +99,7 @@ export function createKingsTrackProvider(settings = {}) {
     const t0 = performance.now()
     try {
       const body = { company_id: settings.company_id ?? '', user_id: settings.user_id ?? '' }
-      const res = await requestGps(baseUrl, body, Math.min(timeout, 5000), useProxy)
+      const res = await requestGps(baseUrl, body, Math.min(timeout, 20000), useProxy)
       const latencyMs = Math.round(performance.now() - t0)
       if (!res) return { ok: false, latencyMs, error: 'timeout' }
       if (!res.ok) return { ok: false, latencyMs, error: await readErrorResponse(res) }
@@ -113,10 +113,18 @@ export function createKingsTrackProvider(settings = {}) {
 }
 
 async function requestGps(targetUrl, body, timeout, useProxy) {
-  const method = String(body.api_method || 'GET').toUpperCase()
+  // Remember the method the vendor accepts so the GET→405→POST fallback
+  // costs one extra request ONCE, not on every poll (vendor allows 1 req/30s).
+  let remembered = null
+  try { remembered = localStorage.getItem('sjt_gps_method') } catch {}
+  const method = String(body.api_method || remembered || 'GET').toUpperCase()
   const first = await sendGpsRequest(targetUrl, body, timeout, useProxy, method)
   if (first?.status !== 405 || method === 'POST') return first
-  return sendGpsRequest(targetUrl, body, timeout, useProxy, 'POST')
+  // Respect the vendor's 30 s window before the one-time fallback
+  await new Promise(r => setTimeout(r, 31_000))
+  const second = await sendGpsRequest(targetUrl, body, timeout, useProxy, 'POST')
+  if (second?.ok) { try { localStorage.setItem('sjt_gps_method', 'POST') } catch {} }
+  return second
 }
 
 async function proxyAuthHeader() {

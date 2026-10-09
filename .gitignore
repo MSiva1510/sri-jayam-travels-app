@@ -11,3 +11,6 @@ build/
 mobile/android/key.properties
 *.jks
 *.keystore
+
+tunnels.json
+.opencode/

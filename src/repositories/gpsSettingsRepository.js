@@ -23,6 +23,10 @@ export const GPS_DEFAULT_SETTINGS = {
   timeout:            30,
   retry_count:        3,
   enabled:            true,
+  // Extra vendor accounts (CY may live under different company_id/user_id
+  // than DF/VF). [{ label, company_id, user_id }]. Primary account is
+  // always company_id/user_id above; extras are polled additionally.
+  gps_accounts:       [],
   // Alert settings
   overspeed_limit:    80, // km/h
   idle_time_limit:    30, // minutes
@@ -35,6 +39,7 @@ export const GPS_SETTINGS_DESCRIPTIONS = {
   api_url:            'Vendor endpoint URL (POST JSON).',
   company_id:         'Vendor account id (issued by provider).',
   user_id:            'Vendor user id (issued by provider).',
+  gps_accounts:       'Extra vendor accounts [{ label, company_id, user_id }] polled alongside the primary.',
   api_token:          'GPSTrack.in API token (provider = gpstrack).',
   api_email:          'GPSTrack.in account email (provider = gpstrack).',
   refresh_interval:   'Seconds between fleet polls.',

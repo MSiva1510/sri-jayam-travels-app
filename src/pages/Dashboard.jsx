@@ -3,14 +3,20 @@ import {
   TrendingUp, TrendingDown, IndianRupee, Car, Receipt,
   CheckCircle, Clock, Users, Fuel, Plus, FileText,
   ShieldOff, CalendarCheck, BookOpen,
-  Zap, XCircle, AlertTriangle, Wrench, Shield, Filter,
+  Zap, XCircle, AlertTriangle, Wrench, Filter,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import StatCard   from '../components/ui/StatCard'
 import Avatar     from '../components/ui/Avatar'
 import Badge      from '../components/ui/Badge'
 import Button     from '../components/ui/Button'
-import PageHeader from '../components/ui/PageHeader'
+import Surface        from '../components/ui/Surface'
+import SectionHeader  from '../components/ui/SectionHeader'
+import SegmentedControl from '../components/ui/SegmentedControl'
+import MetricCard, { METRIC_TONES } from '../components/ui/MetricCard'
+import StatusPill from '../components/ui/StatusPill'
+import SparkChart from '../components/ui/SparkChart'
+import EmptyState from '../components/ui/EmptyState'
+import Callout    from '../components/ui/Callout'
 import { useAuth } from '../context/AuthContext'
 import { loadDrivers } from '../data/driverData'
 import { loadVehicles } from '../data/vehicleData'
@@ -20,7 +26,7 @@ import { loadCustomers }                               from '../data/customerDat
 import { loadExpenses, summariseByType, isThisMonth, getExpenseDate }  from '../data/expenseData'
 import { loadBookings, getStatusCfg, TRIP_TYPE_CONFIG } from '../data/tripTypes'
 import { loadSettlements }                             from '../data/settlementData'
-import { docStatus, daysLabel }                        from '../utils/vehicleUtils'
+import { docStatus }                                   from '../utils/vehicleUtils'
 import LiveFleetBoard                                  from '../components/fleet/LiveFleetBoard'
 import { loadRecentActivity, fmtAuditTime }            from '../data/auditLogData'
 
@@ -35,54 +41,40 @@ const toLocalMonthStr = (d = new Date()) => toLocalDateStr(d).slice(0, 7)
 // ── Blocked section placeholder ───────────────────────────────
 function AccessBlocked({ label }) {
   return (
-    <div className="glass-card rounded-2xl p-6 flex flex-col items-center justify-center text-center gap-2 min-h-[120px]">
-      <ShieldOff size={22} className="text-slate-300 dark:text-slate-600" />
-      <p className="text-sm font-bold text-slate-400 dark:text-slate-500">{label}</p>
-      <p className="text-xs text-slate-300 dark:text-slate-600">Not available for your role</p>
-    </div>
+    <Surface className="flex items-center min-h-[160px]">
+      <EmptyState
+        icon={ShieldOff}
+        title={label}
+        description="Not available for your role"
+        className="w-full"
+      />
+    </Surface>
   )
 }
 
-function BarChart({ data, format }) {
-  const fmt = format || (v => `Rs. ${Number(v || 0).toLocaleString('en-IN')}`)
-  const max = Math.max(1, ...data.map(d => d.fare))
-  const fares = data.map(d => d.fare || 0)
-  const hi = Math.max(...fares)
-  const lo = Math.min(...fares)
-  const hasSpread = hi > 0 && hi !== lo
-  const total = data.reduce((s, d) => s + (d.fare || 0), 0)
+// ── Compact horizontal metric tile (booking / vehicle / section grids) ──
+function MiniStat({ icon: Icon, value, label, tone = 'blue', onClick }) {
+  const chip = METRIC_TONES[tone] || METRIC_TONES.blue
+  const Comp = onClick ? 'button' : 'div'
   return (
-    <div className="flex items-end gap-1.5 h-24 w-full" role="img" aria-label={`Trend, total ${fmt(total)}`}>
-      {data.map((d, i) => {
-        const pct    = Math.round((d.fare / max) * 100)
-        const isLast = i === data.length - 1
-        const isHi   = hasSpread && d.fare === hi
-        const isLo   = hasSpread && d.fare === lo
-        const barCls = isHi
-          ? 'bg-gradient-to-t from-emerald-600 to-emerald-400 shadow-lg shadow-emerald-500/30'
-          : isLo
-          ? 'bg-gradient-to-t from-rose-600 to-rose-400 shadow-lg shadow-rose-500/30'
-          : isLast
-          ? 'bg-gradient-to-t from-blue-600 to-blue-400 shadow-lg shadow-blue-500/30'
-          : 'bg-slate-200 dark:bg-navy-700 group-hover:bg-slate-300 dark:group-hover:bg-navy-600 group-focus-within:bg-slate-300 dark:group-focus-within:bg-navy-600'
-        return (
-          <div key={d.month} className="flex flex-col items-center gap-1 flex-1">
-            <div className="w-full relative group" tabIndex={0} aria-label={`${d.month}: ${fmt(d.fare)}${isHi ? ' (highest)' : isLo ? ' (lowest)' : ''}`}>
-              <div className={`w-full rounded-t-md transition-all duration-500 ${barCls}`}
-                   style={{ height: `${Math.max(pct * 0.88, 6)}px` }} />
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity bg-navy-900 text-white text-[10px] font-bold px-2 py-1 rounded-lg whitespace-nowrap pointer-events-none z-10">
-                {fmt(d.fare)}
-              </div>
-            </div>
-            <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500">{d.month}</span>
-          </div>
-        )
-      })}
-    </div>
+    <Comp
+      type={onClick ? 'button' : undefined}
+      onClick={onClick}
+      className={`ap-surface ap-focus p-3.5 flex items-center gap-3 text-left w-full ${onClick ? 'ios-press cursor-pointer' : ''}`}
+    >
+      <span className={`w-9 h-9 rounded-[11px] flex items-center justify-center flex-shrink-0 ${chip}`} aria-hidden="true">
+        <Icon size={16} strokeWidth={2.25} />
+      </span>
+      <span className="min-w-0">
+        <span className="block font-sf text-xl font-semibold leading-none tracking-tight text-slate-900 dark:text-white tabular-nums">{value}</span>
+        <span className="block text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-tight">{label}</span>
+      </span>
+    </Comp>
   )
 }
 
-function DonutRing({ pct, color, size = 110 }) {
+// ── Profit margin donut ────────────────────────────────────────
+function DonutRing({ pct, color, size = 128 }) {
   const safePct = Math.min(100, Math.max(0, Number(pct) || 0))
   const r = 24, cx = 32, cy = 32, circ = 2 * Math.PI * r, dash = (safePct / 100) * circ
   return (
@@ -90,7 +82,7 @@ function DonutRing({ pct, color, size = 110 }) {
       <title>{safePct}% margin</title>
       <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth="6" className="stroke-slate-200 dark:stroke-navy-700" />
       <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth="6" stroke={color}
-        strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" style={{ transition:'stroke-dasharray 0.6s ease' }} />
+        strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" style={{ transition: 'stroke-dasharray 0.6s ease' }} />
     </svg>
   )
 }
@@ -309,10 +301,10 @@ export default function Dashboard() {
   // ── Loading skeleton (iPhone shimmer, mirrors the real layout) ──
   if (loading) {
     return (
-      <div className="space-y-4" role="status" aria-busy="true" aria-label="Loading dashboard">
+      <div className="space-y-5" role="status" aria-busy="true" aria-label="Loading dashboard">
         <span className="sr-only">Loading dashboard…</span>
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="space-y-2">
             <div className="skeleton h-7 w-44 rounded-lg" />
             <div className="skeleton h-4 w-32 rounded-md" />
@@ -325,9 +317,9 @@ export default function Dashboard() {
         {/* KPI boxes */}
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map(i => (
-            <div key={i} className="ios-card p-4 space-y-3" aria-hidden="true">
+            <div key={i} className="ap-surface p-4 space-y-3" aria-hidden="true">
               <div className="flex items-start justify-between">
-                <div className="skeleton w-10 h-10 rounded-[14px]" />
+                <div className="skeleton w-9 h-9 rounded-[11px]" />
                 <div className="skeleton h-5 w-12 rounded-full" />
               </div>
               <div className="skeleton h-3 w-20 rounded" />
@@ -339,8 +331,8 @@ export default function Dashboard() {
         {/* Widget chips */}
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
           {[1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="ios-card p-3.5 flex items-center gap-3" aria-hidden="true">
-              <div className="skeleton w-9 h-9 rounded-[13px] flex-shrink-0" />
+            <div key={i} className="ap-surface p-3.5 flex items-center gap-3" aria-hidden="true">
+              <div className="skeleton w-9 h-9 rounded-[11px] flex-shrink-0" />
               <div className="flex-1 space-y-1.5">
                 <div className="skeleton h-5 w-12 rounded" />
                 <div className="skeleton h-3 w-16 rounded" />
@@ -351,7 +343,7 @@ export default function Dashboard() {
         {/* Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {[1, 2, 3].map(i => (
-            <div key={i} className="glass-card rounded-[20px] p-5 space-y-3" aria-hidden="true">
+            <div key={i} className="ap-surface p-5 space-y-3" aria-hidden="true">
               <div className="skeleton h-3 w-24 rounded" />
               <div className="skeleton h-6 w-32 rounded-lg" />
               <div className="skeleton h-24 w-full rounded-xl" />
@@ -359,7 +351,7 @@ export default function Dashboard() {
           ))}
         </div>
         {/* Table rows */}
-        <div className="glass-card rounded-[20px] p-4 space-y-2.5" aria-hidden="true">
+        <div className="ap-surface p-4 space-y-2.5" aria-hidden="true">
           {[1, 2, 3, 4, 5].map(i => (
             <div key={i} className="flex items-center gap-2.5">
               <div className="skeleton w-7 h-7 rounded-full flex-shrink-0" />
@@ -373,383 +365,284 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-up">
-      <PageHeader
-        title="Dashboard"
-        subtitle={period === 'year'
-          ? `Overview — Year ${new Date().getFullYear()}`
-          : `Overview — ${new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })}`}
-        action={
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 p-1" role="group" aria-label="Dashboard period">
-              {[
-                { key: 'month', label: 'Month' },
-                { key: 'year', label: 'This Year' },
-              ].map(o => (
-                <button
-                  key={o.key}
-                  type="button"
-                  onClick={() => setPeriod(o.key)}
-                  aria-pressed={period === o.key}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                    period === o.key
-                      ? 'bg-navy-900 text-white dark:bg-blue-600 shadow'
-                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
-                  }`}
-                >
-                  {o.label}
-                </button>
-              ))}
-            </div>
-            {can('trips') ? <Button icon={Plus} variant="primary" onClick={() => navigate('/trips')}>New Booking</Button> : null}
-          </div>
-        }
-      />
+    <div className="space-y-6 animate-fade-up font-sf">
+      {/* ── Header ── */}
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
+            Overview — {period === 'year'
+              ? `Year ${new Date().getFullYear()}`
+              : new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })}
+          </p>
+          <h1 className="font-sf text-[28px] font-semibold tracking-tight text-slate-900 dark:text-white">Dashboard</h1>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <SegmentedControl
+            ariaLabel="Dashboard period"
+            value={period}
+            onChange={setPeriod}
+            options={[{ key: 'month', label: 'Month' }, { key: 'year', label: 'This Year' }]}
+          />
+          {can('trips') ? <Button icon={Plus} variant="primary" onClick={() => navigate('/trips')}>New Booking</Button> : null}
+        </div>
+      </div>
 
       {loadErrors.length > 0 && (
-        <div className="bg-red-50 dark:bg-red-900/15 border border-red-200 dark:border-red-800/30 rounded-2xl p-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <AlertTriangle size={15} className="text-red-600 dark:text-red-400 flex-shrink-0" />
-            <p className="text-sm font-bold text-red-700 dark:text-red-400">
-              Couldn't load {loadErrors.join(', ')}. Showing partial data — try refreshing.
-            </p>
-          </div>
-          <button onClick={reload}
-            className="px-3 py-1.5 rounded-xl bg-red-500 hover:bg-red-400 text-white text-xs font-bold transition-all active:scale-95 shadow-md flex-shrink-0">
-            Retry
-          </button>
-        </div>
+        <Callout
+          tone="red"
+          icon={AlertTriangle}
+          title={`Couldn't load ${loadErrors.join(', ')}.`}
+          sub="Showing partial data — try refreshing."
+          actionLabel="Retry"
+          onAction={reload}
+        />
       )}
 
       {/* ── KPI Stats (follow the Month / This Year toggle) ── */}
       {can('revenueDashboard') ? (
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-          <StatCard label={`Fare (${periodTagCap})`}  value={`Rs. ${periodFare.toLocaleString('en-IN')}`}  sub={`${periodBookings.length} trips ${periodTag}`}      icon={IndianRupee} gradient="bg-gradient-to-br from-navy-700 to-blue-600"    trend={8.4} trendUp={true}  />
-          <StatCard label={`Net Income (${periodTagCap})`}  value={`Rs. ${periodNet.toLocaleString('en-IN')}`}   sub={`After trip costs ${periodTag}`}             icon={TrendingUp}  gradient="bg-gradient-to-br from-emerald-600 to-teal-500" trend={5.2} trendUp={true}  />
-          <StatCard label={`KM (${periodTagCap})`}    value={periodKm.toLocaleString('en-IN')}             sub={`Kilometres covered ${periodTag}`}           icon={Car}         gradient="bg-gradient-to-br from-violet-600 to-purple-500"             />
-          <StatCard label={`Expenses (${periodTagCap})`}    value={`Rs. ${periodExpTotal.toLocaleString('en-IN')}`}   sub={`${periodExpenses.length} entries ${periodTag}`} icon={Receipt}     gradient="bg-gradient-to-br from-amber-500 to-orange-500"  trend={2.1} trendUp={false} />
+          <MetricCard label={`Fare (${periodTagCap})`}     value={`Rs. ${periodFare.toLocaleString('en-IN')}`} sub={`${periodBookings.length} trips ${periodTag}`} icon={IndianRupee} tone="blue"   trend={8.4} trendUp />
+          <MetricCard label={`Net Income (${periodTagCap})`} value={`Rs. ${periodNet.toLocaleString('en-IN')}`}  sub={`After trip costs ${periodTag}`}             icon={TrendingUp}  tone="green"  trend={5.2} trendUp />
+          <MetricCard label={`KM (${periodTagCap})`}       value={periodKm.toLocaleString('en-IN')}               sub={`Kilometres covered ${periodTag}`}           icon={Car}         tone="violet" />
+          <MetricCard label={`Expenses (${periodTagCap})`} value={`Rs. ${periodExpTotal.toLocaleString('en-IN')}`} sub={`${periodExpenses.length} entries ${periodTag}`} icon={Receipt}     tone="amber"  trend={2.1} trendUp={false} />
         </div>
       ) : (
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-          <StatCard label="Total Trips"   value={periodBookings.length}           sub={periodTagCap}          icon={Car}         gradient="bg-gradient-to-br from-navy-700 to-blue-600"    />
-          <StatCard label="Bills Done"    value={periodDone}                 sub={`Completed ${periodTag}`}  icon={CheckCircle} gradient="bg-gradient-to-br from-emerald-600 to-teal-500" />
-          <StatCard label="Total KM"      value={periodKm.toLocaleString('en-IN')}  sub={periodTagCap}  icon={Car}         gradient="bg-gradient-to-br from-violet-600 to-purple-500" />
-          <StatCard label="Pending Bills" value={periodPending}              sub="Awaiting invoice"    icon={Clock}       gradient="bg-gradient-to-br from-amber-500 to-orange-500"  />
+          <MetricCard label="Total Trips"   value={periodBookings.length}              sub={periodTagCap}         icon={Car}         tone="blue" />
+          <MetricCard label="Bills Done"    value={periodDone}                        sub={`Completed ${periodTag}`} icon={CheckCircle} tone="green" />
+          <MetricCard label="Total KM"      value={periodKm.toLocaleString('en-IN')}  sub={periodTagCap}         icon={Car}         tone="violet" />
+          <MetricCard label="Pending Bills" value={periodPending}                     sub="Awaiting invoice"     icon={Clock}       tone="amber" />
         </div>
       )}
 
-      {/* ── Booking Widgets (period-scoped; Today/Active stay live) ── */}
+      {/* ── Booking Overview ── */}
       {(can('revenueDashboard') || can('trips')) ? (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Booking Management</p>
-              <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">
-                Booking Overview{' '}
-                <span className="badge badge-active align-middle">{periodTagCap}</span>
-              </h3>
-            </div>
-            <button onClick={() => navigate('/trips')}
-              className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors flex items-center gap-1 flex-shrink-0">
-              View all →
-            </button>
-          </div>
+        <section>
+          <SectionHeader
+            className="mb-3"
+            eyebrow="Booking Management"
+            title="Booking Overview"
+            badge={<span className="badge badge-active">{periodTagCap}</span>}
+            action={
+              <button onClick={() => navigate('/trips')}
+                className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
+                View all →
+              </button>
+            }
+          />
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
-            {[
-              { label:`Total Bookings`, value: periodBookings.length,         icon: BookOpen,    color:'text-navy-800 dark:text-blue-300',         bg:'bg-navy-50 dark:bg-navy-800/60',          onClick:()=>navigate('/trips') },
-              { label:"Today's Trips",  value: bookingToday.length,     icon: CalendarCheck,color:'text-blue-600 dark:text-blue-400',        bg:'bg-blue-50 dark:bg-blue-900/20',          onClick:()=>navigate('/trips') },
-              { label:'Active Trips',   value: bookingActive.length,    icon: Zap,         color:'text-amber-600 dark:text-amber-400',       bg:'bg-amber-50 dark:bg-amber-900/20',        onClick:()=>navigate('/trips') },
-              { label:'Completed',      value: periodDone, icon: CheckCircle, color:'text-emerald-600 dark:text-emerald-400',   bg:'bg-emerald-50 dark:bg-emerald-900/20',    onClick:()=>navigate('/trips') },
-              { label:'Cancelled',      value: periodCancelled, icon: XCircle,     color:'text-red-600 dark:text-red-400',           bg:'bg-red-50 dark:bg-red-900/20',            onClick:()=>navigate('/trips') },
-            ].map(s => (
-              <div key={s.label} onClick={s.onClick}
-                className="ios-card ios-press p-3.5 flex items-center gap-3 cursor-pointer">
-                <div className={`w-9 h-9 rounded-[13px] ${s.bg} flex items-center justify-center flex-shrink-0`}>
-                  <s.icon size={16} className={s.color} />
-                </div>
-                <div className="min-w-0">
-                  <p className={`text-xl font-display font-black leading-none ${s.color}`}>{s.value}</p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">{s.label}</p>
-                </div>
-              </div>
-            ))}
+            <MiniStat icon={BookOpen}      tone="blue"  value={periodBookings.length} label="Total Bookings" onClick={() => navigate('/trips')} />
+            <MiniStat icon={CalendarCheck} tone="teal"  value={bookingToday.length}   label="Today's Trips"  onClick={() => navigate('/trips')} />
+            <MiniStat icon={Zap}           tone="amber" value={bookingActive.length}  label="Active Trips"   onClick={() => navigate('/trips')} />
+            <MiniStat icon={CheckCircle}   tone="green" value={periodDone}            label="Completed"      onClick={() => navigate('/trips')} />
+            <MiniStat icon={XCircle}       tone="red"   value={periodCancelled}       label="Cancelled"      onClick={() => navigate('/trips')} />
           </div>
-        </div>
+        </section>
       ) : null}
 
       {/* ── Today's bookings quick list ── */}
       {bookingToday.length > 0 && (
-        <div>
-          <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2.5">Today's Schedule</p>
-          <div className="glass-card rounded-2xl overflow-hidden">
-            {bookingToday.slice(0, 4).map((b, i) => {
+        <section>
+          <SectionHeader className="mb-3" eyebrow="Today" title="Today's Schedule" />
+          <Surface padded={false} className="overflow-hidden">
+            {bookingToday.slice(0, 4).map((b) => {
               const typeCfg = TRIP_TYPE_CONFIG[b.type]
               const stCfg   = getStatusCfg(b.status)
               return (
-                <div key={b.id} onClick={() => navigate('/trips')}
-                  className="flex items-center gap-3 px-4 py-3 border-b border-slate-50 dark:border-navy-800 last:border-0 hover:bg-blue-50/40 dark:hover:bg-navy-800/40 transition-colors cursor-pointer">
-                  <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${typeCfg?.gradient || 'from-slate-400 to-slate-500'} flex items-center justify-center text-sm flex-shrink-0`}>
+                <button key={b.id} onClick={() => navigate('/trips')}
+                  className="w-full flex items-center gap-3 px-4 py-3 border-b ap-hairline last:border-0 hover:bg-blue-50/40 dark:hover:bg-navy-800/40 transition-colors text-left">
+                  <span className={`w-8 h-8 rounded-xl bg-gradient-to-br ${typeCfg?.gradient || 'from-slate-400 to-slate-500'} flex items-center justify-center text-sm flex-shrink-0`} aria-hidden="true">
                     {typeCfg?.icon}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{b.customer}</p>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">{b.customer}</span>
+                    <span className="block text-[10px] text-slate-400 dark:text-slate-500 truncate">
                       {b.startTime && `${b.startTime} · `}{b.pickup}{b.drop ? ` → ${b.drop}` : ''}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                    <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full ${stCfg.badge}`}>
+                    </span>
+                  </span>
+                  <span className="flex flex-col items-end gap-1 flex-shrink-0">
+                    <span className={`inline-flex items-center gap-1 text-[9px] font-semibold px-2 py-0.5 rounded-full ${stCfg.badge}`}>
                       <span className={`w-1 h-1 rounded-full ${stCfg.dot.replace(' animate-pulse','')}`} />
                       {stCfg.label}
                     </span>
-                    {b.driver && <p className="text-[10px] text-slate-400">{b.driver}</p>}
-                  </div>
-                </div>
+                    {b.driver && <span className="text-[10px] text-slate-400">{b.driver}</span>}
+                  </span>
+                </button>
               )
             })}
             {bookingToday.length > 4 && (
               <div className="px-4 py-2.5 text-center">
-                <button onClick={() => navigate('/trips')} className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
+                <button onClick={() => navigate('/trips')} className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
                   +{bookingToday.length - 4} more trips today →
                 </button>
               </div>
             )}
-          </div>
-        </div>
+          </Surface>
+        </section>
       )}
 
       {/* ── Pending assignments notice ── */}
       {bookingPending.filter(b => !b.driver).length > 0 && (isAdmin || isManager) && (
-        <div className="flex items-center justify-between gap-3 bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-800/30 rounded-2xl px-4 py-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
-              <Users size={15} className="text-amber-600 dark:text-amber-400" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-amber-700 dark:text-amber-400">
-                {bookingPending.filter(b => !b.driver).length} trip{bookingPending.filter(b => !b.driver).length !== 1 ? 's' : ''} need driver assignment
-              </p>
-              <p className="text-xs text-amber-600 dark:text-amber-500">Confirmed bookings without a driver</p>
-            </div>
-          </div>
-          <button onClick={() => navigate('/trips')}
-            className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white text-xs font-bold transition-all active:scale-95 shadow-md flex-shrink-0">
-            Assign
-          </button>
-        </div>
+        <Callout
+          tone="amber"
+          icon={Users}
+          title={`${bookingPending.filter(b => !b.driver).length} trip${bookingPending.filter(b => !b.driver).length !== 1 ? 's' : ''} need driver assignment`}
+          sub="Confirmed bookings without a driver"
+          actionLabel="Assign"
+          onAction={() => navigate('/trips')}
+        />
       )}
 
-      {/* ── Vehicle dashboard widgets ── */}
+      {/* ── Vehicle Overview ── */}
       {can('vehicles') && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Fleet Management</p>
-              <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">Vehicle Overview</h3>
-            </div>
-            <button onClick={() => navigate('/vehicles')}
-              className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
-              View all →
-            </button>
-          </div>
+        <section>
+          <SectionHeader
+            className="mb-3"
+            eyebrow="Fleet Management"
+            title="Vehicle Overview"
+            action={
+              <button onClick={() => navigate('/vehicles')}
+                className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
+                View all →
+              </button>
+            }
+          />
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              { label:'Total Vehicles',  value: vehicles.length,       icon: Car,       color:'text-navy-800 dark:text-blue-300',         bg:'bg-navy-50 dark:bg-navy-800/60'        },
-              { label:'Available',       value: availableVehicles,      icon: CheckCircle,color:'text-emerald-600 dark:text-emerald-400',  bg:'bg-emerald-50 dark:bg-emerald-900/20'  },
-              { label:'Maintenance',     value: maintenanceVehicles,    icon: Wrench,    color:'text-red-600 dark:text-red-400',           bg:'bg-red-50 dark:bg-red-900/20'          },
-              { label:'Doc Alerts',      value: vehicleDocAlerts.length,icon: AlertTriangle, color:'text-amber-600 dark:text-amber-400',  bg:'bg-amber-50 dark:bg-amber-900/20'      },
-            ].map(s => (
-              <div key={s.label} onClick={() => navigate('/vehicles')}
-                className="ios-card ios-press p-3.5 flex items-center gap-3 cursor-pointer">
-                <div className={`w-9 h-9 rounded-[13px] ${s.bg} flex items-center justify-center flex-shrink-0`}>
-                  <s.icon size={16} className={s.color} />
-                </div>
-                <div className="min-w-0">
-                  <p className={`text-xl font-display font-black leading-none ${s.color}`}>{s.value}</p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">{s.label}</p>
-                </div>
-              </div>
-            ))}
+            <MiniStat icon={Car}           tone="blue"  value={vehicles.length}       label="Total Vehicles" onClick={() => navigate('/vehicles')} />
+            <MiniStat icon={CheckCircle}   tone="green" value={availableVehicles}     label="Available"      onClick={() => navigate('/vehicles')} />
+            <MiniStat icon={Wrench}        tone="red"   value={maintenanceVehicles}   label="Maintenance"    onClick={() => navigate('/vehicles')} />
+            <MiniStat icon={AlertTriangle} tone="amber" value={vehicleDocAlerts.length} label="Doc Alerts"   onClick={() => navigate('/vehicles')} />
           </div>
-        </div>
+        </section>
       )}
 
       {/* ── Vehicle doc expiry alert ── */}
       {vehicleDocAlerts.length > 0 && can('vehicles') && (
-        <div className="bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-800/30 rounded-2xl p-4">
-          <div className="flex items-center justify-between mb-3">
+        <Surface className="border-amber-500/20 bg-amber-500/[0.06]">
+          <div className="flex items-center justify-between mb-3 gap-3">
             <div className="flex items-center gap-2">
               <AlertTriangle size={15} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
-              <p className="text-sm font-bold text-amber-700 dark:text-amber-400">
+              <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">
                 {vehicleDocAlerts.length} vehicle document{vehicleDocAlerts.length !== 1 ? 's' : ''} need attention
               </p>
             </div>
             <button onClick={() => navigate('/vehicles')}
-              className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white text-xs font-bold transition-all active:scale-95 shadow-md flex-shrink-0">
+              className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold transition-all active:scale-95 shadow-sm flex-shrink-0">
               Review
             </button>
           </div>
           <div className="space-y-1.5">
             {vehicleDocAlerts.slice(0, 4).map((a, i) => (
               <div key={i} className="flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 truncate">{a.label}</p>
+                <p className="text-xs font-medium text-amber-700 dark:text-amber-300 truncate">{a.label}</p>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
-                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${a.st.badge}`}>{a.st.label}</span>
-                  <span className="text-[10px] text-amber-600 dark:text-amber-500 font-mono">{a.expiry}</span>
+                  <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full ${a.st.badge}`}>{a.st.label}</span>
+                  <span className="text-[10px] text-amber-600 dark:text-amber-400 font-mono tabular-nums">{a.expiry}</span>
                 </div>
               </div>
             ))}
             {vehicleDocAlerts.length > 4 && (
-              <p className="text-[10px] text-amber-600 dark:text-amber-500 font-semibold pt-1">
+              <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium pt-1">
                 +{vehicleDocAlerts.length - 4} more — view all in Vehicles
               </p>
             )}
           </div>
-        </div>
+        </Surface>
       )}
 
       {/* ── Mini stat chips ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { label:'Bills Done',    value: doneTrips,       icon: CheckCircle, color:'text-emerald-500', bg:'bg-emerald-50 dark:bg-emerald-900/20' },
-          { label:'Pending Bills', value: pendingTrips,    icon: Clock,       color:'text-amber-500',   bg:'bg-amber-50 dark:bg-amber-900/20'     },
-          { label:'Drivers',       value: drivers.length,  icon: Users,       color:'text-blue-500',    bg:'bg-blue-50 dark:bg-blue-900/20'       },
-          { label:'Vehicles',      value: vehicles.length, icon: Fuel,        color:'text-violet-500',  bg:'bg-violet-50 dark:bg-violet-900/20'   },
-        ].map(s => (
-          <div key={s.label} className="ios-card p-4 flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl ${s.bg} flex items-center justify-center flex-shrink-0`}>
-              <s.icon size={18} className={s.color} />
-            </div>
-            <div>
-              <p className="text-2xl font-display font-black text-slate-800 dark:text-white leading-none">{s.value}</p>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{s.label}</p>
-            </div>
-          </div>
-        ))}
+        <MiniStat icon={CheckCircle} tone="green"  value={doneTrips}        label="Bills Done" />
+        <MiniStat icon={Clock}       tone="amber"  value={pendingTrips}     label="Pending Bills" />
+        <MiniStat icon={Users}       tone="blue"   value={drivers.length}   label="Drivers" />
+        <MiniStat icon={Fuel}        tone="violet" value={vehicles.length}  label="Vehicles" />
       </div>
 
-      {/* ── Customer dashboard widgets — Module 8 ── */}
+      {/* ── Customer Overview ── */}
       {can('customers') && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Customer Management</p>
-              <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">Customer Overview</h3>
-            </div>
-            <button onClick={() => navigate('/customers')}
-              className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
-              View all →
-            </button>
-          </div>
+        <section>
+          <SectionHeader
+            className="mb-3"
+            eyebrow="Customer Management"
+            title="Customer Overview"
+            action={
+              <button onClick={() => navigate('/customers')}
+                className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
+                View all →
+              </button>
+            }
+          />
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              { label:'Total Customers',   value: customers.length,         icon: Users,       color:'text-navy-800 dark:text-blue-300',        bg:'bg-navy-50 dark:bg-navy-800/60'       },
-              { label:'Active',            value: customers.filter(c=>c.status==='active').length, icon: CheckCircle, color:'text-emerald-600 dark:text-emerald-400', bg:'bg-emerald-50 dark:bg-emerald-900/20' },
-              { label:'Corporate / Agent', value: corporateCustomers,       icon: Users,       color:'text-violet-600 dark:text-violet-400',    bg:'bg-violet-50 dark:bg-violet-900/20'   },
-              { label:`New ${periodTagCap}`,    value: periodCustomers,         icon: Plus,        color:'text-blue-600 dark:text-blue-400',        bg:'bg-blue-50 dark:bg-blue-900/20'       },
-            ].map(s => (
-              <div key={s.label} onClick={() => navigate('/customers')}
-                className="ios-card ios-press p-3.5 flex items-center gap-3 cursor-pointer">
-                <div className={`w-9 h-9 rounded-[13px] ${s.bg} flex items-center justify-center flex-shrink-0`}>
-                  <s.icon size={16} className={s.color} />
-                </div>
-                <div className="min-w-0">
-                  <p className={`text-xl font-display font-black leading-none ${s.color}`}>{s.value}</p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">{s.label}</p>
-                </div>
-              </div>
-            ))}
+            <MiniStat icon={Users}       tone="blue"   value={customers.length} label="Total Customers" onClick={() => navigate('/customers')} />
+            <MiniStat icon={CheckCircle} tone="green"  value={customers.filter(c => c.status === 'active').length} label="Active" onClick={() => navigate('/customers')} />
+            <MiniStat icon={Users}       tone="violet" value={corporateCustomers} label="Corporate / Agent" onClick={() => navigate('/customers')} />
+            <MiniStat icon={Plus}        tone="blue"   value={periodCustomers} label={`New ${periodTagCap}`} onClick={() => navigate('/customers')} />
           </div>
-        </div>
+        </section>
       )}
 
-      {/* ── Payroll widgets — Module 3 ── */}
+      {/* ── Payroll & Settlements ── */}
       {can('payroll') && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Payroll & Settlements</p>
-              <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">Driver Salary</h3>
-            </div>
-            <button onClick={() => navigate('/payroll')}
-              className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
-              View all →
-            </button>
-          </div>
+        <section>
+          <SectionHeader
+            className="mb-3"
+            eyebrow="Payroll & Settlements"
+            title="Driver Salary"
+            action={
+              <button onClick={() => navigate('/payroll')}
+                className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
+                View all →
+              </button>
+            }
+          />
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              { label:'Total Paid',        value:`Rs. ${(totalPayrollPaid/1000).toFixed(1)}k`, color:'text-emerald-600 dark:text-emerald-400', bg:'bg-emerald-50 dark:bg-emerald-900/20' },
-              { label:'Pending Approval',  value: settledPending,                             color:'text-blue-600 dark:text-blue-400',       bg:'bg-blue-50 dark:bg-blue-900/20'       },
-              { label:'Approved (Unpaid)', value: settledApproved,                            color:'text-violet-600 dark:text-violet-400',   bg:'bg-violet-50 dark:bg-violet-900/20'   },
-              { label:'Total Settlements', value: settlements.length,                         color:'text-navy-800 dark:text-blue-300',       bg:'bg-navy-50 dark:bg-navy-800/60'       },
-            ].map(s => (
-              <div key={s.label} onClick={() => navigate('/payroll')}
-                className="ios-card ios-press p-3.5 flex items-center gap-3 cursor-pointer">
-                <div className={`w-9 h-9 rounded-[13px] ${s.bg} flex items-center justify-center flex-shrink-0`}>
-                  <IndianRupee size={16} className={s.color} />
-                </div>
-                <div className="min-w-0">
-                  <p className={`text-xl font-display font-black leading-none ${s.color}`}>{s.value}</p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">{s.label}</p>
-                </div>
-              </div>
-            ))}
+            <MiniStat icon={IndianRupee} tone="green"  value={`Rs. ${(totalPayrollPaid/1000).toFixed(1)}k`} label="Total Paid" onClick={() => navigate('/payroll')} />
+            <MiniStat icon={IndianRupee} tone="blue"   value={settledPending}   label="Pending Approval" onClick={() => navigate('/payroll')} />
+            <MiniStat icon={IndianRupee} tone="violet" value={settledApproved}  label="Approved (Unpaid)" onClick={() => navigate('/payroll')} />
+            <MiniStat icon={IndianRupee} tone="gray"   value={settlements.length} label="Total Settlements" onClick={() => navigate('/payroll')} />
           </div>
           {(settledPending > 0 || settledApproved > 0) && (
-            <div className="flex items-center justify-between gap-3 bg-violet-50 dark:bg-violet-900/15 border border-violet-200 dark:border-violet-800/30 rounded-2xl px-4 py-3 mt-3">
-              <p className="text-sm font-bold text-violet-700 dark:text-violet-400">
-                {settledPending > 0 && `${settledPending} settlement${settledPending!==1?'s':''} awaiting approval`}
-                {settledPending > 0 && settledApproved > 0 && ' · '}
-                {settledApproved > 0 && `${settledApproved} approved — ready to pay`}
-              </p>
-              <button onClick={() => navigate('/payroll')}
-                className="px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold transition-all active:scale-95 shadow-md flex-shrink-0">
-                Review
-              </button>
-            </div>
+            <Callout
+              className="mt-3"
+              tone="violet"
+              title={
+                (settledPending > 0 ? `${settledPending} settlement${settledPending!==1?'s':''} awaiting approval` : '') +
+                (settledPending > 0 && settledApproved > 0 ? ' · ' : '') +
+                (settledApproved > 0 ? `${settledApproved} approved — ready to pay` : '')
+              }
+              actionLabel="Review"
+              onAction={() => navigate('/payroll')}
+            />
           )}
-        </div>
+        </section>
       )}
 
-      {/* ── Expense widgets — Module 9 ── */}
+      {/* ── Expense Management ── */}
       {can('expenses') && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Expense Management</p>
-              <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">{periodTagCap}</h3>
-            </div>
-            <button onClick={() => navigate('/expenses')}
-              className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
-              View all →
-            </button>
-          </div>
-
-          {/* KPI chips */}
+        <section>
+          <SectionHeader
+            className="mb-3"
+            eyebrow="Expense Management"
+            title={periodTagCap}
+            action={
+              <button onClick={() => navigate('/expenses')}
+                className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
+                View all →
+              </button>
+            }
+          />
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
-            {[
-              { label: period === 'year' ? 'Year Total' : 'Month Total',    value:`Rs. ${(periodExpTotal/1000).toFixed(1)}k`, icon:TrendingDown, color:'text-amber-600 dark:text-amber-400', bg:'bg-amber-50 dark:bg-amber-900/20' },
-              { label:'Entries',        value: periodExpenses.length,                    icon:Receipt,      color:'text-slate-600 dark:text-slate-300', bg:'bg-slate-50 dark:bg-navy-800/60'  },
-              { label:'Pending Approval',value: pendingApprovals,                       icon:Clock,        color:'text-blue-600 dark:text-blue-400',   bg:'bg-blue-50 dark:bg-blue-900/20'   },
-              { label:'Categories',     value: expByCategory.length,                   icon:Filter,       color:'text-violet-600 dark:text-violet-400',bg:'bg-violet-50 dark:bg-violet-900/20'},
-            ].map(s => (
-              <div key={s.label} onClick={() => navigate('/expenses')}
-                className="ios-card ios-press p-3.5 flex items-center gap-3 cursor-pointer">
-                <div className={`w-9 h-9 rounded-[13px] ${s.bg} flex items-center justify-center flex-shrink-0`}>
-                  <s.icon size={16} className={s.color} />
-                </div>
-                <div className="min-w-0">
-                  <p className={`text-xl font-display font-black leading-none ${s.color}`}>{s.value}</p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">{s.label}</p>
-                </div>
-              </div>
-            ))}
+            <MiniStat icon={TrendingDown} tone="amber"  value={`Rs. ${(periodExpTotal/1000).toFixed(1)}k`} label={period === 'year' ? 'Year Total' : 'Month Total'} onClick={() => navigate('/expenses')} />
+            <MiniStat icon={Receipt}      tone="gray"   value={periodExpenses.length} label="Entries"          onClick={() => navigate('/expenses')} />
+            <MiniStat icon={Clock}        tone="blue"   value={pendingApprovals}      label="Pending Approval" onClick={() => navigate('/expenses')} />
+            <MiniStat icon={Filter}       tone="violet" value={expByCategory.length}  label="Categories"       onClick={() => navigate('/expenses')} />
           </div>
 
-          {/* Top 3 categories in the selected period */}
           {expByCategory.length > 0 && (
-            <div className="glass-card rounded-2xl p-4">
-              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Top Categories {periodTagCap}</p>
+            <Surface>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400 mb-3">
+                Top Categories {periodTagCap}
+              </p>
               <div className="space-y-2.5">
                 {expByCategory.map(t => {
                   const pct = periodExpTotal > 0 ? Math.round((t.total / periodExpTotal) * 100) : 0
@@ -759,159 +652,155 @@ export default function Dashboard() {
                         <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 font-medium">
                           <span>{t.icon}</span>{t.label}
                         </span>
-                        <span className="font-bold text-amber-600 dark:text-amber-400">
+                        <span className="font-semibold text-amber-600 dark:text-amber-400 tabular-nums">
                           Rs. {t.total.toLocaleString('en-IN')} <span className="text-slate-400 font-normal">({pct}%)</span>
                         </span>
                       </div>
                       <div className="h-1.5 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden">
                         <div className={`h-full rounded-full bg-gradient-to-r ${t.color}`}
-                          style={{ width: `${pct}%`, transition:'width .5s' }} />
+                          style={{ width: `${pct}%`, transition: 'width .5s' }} />
                       </div>
                     </div>
                   )
                 })}
               </div>
-            </div>
+            </Surface>
           )}
 
-          {/* Pending approval alert */}
           {pendingApprovals > 0 && (
-            <div className="flex items-center justify-between gap-3 bg-blue-50 dark:bg-blue-900/15 border border-blue-200 dark:border-blue-800/30 rounded-2xl px-4 py-3 mt-3">
-              <div className="flex items-center gap-2.5">
-                <Receipt size={15} className="text-blue-600 dark:text-blue-400 flex-shrink-0" />
-                <p className="text-sm font-bold text-blue-700 dark:text-blue-400">
-                  {pendingApprovals} expense{pendingApprovals!==1?'s':''} awaiting your approval
-                </p>
-              </div>
-              <button onClick={() => navigate('/expenses')}
-                className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all active:scale-95 shadow-md flex-shrink-0">
-                Review
-              </button>
-            </div>
+            <Callout
+              className="mt-3"
+              tone="blue"
+              icon={Receipt}
+              title={`${pendingApprovals} expense${pendingApprovals!==1?'s':''} awaiting your approval`}
+              actionLabel="Review"
+              onAction={() => navigate('/expenses')}
+            />
           )}
-        </div>
+        </section>
       )}
 
       {/* ── Attendance strip ── */}
       {can('attendance') && (
-        <div className="glass-card rounded-2xl p-4">
+        <Surface>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <CalendarCheck size={16} className="text-navy-700 dark:text-blue-400" />
-              <p className="text-sm font-bold text-slate-700 dark:text-slate-200">Today's Attendance</p>
+              <CalendarCheck size={16} className="text-blue-600 dark:text-blue-400" />
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Today's Attendance</p>
             </div>
             <span className="text-xs text-slate-400 dark:text-slate-500">
               {new Date().toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short' })}
             </span>
           </div>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {[
-              { label:'Present',  value: presentCount, dot:'bg-emerald-500', text:'text-emerald-600 dark:text-emerald-400' },
-              { label:'Absent',   value: absentCount,  dot:'bg-red-500',     text:'text-red-600 dark:text-red-400' },
-              { label:'On Leave', value: todayAttendance.filter(a=>a.status==='leave').length,    dot:'bg-amber-500', text:'text-amber-600 dark:text-amber-400' },
-              { label:'Half Day', value: todayAttendance.filter(a=>a.status==='half-day').length, dot:'bg-blue-500',  text:'text-blue-600 dark:text-blue-400' },
+              { label: 'Present',  value: presentCount, dot: 'bg-emerald-500' },
+              { label: 'Absent',   value: absentCount,  dot: 'bg-red-500' },
+              { label: 'On Leave', value: todayAttendance.filter(a => a.status === 'leave').length,    dot: 'bg-amber-500' },
+              { label: 'Half Day', value: todayAttendance.filter(a => a.status === 'half-day').length, dot: 'bg-blue-500' },
             ].map(s => (
-              <div key={s.label} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3 text-center">
-                <div className="flex items-center justify-center gap-1 mb-1"><span className={`w-2 h-2 rounded-full ${s.dot}`} /></div>
-                <p className={`text-xl font-display font-black ${s.text}`}>{s.value}</p>
+              <div key={s.label} className="bg-slate-500/5 dark:bg-white/5 rounded-xl p-3 text-center">
+                <div className="flex items-center justify-center mb-1"><span className={`w-2 h-2 rounded-full ${s.dot}`} /></div>
+                <p className="font-sf text-xl font-semibold text-slate-900 dark:text-white tabular-nums">{s.value}</p>
                 <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{s.label}</p>
               </div>
             ))}
           </div>
-        </div>
+        </Surface>
       )}
 
       {/* ── Charts ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {can('revenueDashboard') ? (
-          <div className="glass-card rounded-2xl p-5">
+          <Surface>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{period === 'year' ? 'Yearly Fare' : 'Monthly Fare'}</p>
-                <p className="text-lg font-display font-black text-slate-800 dark:text-white">{trendTitle}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">{period === 'year' ? 'Yearly Fare' : 'Monthly Fare'}</p>
+                <p className="font-sf text-[17px] font-semibold text-slate-900 dark:text-white">{trendTitle}</p>
               </div>
               <span className="badge badge-active">{period === 'year' ? periodYear : trendData[trendData.length - 1]?.month}</span>
             </div>
-            <BarChart data={trendData} />
-            <div className="mt-3 pt-3 border-t border-slate-100 dark:border-navy-700 flex justify-between text-xs text-slate-500 dark:text-slate-400">
+            <SparkChart data={trendData} valueKey="fare" labelKey="month" />
+            <div className="mt-3 pt-3 border-t ap-hairline flex justify-between text-xs text-slate-500 dark:text-slate-400">
               <span>Total ({periodTagCap})</span>
-              <span className="font-bold text-blue-600 dark:text-blue-400">Rs. {periodFare.toLocaleString('en-IN')}</span>
+              <span className="font-semibold text-blue-600 dark:text-blue-400 tabular-nums">Rs. {periodFare.toLocaleString('en-IN')}</span>
             </div>
-          </div>
+          </Surface>
         ) : can('trips') ? (
-          <div className="glass-card rounded-2xl p-5">
+          <Surface>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Trip Volume</p>
-                <p className="text-lg font-display font-black text-slate-800 dark:text-white">6-month trend</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">Trip Volume</p>
+                <p className="font-sf text-[17px] font-semibold text-slate-900 dark:text-white">6-month trend</p>
               </div>
               <span className="badge badge-active">{monthlyTrips[monthlyTrips.length - 1]?.month}</span>
             </div>
-            <BarChart data={monthlyTrips} format={v => `${v} trip${v !== 1 ? 's' : ''}`} />
-            <div className="mt-3 pt-3 border-t border-slate-100 dark:border-navy-700 flex justify-between text-xs text-slate-500 dark:text-slate-400">
+            <SparkChart data={monthlyTrips} valueKey="fare" labelKey="month" accent="#0d9488"
+              format={v => `${v} trip${v !== 1 ? 's' : ''}`} />
+            <div className="mt-3 pt-3 border-t ap-hairline flex justify-between text-xs text-slate-500 dark:text-slate-400">
               <span>Total (6 mo.)</span>
-              <span className="font-bold text-blue-600 dark:text-blue-400">{tripTotal} trips</span>
+              <span className="font-semibold text-blue-600 dark:text-blue-400 tabular-nums">{tripTotal} trips</span>
             </div>
-          </div>
+          </Surface>
         ) : (
           <AccessBlocked label="Revenue Chart" />
         )}
 
         {can('profitReports') ? (
-          <div className="glass-card rounded-2xl p-5 flex flex-col">
+          <Surface className="flex flex-col">
             <div className="mb-4">
-              <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Profit Breakdown</p>
-              <p className="text-lg font-display font-black text-slate-800 dark:text-white">Income vs Costs{' '}
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">Profit Breakdown</p>
+              <p className="font-sf text-[17px] font-semibold text-slate-900 dark:text-white">Income vs Costs{' '}
                 <span className="badge badge-active align-middle text-[10px]">{periodTagCap}</span>
               </p>
             </div>
-            <div className="flex-1 flex items-center justify-center">
+            <div className="flex-1 flex items-center justify-center py-2">
               <div className="relative">
                 <DonutRing pct={periodFare > 0 ? Math.round((periodNet / periodFare) * 100) : 0} color={periodNet >= 0 ? '#10b981' : '#f43f5e'} />
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <p className="text-xl font-display font-black text-slate-800 dark:text-white">{periodFare > 0 ? Math.min(100, Math.max(0, Math.round((periodNet / periodFare) * 100))) : 0}%</p>
+                  <p className="font-sf text-2xl font-semibold text-slate-900 dark:text-white tabular-nums">{periodFare > 0 ? Math.min(100, Math.max(0, Math.round((periodNet / periodFare) * 100))) : 0}%</p>
                   <p className="text-[10px] text-slate-400">margin {periodTag}</p>
                 </div>
               </div>
             </div>
             <div className="mt-3 space-y-2">
               {[
-                { label:'Trip Revenue', amt:periodFare, color:'bg-emerald-500'    },
-                { label:'Net Income',   amt:periodNet,  color: periodNet >= 0 ? 'bg-emerald-500' : 'bg-rose-500' },
-                { label:'Expenses',     amt:periodExpTotal,  color:'bg-rose-500'   },
+                { label:'Trip Revenue', amt:periodFare,     color:'bg-emerald-500' },
+                { label:'Net Income',   amt:periodNet,      color: periodNet >= 0 ? 'bg-emerald-500' : 'bg-rose-500' },
+                { label:'Expenses',     amt:periodExpTotal, color:'bg-rose-500' },
               ].map(r => (
                 <div key={r.label} className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2"><div className={`w-2.5 h-2.5 rounded-full ${r.color}`} /><span className="text-slate-500 dark:text-slate-400">{r.label}</span></div>
-                  <span className="font-bold text-slate-700 dark:text-slate-200">Rs. {r.amt.toLocaleString('en-IN')}</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-200 tabular-nums">Rs. {r.amt.toLocaleString('en-IN')}</span>
                 </div>
               ))}
             </div>
-          </div>
+          </Surface>
         ) : attentionItems.length > 0 ? (
-          <div className="glass-card rounded-2xl p-5 flex flex-col">
+          <Surface className="flex flex-col">
             <div className="mb-4">
-              <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Needs Attention</p>
-              <p className="text-lg font-display font-black text-slate-800 dark:text-white">Action queue</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">Needs Attention</p>
+              <p className="font-sf text-[17px] font-semibold text-slate-900 dark:text-white">Action queue</p>
             </div>
             <div className="flex-1 space-y-2">
               {attentionItems.map(item => (
                 <button key={item.label} onClick={() => navigate(item.to)}
-                  className="w-full flex items-center justify-between gap-2 rounded-xl border border-slate-100 dark:border-navy-700 bg-slate-50/60 dark:bg-navy-800/40 px-3.5 py-2.5 text-left hover:shadow-md active:scale-[0.99] transition-all min-h-[44px]">
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{item.label}</span>
-                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400 flex-shrink-0">Review →</span>
+                  className="w-full flex items-center justify-between gap-2 rounded-xl border ap-hairline bg-slate-500/5 dark:bg-white/5 px-3.5 py-2.5 text-left hover:bg-slate-500/10 dark:hover:bg-white/10 active:scale-[0.99] transition-all min-h-[44px]">
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{item.label}</span>
+                  <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 flex-shrink-0">Review →</span>
                 </button>
               ))}
             </div>
-          </div>
+          </Surface>
         ) : (
           <AccessBlocked label="Profit Reports" />
         )}
 
         {/* Driver pay — always visible */}
-        <div className="glass-card rounded-2xl p-5">
+        <Surface>
           <div className="mb-4">
-            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Driver Stats</p>
-            <p className="text-lg font-display font-black text-slate-800 dark:text-white">Pay summary</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">Driver Stats</p>
+            <p className="font-sf text-[17px] font-semibold text-slate-900 dark:text-white">Pay summary</p>
           </div>
           <div className="space-y-4">
             {drivers.length === 0 && (
@@ -926,11 +815,11 @@ export default function Dashboard() {
                   <div className="flex items-center gap-2.5 mb-1.5">
                     <Avatar name={d.name} size={28} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{d.name}</p>
+                      <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">{d.name}</p>
                       <p className="text-[10px] text-slate-400">{driverTrips.length} trips</p>
                     </div>
                     {can('financialAnalytics') && (
-                      <p className="text-xs font-bold text-red-500">Rs. {driverCost.toLocaleString('en-IN')}</p>
+                      <p className="text-xs font-semibold text-red-500 tabular-nums">Rs. {driverCost.toLocaleString('en-IN')}</p>
                     )}
                   </div>
                   <div className="h-1.5 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden">
@@ -941,23 +830,20 @@ export default function Dashboard() {
               )
             })}
             {drivers.length > 5 && (
-              <button onClick={() => navigate('/drivers')} className="mt-3 text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
+              <button onClick={() => navigate('/drivers')} className="mt-3 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
                 +{drivers.length - 5} more drivers →
               </button>
             )}
           </div>
-        </div>
+        </Surface>
       </div>
 
       {/* ── Live Fleet Board ── */}
       {(isAdmin || isManager) && (
-        <div>
-          <div className="mb-3">
-            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Operations</p>
-            <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">Live Fleet</h3>
-          </div>
+        <section>
+          <SectionHeader className="mb-3" eyebrow="Operations" title="Live Fleet" />
           <LiveFleetBoard />
-        </div>
+        </section>
       )}
 
       {/* ── Fleet Alerts ── */}
@@ -966,85 +852,68 @@ export default function Dashboard() {
         const criticalCount = activeAlerts.filter(a => a.priority === 'critical').length
         const highCount = activeAlerts.filter(a => a.priority === 'high').length
         return (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between mb-1">
-            <div>
-              <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Fleet Alerts</p>
-              <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">
-                Active Alerts{' '}
-                <span className="text-xs font-bold text-slate-400 dark:text-slate-500 align-middle">({activeAlerts.length})</span>
-              </h3>
-            </div>
-            <button onClick={() => navigate('/fleet')}
-              className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors flex-shrink-0">
-              View All →
-            </button>
-          </div>
+        <section className="space-y-4">
+          <SectionHeader
+            eyebrow="Fleet Alerts"
+            title={`Active Alerts (${activeAlerts.length})`}
+            action={
+              <button onClick={() => navigate('/fleet')}
+                className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors flex-shrink-0">
+                View All →
+              </button>
+            }
+          />
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {[
-              { label: 'Critical Alerts', value: criticalCount, icon: XCircle, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-900/20' },
-              { label: 'High Priority', value: highCount, icon: AlertTriangle, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20' },
-              { label: 'Total Active', value: activeAlerts.length, icon: Zap, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-            ].map(s => (
-              <div key={s.label} className="ios-card p-3.5 flex items-center gap-3">
-                <div className={`w-9 h-9 rounded-[13px] ${s.bg} flex items-center justify-center flex-shrink-0`}>
-                  <s.icon size={16} className={s.color} />
-                </div>
-                <div className="min-w-0">
-                  <p className={`text-xl font-display font-black leading-none ${s.color}`}>{s.value}</p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">{s.label}</p>
-                </div>
-              </div>
-            ))}
+            <MiniStat icon={XCircle}       tone="red"   value={criticalCount}      label="Critical Alerts" />
+            <MiniStat icon={AlertTriangle} tone="amber" value={highCount}          label="High Priority" />
+            <MiniStat icon={Zap}           tone="blue"  value={activeAlerts.length} label="Total Active" />
           </div>
           {/* Recent Alerts List */}
-          <div className="glass-card rounded-2xl p-4">
+          <Surface>
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-bold text-slate-700 dark:text-slate-200">Recent Alerts</p>
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Recent Alerts</p>
               <button onClick={() => navigate('/fleet')}
-                className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors flex-shrink-0">
+                className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors flex-shrink-0">
                 View All
               </button>
             </div>
             {activeAlerts.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-slate-500 dark:text-slate-400">No active alerts</p>
-              </div>
+              <EmptyState icon={CheckCircle} title="No active alerts" description="The fleet is reporting clear." />
             ) : (
               <div className="space-y-2.5">
                 {activeAlerts.slice(0, 5).map((alert, index) => {
                   const priority = alert?.priority || 'medium'
                   const priorityLabel = priority.charAt(0).toUpperCase() + priority.slice(1)
+                  const tone = priority === 'critical' ? 'red' : priority === 'high' ? 'amber' : 'blue'
                   const detected = alert?.detected_at ? new Date(alert.detected_at) : null
                   const detectedLabel = detected && !Number.isNaN(detected.getTime())
                     ? `${detected.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} ${detected.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`
                     : '--'
                   return (
-                  <div key={alert?.id || index} className={`border-l-4 ${priority === 'critical' ? 'border-red-500' : priority === 'high' ? 'border-amber-500' : 'border-blue-500'} px-3 py-2.5 rounded-r-xl rounded-l-sm bg-slate-50 dark:bg-navy-800/40`}>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">
-                          {alert?.title || 'Fleet alert'}
-                        </p>
-                        <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate font-mono">
-                          {alert?.vehicle_id ? `Vehicle ${String(alert.vehicle_id).slice(-6)}` : 'Unknown Vehicle'}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${priority === 'critical' ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' : priority === 'high' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300'}`}>
-                          {priorityLabel}
-                        </span>
-                        <span className="text-[10px] text-slate-400 dark:text-slate-500 whitespace-nowrap">
-                          {detectedLabel}
-                        </span>
+                    <div key={alert?.id || index} className={`border-l-2 ${priority === 'critical' ? 'border-red-500' : priority === 'high' ? 'border-amber-500' : 'border-blue-500'} px-3 py-2.5 rounded-r-xl rounded-l-sm bg-slate-500/5 dark:bg-white/5`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">
+                            {alert?.title || 'Fleet alert'}
+                          </p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate font-mono">
+                            {alert?.vehicle_id ? `Vehicle ${String(alert.vehicle_id).slice(-6)}` : 'Unknown Vehicle'}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <StatusPill tone={tone}>{priorityLabel}</StatusPill>
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500 whitespace-nowrap tabular-nums">
+                            {detectedLabel}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )})}
+                  )
+                })}
               </div>
             )}
-          </div>
-        </div>
+          </Surface>
+        </section>
         )
       })()}
 
@@ -1053,48 +922,44 @@ export default function Dashboard() {
         const recentActivity = loadRecentActivity(5)
         if (recentActivity.length === 0) return null
         return (
-          <div>
-            <div className="mb-3">
-              <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Audit Trail</p>
-              <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">Recent Activity</h3>
-            </div>
-            <div className="glass-card rounded-2xl overflow-hidden">
-              <div className="divide-y divide-slate-100 dark:divide-navy-700/60">
+          <section>
+            <SectionHeader className="mb-3" eyebrow="Audit Trail" title="Recent Activity" />
+            <Surface padded={false} className="overflow-hidden">
+              <div className="divide-y ap-hairline">
                 {recentActivity.map(ev => (
                   <div key={ev.id} className="flex items-center gap-3 px-4 py-2.5">
-                    <span className="text-base flex-shrink-0">{ev.icon}</span>
+                    <span className="text-base flex-shrink-0" aria-hidden="true">{ev.icon}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{ev.label}</p>
+                      <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">{ev.label}</p>
                       {ev.description && <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{ev.description}</p>}
                     </div>
                     <span className="text-[10px] text-slate-400 dark:text-slate-500 flex-shrink-0">{fmtAuditTime(ev.timestamp)}</span>
                   </div>
                 ))}
               </div>
-            </div>
-          </div>
+            </Surface>
+          </section>
         )
       })()}
 
-      {/* ── Recent trips table ── */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Recent Activity</p>
-            <h3 className="font-display font-black text-slate-800 dark:text-white text-lg">Latest Trips</h3>
-          </div>
-          <Button icon={FileText} variant="outline" size="sm" onClick={() => navigate('/trips')}>View All</Button>
-        </div>
+      {/* ── Latest Trips ── */}
+      <section>
+        <SectionHeader
+          className="mb-3"
+          eyebrow="Recent Activity"
+          title="Latest Trips"
+          action={<Button icon={FileText} variant="outline" size="sm" onClick={() => navigate('/trips')}>View All</Button>}
+        />
         {/* Desktop table */}
-        <div className="glass-card rounded-2xl overflow-hidden hidden md:block">
+        <Surface padded={false} className="overflow-hidden hidden md:block">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-100 dark:border-navy-700 bg-slate-50/80 dark:bg-navy-800/50">
+                <tr className="border-b ap-hairline bg-slate-500/5 dark:bg-white/5">
                   {['Customer','Route','Driver','KM',
                     ...(can('revenueDashboard') ? ['Fare','Net'] : []),
                     'Status'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-[0.06em] whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -1107,22 +972,23 @@ export default function Dashboard() {
                   </tr>
                 )}
                 {recentTrips.map(t => (
-                  <tr key={t.id} className="border-b border-slate-50 dark:border-navy-800 hover:bg-blue-50/40 dark:hover:bg-navy-800/50 transition-colors cursor-pointer" onClick={() => navigate('/trips', { state: { tripId: t.id } })}>
+                  <tr key={t.id} className="border-b ap-hairline last:border-0 hover:bg-slate-500/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                      onClick={() => navigate('/trips', { state: { tripId: t.id } })}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
                         <Avatar name={t.customer} size={28} />
                         <div>
-                          <p className="text-xs font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">{t.customer}</p>
-                          <p className="text-[10px] text-slate-400">{t.date}</p>
+                          <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">{t.customer}</p>
+                          <p className="text-[10px] text-slate-400 tabular-nums">{t.date}</p>
                         </div>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">{t.source} <span className="text-slate-300 dark:text-slate-500 mx-1">→</span> {t.destination}</td>
                     <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">{t.driver}</td>
-                    <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">{t.km} km</td>
+                    <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300 tabular-nums">{t.km} km</td>
                     {can('revenueDashboard') && <>
-                      <td className="px-4 py-3 text-xs font-bold text-navy-800 dark:text-blue-300 whitespace-nowrap">Rs. {t.fare.toLocaleString('en-IN')}</td>
-                      <td className="px-4 py-3 text-xs font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">Rs. {t.net.toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-3 text-xs font-semibold text-slate-900 dark:text-white whitespace-nowrap tabular-nums">Rs. {t.fare.toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-3 text-xs font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap tabular-nums">Rs. {t.net.toLocaleString('en-IN')}</td>
                     </>}
                     <td className="px-4 py-3"><Badge status={t.status} /></td>
                   </tr>
@@ -1130,41 +996,41 @@ export default function Dashboard() {
               </tbody>
             </table>
           </div>
-        </div>
+        </Surface>
         {/* Mobile cards — stacked, no horizontal slider */}
         <div className="md:hidden space-y-2.5">
           {recentTrips.length === 0 && (
-            <div className="glass-card rounded-[20px] px-4 py-8 text-center text-xs text-slate-400 dark:text-slate-500">
-              No trips yet. Create your first booking from Trips.
-            </div>
+            <Surface className="text-center py-8">
+              <p className="text-xs text-slate-400 dark:text-slate-500">No trips yet. Create your first booking from Trips.</p>
+            </Surface>
           )}
           {recentTrips.map(t => (
-            <div key={t.id} onClick={() => navigate('/trips', { state: { tripId: t.id } })}
-              className="ios-card ios-press p-3.5 cursor-pointer">
+            <button key={t.id} onClick={() => navigate('/trips', { state: { tripId: t.id } })}
+              className="ap-surface ios-press p-3.5 cursor-pointer w-full text-left">
               <div className="flex items-center gap-2.5 mb-2">
                 <Avatar name={t.customer} size={32} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{t.customer}</p>
-                  <p className="text-[11px] text-slate-400 dark:text-slate-500">{t.date} · {t.km} km</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{t.customer}</p>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 tabular-nums">{t.date} · {t.km} km</p>
                 </div>
                 <Badge status={t.status} />
               </div>
               <p className="text-xs text-slate-600 dark:text-slate-300 leading-snug">
                 {t.source} <span className="text-slate-300 dark:text-slate-500 mx-0.5">→</span> {t.destination}
               </p>
-              <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-white/5">
+              <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t ap-hairline">
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{t.driver}</p>
                 {can('revenueDashboard') && (
-                  <p className="text-xs font-extrabold text-slate-900 dark:text-white tabular-nums flex-shrink-0">
+                  <p className="text-xs font-semibold text-slate-900 dark:text-white tabular-nums flex-shrink-0">
                     Rs. {t.fare.toLocaleString('en-IN')}{' '}
                     <span className="text-emerald-600 dark:text-emerald-400">· Rs. {t.net.toLocaleString('en-IN')}</span>
                   </p>
                 )}
               </div>
-            </div>
+            </button>
           ))}
         </div>
-      </div>
+      </section>
     </div>
   )
 }

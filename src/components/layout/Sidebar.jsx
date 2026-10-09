@@ -3,9 +3,9 @@ import {
   LayoutDashboard, FileText, Users, Receipt,
   User, Car, Settings, ChevronLeft, ChevronRight,
   MapPin, Phone, Globe, LogOut, Navigation,
-  History, List, Route, Signal, CalendarCheck, IndianRupee, BarChart2, Database, UserCog,
+  History, List, Route, Signal, CalendarCheck, IndianRupee, BarChart2, UserCog,
   FolderOpen, ClipboardList, MessageSquare,
-  Shield, HardDrive, Activity, Lock,
+  Shield, HardDrive,
 } from 'lucide-react'
 import { useApp }  from '../../context/AppContext'
 import { useAuth, ROLE_LABELS, ROLE_COLORS } from '../../context/AuthContext'
@@ -44,20 +44,24 @@ const NAV_ITEMS = [
 const BOTTOM_ITEMS = [
   { to: '/admin/users',           label: 'User Accounts',   icon: UserCog,  roles: ['admin','manager'] },
   { to: '/admin/roles',           label: 'Roles & Perms',   icon: Shield,   roles: ['admin'] },
-  { to: '/admin/security',        label: 'Security',         icon: Lock,     roles: ['admin'] },
-  { to: '/admin/health',          label: 'System Health',    icon: Activity, roles: ['admin'] },
   { to: '/admin/backup',          label: 'Backup Manager',   icon: HardDrive,roles: ['admin'] },
-  { to: '/admin/database-status', label: 'Database Status',  icon: Database, roles: ['admin'] },
   // Day 32: GPS provider configuration
   { to: '/fleet/settings',        label: 'GPS Settings',     icon: Navigation, roles: ['admin'] },
   { to: '/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
 ]
 
-function NavItem({ to, label, icon: Icon, collapsed }) {
+// Longest match wins, so nested routes (e.g. /fleet/settings) highlight
+// only their own entry — never the parent (/fleet) at the same time.
+function matchLen(to, pathname) {
+  if (to === '/') return pathname === '/' ? Infinity : -1
+  if (pathname === to) return to.length + 1
+  return pathname.startsWith(to + '/') ? to.length : -1
+}
+function NavItem({ to, label, icon: Icon, collapsed, active }) {
   const location = useLocation()
-  const isActive = to === '/'
+  const isActive = active ?? (to === '/'
     ? location.pathname === '/'
-    : location.pathname === to || location.pathname.startsWith(to + '/')
+    : location.pathname === to || location.pathname.startsWith(to + '/'))
 
   return (
     <NavLink to={to} title={collapsed ? label : undefined}
@@ -86,6 +90,14 @@ function SidebarInner({ collapsed }) {
   })
   const visibleBottom = BOTTOM_ITEMS.filter(i => i.roles.includes(user?.role))
 
+  // Longest route match wins — nested pages highlight one entry only.
+  const location = useLocation()
+  const activeTo = [...visibleNav, ...visibleBottom].reduce((best, i) => {
+    const a = matchLen(best, location.pathname)
+    const b = matchLen(i.to, location.pathname)
+    return b > a ? i.to : best
+  }, null)
+
   return (
     <div className="flex flex-col h-full relative">
       {/* Brand */}
@@ -110,13 +122,13 @@ function SidebarInner({ collapsed }) {
           </p>
         )}
         {visibleNav.map(item => (
-          <NavItem key={item.to + item.label} {...item} collapsed={collapsed} />
+          <NavItem key={item.to + item.label} {...item} collapsed={collapsed} active={item.to === activeTo} />
         ))}
         {visibleBottom.length > 0 && (
           <>
             {!collapsed && <p className="text-white/25 text-[10px] font-bold uppercase tracking-widest px-3 mt-5 mb-2">System</p>}
             {collapsed && <div className="my-3 border-t border-white/10" />}
-            {visibleBottom.map(item => <NavItem key={item.to} {...item} collapsed={collapsed} />)}
+            {visibleBottom.map(item => <NavItem key={item.to} {...item} collapsed={collapsed} active={item.to === activeTo} />)}
           </>
         )}
       </nav>
@@ -181,13 +193,13 @@ export default function Sidebar() {
   const { collapsed, sidebarOpen, setSidebarOpen } = useApp()
   return (
     <>
-      <aside className={`hidden lg:flex flex-col glass-sidebar flex-shrink-0 transition-all duration-300 ease-in-out relative ${collapsed ? 'w-[72px]' : 'w-[260px]'}`}>
+      <aside className={`static-rail hidden lg:flex flex-col glass-sidebar flex-shrink-0 transition-all duration-300 ease-in-out relative ${collapsed ? 'w-[72px]' : 'w-[260px]'}`}>
         <SidebarInner collapsed={collapsed} />
       </aside>
       {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
+        <div className="mobile-backdrop fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-[260px] glass-sidebar flex flex-col lg:hidden transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`mobile-drawer fixed inset-y-0 left-0 z-50 w-[260px] glass-sidebar flex flex-col lg:hidden transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <SidebarInner collapsed={false} />
       </aside>
     </>

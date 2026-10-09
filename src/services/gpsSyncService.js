@@ -117,8 +117,57 @@ async function _syncNowInner() {
   }
   const t0 = performance.now()
   state.health.lastPoll = new Date().toISOString()
-  const { ok, snapshots, error, mock } = await state.provider.fetchFleet()
+  // Multi-account poll: CY may live under different company_id/user_id
+  // than DF/VF. Each account is fetched with the shared vendor slot
+  // (quota-safe) and snapshots are merged, latest fix winning per device.
+  const settings = state.settings || {}
+  const accounts = [{ label: 'Primary', company_id: settings.company_id || '', user_id: settings.user_id || '' }]
+  const extras = Array.isArray(settings.gps_accounts) ? settings.gps_accounts : []
+  extras.forEach((a, i) => {
+    if (a && (a.company_id || a.user_id)) {
+      accounts.push({ label: a.label || `Account ${i + 2}`, company_id: a.company_id || '', user_id: a.user_id || '' })
+    }
+  })
+  let snapshots = [], mock = false
+  const accountResults = []
+  let firstError = null
+  for (const acct of accounts) {
+    await waitForVendorSlot()
+    const inst = accounts.length === 1
+      ? state.provider
+      : createGpsProvider(state.providerName, { ...settings, company_id: acct.company_id, user_id: acct.user_id })
+    let r
+    try {
+      r = await inst.fetchFleet()
+    } catch (err) {
+      r = { ok: false, error: err?.message ?? 'Network error', snapshots: [] }
+    }
+    accountResults.push({
+      label: acct.label,
+      rows: Array.isArray(r.snapshots) ? r.snapshots.length : 0,
+      error: r.ok ? null : (r.error || 'fetch failed'),
+    })
+    if (r.ok && Array.isArray(r.snapshots) && r.snapshots.length) {
+      snapshots.push(...r.snapshots)
+      if (r.mock) mock = true
+    } else if (!r.ok && !firstError) {
+      firstError = `${acct.label}: ${r.error || 'fetch failed'}`
+    }
+  }
+  // Dedupe across accounts: same device (reg/IMEI) → keep newest fix.
+  const seen = new Map()
+  snapshots.forEach(s => {
+    const key = (s.imei && String(s.imei).trim()) || `reg:${normalizeReg(s.registration)}`
+    const prev = seen.get(key)
+    if (!prev || new Date(s.timestamp) > new Date(prev.timestamp)) seen.set(key, s)
+  })
+  snapshots = [...seen.values()]
   state.health.responseTimeMs = Math.round(performance.now() - t0)
+  state.health.accountResults = accountResults
+  // Fetch-level success = at least one account answered, even with zero
+  // rows (empty fleet is valid — handled below, never a backoff).
+  const ok = accountResults.some(a => !a.error)
+  const error = ok ? null : firstError
 
   if (!ok) {
     state.health.ok = false; state.health.lastError = error || 'fetch failed'
@@ -364,9 +413,10 @@ async function _bootstrapProvider() {
       })
     } catch {}
   }
-  if (!settings.enabled) { state.provider = null; state.providerName = settings.provider; return null }
+  if (!settings.enabled) { state.provider = null; state.providerName = settings.provider; state.settings = settings; return null }
   state.providerName = settings.provider
   state.provider     = createGpsProvider(settings.provider, settings)
+  state.settings     = settings
   state.intervalMs   = Math.max(5_000, Number(settings.refresh_interval ?? 60) * 1000)
 
   // Initialize geofence service when GPS provider is initialized

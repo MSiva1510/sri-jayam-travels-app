@@ -1,5 +1,6 @@
+import { gpsSyncService } from '../services/gpsSyncService'
 import { useState, useEffect } from 'react'
-import { Save, Navigation, RefreshCw, CheckCircle, AlertTriangle, ShieldCheck, Loader2 } from 'lucide-react'
+import { Save, Navigation, RefreshCw, CheckCircle, AlertTriangle, ShieldCheck, Loader2, Plus, Trash2, X } from 'lucide-react'
 import Button     from '../components/ui/Button'
 import PageHeader from '../components/ui/PageHeader'
 import { gpsSettingsRepository, GPS_DEFAULT_SETTINGS, SENSITIVE_KEYS } from '../repositories/gpsSettingsRepository'
@@ -52,6 +53,78 @@ function Field({ label, name, value, onChange, type = 'text', options, rows = 3,
         <input type={inputType} className={cls} value={value} onChange={e => onChange(name, e.target.value)} />
       )}
       {help && <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{help}</p>}
+    </div>
+  )
+}
+
+// ── Extra vendor accounts (CY under different creds than DF/VF) ─
+// Each account is polled with the shared vendor slot and merged.
+function VendorAccountsCard({ cfg, setCfg }) {
+  const [testing, setTesting] = useState(null)
+  const [results, setResults] = useState({})
+  const accounts = Array.isArray(cfg.gps_accounts) ? cfg.gps_accounts : []
+  const setAccounts = (list) => setCfg(c => ({ ...c, gps_accounts: list }))
+  const upd = (i, k, v) => setAccounts(accounts.map((a, j) => j === i ? { ...a, [k]: v } : a))
+  const add = () => setAccounts([...accounts, { label: `Account ${accounts.length + 2}`, company_id: '', user_id: '' }])
+  const remove = (i) => {
+    setAccounts(accounts.filter((_, j) => j !== i))
+    setResults(prev => { const n = { ...prev }; delete n[i]; return n })
+  }
+  const test = async (i) => {
+    const a = accounts[i]
+    if (!a?.company_id && !a?.user_id) return
+    setTesting(i); setResults(prev => ({ ...prev, [i]: null }))
+    try {
+      const provider = createGpsProvider(cfg.provider, { ...cfg, enabled: true, company_id: a.company_id, user_id: a.user_id })
+      await gpsSyncService.waitForVendorSlot()
+      const r = await provider.healthCheck()
+      setResults(prev => ({ ...prev, [i]: r }))
+    } catch (err) {
+      setResults(prev => ({ ...prev, [i]: { ok: false, error: err?.message ?? 'Test failed' } }))
+    } finally {
+      setTesting(null)
+    }
+  }
+  const inp = 'w-full px-2.5 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none'
+  return (
+    <div className="glass-card rounded-2xl p-5">
+      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Vendor Accounts</p>
+      <p className="text-[11px] text-slate-400 mt-0.5 mb-3">
+        Primary account above, plus any extra KingsTrack logins (e.g. CY under different company/user IDs). All accounts poll each cycle with shared rate-limiting and merge into one fleet.
+      </p>
+      <div className="space-y-2">
+        {accounts.map((a, i) => {
+          const r = results[i]
+          return (
+            <div key={i} className="rounded-xl border border-slate-200 dark:border-navy-700 p-3 space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <input value={a.label || ''} onChange={e => upd(i, 'label', e.target.value)} placeholder="Label" aria-label="Account label" className={inp} />
+                <input value={a.company_id || ''} onChange={e => upd(i, 'company_id', e.target.value)} placeholder="Company ID" aria-label="Company ID" className={inp} />
+                <input value={a.user_id || ''} onChange={e => upd(i, 'user_id', e.target.value)} placeholder="User ID" aria-label="User ID" className={inp} />
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => test(i)} disabled={testing === i || (!a.company_id && !a.user_id)}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-navy-700 text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors disabled:opacity-50">
+                  {testing === i ? 'Testing…' : 'Test'}
+                </button>
+                <button onClick={() => remove(i)} title="Remove account" aria-label="Remove account"
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                  <Trash2 size={13} />
+                </button>
+                {r && (
+                  <span className={`text-[11px] font-bold ${r.ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
+                    {r.ok ? `Connected${r.latencyMs != null ? ` (${r.latencyMs} ms)` : ''}` : `Failed: ${r.error || 'connection failed'}`}
+                  </span>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <button onClick={add}
+        className="mt-3 flex items-center gap-1.5 px-3 py-2 rounded-xl border border-dashed border-slate-300 dark:border-navy-600 text-xs font-bold text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+        <Plus size={13} /> Add Account
+      </button>
     </div>
   )
 }
@@ -143,6 +216,7 @@ export default function FleetSettings() {
     setTestResult(null)
     try {
       const provider = createGpsProvider(cfg.provider, { ...cfg, enabled })
+      await gpsSyncService.waitForVendorSlot()
       const result = await provider.healthCheck()
       setTestResult(result)
     } catch (err) {
@@ -192,6 +266,8 @@ export default function FleetSettings() {
           <p className="text-sm font-medium">{toast}</p>
         </div>
       )}
+
+      <VendorAccountsCard cfg={cfg} setCfg={setCfg} />
 
       <SectionCard icon={Navigation} title="GPS Provider">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

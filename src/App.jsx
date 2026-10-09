@@ -28,10 +28,9 @@ const Vehicles          = lazy(() => import('./pages/Vehicles'))
 const Settings          = lazy(() => import('./pages/Settings'))
 const UserManagement    = lazy(() => import('./pages/admin/UserManagement'))
 const RoleManager       = lazy(() => import('./pages/admin/RoleManager'))
-const SystemHealth      = lazy(() => import('./pages/admin/SystemHealth'))
+
 const BackupManager     = lazy(() => import('./pages/admin/BackupManager'))
-const SecuritySettings  = lazy(() => import('./pages/admin/SecuritySettings'))
-const DatabaseStatus    = lazy(() => import('./pages/admin/DatabaseStatus'))
+
 const Attendance        = lazy(() => import('./pages/Attendance'))
 const Profile           = lazy(() => import('./pages/Profile'))
 const Payroll           = lazy(() => import('./pages/Payroll'))
@@ -113,12 +112,9 @@ export default function App() {
               {/* Day 33: GPS History + Route Replay */}
               <Route path="/gps-history"        element={<ProtectedRoute allowedRoles={['admin','manager']}><GpsHistory /></ProtectedRoute>} />
               <Route path="/gps-history/replay" element={<ProtectedRoute allowedRoles={['admin','manager']}><RouteReplay /></ProtectedRoute>} />
-              <Route path="/admin/database-status" element={<ProtectedRoute allowedRoles={['admin']}><DatabaseStatus /></ProtectedRoute>} />
               <Route path="/admin/users"           element={<ProtectedRoute allowedRoles={['admin','manager']}><UserManagement /></ProtectedRoute>} />
               <Route path="/admin/roles"           element={<ProtectedRoute allowedRoles={['admin']}><RoleManager /></ProtectedRoute>} />
-              <Route path="/admin/health"          element={<ProtectedRoute allowedRoles={['admin']}><SystemHealth /></ProtectedRoute>} />
               <Route path="/admin/backup"          element={<ProtectedRoute allowedRoles={['admin']}><BackupManager /></ProtectedRoute>} />
-              <Route path="/admin/security"        element={<ProtectedRoute allowedRoles={['admin']}><SecuritySettings /></ProtectedRoute>} />
 
               {/* Driver — single RideLifecycleProvider via DriverLayout */}
               <Route element={<DriverLayout />}>

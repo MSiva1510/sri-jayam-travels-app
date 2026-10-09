@@ -8,6 +8,23 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
+    <script>
+      // Apply the persisted theme before first paint to avoid a flash of
+      // the wrong appearance. Mirrors src/context/AppContext.jsx.
+      (function () {
+        try {
+          var mode = localStorage.getItem('sjt-theme-mode') || 'system';
+          var dark;
+          if (mode === 'dark') dark = true;
+          else if (mode === 'light') dark = false;
+          else dark = !!window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var root = document.documentElement;
+          if (dark) root.classList.add('dark');
+          else root.classList.remove('dark');
+        } catch (e) {}
+      })();
+    </script>
+    <style>html{background:#f4f6fa}html.dark{background:#0b1018}</style>
   </head>
   <body>
     <div id="root"></div>

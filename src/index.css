@@ -7,7 +7,81 @@
     --sidebar-width: 260px;
     --sidebar-collapsed: 72px;
     --topbar-height: 60px;
+    --sjt-theme: #0a1230;
+    --sjt-brand: #2563eb;
+    --sjt-sb: var(--sjt-theme);
+
+    color-scheme: light;
+
+    /* ── Semantic appearance tokens (Apple-inspired) ─────────────
+       Single source of truth for the ap-* primitives. Runtime
+       overrides (Settings → Appearance) keep --sjt-brand / --sjt-theme
+       winning, so the brand feature stays intact. */
+    --ap-bg:            #f4f6fa;
+    --ap-surface:       #ffffff;
+    --ap-surface-2:     #edf1f6;
+    --ap-surface-elev:  #ffffff;
+    --ap-text-1:        #142238;
+    --ap-text-2:        #526176;
+    --ap-text-3:        #77869a;
+    --ap-border:        #dce3ec;
+    --ap-border-strong: #cfd8e4;
+    --ap-accent:        var(--sjt-brand);
+    --ap-accent-2:      #1258b4;
+    --ap-success:       #087f5b;
+    --ap-warning:       #a85d00;
+    --ap-danger:        #c62836;
+    --ap-info:          #1769d2;
+    --ap-link:          #1769d2;
+
+    /* Typography scale */
+    --ap-d-1: 32px;   --ap-d-2: 30px;
+    --ap-h-1: 24px;   --ap-h-2: 22px;
+    --ap-h-3: 20px;   --ap-t-1: 18px;
+    --ap-t-2: 17px;   --ap-b: 15px;
+    --ap-b-s: 14px;   --ap-table: 13px;
+    --ap-cap: 12px;   --ap-cap-s: 11px;
+
+    /* Radii */
+    --ap-radius-card:   16px;
+    --ap-radius-shell:  18px;
+    --ap-radius-dialog: 20px;
+    --ap-radius-btn:    12px;
+    --ap-radius-ctl:    10px;
+
+    /* Motion (ms) */
+    --ap-motion-press:    120ms;
+    --ap-motion-hover:    180ms;
+    --ap-motion-dropdown: 180ms;
+    --ap-motion-dialog:   200ms;
+    --ap-motion-sidebar:  220ms;
+    --ap-motion-toast:    200ms;
   }
+  .dark {
+    color-scheme: dark;
+
+    --ap-bg:            #0b1018;
+    --ap-surface:       #121a26;
+    --ap-surface-2:     #202c3d;
+    --ap-surface-elev:  #1b2636;
+    --ap-text-1:        #f2f5fa;
+    --ap-text-2:        #b1bdce;
+    --ap-text-3:        #8997ab;
+    --ap-border:        #2b384a;
+    --ap-border-strong: #38465a;
+    --ap-accent:        var(--sjt-brand);
+    --ap-accent-2:      #5694fa;
+    --ap-success:       #55d6a5;
+    --ap-warning:       #ffc46b;
+    --ap-danger:        #ff858b;
+    --ap-info:          #83b9ff;
+    --ap-link:          #76adff;
+  }
+  /* Primary color (Settings → Appearance): themes the main-area
+     primary accents — tabs, tiles, buttons, selected states. */
+  .bg-blue-600 { background-color: var(--sjt-brand) !important; }
+  .border-blue-600 { border-color: var(--sjt-brand) !important; }
+  .text-blue-600 { color: var(--sjt-brand) !important; }
   html, body, #root {
     height: 100%;
     margin: 0;
@@ -15,6 +89,7 @@
   }
   body {
   overflow-x: hidden;
+  background: var(--ap-bg);
   }
   html { scroll-behavior: smooth; }
   body { font-family: 'DM Sans', system-ui, sans-serif; }
@@ -23,6 +98,15 @@
   ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
   ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
   .dark ::-webkit-scrollbar-thumb { background: #334155; }
+  /* Global reduced-motion: collapse speculative transitions/animations. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @layer components {
@@ -40,7 +124,7 @@
   }
 
   .glass-sidebar {
-    background: rgba(8,15,42,0.97);
+    background: linear-gradient(180deg, var(--sjt-sb, var(--sjt-theme)) 0%, rgba(8,15,42,0.97) 135%);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-right: 1px solid rgba(255,255,255,0.07);
@@ -163,10 +247,20 @@
     text-decoration: none;
   }
   .nav-item-active {
-    background: rgba(255,255,255,0.14);
+    background: color-mix(in srgb, var(--sjt-brand) 20%, rgba(255,255,255,0.10));
     color: #ffffff;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.1);
   }
+  /* Minimal sidebar: static rail hidden, hamburger reveals overlay drawer */
+  body.sb-minimal aside.static-rail { display: none !important; }
+  body.sb-minimal .app-menu-btn { display: flex !important; }
+  body.sb-minimal aside.mobile-drawer { display: flex !important; }
+  body.sb-minimal .mobile-backdrop { display: block !important; }
+  /* Compact density (Settings → Appearance) */
+  body.compact table th { padding-top: 0.4rem !important; padding-bottom: 0.4rem !important; }
+  body.compact table td { padding-top: 0.4rem !important; padding-bottom: 0.4rem !important; font-size: 0.72rem !important; }
+  body.compact .glass-card { border-radius: 14px !important; }
+  /* Text size is set inline on <html> by AppContext (12–24px). */
   .nav-item-inactive {
     color: rgba(255,255,255,0.48);
   }
@@ -207,6 +301,109 @@
   .dark .badge-pending     { background: rgba(234,179,8,0.18);  color: #fde047; }
   .dark .badge-active      { background: rgba(59,130,246,0.18); color: #93c5fd; }
   .dark .badge-maintenance { background: rgba(239,68,68,0.18);  color: #fca5a5; }
+
+  /* ── Apple-inspired primitives (additive; namespaced ap-* so no
+     existing page is affected). SF-style stack, neutral surfaces with
+     hairline borders, restrained single-hue accents, macOS controls. ── */
+  .font-sf {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
+                 'Segoe UI', 'Helvetica Neue', system-ui, sans-serif;
+  }
+  .ap-surface {
+    background: color-mix(in srgb, var(--ap-surface) 86%, transparent);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border: 1px solid color-mix(in srgb, var(--ap-border) 92%, transparent);
+    border-radius: var(--ap-radius-shell);
+    box-shadow:
+      0 1px 2px rgba(15,23,42,0.04),
+      0 10px 30px -14px rgba(15,23,42,0.14);
+  }
+  .dark .ap-surface {
+    background: color-mix(in srgb, var(--ap-surface) 62%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ap-border) 90%, transparent);
+    box-shadow:
+      0 1px 2px rgba(0,0,0,0.4),
+      0 12px 34px -16px rgba(0,0,0,0.6);
+  }
+  .ap-surface-elevated {
+    background: color-mix(in srgb, var(--ap-surface-elev) 92%, transparent);
+    box-shadow:
+      0 2px 4px rgba(15,23,42,0.06),
+      0 18px 48px -18px rgba(15,23,42,0.22);
+  }
+  .dark .ap-surface-elevated {
+    background: color-mix(in srgb, var(--ap-surface-elev) 85%, transparent);
+    box-shadow:
+      0 2px 4px rgba(0,0,0,0.5),
+      0 22px 56px -20px rgba(0,0,0,0.75);
+  }
+  .ap-hairline   { border-color: color-mix(in srgb, var(--ap-border) 90%, transparent); }
+  .dark .ap-hairline { border-color: color-mix(in srgb, var(--ap-border) 78%, transparent); }
+
+  /* macOS segmented control */
+  .ap-seg {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    border-radius: 10px;
+    background: rgba(120,120,128,0.14);
+  }
+  .dark .ap-seg { background: rgba(120,120,128,0.26); }
+  .ap-seg-btn {
+    padding: 0.3rem 0.7rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #3c3c43;
+    transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+    white-space: nowrap;
+  }
+  .dark .ap-seg-btn { color: rgba(255,255,255,0.62); }
+  .ap-seg-btn:hover:not(.ap-seg-active) { color: #0b1020; }
+  .dark .ap-seg-btn:hover:not(.ap-seg-active) { color: #fff; }
+  .ap-seg-active {
+    background: #ffffff;
+    color: #0b1020;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.14);
+  }
+  .dark .ap-seg-active {
+    background: rgba(255,255,255,0.18);
+    color: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+  }
+  .ap-seg-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--sjt-brand) 35%, transparent);
+  }
+  /* Consistent focus ring for interactive ap surfaces */
+  .ap-focus:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--sjt-brand) 35%, transparent);
+  }
+  /* macOS-style text field / select (Apple material gray, token text) */
+  .ap-field {
+    background: rgba(118,118,128,0.12);
+    border: 1px solid rgba(118,118,128,0.16);
+    border-radius: var(--ap-radius-ctl);
+    color: var(--ap-text-1);
+  }
+  .dark .ap-field {
+    background: rgba(118,118,128,0.18);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: var(--ap-text-1);
+  }
+  .ap-field::placeholder { color: rgba(60,60,67,0.55); }
+  .dark .ap-field::placeholder { color: rgba(255,255,255,0.42); }
+  .ap-field:focus {
+    outline: none;
+    border-color: color-mix(in srgb, var(--sjt-brand) 55%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--sjt-brand) 18%, transparent);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ap-seg-btn { transition: none; }
+  }
 }
 
 @layer utilities {
