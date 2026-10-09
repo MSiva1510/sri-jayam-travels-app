@@ -10,6 +10,15 @@ import {
 import PageHeader   from '../components/ui/PageHeader'
 import Avatar       from '../components/ui/Avatar'
 import ModalOverlay from '../components/ui/ModalOverlay'
+import Button       from '../components/ui/Button'
+import SectionHeader from '../components/ui/SectionHeader'
+import SegmentedControl from '../components/ui/SegmentedControl'
+import MetricCard   from '../components/ui/MetricCard'
+import StatusPill   from '../components/ui/StatusPill'
+import Callout      from '../components/ui/Callout'
+import EmptyState   from '../components/ui/EmptyState'
+import IconButton   from '../components/ui/IconButton'
+import { fieldCls, Select as FieldSelect, Textarea as FieldTextarea } from '../components/ui/Field'
 import { useAuth }  from '../context/AuthContext'
 import {
   TRIP_TYPE_CONFIG, TRIP_TYPE_LIST, BOOKING_STATUSES,
@@ -41,14 +50,14 @@ function buildWhatsAppUrl(booking, messageType = 'assigned') {
 }
 
 // ── Shared primitives ─────────────────────────────────────────
+const STATUS_TONE = {
+  draft:'gray', pending:'amber', approved:'violet', confirmed:'violet',
+  assigned:'blue', started:'amber', completed:'green', closed:'gray', cancelled:'red',
+}
+const STATUS_PULSE = { pending:true, started:true }
 function StatusBadge({ status }) {
   const cfg = getStatusCfg(status)
-  return (
-    <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${cfg.badge}`}>
-      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${cfg.dot}`} />
-      {cfg.label}
-    </span>
-  )
+  return <StatusPill tone={STATUS_TONE[status] || 'gray'} pulse={!!STATUS_PULSE[status]}>{cfg.label}</StatusPill>
 }
 function TypeBadge({ type }) {
   const cfg = TRIP_TYPE_CONFIG[type]; if (!cfg) return null
@@ -59,7 +68,7 @@ function AvailDot({ avail, cfgMap }) {
   return <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.badge}`}><span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />{cfg.label}</span>
 }
 function FieldLabel({ children, required }) {
-  return <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wide">{children}{required && <span className="text-red-500 ml-1">*</span>}</label>
+  return <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5 uppercase tracking-wide">{children}{required && <span className="text-red-500 ml-1">*</span>}</label>
 }
 function Input({ value, onChange, placeholder, type = 'text', required, field }) {
   const handleChange = e => {
@@ -70,13 +79,10 @@ function Input({ value, onChange, placeholder, type = 'text', required, field })
     onChange({ target: { value: v } })
   }
   return <input type={type} value={value} onChange={handleChange} placeholder={placeholder} required={required}
-    className="w-full px-3 py-2.5 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 placeholder-slate-300 dark:placeholder-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500/25 focus:border-navy-400 transition-all font-body" />
+    className={fieldCls} />
 }
 function Select({ value, onChange, children, required }) {
-  return <select value={value} onChange={onChange} required={required}
-    className="w-full px-3 py-2.5 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500/25 focus:border-navy-400 transition-all font-body appearance-none">
-    {children}
-  </select>
+  return <FieldSelect value={value} onChange={onChange} required={required}>{children}</FieldSelect>
 }
 function Grid2({ children }) { return <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{children}</div> }
 
@@ -129,14 +135,14 @@ function BookingModal({ booking, onClose, onSave, userName }) {
 
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="relative w-full sm:w-[520px] max-h-[92vh] sm:max-h-[85vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
-        <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 mb-1 sm:hidden flex-shrink-0" />
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-navy-700 flex-shrink-0">
+      <div className="relative w-full sm:w-[520px] max-h-[92vh] sm:max-h-[85vh] ap-surface rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
+        <div className="w-10 h-1 bg-slate-500/20 rounded-full mx-auto mt-3 mb-1 sm:hidden flex-shrink-0" />
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--ap-border)] flex-shrink-0">
           <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{isEdit ? 'Edit Booking' : 'New Booking'}</p>
-            <h3 className="font-display font-black text-slate-800 dark:text-white text-base">{isEdit ? form.bookingNo : 'Create Booking'}</h3>
+            <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{isEdit ? 'Edit Booking' : 'New Booking'}</p>
+            <h3 className="font-sf font-semibold text-slate-900 dark:text-white text-base tracking-tight">{isEdit ? form.bookingNo : 'Create Booking'}</h3>
           </div>
-          <button onClick={onClose} aria-label="Close booking form" className="min-w-[36px] min-h-[36px] w-9 h-9 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700 active:scale-95 transition-all"><X size={16} /></button>
+          <IconButton icon={X} label="Close booking form" size={16} onClick={onClose} className="w-9 h-9 rounded-xl bg-slate-500/10" />
         </div>
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
           <Grid2>
@@ -145,12 +151,12 @@ function BookingModal({ booking, onClose, onSave, userName }) {
               <Input value={form.customer} onChange={e=>handleCustomerChange(e.target.value)} placeholder="Full name or company" required field="customer" />
               {errors.customer && <p className="text-xs text-red-500 mt-1">{errors.customer}</p>}
               {showSugg && (
-                <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white dark:bg-navy-800 border border-slate-200 dark:border-navy-700 rounded-xl shadow-xl overflow-hidden">
+                <div className="absolute z-50 top-full left-0 right-0 mt-1 ap-surface-elevated border border-[var(--ap-border)] rounded-xl shadow-xl overflow-hidden">
                   {suggestions.map(c => (
                     <button key={c.id} type="button" onClick={() => selectCustomer(c)}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors text-left">
-                      <div className="w-7 h-7 rounded-full bg-navy-100 dark:bg-navy-700 flex items-center justify-center flex-shrink-0 text-xs font-bold text-navy-700 dark:text-blue-300">{(c.name??'').charAt(0)}</div>
-                      <div className="min-w-0"><p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{c.name}</p><p className="text-[10px] text-slate-400">{c.mobile||'—'}</p></div>
+                      className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-[var(--ap-surface-2)] transition-colors text-left">
+                      <div className="w-7 h-7 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0 text-xs font-semibold text-blue-600 dark:text-blue-400">{(c.name??'').charAt(0)}</div>
+                      <div className="min-w-0"><p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{c.name}</p><p className="text-[10px] text-slate-500 dark:text-slate-400">{c.mobile||'—'}</p></div>
                     </button>
                   ))}
                 </div>
@@ -213,15 +219,14 @@ function BookingModal({ booking, onClose, onSave, userName }) {
           </Grid2>
           <div>
             <FieldLabel>Notes</FieldLabel>
-            <textarea value={form.notes} onChange={e=>upd({notes:e.target.value})} placeholder="Special instructions, passenger count…" rows={2}
-              className="w-full px-3 py-2.5 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 placeholder-slate-300 dark:placeholder-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500/25 resize-none transition-all" />
+            <FieldTextarea value={form.notes} onChange={e=>upd({notes:e.target.value})} placeholder="Special instructions, passenger count…" rows={2} />
           </div>
         </div>
-        <div className="px-5 py-4 border-t border-slate-100 dark:border-navy-700 flex gap-2 flex-shrink-0">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">Cancel</button>
-          <button onClick={handleSave} className="flex-1 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-sm font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-md active:scale-95">
+        <div className="px-5 py-4 border-t border-[var(--ap-border)] flex gap-2 flex-shrink-0">
+          <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" className="flex-1" onClick={handleSave}>
             {isEdit ? 'Save Changes' : 'Create Booking'}
-          </button>
+          </Button>
         </div>
       </div>
     </ModalOverlay>
@@ -237,15 +242,15 @@ function AssignModal({ booking, bookings, drivers, vehicles, onClose, onAssign }
   const canAssign = driver && vehicle
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="relative w-full sm:w-[440px] max-h-[90vh] sm:max-h-[85vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
-        <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-navy-700 flex-shrink-0">
+      <div className="relative w-full sm:w-[440px] max-h-[90vh] sm:max-h-[85vh] ap-surface rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
+        <div className="w-10 h-1 bg-slate-500/20 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--ap-border)] flex-shrink-0">
           <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Assign Trip</p>
-            <h3 className="font-display font-black text-slate-800 dark:text-white text-base">{booking.bookingNo}</h3>
+            <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Assign Trip</p>
+            <h3 className="font-sf font-semibold text-slate-900 dark:text-white text-base tracking-tight">{booking.bookingNo}</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">{booking.customer} · {booking.startDate}</p>
           </div>
-          <button onClick={onClose} aria-label="Close assign dialog" className="min-w-[36px] min-h-[36px] w-9 h-9 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700 active:scale-95 transition-all"><X size={16} /></button>
+          <IconButton icon={X} label="Close assign dialog" size={16} onClick={onClose} className="w-9 h-9 rounded-xl bg-slate-500/10" />
         </div>
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
           <div>
@@ -255,11 +260,11 @@ function AssignModal({ booking, bookings, drivers, vehicles, onClose, onAssign }
                 const canSelect = d.avail === 'available'; const isSel = driver === d.name
                 return (
                   <button key={d.id} disabled={!canSelect} onClick={() => canSelect && setDriver(d.name)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all text-left ${isSel?'border-navy-400 bg-navy-50 dark:bg-navy-800 ring-2 ring-navy-400/30':canSelect?'border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/40 hover:bg-slate-50 dark:hover:bg-navy-800':'border-slate-100 dark:border-navy-800 bg-slate-50 dark:bg-navy-900 opacity-50 cursor-not-allowed'}`}>
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all text-left ${isSel?'border-blue-500/60 bg-blue-500/10 ring-2 ring-blue-500/25':canSelect?'border-[var(--ap-border)] bg-[var(--ap-surface)] hover:bg-[var(--ap-surface-2)]':'border-transparent bg-slate-500/5 opacity-50 cursor-not-allowed'}`}>
                     <Avatar name={d.name} size={30} />
-                    <div className="flex-1 min-w-0"><p className="text-sm font-bold text-slate-700 dark:text-slate-200">{d.name}</p><p className="text-[10px] text-slate-400">{d.vehicle}</p></div>
+                    <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{d.name}</p><p className="text-[10px] text-slate-500 dark:text-slate-400">{d.vehicle}</p></div>
                     <AvailDot avail={d.avail} cfgMap={DRIVER_AVAIL_CFG} />
-                    {isSel && <CheckCircle size={15} className="text-navy-600 dark:text-blue-400 flex-shrink-0" />}
+                    {isSel && <CheckCircle size={15} className="text-blue-600 dark:text-blue-400 flex-shrink-0" />}
                   </button>
                 )
               })}
@@ -272,23 +277,22 @@ function AssignModal({ booking, bookings, drivers, vehicles, onClose, onAssign }
                 const canSelect = v.avail === 'available'; const isSel = vehicle === v.reg
                 return (
                   <button key={v.id} disabled={!canSelect} onClick={() => canSelect && setVehicle(v.reg)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all text-left ${isSel?'border-navy-400 bg-navy-50 dark:bg-navy-800 ring-2 ring-navy-400/30':canSelect?'border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/40 hover:bg-slate-50 dark:hover:bg-navy-800':'border-slate-100 dark:border-navy-800 bg-slate-50 dark:bg-navy-900 opacity-50 cursor-not-allowed'}`}>
-                    <div className="w-8 h-8 rounded-lg bg-navy-100 dark:bg-navy-800 flex items-center justify-center flex-shrink-0"><Car size={15} className="text-navy-700 dark:text-blue-400" /></div>
-                    <div className="flex-1 min-w-0"><p className="text-sm font-bold text-slate-700 dark:text-slate-200 font-mono">{v.reg}</p><p className="text-[10px] text-slate-400">{v.type} · {v.model}</p></div>
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all text-left ${isSel?'border-blue-500/60 bg-blue-500/10 ring-2 ring-blue-500/25':canSelect?'border-[var(--ap-border)] bg-[var(--ap-surface)] hover:bg-[var(--ap-surface-2)]':'border-transparent bg-slate-500/5 opacity-50 cursor-not-allowed'}`}>
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0"><Car size={15} className="text-blue-600 dark:text-blue-400" /></div>
+                    <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-slate-700 dark:text-slate-200 font-mono">{v.reg}</p><p className="text-[10px] text-slate-500 dark:text-slate-400">{v.type} · {v.model}</p></div>
                     <AvailDot avail={v.avail} cfgMap={VEHICLE_AVAIL_CFG} />
-                    {isSel && <CheckCircle size={15} className="text-navy-600 dark:text-blue-400 flex-shrink-0" />}
+                    {isSel && <CheckCircle size={15} className="text-blue-600 dark:text-blue-400 flex-shrink-0" />}
                   </button>
                 )
               })}
             </div>
           </div>
         </div>
-        <div className="px-5 py-4 border-t border-slate-100 dark:border-navy-700 flex gap-2 flex-shrink-0">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">Cancel</button>
-          <button onClick={() => onAssign({ driver, vehicle })} disabled={!canAssign}
-            className="flex-1 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-sm font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-md active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed">
+        <div className="px-5 py-4 border-t border-[var(--ap-border)] flex gap-2 flex-shrink-0">
+          <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" className="flex-1" disabled={!canAssign} onClick={() => onAssign({ driver, vehicle })}>
             Confirm Assignment
-          </button>
+          </Button>
         </div>
       </div>
     </ModalOverlay>
@@ -303,20 +307,20 @@ function BookingTimeline({ bookingId }) {
     setLoading(true)
     loadTimeline(bookingId).then(evts => { setEvents(evts); setLoading(false) })
   }, [bookingId])
-  if (loading) return <div className="flex items-center gap-2 text-xs text-slate-400 px-3 py-2"><div className="w-3 h-3 border border-slate-300 border-t-transparent rounded-full animate-spin" />Loading timeline…</div>
-  if (events.length === 0) return <p className="text-xs text-slate-400 dark:text-slate-500 px-1 py-2">No timeline events yet.</p>
+  if (loading) return <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 px-3 py-2"><div className="w-3 h-3 border border-slate-300 border-t-transparent rounded-full animate-spin" />Loading timeline…</div>
+  if (events.length === 0) return <p className="text-xs text-slate-500 dark:text-slate-400 px-1 py-2">No timeline events yet.</p>
   return (
     <div className="relative pl-5">
       <div className="absolute left-2 top-2 bottom-2 w-0.5 bg-slate-200 dark:bg-navy-700" />
       <div className="space-y-3">
         {events.map((ev, i) => (
           <div key={ev.id||i} className="relative flex items-start gap-3">
-            <div className={`absolute -left-3.5 w-3 h-3 rounded-full flex-shrink-0 mt-0.5 border-2 border-white dark:border-navy-900 ${ev.color||'bg-slate-400'}`} />
+            <div className={`absolute -left-3.5 w-3 h-3 rounded-full flex-shrink-0 mt-0.5 border-2 border-[var(--ap-surface-2)] ${ev.color||'bg-slate-400'}`} />
             <div className="flex-1 min-w-0 ml-1.5">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm">{ev.icon}</span>
                 <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{ev.label}</p>
-                <p className="text-[10px] text-slate-400">{fmtTimelineTime(ev.ts)}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">{fmtTimelineTime(ev.ts)}</p>
               </div>
               {ev.description && <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 ml-5">{ev.description}</p>}
             </div>
@@ -372,25 +376,22 @@ function WorkflowActions({ booking, onStatusChange, currentUser, canEdit }) {
   }
   return (
     <div className="space-y-2">
-      <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Workflow Actions</p>
+      <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Workflow Actions</p>
       <div className="flex gap-2 flex-wrap">
         {transitions.map(t => (
           <button key={t.to} onClick={() => handleClick(t)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-bold transition-colors ${TRANS_STYLES[t.color]||TRANS_STYLES.slate}`}>
+            className={`ap-focus flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-bold transition-colors ${TRANS_STYLES[t.color]||TRANS_STYLES.slate}`}>
             {t.label}
           </button>
         ))}
       </div>
       {showRemarks && (
-        <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3 space-y-2.5 border border-slate-200 dark:border-navy-700">
+        <div className="bg-[var(--ap-surface)] rounded-xl p-3 space-y-2.5 border border-[var(--ap-border)]">
           <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{pendingTrans?.label} — Remarks (optional)</p>
-          <textarea value={remarks} onChange={e=>setRemarks(e.target.value)} placeholder="Reason, note, or instructions…" rows={2}
-            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-navy-500/25 resize-none" />
+          <FieldTextarea value={remarks} onChange={e=>setRemarks(e.target.value)} placeholder="Reason, note, or instructions…" rows={2} />
           <div className="flex gap-2">
-            <button onClick={() => { setShowRemarks(false); setPendingTrans(null); setRemarks('') }}
-              className="flex-1 py-2 rounded-lg border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">Cancel</button>
-            <button onClick={confirmTransition}
-              className="flex-1 py-2 rounded-lg bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all active:scale-95">Confirm</button>
+            <Button variant="outline" size="sm" className="flex-1" onClick={() => { setShowRemarks(false); setPendingTrans(null); setRemarks('') }}>Cancel</Button>
+            <Button variant="primary" size="sm" className="flex-1" onClick={confirmTransition}>Confirm</Button>
           </div>
         </div>
       )}
@@ -405,10 +406,10 @@ function RouteHistoryModal({ booking, onClose }) {
   const histEntry= loadGPSHistory().find(h => h.tripId === booking.id)
   return (
     <ModalOverlay onClose={onClose} center>
-      <div className="w-full max-w-lg bg-white dark:bg-navy-900 rounded-3xl shadow-2xl overflow-hidden animate-fade-up" onClick={e=>e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-3.5 bg-slate-50 dark:bg-navy-800 border-b border-slate-200 dark:border-navy-700">
-          <div><p className="font-display font-black text-slate-800 dark:text-white text-sm">Route History</p><p className="text-[10px] text-slate-400 font-mono">{booking.bookingNo||booking.id}</p></div>
-          <button onClick={onClose} aria-label="Close route history" className="min-w-[36px] min-h-[36px] w-9 h-9 rounded-xl border border-slate-200 dark:border-navy-600 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-navy-700 active:scale-95 transition-all"><X size={16} /></button>
+      <div className="w-full max-w-lg ap-surface rounded-3xl shadow-2xl overflow-hidden animate-fade-up" onClick={e=>e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3.5 bg-[var(--ap-surface-2)] border-b border-[var(--ap-border)]">
+          <div><p className="font-sf font-semibold text-slate-900 dark:text-white text-sm tracking-tight">Route History</p><p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">{booking.bookingNo||booking.id}</p></div>
+          <IconButton icon={X} label="Close route history" size={16} onClick={onClose} className="w-9 h-9 rounded-xl bg-slate-500/10" />
         </div>
         <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
           {points.length === 0 && !histEntry ? (
@@ -418,16 +419,16 @@ function RouteHistoryModal({ booking, onClose }) {
           ) : (
             <div className="grid grid-cols-3 gap-3">
               <div className="bg-slate-50 dark:bg-navy-800/50 rounded-xl p-3 text-center">
-                <p className="text-lg font-display font-black text-navy-800 dark:text-blue-300">{histEntry?.distanceKm ?? distance} km</p>
-                <p className="text-[9px] text-slate-400 mt-0.5">Distance</p>
+                <p className="text-lg font-sf font-semibold text-slate-900 dark:text-white">{histEntry?.distanceKm ?? distance} km</p>
+                <p className="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5">Distance</p>
               </div>
               <div className="bg-slate-50 dark:bg-navy-800/50 rounded-xl p-3 text-center">
-                <p className="text-lg font-display font-black text-navy-800 dark:text-blue-300">{histEntry?.duration || '—'}</p>
-                <p className="text-[9px] text-slate-400 mt-0.5">Duration</p>
+                <p className="text-lg font-sf font-semibold text-slate-900 dark:text-white">{histEntry?.duration || '—'}</p>
+                <p className="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5">Duration</p>
               </div>
               <div className="bg-slate-50 dark:bg-navy-800/50 rounded-xl p-3 text-center">
-                <p className="text-lg font-display font-black text-navy-800 dark:text-blue-300">{histEntry?.routePoints??points.length}</p>
-                <p className="text-[9px] text-slate-400 mt-0.5">GPS Points</p>
+                <p className="text-lg font-sf font-semibold text-slate-900 dark:text-white">{histEntry?.routePoints??points.length}</p>
+                <p className="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5">GPS Points</p>
               </div>
             </div>
           )}
@@ -444,16 +445,16 @@ function BookingDetail({ booking, onEdit, onDelete, onAssign, onWhatsApp, canEdi
   const approvalHistory = Array.isArray(booking.approval_history) ? booking.approval_history : []
 
   return (
-    <div className="border-t border-slate-100 dark:border-navy-700 bg-slate-50/60 dark:bg-navy-800/30">
+    <div className="border-t border-[var(--ap-border)] bg-[var(--ap-surface-2)]">
       {showRoute && <RouteHistoryModal booking={booking} onClose={() => setShowRoute(false)} />}
 
       {/* Sub-tabs */}
       <div className="flex gap-1 px-4 pt-3">
         {[['info','ℹ Info'],['timeline','📅 Timeline'],['history','📋 History']].map(([key,lbl]) => (
           <button key={key} onClick={() => setDetailTab(key)}
-            className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+            className={`ap-focus px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
               detailTab===key
-                ? 'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow border border-slate-200 dark:border-navy-600'
+                ? 'ap-surface-elevated text-slate-900 dark:text-white shadow border border-[var(--ap-border)]'
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
             }`}>
             {lbl}
@@ -489,7 +490,7 @@ function BookingDetail({ booking, onEdit, onDelete, onAssign, onWhatsApp, canEdi
         {detailTab === 'info' && (
           <>
             {/* Route strip */}
-            <div className="flex items-stretch gap-3 bg-white dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700">
+            <div className="flex items-stretch gap-3 bg-[var(--ap-surface)] rounded-xl p-3 border border-[var(--ap-border)]">
               <div className="flex flex-col items-center gap-1 pt-0.5">
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0" />
                 <div className="flex-1 w-0.5 border-l border-dashed border-slate-300 dark:border-navy-600 min-h-[14px]" />
@@ -500,7 +501,7 @@ function BookingDetail({ booking, onEdit, onDelete, onAssign, onWhatsApp, canEdi
                 <div><p className="text-[9px] font-bold text-slate-400 uppercase">Drop</p><p className="text-xs font-semibold text-slate-700 dark:text-slate-200 leading-tight">{booking.drop||'—'}</p></div>
               </div>
               <div className="text-right flex-shrink-0">
-                {booking.fare > 0 && <p className="text-base font-black text-navy-800 dark:text-blue-300">Rs. {booking.fare.toLocaleString('en-IN')}</p>}
+                {booking.fare > 0 && <p className="text-base font-sf font-semibold text-slate-900 dark:text-white">Rs. {booking.fare.toLocaleString('en-IN')}</p>}
                 {booking.km   && <p className="text-[10px] text-slate-400">{booking.km} km</p>}
               </div>
             </div>
@@ -521,9 +522,9 @@ function BookingDetail({ booking, onEdit, onDelete, onAssign, onWhatsApp, canEdi
                 { label:'Vehicle',      value:booking.vehicle||'Not assigned' },
                 ...(booking.type==='round_trip'&&booking.returnDate?[{label:'Return',value:`${booking.returnDate} ${booking.returnTime||''}`.trim()}]:[]),
               ].map(d => (
-                <div key={d.label} className="bg-white dark:bg-navy-800/60 rounded-xl p-2.5 border border-slate-100 dark:border-navy-700">
-                  <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5">{d.label}</p>
-                  <p className={`text-xs font-bold leading-tight ${d.mono?'font-mono':''} text-slate-700 dark:text-slate-200`}>{d.value}</p>
+                <div key={d.label} className="bg-[var(--ap-surface)] rounded-xl p-2.5 border border-[var(--ap-border)]">
+                  <p className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">{d.label}</p>
+                  <p className={`text-xs font-semibold leading-tight ${d.mono?'font-mono':''} text-slate-700 dark:text-slate-200`}>{d.value}</p>
                 </div>
               ))}
             </div>
@@ -544,7 +545,7 @@ function BookingDetail({ booking, onEdit, onDelete, onAssign, onWhatsApp, canEdi
                 booking.driver ? (
                   <button onClick={() => onAssign(booking)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-blue-200 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-900/15 text-blue-700 dark:text-blue-400 text-xs font-bold hover:bg-blue-100 dark:hover:bg-blue-900/25 transition-colors"><UserCheck size={13} /> Change Driver</button>
                 ) : ['approved','confirmed','assigned'].includes(booking.status) ? (
-                  <button onClick={() => onAssign(booking)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all active:scale-95 shadow-md"><UserCheck size={13} /> Assign Driver</button>
+                  <Button icon={UserCheck} size="sm" onClick={() => onAssign(booking)}>Assign Driver</Button>
                 ) : null
               )}
               {canAssign && booking.driver && !['completed','cancelled','closed'].includes(booking.status) && (
@@ -569,9 +570,9 @@ function BookingDetail({ booking, onEdit, onDelete, onAssign, onWhatsApp, canEdi
 
 function InfoChip({ label, value }) {
   return (
-    <div className="bg-white dark:bg-navy-800/60 rounded-xl p-2.5 border border-slate-100 dark:border-navy-700">
-      <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5">{label}</p>
-      <p className="text-xs font-bold text-slate-700 dark:text-slate-200 leading-tight">{value||'—'}</p>
+    <div className="bg-[var(--ap-surface)] rounded-xl p-2.5 border border-[var(--ap-border)]">
+      <p className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">{label}</p>
+      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 leading-tight">{value||'—'}</p>
     </div>
   )
 }
@@ -607,10 +608,10 @@ function CalendarView({ bookings }) {
   const selCancelled = selTrips.filter(t => t.status === 'cancelled')
   const selLabel = selDay ? new Date(yr, mon, selDay).toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short', year:'numeric' }) : ''
   return (
-    <div className="glass-card rounded-2xl overflow-hidden md:flex-1 md:min-h-0 md:flex md:flex-col">
+    <div className="ap-surface rounded-2xl overflow-hidden md:flex-1 md:min-h-0 md:flex md:flex-col">
       <div className="flex items-center justify-between px-4 py-2 bg-slate-50/80 dark:bg-navy-800/60 border-b border-slate-100 dark:border-navy-700 md:shrink-0">
         <button onClick={prev} aria-label="Previous month" className="w-8 h-8 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors"><ChevronLeft size={15} /></button>
-        <p className="font-display font-black text-slate-800 dark:text-white text-sm tabular-nums">{MONTH_NAMES[mon]} {yr}</p>
+        <p className="font-sf font-semibold text-slate-900 dark:text-white text-sm tabular-nums">{MONTH_NAMES[mon]} {yr}</p>
         <button onClick={next} aria-label="Next month" className="w-8 h-8 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors"><ChevronRight size={15} /></button>
       </div>
       <div className="p-2 md:flex-1 md:min-h-0 md:flex md:flex-col">
@@ -628,7 +629,7 @@ function CalendarView({ bookings }) {
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelDay(day) } }}
                 aria-label={`${dateStr}${hasCal ? `, ${trips.length} trips` : ', no trips'}`}
                 title={hasCal ? `${trips.length} trip${trips.length!==1?'s':''} — tap for details` : 'No trips'}
-                className={`min-h-[44px] sm:min-h-[54px] md:min-h-0 md:overflow-hidden rounded-xl flex flex-col items-center justify-start pt-1 px-0.5 border transition-all cursor-pointer hover:shadow-md active:scale-[0.98] ${isToday?'bg-navy-900 dark:bg-blue-700 border-navy-700 dark:border-blue-500 shadow-lg':hasCal?'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/40':'border-slate-100 dark:border-navy-800 bg-transparent'}`}>
+                className={`ap-focus min-h-[44px] sm:min-h-[54px] md:min-h-0 md:overflow-hidden rounded-xl flex flex-col items-center justify-start pt-1 px-0.5 border transition-all cursor-pointer hover:shadow-md active:scale-[0.98] ${isToday?'bg-blue-600 border-blue-500 shadow-lg':hasCal?'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/40':'border-slate-100 dark:border-navy-800 bg-transparent'}`}>
                 <span className={`text-[11px] font-bold leading-none tabular-nums ${isToday?'text-white':hasCal?'text-emerald-700 dark:text-emerald-400':'text-slate-500 dark:text-slate-500'}`}>{day}</span>
                 {hasCal && !isToday && <div className="flex flex-wrap gap-0.5 mt-1 justify-center">{trips.slice(0,4).map((t,ti)=><span key={ti} className={`w-1.5 h-1.5 rounded-full ${getStatusCfg(t.status).dot.replace(' animate-pulse','')}`}/>)}</div>}
                 {hasCal && !isToday && trips.length > 1 && <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold tabular-nums">{trips.length}</span>}
@@ -642,7 +643,7 @@ function CalendarView({ bookings }) {
       {/* Day details popup */}
       {selDay && (
         <ModalOverlay onClose={() => setSelDay(null)} center>
-          <div className="w-[92vw] max-w-sm max-h-[75vh] flex flex-col rounded-[20px] bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-700 shadow-2xl overflow-hidden animate-fade-up" role="dialog" aria-modal="true" aria-label={`Trips on ${selLabel}`}>
+          <div className="w-[92vw] max-w-sm max-h-[75vh] flex flex-col rounded-[20px] ap-surface shadow-2xl overflow-hidden animate-fade-up" role="dialog" aria-modal="true" aria-label={`Trips on ${selLabel}`}>
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-navy-700">
               <div>
                 <p className="text-sm font-extrabold text-slate-800 dark:text-white leading-tight">{selLabel}</p>
@@ -663,7 +664,7 @@ function CalendarView({ bookings }) {
                   { label:'Cancelled', value:selCancelled.length, cls:'text-slate-400 dark:text-slate-500' },
                 ].map(s => (
                   <div key={s.label} className="rounded-xl bg-slate-50 dark:bg-navy-800/60 border border-slate-100 dark:border-navy-700 px-2 py-2 text-center">
-                    <p className={`text-lg font-display font-black tabular-nums ${s.cls}`}>{s.value}</p>
+                    <p className={`text-lg font-sf font-semibold tabular-nums ${s.cls}`}>{s.value}</p>
                     <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">{s.label}</p>
                   </div>
                 ))}
@@ -864,63 +865,41 @@ export default function Trips() {
         title={isDriver ? 'My Assigned Trips' : 'Bookings & Trips'}
         subtitle={isDriver ? 'Trips assigned to you' : `${counts.total} total bookings · operational center`}
         action={canCreate && (
-          <button onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white font-bold text-sm hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-lg active:scale-95">
-            <Plus size={15} /> New Booking
-          </button>
+          <Button icon={Plus} onClick={() => setShowCreate(true)}>New Booking</Button>
         )}
       />
 
       {loadError && (
-        <div className="bg-red-50 dark:bg-red-900/15 border border-red-200 dark:border-red-800/30 rounded-2xl p-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2"><AlertTriangle size={15} className="text-red-600 dark:text-red-400 flex-shrink-0" /><p className="text-sm font-bold text-red-700 dark:text-red-400">{loadError}</p></div>
-          <button onClick={reload} className="px-3 py-1.5 rounded-xl bg-red-500 hover:bg-red-400 text-white text-xs font-bold transition-all active:scale-95 shadow-md flex-shrink-0">Retry</button>
-        </div>
+        <Callout tone="red" icon={AlertTriangle} title={loadError} actionLabel="Retry" onAction={reload} />
       )}
 
-      {/* Summary pills — one row, no slider */}
+      {/* Summary tiles — tap to filter */}
       {!isDriver && (
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {[
-            { label:'Total',     value:counts.total,     color:'text-slate-700 dark:text-slate-200',     filter:'all'       },
-            { label:'Pending',   value:counts.pending,   color:'text-yellow-600 dark:text-yellow-400',   filter:'pending'   },
-            { label:'Assigned',  value:counts.assigned,  color:'text-blue-600 dark:text-blue-400',       filter:'assigned'  },
-            { label:'Completed', value:counts.completed, color:'text-emerald-600 dark:text-emerald-400', filter:'completed' },
-          ].map(s => {
-            const active = statusFilter === s.filter
-            return (
-            <div key={s.label} role="button" tabIndex={0} aria-pressed={active}
+            { label:'Total',     value:counts.total,     filter:'all',       icon:List,        tone:'gray'  },
+            { label:'Pending',   value:counts.pending,   filter:'pending',   icon:Clock,       tone:'amber' },
+            { label:'Assigned',  value:counts.assigned,  filter:'assigned',  icon:UserCheck,   tone:'blue'  },
+            { label:'Completed', value:counts.completed, filter:'completed', icon:CheckCircle, tone:'green' },
+          ].map(s => (
+            <MetricCard key={s.filter} icon={s.icon} tone={s.tone} label={s.label} value={s.value}
               onClick={() => { setStatusFilter(s.filter); setPage(1) }}
-              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setStatusFilter(s.filter); setPage(1) } }}
-              className={`rounded-xl px-2 py-2.5 text-center cursor-pointer transition-all ${active ? 'bg-white dark:bg-navy-700 shadow-md ring-2 ring-blue-500/40' : 'glass-card hover:shadow-md'}`}>
-              <p className={`text-xl font-display font-black tabular-nums leading-tight ${s.color}`}>{s.value}</p>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight mt-0.5">{s.label}</p>
-            </div>
-            )
-          })}
+              className={statusFilter === s.filter ? 'ring-2 ring-blue-500/40' : ''} />
+          ))}
         </div>
       )}
 
       {/* Tabs + type filter in one row */}
       {!isDriver && (
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1 w-fit" role="group" aria-label="Trips view">
-            {[
-              { key: 'list', label: 'List', Icon: List },
-              { key: 'calendar', label: 'Calendar', Icon: CalendarDays },
-            ].map(({ key, label, Icon }) => (
-              <button key={key} onClick={() => { setTab(key); setPage(1) }}
-                aria-pressed={tab === key}
-                className={`flex items-center gap-1.5 px-3.5 min-h-[32px] rounded-lg text-xs font-bold transition-all ${tab===key?'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow':'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
-                <Icon size={13} /> {label}
-              </button>
-            ))}
+          <SegmentedControl ariaLabel="Trips view" value={tab} onChange={k => { setTab(k); setPage(1) }}
+            options={[{ key:'list', label:'List', icon: List }, { key:'calendar', label:'Calendar', icon: CalendarDays }]} />
+          <div className="w-[150px]">
+            <FieldSelect value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setPage(1) }} aria-label="Filter by trip type">
+              <option value="all">All Types</option>
+              {TRIP_TYPE_LIST.map(t => <option key={t.id} value={t.id}>{t.icon} {t.label}</option>)}
+            </FieldSelect>
           </div>
-          <select value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setPage(1) }} aria-label="Filter by trip type"
-            className="px-3 min-h-[36px] text-xs font-bold rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
-            <option value="all">All Types</option>
-            {TRIP_TYPE_LIST.map(t => <option key={t.id} value={t.id}>{t.icon} {t.label}</option>)}
-          </select>
         </div>
       )}
 
@@ -946,7 +925,7 @@ export default function Trips() {
             <div className="space-y-2" role="status" aria-busy="true" aria-label="Loading trips">
               <span className="sr-only">Loading trips…</span>
               {[1, 2, 3, 4, 5].map(i => (
-                <div key={i} className="glass-card rounded-xl p-2.5 flex items-center gap-2.5" aria-hidden="true">
+                <div key={i} className="ap-surface rounded-xl p-2.5 flex items-center gap-2.5" aria-hidden="true">
                   <div className="skeleton w-8 h-8 rounded-[10px] flex-shrink-0" />
                   <div className="flex-1 space-y-1.5">
                     <div className="skeleton h-3.5 w-1/3 rounded" />
@@ -957,14 +936,10 @@ export default function Trips() {
               ))}
             </div>
           ) : filtered.length === 0 ? (
-            <div className="glass-card rounded-2xl p-12 text-center">
-              <Calendar size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-              <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">No bookings found</p>
-              {canCreate && (
-                <button onClick={() => setShowCreate(true)} className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 transition-all">
-                  <Plus size={13} /> Create First Booking
-                </button>
-              )}
+            <div className="ap-surface rounded-2xl">
+              <EmptyState icon={Calendar} title="No bookings found"
+                description="Create your first booking to get started."
+                action={canCreate ? <Button icon={Plus} size="sm" onClick={() => setShowCreate(true)}>Create First Booking</Button> : undefined} />
             </div>
           ) : (
             <div className="space-y-2">
@@ -972,7 +947,7 @@ export default function Trips() {
                 const isOpen  = expanded === booking.id
                 const typeCfg = TRIP_TYPE_CONFIG[booking.type]
                 return (
-                  <div key={booking.id} className="glass-card rounded-xl overflow-hidden hover:shadow-md transition-all duration-200">
+                  <div key={booking.id} className="ap-surface rounded-2xl overflow-hidden hover:shadow-md transition-all duration-200">
                     <div className={`h-0.5 bg-gradient-to-r ${typeCfg?.gradient||'from-slate-400 to-slate-500'}`} />
                     <div className="flex items-center gap-2.5 px-3 py-2 cursor-pointer select-none" onClick={() => setExpanded(isOpen ? null : booking.id)}>
                       <div className={`w-8 h-8 rounded-[10px] bg-gradient-to-br ${typeCfg?.gradient||'from-slate-400 to-slate-500'} flex items-center justify-center text-sm flex-shrink-0 shadow-sm`}>
@@ -980,8 +955,8 @@ export default function Trips() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <p className="font-bold text-slate-800 dark:text-white text-[13px] truncate">{booking.customer}</p>
-                          <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500 hidden sm:block flex-shrink-0">{booking.bookingNo}</p>
+                          <p className="font-sf font-semibold text-slate-900 dark:text-white text-[13px] truncate">{booking.customer}</p>
+                          <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400 hidden sm:block flex-shrink-0">{booking.bookingNo}</p>
                         </div>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate leading-tight mt-0.5">
                           {booking.pickup}{booking.drop ? ` → ${booking.drop}` : ''} · {booking.startDate}{booking.driver ? ` · ${booking.driver}` : ''}
@@ -989,8 +964,8 @@ export default function Trips() {
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <StatusBadge status={booking.status} />
-                        {booking.fare > 0 && <p className="text-[13px] font-black text-navy-800 dark:text-blue-300 tabular-nums whitespace-nowrap">Rs. {booking.fare.toLocaleString('en-IN')}</p>}
-                        {isOpen ? <ChevronUp size={13} className="text-slate-400 flex-shrink-0" /> : <ChevronDown size={13} className="text-slate-400 flex-shrink-0" />}
+                        {booking.fare > 0 && <p className="font-sf text-[13px] font-semibold text-slate-900 dark:text-white tabular-nums whitespace-nowrap">Rs. {booking.fare.toLocaleString('en-IN')}</p>}
+                        {isOpen ? <ChevronUp size={13} className="text-slate-500 dark:text-slate-400 flex-shrink-0" /> : <ChevronDown size={13} className="text-slate-500 dark:text-slate-400 flex-shrink-0" />}
                       </div>
                     </div>
                     {isOpen && (
@@ -1015,36 +990,36 @@ export default function Trips() {
 
           {/* Pagination — 5 cards per page (hidden while a row is open) */}
           {!loading && filtered.length > 0 && !expanded && (
-          <div className="glass-card rounded-2xl px-3 py-2 flex items-center justify-between gap-3 flex-wrap sticky bottom-3 z-10 shadow-lg">
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 tabular-nums">
+          <div className="ap-surface rounded-2xl px-3 py-2 flex items-center justify-between gap-3 flex-wrap sticky bottom-3 z-10 shadow-lg">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
               Page {safePage} of {totalPages} · {filtered.length} booking{filtered.length !== 1 ? 's' : ''}
             </p>
             <div className="flex items-center gap-1.5 flex-wrap">
               <button onClick={() => setPage(safePage - 1)} disabled={safePage <= 1}
                 aria-label="Previous page"
-                className="min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                className="ap-focus min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] border border-[var(--ap-border)] text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
                 ←
               </button>
               {pageItems.map((n, i) => n === '…'
-                ? <span key={`e${i}`} className="text-xs text-slate-400 px-1">…</span>
+                ? <span key={`e${i}`} className="text-xs text-slate-500 dark:text-slate-400 px-1">…</span>
                 : (
                   <button key={n} onClick={() => setPage(n)}
                     aria-label={`Go to page ${n}`}
                     aria-current={n === safePage ? 'page' : undefined}
-                    className={`min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] text-xs font-bold tabular-nums active:scale-95 transition-all ${
+                    className={`ap-focus min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] text-xs font-semibold tabular-nums active:scale-95 transition-all ${
                       n === safePage
-                        ? 'bg-navy-900 dark:bg-blue-600 text-white shadow'
-                        : 'border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700'
+                        ? 'bg-blue-600 text-white shadow'
+                        : 'border border-[var(--ap-border)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)]'
                     }`}>
                     {n}
                   </button>
                 ))}
               <button onClick={() => setPage(safePage + 1)} disabled={safePage >= totalPages}
                 aria-label="Next page"
-                className="min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                className="ap-focus min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] border border-[var(--ap-border)] text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
                 →
               </button>
-              <span className="text-[11px] text-slate-400 dark:text-slate-500 ml-1">Go to</span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 ml-1">Go to</span>
               <input
                 value={goPage}
                 onChange={e => setGoPage(e.target.value.replace(/[^0-9]/g, ''))}
@@ -1053,7 +1028,7 @@ export default function Trips() {
                 placeholder={String(totalPages)}
                 inputMode="numeric"
                 aria-label={`Go to page, 1 to ${totalPages}`}
-                className="w-14 min-h-[36px] rounded-[12px] border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 px-2 text-center text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500 tabular-nums"
+                className="w-14 min-h-[36px] rounded-[12px] border border-[var(--ap-border)] bg-[var(--ap-surface)] px-2 text-center text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500 tabular-nums"
               />
             </div>
           </div>
