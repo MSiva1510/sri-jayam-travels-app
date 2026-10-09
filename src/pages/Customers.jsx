@@ -3,11 +3,18 @@ import { useNavigate } from 'react-router-dom'
 import {
   Plus, Phone, MapPin, Edit2, Trash2,
   X, ChevronDown, ChevronUp, Building2,
-  FileText, Star, Repeat, Ban, Calendar, CheckCircle,
+  FileText, Star, Repeat, Ban, Calendar,
   AlertTriangle, User, Navigation,
 } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
 import Avatar     from '../components/ui/Avatar'
+import Button     from '../components/ui/Button'
+import MetricCard from '../components/ui/MetricCard'
+import Callout    from '../components/ui/Callout'
+import EmptyState from '../components/ui/EmptyState'
+import IconButton from '../components/ui/IconButton'
+import { fieldCls, Select as FieldSelect, Textarea as FieldTextarea } from '../components/ui/Field'
+import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../context/AuthContext'
 import {
   loadCustomers, saveCustomer, deleteCustomer, generateCustomerId,
@@ -177,7 +184,7 @@ function FormField({ label, field, type = 'text', required, placeholder, value, 
               ? 'text-red-500'
               : currentLength > maxLength * 0.7
               ? 'text-amber-500'
-              : 'text-slate-400 dark:text-slate-500'
+              : 'text-slate-500 dark:text-slate-400'
           }`}>
             {currentLength}/{maxLength}
           </span>
@@ -190,9 +197,7 @@ function FormField({ label, field, type = 'text', required, placeholder, value, 
         onChange={handleChange}
         maxLength={maxLength || undefined}
         required={required}
-        className={`w-full px-3 py-2 text-sm rounded-lg border bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100
-          focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition-all
-          ${error ? 'border-red-400 dark:border-red-600' : 'border-slate-200 dark:border-navy-700'}`}
+        className={`${fieldCls} ${error ? 'border-red-400 dark:border-red-500' : ''}`}
       />
       {error && (
         <div className="mt-1 flex items-start gap-1.5">
@@ -208,21 +213,20 @@ function FormField({ label, field, type = 'text', required, placeholder, value, 
 function FormSelect({ label, field, value, onChange, options }) {
   return (
     <div>
-      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">{label}</label>
-      <select
+      <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">{label}</label>
+      <FieldSelect
         value={value || ''}
         onChange={onChange}
-        className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none appearance-none"
       >
         {options.map(o => typeof o === 'string' ? <option key={o}>{o}</option> : <option key={o.key} value={o.key}>{o.label}</option>)}
-      </select>
+      </FieldSelect>
     </div>
   )
 }
 
 // ─ Section separator ─
 function FormSection({ title }) {
-  return <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest border-t border-slate-100 dark:border-navy-700 pt-3 mt-1">{title}</p>
+  return <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest border-t border-[var(--ap-border)] pt-3 mt-1">{title}</p>
 }
 
 function CustomerModal({ customer, onClose, onSave }) {
@@ -321,18 +325,16 @@ function CustomerModal({ customer, onClose, onSave }) {
 
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="relative w-full sm:w-[500px] max-h-[92vh] sm:max-h-[85vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
-        <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-navy-700 flex-shrink-0">
+      <div className="relative w-full sm:w-[500px] max-h-[92vh] sm:max-h-[85vh] ap-surface rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
+        <div className="w-10 h-1 bg-slate-500/20 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--ap-border)] flex-shrink-0">
           <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{isEdit ? 'Edit Customer' : 'Add Customer'}</p>
-            <h3 className="font-display font-black text-slate-800 dark:text-white text-base">
+            <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{isEdit ? 'Edit Customer' : 'Add Customer'}</p>
+            <h3 className="font-sf font-semibold text-slate-900 dark:text-white text-base tracking-tight">
               {isEdit ? form.name : 'New Customer'}
             </h3>
           </div>
-          <button onClick={onClose} aria-label="Close customer form" className="min-w-[36px] min-h-[36px] w-9 h-9 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700 active:scale-95 transition-all">
-            <X size={16} />
-          </button>
+          <IconButton icon={X} label="Close customer form" size={16} onClick={onClose} className="w-9 h-9 rounded-xl bg-slate-500/10" />
         </div>
 
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
@@ -455,51 +457,50 @@ function CustomerModal({ customer, onClose, onSave }) {
           <FormSection title="Notes" />
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+              <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                 Customer Notes
               </label>
               <span className={`text-[9px] font-semibold ${
-                form.notes.length > 270 ? 'text-red-500' : form.notes.length > 210 ? 'text-amber-500' : 'text-slate-400 dark:text-slate-500'
+                form.notes.length > 270 ? 'text-red-500' : form.notes.length > 210 ? 'text-amber-500' : 'text-slate-500 dark:text-slate-400'
               }`}>{form.notes.length}/300</span>
             </div>
-            <textarea
+            <FieldTextarea
               value={form.notes || ''}
               onChange={e => { let val = e.target.value; if (val.length > 300) val = val.slice(0,300); handleNotesChange({ target:{ value:val } }) }}
               placeholder="Preferred driver, vehicle, payment terms…"
               rows={3} maxLength={300}
-              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25 resize-none transition-all"
             />
           </div>
 
           {/* Emergency Contact */}
           <div>
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 mt-1">Emergency Contact</p>
+            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2 mt-1">Emergency Contact</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Contact Name</label>
+                <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Contact Name</label>
                 <input value={form.emergencyName||''} onChange={e=>upd({emergencyName:e.target.value})} placeholder="Family member / Friend"
-                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
+                  className={fieldCls} />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Mobile</label>
+                <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Mobile</label>
                 <input value={form.emergencyContact||''} onChange={e=>upd({emergencyContact:e.target.value.replace(/\D/g,'').slice(0,10)})} placeholder="10-digit mobile"
-                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
+                  className={fieldCls} />
               </div>
             </div>
           </div>
 
           {/* Customer Flags */}
           <div>
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 mt-1">Customer Flags</p>
+            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2 mt-1">Customer Flags</p>
             <div className="flex gap-2 flex-wrap">
               {[
-                { key:'isVip',               label:'⭐ VIP Customer',       on:'border-amber-400 bg-amber-50 dark:bg-amber-900/15 text-amber-700 dark:text-amber-300'  },
-                { key:'isFrequentTraveller', label:'🔁 Frequent Traveller', on:'border-blue-400 bg-blue-50 dark:bg-blue-900/15 text-blue-700 dark:text-blue-300'     },
-                { key:'isBlacklisted',       label:'🚫 Blacklisted',        on:'border-red-400 bg-red-50 dark:bg-red-900/15 text-red-700 dark:text-red-300'          },
+                { key:'isVip',               label:'⭐ VIP Customer',       on:'border-amber-400 bg-amber-500/10 text-amber-700 dark:text-amber-300'  },
+                { key:'isFrequentTraveller', label:'🔁 Frequent Traveller', on:'border-blue-400 bg-blue-500/10 text-blue-700 dark:text-blue-300'     },
+                { key:'isBlacklisted',       label:'🚫 Blacklisted',        on:'border-red-400 bg-red-500/10 text-red-700 dark:text-red-300'          },
               ].map(f => (
                 <button key={f.key} type="button" onClick={() => upd({ [f.key]: !form[f.key] })}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-bold transition-all ${
-                    form[f.key] ? `${f.on} ring-2 ring-offset-1 ring-current/30` : 'border-slate-200 dark:border-navy-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-navy-800'
+                  className={`ap-focus flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-bold transition-all ${
+                    form[f.key] ? `${f.on} ring-2 ring-current/30` : 'border-[var(--ap-border)] text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)]'
                   }`}>
                   {f.label}
                 </button>
@@ -508,13 +509,9 @@ function CustomerModal({ customer, onClose, onSave }) {
           </div>
         </div>
 
-        <div className="flex gap-2 px-5 py-4 border-t border-slate-100 dark:border-navy-700 bg-slate-50 dark:bg-navy-800/50 rounded-b-3xl sm:rounded-b-3xl flex-shrink-0">
-          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-navy-600 text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-navy-700 transition-all">
-            Cancel
-          </button>
-          <button onClick={handleSave} className="flex-1 px-4 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-sm font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all">
-            {isEdit ? 'Update' : 'Create'} Customer
-          </button>
+        <div className="flex gap-2 px-5 py-4 border-t border-[var(--ap-border)] bg-[var(--ap-surface-2)] rounded-b-3xl flex-shrink-0">
+          <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" className="flex-1" onClick={handleSave}>{isEdit ? 'Update' : 'Create'} Customer</Button>
         </div>
       </div>
     </ModalOverlay>
@@ -531,7 +528,7 @@ function CustomerProfile({ customer, bookings, onEdit, onDelete, onBooking, onFl
   const renderField = (label, value, icon = null, href = null) => (
     value ? (
       <div className="flex items-start gap-2.5">
-        {icon && <span className="text-slate-400 dark:text-slate-500 flex-shrink-0 mt-0.5">{icon}</span>}
+        {icon && <span className="text-slate-500 dark:text-slate-400 flex-shrink-0 mt-0.5">{icon}</span>}
         <div className="flex-1 min-w-0">
           <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">{label}</p>
           {href ? (
@@ -551,7 +548,7 @@ function CustomerProfile({ customer, bookings, onEdit, onDelete, onBooking, onFl
   ]
 
   return (
-    <div className="bg-slate-50/50 dark:bg-navy-800/30 border-t border-slate-100 dark:border-navy-700 px-4 py-4 space-y-4">
+    <div className="border-t border-[var(--ap-border)] bg-[var(--ap-surface-2)] px-4 py-4 space-y-4">
 
       {/* VIP / Blacklist badges */}
       {(customer.isVip || customer.isBlacklisted || customer.isFrequentTraveller) && (
@@ -576,7 +573,7 @@ function CustomerProfile({ customer, bookings, onEdit, onDelete, onBooking, onFl
       {/* Address */}
       {(customer.address || customer.city || customer.state) && (
         <>
-          <div className="border-t border-slate-200 dark:border-navy-600 pt-3" />
+          <div className="border-t border-[var(--ap-border)] pt-3" />
           <div className="grid grid-cols-2 gap-4">
             {renderField('Address', customer.address, <MapPin size={14} />)}
             {renderField('City', customer.city)}
@@ -588,7 +585,7 @@ function CustomerProfile({ customer, bookings, onEdit, onDelete, onBooking, onFl
       {/* Corporate */}
       {isCorp && (customer.companyName || customer.gst) && (
         <>
-          <div className="border-t border-slate-200 dark:border-navy-600 pt-3" />
+          <div className="border-t border-[var(--ap-border)] pt-3" />
           <div className="grid grid-cols-2 gap-4">
             {renderField('Company', customer.companyName, <Building2 size={14} />)}
             {renderField('Contact', customer.contactPerson)}
@@ -601,9 +598,9 @@ function CustomerProfile({ customer, bookings, onEdit, onDelete, onBooking, onFl
       {/* Notes */}
       {customer.notes && (
         <>
-          <div className="border-t border-slate-200 dark:border-navy-600 pt-3" />
+          <div className="border-t border-[var(--ap-border)] pt-3" />
           <div className="flex gap-2.5">
-            <FileText size={14} className="text-slate-400 dark:text-slate-500 flex-shrink-0 mt-0.5" />
+            <FileText size={14} className="text-slate-500 dark:text-slate-400 flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
               <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">Notes</p>
               <p className="text-slate-700 dark:text-slate-300 text-sm">{customer.notes}</p>
@@ -615,7 +612,7 @@ function CustomerProfile({ customer, bookings, onEdit, onDelete, onBooking, onFl
       {/* Emergency Contact */}
       {(customer.emergencyName || customer.emergencyContact) && (
         <>
-          <div className="border-t border-slate-200 dark:border-navy-600 pt-3" />
+          <div className="border-t border-[var(--ap-border)] pt-3" />
           <div className="grid grid-cols-2 gap-3">
             {customer.emergencyName    && renderField('Emergency Name',   customer.emergencyName)}
             {customer.emergencyContact && renderField('Emergency Mobile', customer.emergencyContact)}
@@ -626,21 +623,21 @@ function CustomerProfile({ customer, bookings, onEdit, onDelete, onBooking, onFl
       {/* Stats */}
       {stats.totalTrips > 0 && (
         <>
-          <div className="border-t border-slate-200 dark:border-navy-600 pt-3" />
+          <div className="border-t border-[var(--ap-border)] pt-3" />
           <div className="grid grid-cols-4 gap-2 text-center text-xs">
-            <div className="rounded-lg bg-white dark:bg-navy-700/40 p-2">
-              <p className="font-bold text-navy-900 dark:text-white">{stats.totalTrips}</p>
+            <div className="rounded-lg bg-[var(--ap-surface)] p-2">
+              <p className="font-sf font-semibold text-slate-900 dark:text-white">{stats.totalTrips}</p>
               <p className="text-slate-500 dark:text-slate-400 text-[9px]">Total Trips</p>
             </div>
-            <div className="rounded-lg bg-white dark:bg-navy-700/40 p-2">
+            <div className="rounded-lg bg-[var(--ap-surface)] p-2">
               <p className="font-bold text-emerald-600 dark:text-emerald-400">{stats.completedTrips}</p>
               <p className="text-slate-500 dark:text-slate-400 text-[9px]">Completed</p>
             </div>
-            <div className="rounded-lg bg-white dark:bg-navy-700/40 p-2">
+            <div className="rounded-lg bg-[var(--ap-surface)] p-2">
               <p className="font-bold text-blue-600 dark:text-blue-400">{stats.activeTrips}</p>
               <p className="text-slate-500 dark:text-slate-400 text-[9px]">Active</p>
             </div>
-            <div className="rounded-lg bg-white dark:bg-navy-700/40 p-2">
+            <div className="rounded-lg bg-[var(--ap-surface)] p-2">
               <p className="font-bold text-slate-800 dark:text-white">₹{stats.totalRevenue?.toLocaleString('en-IN')}</p>
               <p className="text-slate-500 dark:text-slate-400 text-[9px]">Revenue</p>
             </div>
@@ -650,14 +647,14 @@ function CustomerProfile({ customer, bookings, onEdit, onDelete, onBooking, onFl
 
       {/* Quick flags — tap to flag/unflag without opening Edit */}
       {canEdit && (
-        <div className="border-t border-slate-200 dark:border-navy-600 pt-3 flex gap-2 flex-wrap">
+        <div className="border-t border-[var(--ap-border)] pt-3 flex gap-2 flex-wrap">
           {flags.map(({ key, label, Icon, on }) => {
             const isOn = !!customer[key]
             return (
               <button key={key} onClick={() => onFlag && onFlag(customer, key)}
                 aria-pressed={isOn}
                 className={`flex items-center gap-1.5 px-3 min-h-[32px] rounded-lg border text-[11px] font-bold transition-all active:scale-95 ${
-                  isOn ? on : 'border-slate-200 dark:border-navy-700 text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-navy-800'
+                  isOn ? on : 'border-[var(--ap-border)] text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)]'
                 }`}>
                 <Icon size={12} /> {label}
               </button>
@@ -667,7 +664,7 @@ function CustomerProfile({ customer, bookings, onEdit, onDelete, onBooking, onFl
       )}
 
       {/* Actions */}
-      <div className="border-t border-slate-200 dark:border-navy-600 pt-3 flex gap-2">
+      <div className="border-t border-[var(--ap-border)] pt-3 flex gap-2">
         {canEdit && (
           <button onClick={() => onEdit(customer)} aria-label={`Edit ${customer.name}`}
             className="flex items-center gap-2 px-3 py-2 min-h-[36px] rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-bold hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all flex-1">
@@ -689,12 +686,12 @@ function CustomerProfile({ customer, bookings, onEdit, onDelete, onBooking, onFl
       {/* Upcoming trips */}
       {stats.upcoming?.length > 0 && (
         <>
-          <div className="border-t border-slate-200 dark:border-navy-600 pt-3" />
+          <div className="border-t border-[var(--ap-border)] pt-3" />
           <div>
             <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Upcoming Trips</p>
             <div className="space-y-1.5">
               {stats.upcoming.slice(0, 3).map(b => (
-                <div key={b.id} className="flex items-center gap-2 text-[11px] px-2.5 py-1.5 rounded-lg bg-white dark:bg-navy-700/40">
+                <div key={b.id} className="flex items-center gap-2 text-[11px] px-2.5 py-1.5 rounded-lg bg-[var(--ap-surface)]">
                   <span className="flex-1">{b.tripType}</span>
                   <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap">{b.startDate?.split('T')[0]}</span>
                 </div>
@@ -713,6 +710,7 @@ function CustomerProfile({ customer, bookings, onEdit, onDelete, onBooking, onFl
 export default function Customers() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const { toast } = useToast()
 
   // ── Async state ────────────────────────────────────────────
   const [customers,    setCustomers]    = useState([])
@@ -724,7 +722,6 @@ export default function Customers() {
   const [flagFilter,   setFlagFilter]   = useState('all')
   const [sortBy,       setSortBy]       = useState('name')
   const [expanded,     setExpanded]     = useState(null)
-  const [toast,        setToast]        = useState('')
   const [loadError,    setLoadError]    = useState(null)
 
   // ── Pagination: zoom-adaptive rows per page + go-to-page ───
@@ -768,10 +765,7 @@ export default function Customers() {
 
   useEffect(() => { reload() }, [reload])
 
-  const showToast = (msg) => {
-    setToast(msg)
-    setTimeout(() => setToast(''), 3000)
-  }
+  const showToast = (title) => toast?.({ type: 'success', title })
 
   const handleSave = async (customer) => {
     const isNew = !customers.find(c => c.id === customer.id)
@@ -786,7 +780,7 @@ export default function Customers() {
       showToast(`${isNew ? 'Added' : 'Updated'} ${customer.name}`)
     } catch (err) {
       console.error('[Customers] save failed:', err)
-      showToast('Could not save customer. Please try again.')
+      toast?.({ type: 'error', title: 'Could not save customer. Please try again.' })
     }
   }
 
@@ -798,7 +792,7 @@ export default function Customers() {
       showToast('Customer deleted')
     } catch (err) {
       console.error('[Customers] delete failed:', err)
-      showToast('Could not delete customer. Please try again.')
+      toast?.({ type: 'error', title: 'Could not delete customer. Please try again.' })
     }
   }
 
@@ -810,7 +804,7 @@ export default function Customers() {
       showToast(`${customer.name} ${!customer[key] ? 'flagged' : 'unflagged'}`)
     } catch (err) {
       console.error('[Customers] flag failed:', err)
-      showToast('Could not update flag. Please try again.')
+      toast?.({ type: 'error', title: 'Could not update flag. Please try again.' })
     }
   }
 
@@ -865,9 +859,8 @@ export default function Customers() {
     return (
       <div className="space-y-5 animate-fade-up">
         <PageHeader title="Customers" subtitle="Driver access view" />
-        <div className="glass-card rounded-2xl p-12 text-center">
-          <User size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-          <p className="font-bold text-slate-500 dark:text-slate-400">Customer management is not available for drivers.</p>
+        <div className="ap-surface rounded-2xl">
+          <EmptyState icon={User} title="Customer management is not available for drivers." />
         </div>
       </div>
     )
@@ -881,78 +874,55 @@ export default function Customers() {
         title="Customers"
         subtitle={`${customers.length} customers in directory`}
         action={canAdd
-          ? <button onClick={() => setShowAdd(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white font-bold text-sm hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-lg active:scale-95">
-              <Plus size={15} /> Add Customer
-            </button>
+          ? <Button icon={Plus} onClick={() => setShowAdd(true)}>Add Customer</Button>
           : null}
       />
 
       {loadError && (
-        <div className="bg-red-50 dark:bg-red-900/15 border border-red-200 dark:border-red-800/30 rounded-2xl p-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <AlertTriangle size={15} className="text-red-600 dark:text-red-400 flex-shrink-0" />
-            <p className="text-sm font-bold text-red-700 dark:text-red-400">{loadError}</p>
-          </div>
-          <button onClick={reload}
-            className="px-3 py-1.5 rounded-xl bg-red-500 hover:bg-red-400 text-white text-xs font-bold transition-all active:scale-95 shadow-md flex-shrink-0">
-            Retry
-          </button>
-        </div>
-      )}
-
-      {/* Toast */}
-      {toast && (
-        <div className="flex items-center gap-2.5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 rounded-xl px-4 py-2.5">
-          <CheckCircle size={15} className="text-emerald-600 flex-shrink-0" />
-          <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">{toast}</p>
-        </div>
+        <Callout tone="red" icon={AlertTriangle} title={loadError} actionLabel="Retry" onAction={reload} />
       )}
 
       {/* Widgets — one row, New This Month is display-only */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {[
-          { label:'Total',      value: customers.length,  color:'text-slate-700 dark:text-slate-200',     filter:'all',        tap:true  },
-          { label:'Individual', value: customers.filter(c=>c.type==='individual').length, color:'text-blue-600 dark:text-blue-400', filter:'individual', tap:true },
-          { label:'Corporate',  value: corporateCount,    color:'text-violet-600 dark:text-violet-400',   filter:'corporate',  tap:true  },
-          { label:'New Mo.',    value: newThisMonth,      color:'text-emerald-600 dark:text-emerald-400', filter:null,         tap:false },
+          { label:'Total',      value: customers.length,  icon: User,        tone:'gray',   filter:'all',        tap:true  },
+          { label:'Individual', value: customers.filter(c=>c.type==='individual').length, icon: User, tone:'blue', filter:'individual', tap:true },
+          { label:'Corporate',  value: corporateCount,    icon: Building2,   tone:'violet', filter:'corporate',  tap:true  },
+          { label:'New This Month', value: newThisMonth,  icon: Calendar,    tone:'green',  filter:null,         tap:false },
         ].map(s => (
-          <div key={s.label}
+          <MetricCard key={s.label} icon={s.icon} tone={s.tone} label={s.label} value={s.value}
             onClick={s.tap ? () => { setTypeFilter(s.filter); setPage(1) } : undefined}
-            role={s.tap ? 'button' : undefined} tabIndex={s.tap ? 0 : undefined}
-            aria-pressed={s.tap ? typeFilter === s.filter : undefined}
-            onKeyDown={s.tap ? (e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTypeFilter(s.filter); setPage(1) } }) : undefined}
-            className={`rounded-2xl px-3 py-3.5 text-center transition-all ${s.tap ? 'cursor-pointer glass-card hover:shadow-md active:scale-[0.98]' : 'glass-card'}`}>
-            <p className={`text-2xl font-display font-black tabular-nums leading-tight ${s.color}`}>{s.value}</p>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight mt-1">{s.label}</p>
-          </div>
+            className={s.tap && typeFilter === s.filter ? 'ring-2 ring-blue-500/40' : ''} />
         ))}
       </div>
 
       {/* Single slim filter row — no sliders */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <p className="text-[11px] text-slate-400 dark:text-slate-500 tabular-nums">
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
           {filtered.length} customer{filtered.length !== 1 ? 's' : ''}
         </p>
         <div className="flex items-center gap-2 flex-wrap">
-          <select value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setPage(1) }} aria-label="Filter by type"
-            className="px-2.5 min-h-[36px] text-xs font-bold rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
-            <option value="all">All Types</option>
-            {CUSTOMER_TYPES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
-          </select>
-          <select value={flagFilter} onChange={e => { setFlagFilter(e.target.value); setPage(1) }} aria-label="Filter by flag"
-            className="px-2.5 min-h-[36px] text-xs font-bold rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
-            <option value="all">All Flags</option>
-            <option value="vip">VIP</option>
-            <option value="frequent">Frequent</option>
-            <option value="blacklisted">Listed</option>
-          </select>
-          <select value={sortBy} onChange={e => setSortBy(e.target.value)} aria-label="Sort customers"
-            className="px-2.5 min-h-[36px] text-xs font-bold rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
-            <option value="name">Name</option>
-            <option value="city">City</option>
-            <option value="recent">Recent</option>
-          </select>
+          <div className="w-[140px]">
+            <FieldSelect value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setPage(1) }} aria-label="Filter by type">
+              <option value="all">All Types</option>
+              {CUSTOMER_TYPES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+            </FieldSelect>
+          </div>
+          <div className="w-[130px]">
+            <FieldSelect value={flagFilter} onChange={e => { setFlagFilter(e.target.value); setPage(1) }} aria-label="Filter by flag">
+              <option value="all">All Flags</option>
+              <option value="vip">VIP</option>
+              <option value="frequent">Frequent</option>
+              <option value="blacklisted">Listed</option>
+            </FieldSelect>
+          </div>
+          <div className="w-[120px]">
+            <FieldSelect value={sortBy} onChange={e => setSortBy(e.target.value)} aria-label="Sort customers">
+              <option value="name">Name</option>
+              <option value="city">City</option>
+              <option value="recent">Recent</option>
+            </FieldSelect>
+          </div>
         </div>
       </div>
 
@@ -961,7 +931,7 @@ export default function Customers() {
         <div className="space-y-2" role="status" aria-busy="true" aria-label="Loading customers">
           <span className="sr-only">Loading customers…</span>
           {[1, 2, 3, 4, 5, 6].map(i => (
-            <div key={i} className="glass-card rounded-xl p-2.5 flex items-center gap-2.5" aria-hidden="true">
+            <div key={i} className="ap-surface rounded-xl p-2.5 flex items-center gap-2.5" aria-hidden="true">
               <div className="skeleton w-9 h-9 rounded-full flex-shrink-0" />
               <div className="flex-1 space-y-1.5">
                 <div className="skeleton h-3.5 w-1/3 rounded" />
@@ -972,15 +942,10 @@ export default function Customers() {
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="glass-card rounded-2xl p-12 text-center">
-          <User size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-          <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">No customers found</p>
-          {canAdd && (
-            <button onClick={() => setShowAdd(true)}
-              className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 transition-all">
-              <Plus size={13} /> Add First Customer
-            </button>
-          )}
+        <div className="ap-surface rounded-2xl">
+          <EmptyState icon={User} title="No customers found"
+            description="Add your first customer to get started."
+            action={canAdd ? <Button icon={Plus} size="sm" onClick={() => setShowAdd(true)}>Add First Customer</Button> : undefined} />
         </div>
       ) : (
         <div className="space-y-2">
@@ -994,20 +959,20 @@ export default function Customers() {
             ].filter(Boolean)
 
             return (
-              <div key={c.id} className="glass-card rounded-xl overflow-hidden hover:shadow-md transition-all duration-200">
+              <div key={c.id} className="ap-surface rounded-2xl overflow-hidden transition-all duration-200">
                 {/* Row */}
-                <div className="flex items-center gap-2.5 px-3 py-2 cursor-pointer select-none"
+                <div className="ap-focus flex items-center gap-2.5 px-3 py-2 cursor-pointer select-none rounded-2xl"
                      onClick={() => setExpanded(isOpen ? null : c.id)}>
                   <div className="relative flex-shrink-0">
                     <Avatar name={c.name} size={36} />
                     {c.notes && (
-                      <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-amber-400 border-2 border-white dark:border-navy-800" title="Has notes" />
+                      <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-amber-400 border-2 border-[var(--ap-surface)]" title="Has notes" />
                     )}
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <p className="font-bold text-slate-800 dark:text-white text-[13px] truncate">{c.name}</p>
+                      <p className="font-sf font-semibold text-slate-900 dark:text-white text-[13px] truncate">{c.name}</p>
                       {(c.isVip || c.isBlacklisted) && (
                         c.isBlacklisted
                           ? <span title="Blacklisted" className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
@@ -1021,8 +986,8 @@ export default function Customers() {
 
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <TypeBadge type={c.type} />
-                    {isOpen ? <ChevronUp size={13} className="text-slate-400 flex-shrink-0" />
-                             : <ChevronDown size={13} className="text-slate-400 flex-shrink-0" />}
+                    {isOpen ? <ChevronUp size={13} className="text-slate-500 dark:text-slate-400 flex-shrink-0" />
+                             : <ChevronDown size={13} className="text-slate-500 dark:text-slate-400 flex-shrink-0" />}
                   </div>
                 </div>
 
@@ -1047,14 +1012,14 @@ export default function Customers() {
 
       {/* Pagination — 5 per page (hidden while a profile is open) */}
       {!loading && filtered.length > 0 && !expanded && (
-      <div className="rounded-2xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-3 py-2 flex items-center justify-between gap-3 flex-wrap sticky bottom-3 z-10 shadow-lg">
-        <p className="text-[11px] text-slate-400 dark:text-slate-500 tabular-nums">
+      <div className="ap-surface rounded-2xl px-3 py-2 flex items-center justify-between gap-3 flex-wrap sticky bottom-3 z-10">
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
           Page {safePage} of {totalPages} · {filtered.length} customer{filtered.length !== 1 ? 's' : ''}
         </p>
         <div className="flex items-center gap-1.5 flex-wrap">
           <button onClick={() => setPage(safePage - 1)} disabled={safePage <= 1}
             aria-label="Previous page"
-            className="min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+            className="ap-focus min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
             ←
           </button>
           {pageItems.map((n, i) => n === '…'
@@ -1063,20 +1028,20 @@ export default function Customers() {
               <button key={n} onClick={() => setPage(n)}
                 aria-label={`Go to page ${n}`}
                 aria-current={n === safePage ? 'page' : undefined}
-                className={`min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] text-xs font-bold tabular-nums active:scale-95 transition-all ${
+                className={`ap-focus min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] text-xs font-bold tabular-nums active:scale-95 transition-all ${
                   n === safePage
-                    ? 'bg-navy-900 dark:bg-blue-600 text-white shadow'
-                    : 'border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700'
+                    ? 'bg-[var(--ap-accent)] text-white shadow'
+                    : 'border border-[var(--ap-border)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)]'
                 }`}>
                 {n}
               </button>
             ))}
           <button onClick={() => setPage(safePage + 1)} disabled={safePage >= totalPages}
             aria-label="Next page"
-            className="min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+            className="ap-focus min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
             →
           </button>
-          <span className="text-[11px] text-slate-400 dark:text-slate-500 ml-1">Go to</span>
+          <span className="text-[11px] text-slate-500 dark:text-slate-400 ml-1">Go to</span>
           <input
             value={goPage}
             onChange={e => setGoPage(e.target.value.replace(/[^0-9]/g, ''))}
@@ -1085,7 +1050,7 @@ export default function Customers() {
             placeholder={String(totalPages)}
             inputMode="numeric"
             aria-label={`Go to page, 1 to ${totalPages}`}
-            className="w-14 min-h-[36px] rounded-[12px] border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 px-2 text-center text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500 tabular-nums"
+            className={`${fieldCls} w-14 text-center tabular-nums`}
           />
         </div>
       </div>
