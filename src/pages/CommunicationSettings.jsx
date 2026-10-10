@@ -135,7 +135,7 @@ function ConnectionCard({ def, row, readOnly, busy, onSave, onDisconnect }) {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <button onClick={handleSave} disabled={busy}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all active:scale-95 disabled:opacity-50">
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[var(--ap-accent)] text-white text-xs font-bold hover:opacity-90 transition-all active:scale-95 disabled:opacity-50">
               <Plug size={13} /> {busy ? 'Saving…' : connected ? 'Update Connection' : 'Connect'}
             </button>
             {connected && (
@@ -158,7 +158,7 @@ function ConnectionCard({ def, row, readOnly, busy, onSave, onDisconnect }) {
 function Toggle({ on, onToggle, disabled }) {
   return (
     <button type="button" onClick={onToggle} disabled={disabled}
-      className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${on?'bg-navy-800 dark:bg-blue-600':'bg-[var(--ap-border)]'} ${disabled?'opacity-50 cursor-not-allowed':''}`}>
+      className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${on?'bg-[var(--ap-accent)]':'bg-[var(--ap-border)]'} ${disabled?'opacity-50 cursor-not-allowed':''}`}>
       <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${on?'left-6':'left-1'}`}/>
     </button>
   )
@@ -289,7 +289,7 @@ export default function CommunicationSettings() {
         subtitle="Manage your notification channels and category preferences"
         action={
           <button onClick={handleSave} disabled={saving}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white font-bold text-sm hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-lg active:scale-95 disabled:opacity-50">
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--ap-accent)] text-white font-bold text-sm hover:opacity-90 transition-all shadow-lg active:scale-95 disabled:opacity-50">
             {saved ? <><CheckCircle size={15}/> Saved!</> : saving ? 'Saving…' : <><Save size={15}/> Save Changes</>}
           </button>
         }
@@ -333,7 +333,7 @@ export default function CommunicationSettings() {
               className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none resize-none" />
             <div className="flex items-center gap-2 flex-wrap">
               <button onClick={handleBroadcast} disabled={bcBusy || !bcBody.trim() || !mpSettings?.enabled || mpTokens.length === 0}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all active:scale-95 disabled:opacity-50">
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--ap-accent)] text-white text-xs font-bold hover:opacity-90 transition-all active:scale-95 disabled:opacity-50">
                 <Send size={13} /> {bcBusy ? 'Sending…' : `Send to ${mpTokens.length} device${mpTokens.length !== 1 ? 's' : ''}`}
               </button>
               {!mpSettings?.enabled && <span className="text-[11px] text-amber-600 dark:text-amber-400 font-bold">Enable mobile push first.</span>}

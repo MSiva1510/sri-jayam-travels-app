@@ -263,7 +263,7 @@ export default function AuditLog() {
         action={
           <button
             onClick={load}
-            className="px-4 py-2 rounded-xl bg-navy-900 dark:bg-white text-white text-[var(--ap-text-1)] text-sm font-bold hover:opacity-90 transition-all"
+            className="px-4 py-2 rounded-xl bg-[var(--ap-accent)] text-white text-sm font-bold hover:opacity-90 transition-all"
           >
             Refresh
           </button>
@@ -287,7 +287,7 @@ export default function AuditLog() {
         <select
           value={moduleFilter}
           onChange={e => setModuleFilter(e.target.value)}
-          className="px-3 py-2 rounded-xl border border-[var(--ap-border)] ap-surface text-sm text-slate-800 dark:text-white focus:outline-none dark:[&>option]:bg-navy-900"
+          className="px-3 py-2 rounded-xl border border-[var(--ap-border)] ap-surface text-sm text-slate-800 dark:text-white focus:outline-none dark:[&>option]:bg-[var(--ap-surface)]"
         >
           {modules.map(m => <option key={m} value={m}>{m === 'all' ? 'All modules' : m}</option>)}
         </select>
@@ -352,7 +352,7 @@ export default function AuditLog() {
               <button
                 onClick={() => setPage(p)}
                 className={`min-w-[32px] h-8 px-1.5 rounded-xl text-xs font-bold tabular-nums transition-colors ${p === safePage
-                  ? 'bg-navy-900 dark:bg-white text-white text-[var(--ap-text-1)]'
+                  ? 'bg-[var(--ap-accent)] text-white'
                   : 'border border-[var(--ap-border)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)]'}`}
               >
                 {p}
@@ -378,7 +378,7 @@ export default function AuditLog() {
               />
               <button
                 onClick={submitGoTo}
-                className="px-3 py-2 rounded-xl bg-navy-900 dark:bg-white text-white text-[var(--ap-text-1)] text-xs font-bold hover:opacity-90 transition-all"
+                className="px-3 py-2 rounded-xl bg-[var(--ap-accent)] text-white text-xs font-bold hover:opacity-90 transition-all"
               >
                 Go
               </button>

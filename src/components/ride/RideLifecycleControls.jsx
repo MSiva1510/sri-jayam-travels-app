@@ -16,7 +16,7 @@ const SIZE = {
 function Btn({ label, icon: Icon, onClick, variant, size = 'md', fullWidth }) {
   const s = SIZE[size] || SIZE.md
   const variants = {
-    start:  'bg-navy-900 dark:bg-blue-700 text-white hover:bg-navy-800 dark:hover:bg-blue-600 shadow-md hover:shadow-lg',
+    start:  'bg-[var(--ap-accent)] text-white hover:opacity-90 shadow-md hover:shadow-lg',
     pause:  'bg-amber-500 text-white hover:bg-amber-400 shadow-md',
     resume: 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-md',
     end:    'bg-emerald-600 text-white hover:bg-emerald-500 shadow-md',
@@ -90,7 +90,7 @@ export function StartRideButton({ onStart, size = 'md', fullWidth = false, label
     <button
       onClick={onStart}
       disabled={disabled}
-      className={`${BTN_BASE} ${s.px} ${s.text} bg-navy-900 dark:bg-blue-700 text-white hover:bg-navy-800 dark:hover:bg-blue-600 shadow-md hover:shadow-lg ${fullWidth ? 'w-full' : ''}`}
+      className={`${BTN_BASE} ${s.px} ${s.text} bg-[var(--ap-accent)] text-white hover:opacity-90 shadow-md hover:shadow-lg ${fullWidth ? 'w-full' : ''}`}
     >
       <Play size={s.icon} />
       {label}

@@ -79,7 +79,7 @@ export default function BackupManager() {
               </div>
               {cfg.provider === 'manual' && (
                 <button onClick={handleManualBackup} disabled={running}
-                  className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all active:scale-95 disabled:opacity-50">
+                  className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-[var(--ap-accent)] text-white text-xs font-bold hover:opacity-90 transition-all active:scale-95 disabled:opacity-50">
                   {running ? <><RefreshCw size={12} className="animate-spin"/> Running…</> : <><Play size={12}/> Run Backup Now</>}
                 </button>
               )}

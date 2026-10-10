@@ -40,7 +40,7 @@ export default class ErrorBoundary extends Component {
             </p>
             <button
               onClick={() => window.location.reload()}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white font-bold text-sm hover:opacity-90 transition-opacity"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--ap-accent)] text-white font-bold text-sm hover:opacity-90 transition-opacity"
             >
               <RefreshCw size={14} /> Reload App
             </button>

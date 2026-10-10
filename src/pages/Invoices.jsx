@@ -620,7 +620,7 @@ export default function Invoices() {
                 aria-current={n === safePage ? 'page' : undefined}
                 className={`min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] text-xs font-bold tabular-nums active:scale-95 transition-all ${
                   n === safePage
-                    ? 'bg-navy-900 dark:bg-blue-600 text-white shadow'
+                    ? 'bg-[var(--ap-accent)] text-white shadow'
                     : 'border border-[var(--ap-border)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)]'
                 }`}>
                 {n}

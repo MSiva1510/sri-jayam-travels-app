@@ -183,7 +183,7 @@ export default function RoleManager() {
           const active = r.key === sel
           return (
             <button key={r.key} onClick={() => setSel(r.key)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${active ? 'bg-navy-900 dark:bg-blue-700 text-white shadow' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${active ? 'bg-[var(--ap-accent)] text-white shadow' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
               <Icon size={13} />{r.label}
             </button>
           )
@@ -241,7 +241,7 @@ export default function RoleManager() {
             <div className="flex gap-1 bg-[var(--ap-surface-2)] rounded-2xl p-1.5 overflow-x-auto no-scrollbar">
               {[['perms', 'Module Permissions'], ['users', `Users (${roleUsers.length})`], ['activity', 'Activity Log'], ['settings', 'Settings']].map(([k, l]) => (
                 <button key={k} onClick={() => setRtab(k)}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${rtab === k ? 'bg-navy-900 dark:bg-blue-700 text-white shadow' : 'text-slate-500 dark:text-slate-400'}`}>
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${rtab === k ? 'bg-[var(--ap-accent)] text-white shadow' : 'text-slate-500 dark:text-slate-400'}`}>
                   {l}
                 </button>
               ))}
@@ -423,7 +423,7 @@ function RoleCopyModal({ roles, current, onClose, onCopy }) {
           <button onClick={onClose}
             className="flex-1 py-2.5 rounded-xl border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-colors">Cancel</button>
           <button onClick={async () => { if (!src || busy) return; setBusy(true); await onCopy(src); setBusy(false) }} disabled={!src || busy}
-            className="flex-1 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold transition-all active:scale-95 disabled:opacity-50">
+            className="flex-1 py-2.5 rounded-xl bg-[var(--ap-accent)] text-white text-xs font-bold transition-all active:scale-95 disabled:opacity-50">
             {busy ? 'Copying…' : 'Copy Permissions'}
           </button>
         </div>
@@ -449,7 +449,7 @@ function RolePreviewModal({ role, granted, onClose }) {
           ))}
         </div>
         <button onClick={onClose}
-          className="mt-4 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:opacity-90 transition-all">Close</button>
+          className="mt-4 py-2.5 rounded-xl bg-[var(--ap-accent)] text-white text-xs font-bold hover:opacity-90 transition-all">Close</button>
       </div>
     </div>
   )

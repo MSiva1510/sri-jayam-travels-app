@@ -221,7 +221,7 @@ export default function RideHistory() {
             <button key={f.key} onClick={() => setFilter(f.key)}
               className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
                 filter === f.key
-                  ? 'bg-navy-900 dark:bg-blue-700 text-white shadow'
+                  ? 'bg-[var(--ap-accent)] text-white shadow'
                   : 'bg-[var(--ap-surface-2)] text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)]'
               }`}>
               {f.label}

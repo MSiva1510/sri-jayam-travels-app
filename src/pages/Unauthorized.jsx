@@ -44,7 +44,7 @@ export default function Unauthorized() {
           </button>
           <button
             onClick={() => navigate(user?.role === 'driver' ? '/my-trips' : '/')}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white font-semibold text-sm hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-lg"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--ap-accent)] text-white font-semibold text-sm hover:opacity-90 transition-all shadow-lg"
           >
             <Home size={15} />
             My Home

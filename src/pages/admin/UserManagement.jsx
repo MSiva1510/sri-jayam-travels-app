@@ -176,7 +176,7 @@ function UserModal({ editUser, currentUserRole, onClose, onSaved, showToast, def
               </p>
             </div>
             <button onClick={onClose}
-              className="w-full py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-sm font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all">
+              className="w-full py-2.5 rounded-xl bg-[var(--ap-accent)] text-white text-sm font-bold hover:opacity-90 transition-all">
               Done
             </button>
           </div>
@@ -301,7 +301,7 @@ function UserModal({ editUser, currentUserRole, onClose, onSaved, showToast, def
                 Cancel
               </button>
               <button onClick={handleSave} disabled={saving}
-                className="flex-1 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-sm font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-md active:scale-95 disabled:opacity-50">
+                className="flex-1 py-2.5 rounded-xl bg-[var(--ap-accent)] text-white text-sm font-bold hover:opacity-90 transition-all shadow-md active:scale-95 disabled:opacity-50">
                 {saving
                   ? <span className="flex items-center justify-center gap-2"><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.37 0 0 5.37 0 12h4z"/></svg>Creating…</span>
                   : isEdit ? 'Save Changes' : `Create ${ROLE_LABELS[form.role]}`
@@ -524,7 +524,7 @@ function UserDrawer({ profile, isSelf, canManage, lastLogin, onClose, onEdit, on
         {canManage && (
           <div className="px-5 py-3.5 border-t border-[var(--ap-border)] flex gap-2 flex-shrink-0">
             <button onClick={() => onEdit(p)}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 transition-all active:scale-95">
+              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[var(--ap-accent)] text-white text-xs font-bold hover:bg-navy-800 transition-all active:scale-95">
               <Edit2 size={13} /> Edit User
             </button>
             <button onClick={() => onResetPwd(p)} disabled={resetting}
@@ -757,7 +757,7 @@ export default function UserManagement() {
       <div className="flex gap-1.5 bg-[var(--ap-surface-2)] rounded-2xl p-1.5 overflow-x-auto no-scrollbar w-fit max-w-full">
         {tabs.map(([k, l, n, Icon]) => (
           <button key={k} onClick={() => setRoleTab(k)}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${roleTab === k ? 'bg-navy-900 dark:bg-blue-700 text-white shadow' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${roleTab === k ? 'bg-[var(--ap-accent)] text-white shadow' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
             <Icon size={13} />{l}
             <span className={`text-[10px] px-1.5 py-0.5 rounded-full tabular-nums ${roleTab === k ? 'bg-white/20 text-white' : 'bg-[var(--ap-border)] text-slate-500 dark:text-slate-400'}`}>{n}</span>
           </button>
@@ -903,7 +903,7 @@ export default function UserManagement() {
               className="w-8 h-8 rounded-lg border border-[var(--ap-border)] flex items-center justify-center text-slate-500 disabled:opacity-40 hover:bg-[var(--ap-surface-2)] transition-colors">
               <ChevronLeft size={13} />
             </button>
-            <span className="min-w-[32px] h-8 px-2 rounded-lg bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold flex items-center justify-center tabular-nums">{safePage}</span>
+            <span className="min-w-[32px] h-8 px-2 rounded-lg bg-[var(--ap-accent)] text-white text-xs font-bold flex items-center justify-center tabular-nums">{safePage}</span>
             <span className="text-xs text-slate-400 tabular-nums">/ {totalPages}</span>
             <button disabled={safePage >= totalPages} onClick={() => setPage(safePage + 1)} aria-label="Next page"
               className="w-8 h-8 rounded-lg border border-[var(--ap-border)] flex items-center justify-center text-slate-500 disabled:opacity-40 hover:bg-[var(--ap-surface-2)] transition-colors">
@@ -914,7 +914,7 @@ export default function UserManagement() {
                 onKeyDown={e => { if (e.key === 'Enter') submitGoTo() }} placeholder={`1–${totalPages}`} title={`Go to page (1–${totalPages})`}
                 className="w-16 px-2 py-1.5 rounded-lg border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-xs font-bold tabular-nums text-slate-600 dark:text-slate-300 focus:outline-none text-center" />
               <button onClick={submitGoTo}
-                className="px-3 py-1.5 rounded-lg bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:opacity-90 transition-all">Go</button>
+                className="px-3 py-1.5 rounded-lg bg-[var(--ap-accent)] text-white text-xs font-bold hover:opacity-90 transition-all">Go</button>
             </span>
           </div>
         </>)}

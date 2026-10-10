@@ -557,7 +557,7 @@ function BackupTab() {
           <p className="text-[11px] text-slate-400">Configure automatic backups and restore points.</p>
         </div>
         <button onClick={() => navigate('/admin/backup')}
-          className="px-4 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:opacity-90 transition-all">
+          className="px-4 py-2.5 rounded-xl bg-[var(--ap-accent)] text-white text-xs font-bold hover:opacity-90 transition-all">
           Open Backup Manager
         </button>
       </div>

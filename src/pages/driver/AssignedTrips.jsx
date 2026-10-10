@@ -73,7 +73,7 @@ function PauseReasonModal({ onConfirm, onClose }) {
             Cancel
           </button>
           <button onClick={() => selected && onConfirm(selected)} disabled={!selected}
-            className="flex-1 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-sm font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-md disabled:opacity-40 active:scale-95">
+            className="flex-1 py-2.5 rounded-xl bg-[var(--ap-accent)] text-white text-sm font-bold hover:opacity-90 transition-all shadow-md disabled:opacity-40 active:scale-95">
             Confirm Pause
           </button>
         </div>

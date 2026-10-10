@@ -545,7 +545,7 @@ export default function GpsHistory() {
         <div className="flex gap-1 bg-[var(--ap-surface-2)] rounded-2xl p-1.5 overflow-x-auto no-scrollbar w-fit max-w-full">
           {TABS.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${tab === t.key ? 'bg-navy-900 dark:bg-blue-700 text-white shadow' : 'text-slate-500 dark:text-slate-400'}`}>
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${tab === t.key ? 'bg-[var(--ap-accent)] text-white shadow' : 'text-slate-500 dark:text-slate-400'}`}>
               {t.label}{t.key === 'stops' && stops.length > 0 ? ` (${stops.length})` : ''}
             </button>
           ))}
