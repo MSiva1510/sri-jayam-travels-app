@@ -60,7 +60,7 @@ export default function BackupManager() {
         {backupConfigs.map(cfg => {
           const info = PROVIDER_INFO[cfg.provider] || PROVIDER_INFO.manual
           return (
-            <div key={cfg.id} className={`glass-card rounded-2xl p-4 space-y-3 ${cfg.is_active?'border-l-4 border-emerald-500':''}`}>
+            <div key={cfg.id} className={`ap-surface rounded-2xl p-4 space-y-3 ${cfg.is_active?'border-l-4 border-emerald-500':''}`}>
               <div className="flex items-start gap-3">
                 <div className={`w-10 h-10 rounded-xl ${info.bg} flex items-center justify-center text-xl flex-shrink-0`}>
                   {info.icon}
@@ -84,7 +84,7 @@ export default function BackupManager() {
                 </button>
               )}
               {cfg.provider !== 'manual' && (
-                <div className="flex items-center gap-1.5 py-2 px-3 rounded-xl bg-slate-50 dark:bg-navy-800/40 border border-dashed border-slate-300 dark:border-navy-600 text-slate-400 text-[11px]">
+                <div className="flex items-center gap-1.5 py-2 px-3 rounded-xl bg-[var(--ap-surface-2)] border border-dashed border-[var(--ap-border)] text-slate-400 text-[11px]">
                   🔌 Provider not connected — configure API credentials to enable
                 </div>
               )}
@@ -105,8 +105,8 @@ export default function BackupManager() {
       )}
 
       {/* Backup history */}
-      <div className="glass-card rounded-2xl overflow-hidden">
-        <div className="px-4 py-3 bg-slate-50 dark:bg-navy-800/60 border-b border-slate-100 dark:border-navy-700">
+      <div className="ap-surface rounded-2xl overflow-hidden">
+        <div className="px-4 py-3 bg-[var(--ap-surface-2)] border-b border-[var(--ap-border)]">
           <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Backup History</p>
         </div>
         {backupHistory.length === 0 ? (
@@ -114,7 +114,7 @@ export default function BackupManager() {
             <Database size={18}/><p className="text-sm">No backup records yet.</p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-50 dark:divide-navy-800">
+          <div className="divide-y divide-slate-50 divide-[var(--ap-border)]">
             {backupHistory.map((b,i) => (
               <div key={b.id||i} className="flex items-center gap-3 px-4 py-3">
                 {b.status==='success' ? <CheckCircle size={13} className="text-emerald-500 flex-shrink-0"/>

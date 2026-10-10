@@ -157,11 +157,11 @@ export default function RoleManager() {
         action={
           <div className="flex items-center gap-2 flex-wrap">
             <button onClick={() => setShowCopy(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-[var(--ap-surface-2)] transition-colors">
               <Copy size={15} /> Copy from Role
             </button>
             <button onClick={() => setShowPreview(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-[var(--ap-surface-2)] transition-colors">
               <Eye size={15} /> Preview Access
             </button>
 
@@ -177,7 +177,7 @@ export default function RoleManager() {
       )}
 
       {/* Role selector (compact) */}
-      <div className="flex gap-1.5 bg-slate-100 dark:bg-navy-800 rounded-2xl p-1.5 w-fit max-w-full overflow-x-auto no-scrollbar">
+      <div className="flex gap-1.5 bg-[var(--ap-surface-2)] rounded-2xl p-1.5 w-fit max-w-full overflow-x-auto no-scrollbar">
         {roles.map(r => {
           const Icon = r.icon
           const active = r.key === sel
@@ -193,22 +193,22 @@ export default function RoleManager() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Left: info + summary */}
         <div className="space-y-4">
-          <div className="glass-card rounded-2xl p-4 space-y-3">
+          <div className="ap-surface rounded-2xl p-4 space-y-3">
             <p className="text-sm font-bold text-slate-800 dark:text-white">Role Information</p>
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Role Name *</label>
               <input value={role.label} disabled={role.builtin} onChange={e => touchDef({ label: e.target.value })}
-                className="w-full px-3 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-bold disabled:opacity-70" />
+                className="w-full px-3 py-2.5 text-xs rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none font-bold disabled:opacity-70" />
             </div>
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Description</label>
               <textarea value={role.desc} disabled={role.builtin} onChange={e => touchDef({ desc: e.target.value })} rows={2}
-                className="w-full px-3 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none resize-none disabled:opacity-70" />
+                className="w-full px-3 py-2.5 text-xs rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none resize-none disabled:opacity-70" />
             </div>
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Status</label>
               <select value={role.status} disabled={role.builtin} onChange={e => touchDef({ status: e.target.value })}
-                className="w-full px-3 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-bold disabled:opacity-70">
+                className="w-full px-3 py-2.5 text-xs rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none font-bold disabled:opacity-70">
                 <option value="active">🟢 Active</option>
                 <option value="inactive">⚪ Inactive</option>
               </select>
@@ -216,7 +216,7 @@ export default function RoleManager() {
             <p className="text-[11px] text-slate-400">System role — name is locked{role.key === 'admin' ? '; permissions stay full-access' : ''}.</p>
           </div>
 
-          <div className="glass-card rounded-2xl p-4">
+          <div className="ap-surface rounded-2xl p-4">
             <p className="text-sm font-bold text-slate-800 dark:text-white mb-3">Role Summary</p>
             <div className="space-y-2.5">
               {[
@@ -228,7 +228,7 @@ export default function RoleManager() {
               ].map(([l, v]) => (
                 <div key={l} className="flex items-center justify-between">
                   <span className="text-[11px] text-slate-400">{l}</span>
-                  <span className="text-xs font-black text-slate-800 dark:text-white tabular-nums">{v}</span>
+                  <span className="text-xs font-semibold text-slate-800 dark:text-white tabular-nums">{v}</span>
                 </div>
               ))}
             </div>
@@ -238,7 +238,7 @@ export default function RoleManager() {
         {/* Right: tabs + matrix */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-2xl p-1.5 overflow-x-auto no-scrollbar">
+            <div className="flex gap-1 bg-[var(--ap-surface-2)] rounded-2xl p-1.5 overflow-x-auto no-scrollbar">
               {[['perms', 'Module Permissions'], ['users', `Users (${roleUsers.length})`], ['activity', 'Activity Log'], ['settings', 'Settings']].map(([k, l]) => (
                 <button key={k} onClick={() => setRtab(k)}
                   className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${rtab === k ? 'bg-navy-900 dark:bg-blue-700 text-white shadow' : 'text-slate-500 dark:text-slate-400'}`}>
@@ -250,10 +250,10 @@ export default function RoleManager() {
               <div className="relative ml-auto">
                 <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search permissions…"
-                  className="pl-8 pr-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none w-44" />
+                  className="pl-8 pr-3 py-2 text-xs rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none w-44" />
               </div>
-              <button onClick={() => setExpandAll(true)} className="px-3 py-2 text-xs font-bold rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors whitespace-nowrap">Expand All</button>
-              <button onClick={() => { setExpandAll(false); setOpenMods(new Set()) }} className="px-3 py-2 text-xs font-bold rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors whitespace-nowrap">Collapse All</button>
+              <button onClick={() => setExpandAll(true)} className="px-3 py-2 text-xs font-bold rounded-xl border border-[var(--ap-border)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-colors whitespace-nowrap">Expand All</button>
+              <button onClick={() => { setExpandAll(false); setOpenMods(new Set()) }} className="px-3 py-2 text-xs font-bold rounded-xl border border-[var(--ap-border)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-colors whitespace-nowrap">Collapse All</button>
             </>)}
           </div>
 
@@ -264,17 +264,17 @@ export default function RoleManager() {
                 const got = m.perms.filter(p => perms[p]).length
                 const open = expandAll || openMods.has(m.key)
                 return (
-                  <div key={m.key} className="glass-card rounded-2xl overflow-hidden">
+                  <div key={m.key} className="ap-surface rounded-2xl overflow-hidden">
                     <button onClick={() => toggleMod(m.key)} className="w-full flex items-center gap-3 px-4 py-3 text-left">
                       <ChevronDown size={14} className={`text-slate-400 transition-transform flex-shrink-0 ${open ? '' : '-rotate-90'}`} />
-                      <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center flex-shrink-0">
+                      <div className="w-8 h-8 rounded-xl bg-[var(--ap-surface-2)] flex items-center justify-center flex-shrink-0">
                         <MIcon size={14} className="text-slate-500 dark:text-slate-300" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-bold text-slate-800 dark:text-white">{m.label}</p>
                         <p className="text-[10px] text-slate-400 truncate">{m.desc}</p>
                       </div>
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full tabular-nums flex-shrink-0 ${got === m.perms.length && m.perms.length ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : got > 0 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-slate-100 text-slate-500 dark:bg-navy-700 dark:text-slate-400'}`}>
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full tabular-nums flex-shrink-0 ${got === m.perms.length && m.perms.length ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : got > 0 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-slate-100 text-slate-500 dark:bg-[var(--ap-surface-2)] dark:text-slate-400'}`}>
                         {got}/{m.perms.length}
                       </span>
                     </button>
@@ -287,8 +287,8 @@ export default function RoleManager() {
                           const locked = role.key === 'admin'
                           return (
                             <button key={p} disabled={locked || busy} onClick={() => handleToggle(p, allowed)} title={locked ? 'Admin stays full-access' : `${role.label}: ${p}`}
-                              className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border text-left transition-all ${locked ? 'opacity-70 cursor-not-allowed' : ''} ${allowed ? 'border-emerald-300 dark:border-emerald-800/50 bg-emerald-50 dark:bg-emerald-900/15' : 'border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/40'}`}>
-                              <span className={`w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 text-white ${allowed ? 'bg-blue-600' : 'bg-slate-200 dark:bg-navy-700'}`}>
+                              className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border text-left transition-all ${locked ? 'opacity-70 cursor-not-allowed' : ''} ${allowed ? 'border-emerald-300 dark:border-emerald-800/50 bg-emerald-50 dark:bg-emerald-900/15' : 'border-[var(--ap-border)] bg-[var(--ap-surface-2)]'}`}>
+                              <span className={`w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 text-white ${allowed ? 'bg-blue-600' : 'bg-[var(--ap-border)]'}`}>
                                 {busy ? <RefreshCw size={11} className="animate-spin" /> : allowed ? <Check size={12} /> : null}
                               </span>
                               <span className="text-xs font-bold text-slate-700 dark:text-slate-200 capitalize">{p.replace(/_/g, ' ')}</span>
@@ -301,7 +301,7 @@ export default function RoleManager() {
                 )
               })}
               {shownMods().length === 0 && (
-                <div className="glass-card rounded-2xl p-10 text-center">
+                <div className="ap-surface rounded-2xl p-10 text-center">
                   <p className="text-sm font-bold text-slate-500 dark:text-slate-400">No permissions match "{search}"</p>
                 </div>
               )}
@@ -309,19 +309,19 @@ export default function RoleManager() {
           )}
 
           {rtab === 'users' && (
-            <div className="glass-card rounded-2xl p-4">
+            <div className="ap-surface rounded-2xl p-4">
               {roleUsers.length === 0 ? (
                 <p className="text-xs text-slate-400 text-center py-8">No users assigned to {role.label}.</p>
               ) : (
                 <div className="space-y-2">
                   {roleUsers.map(u => (
-                    <div key={u.id} className="flex items-center gap-3 rounded-xl border border-slate-100 dark:border-navy-700 px-3 py-2.5">
+                    <div key={u.id} className="flex items-center gap-3 rounded-xl border border-[var(--ap-border)] px-3 py-2.5">
                       <Avatar name={u.full_name} size={30} />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{u.full_name}</p>
                         <p className="text-[10px] text-slate-400 truncate">{u.email}</p>
                       </div>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${u.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-500 dark:bg-navy-700 dark:text-slate-400'}`}>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${u.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-500 dark:bg-[var(--ap-surface-2)] dark:text-slate-400'}`}>
                         {u.status === 'active' ? 'Active' : 'Inactive'}
                       </span>
                     </div>
@@ -332,7 +332,7 @@ export default function RoleManager() {
           )}
 
           {rtab === 'activity' && (
-            <div className="glass-card rounded-2xl p-4">
+            <div className="ap-surface rounded-2xl p-4">
               {roleActivity.length === 0 ? (
                 <p className="text-xs text-slate-400 text-center py-8">No permission changes recorded for {role.label}.</p>
               ) : (
@@ -352,7 +352,7 @@ export default function RoleManager() {
           )}
 
           {rtab === 'settings' && (
-            <div className="glass-card rounded-2xl p-4 space-y-3">
+            <div className="ap-surface rounded-2xl p-4 space-y-3">
               <div className="flex justify-between text-xs">
                 <span className="text-slate-400">Role key</span>
                 <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{role.key}</span>
@@ -412,16 +412,16 @@ function RoleCopyModal({ roles, current, onClose, onCopy }) {
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl p-5 w-full sm:w-[380px] shadow-2xl space-y-3">
-        <p className="font-display font-black text-slate-800 dark:text-white">Copy from Role</p>
+      <div className="relative ap-surface rounded-t-3xl sm:rounded-2xl p-5 w-full sm:w-[380px] shadow-2xl space-y-3">
+        <p className="font-sf font-semibold text-slate-800 dark:text-white">Copy from Role</p>
         <p className="text-xs text-slate-500 dark:text-slate-400">Grants every permission the source role has. Existing grants are kept.</p>
         <select value={src} onChange={e => setSrc(e.target.value)}
-          className="w-full px-3 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-bold">
+          className="w-full px-3 py-2.5 text-xs rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none font-bold">
           {roles.filter(r => r.key !== current).map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
         </select>
         <div className="flex gap-2">
           <button onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">Cancel</button>
+            className="flex-1 py-2.5 rounded-xl border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-colors">Cancel</button>
           <button onClick={async () => { if (!src || busy) return; setBusy(true); await onCopy(src); setBusy(false) }} disabled={!src || busy}
             className="flex-1 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold transition-all active:scale-95 disabled:opacity-50">
             {busy ? 'Copying…' : 'Copy Permissions'}
@@ -437,8 +437,8 @@ function RolePreviewModal({ role, granted, onClose }) {
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl p-5 w-full sm:w-[420px] shadow-2xl max-h-[85vh] flex flex-col">
-        <p className="font-display font-black text-slate-800 dark:text-white">{role.label} — Access Preview</p>
+      <div className="relative ap-surface rounded-t-3xl sm:rounded-2xl p-5 w-full sm:w-[420px] shadow-2xl max-h-[85vh] flex flex-col">
+        <p className="font-sf font-semibold text-slate-800 dark:text-white">{role.label} — Access Preview</p>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 mb-3">{granted.length} of {allModulePermsCount()} permissions granted</p>
         <div className="overflow-y-auto space-y-1.5 pr-0.5">
           {granted.length === 0 && <p className="text-xs text-slate-400 text-center py-6">No permissions granted.</p>}
