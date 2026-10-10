@@ -40,13 +40,13 @@ function VehicleMap({ coord, startCoord, routePoints = [], status }) {
   const statusColor = status === 'driving' ? '#10b981' : status === 'paused' ? '#f59e0b' : '#94a3b8'
 
   return (
-    <div className="relative rounded-2xl overflow-hidden border border-slate-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-900">
+    <div className="relative rounded-2xl overflow-hidden border border-[var(--ap-border)] bg-slate-50 dark:bg-[var(--ap-surface)]">
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="block">
-        <rect width={W} height={H} fill="currentColor" className="text-slate-50 dark:text-navy-900" />
+        <rect width={W} height={H} fill="currentColor" className="text-slate-50 text-[var(--ap-text-1)]" />
         {[...Array(6)].map((_, i) => (
           <g key={i}>
-            <line x1={0} y1={i*(H/5)} x2={W} y2={i*(H/5)} stroke="currentColor" strokeWidth="0.5" className="text-slate-200 dark:text-navy-700" />
-            <line x1={i*(W/5)} y1={0} x2={i*(W/5)} y2={H} stroke="currentColor" strokeWidth="0.5" className="text-slate-200 dark:text-navy-700" />
+            <line x1={0} y1={i*(H/5)} x2={W} y2={i*(H/5)} stroke="currentColor" strokeWidth="0.5" className="text-slate-200 text-[var(--ap-text-2)]" />
+            <line x1={i*(W/5)} y1={0} x2={i*(W/5)} y2={H} stroke="currentColor" strokeWidth="0.5" className="text-slate-200 text-[var(--ap-text-2)]" />
           </g>
         ))}
         {svgPoints.length >= 2 && (
@@ -77,7 +77,7 @@ function VehicleMap({ coord, startCoord, routePoints = [], status }) {
         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold backdrop-blur-sm
           ${status === 'driving' ? 'bg-emerald-500/90 text-white'
           : status === 'paused'  ? 'bg-amber-500/90 text-white'
-          : 'bg-white/90 dark:bg-navy-800/90 text-slate-600 dark:text-slate-300'}`}>
+          : 'bg-white/90 bg-[var(--ap-surface-2)] text-slate-600 dark:text-slate-300'}`}>
           <span className={`w-1.5 h-1.5 rounded-full bg-current ${status === 'driving' ? 'animate-pulse' : ''}`} />
           {status === 'driving' ? 'Moving' : status === 'paused' ? 'Paused' : 'Stationary'}
         </span>
@@ -119,17 +119,17 @@ export default function LiveLocation() {
 
       <div className="flex items-center gap-3">
         <button onClick={() => navigate('/driver')}
-          className="w-9 h-9 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors flex-shrink-0">
+          className="w-9 h-9 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-colors flex-shrink-0">
           <ArrowLeft size={17} />
         </button>
         <div className="flex-1 min-w-0">
-          <h1 className="font-display font-black text-slate-800 dark:text-white text-xl">Live Vehicle Map</h1>
+          <h1 className="font-sf font-semibold text-slate-800 dark:text-white text-xl">Live Vehicle Map</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">Real-time GPS tracking</p>
         </div>
         <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold
           ${gps.status === 'granted'    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
           : gps.status === 'requesting' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-          : 'bg-slate-100 text-slate-600 dark:bg-navy-800 dark:text-slate-400'}`}>
+          : 'bg-slate-100 text-slate-600 dark:bg-[var(--ap-surface-2)] dark:text-slate-400'}`}>
           <span className={`w-2 h-2 rounded-full ${
             gps.status === 'granted' ? 'bg-emerald-500' : gps.status === 'requesting' ? 'bg-blue-500 animate-pulse' : 'bg-slate-400'}`} />
           {gps.status === 'granted' ? 'Active' : gps.status === 'requesting' ? 'Acquiring' : 'Offline'}
@@ -156,9 +156,9 @@ export default function LiveLocation() {
             { icon: Clock, label:'Elapsed',   value: elapsed || '—' },
             { icon: Route, label:'Route Pts', value: String(routePts.length || 0) },
           ].map(s => (
-            <div key={s.label} className="glass-card rounded-xl p-3 text-center">
+            <div key={s.label} className="ap-surface rounded-xl p-3 text-center">
               <s.icon size={14} className="text-slate-400 mx-auto mb-1" />
-              <p className="text-xs font-black text-slate-800 dark:text-white">{s.value}</p>
+              <p className="text-xs font-semibold text-slate-800 dark:text-white">{s.value}</p>
               <p className="text-[9px] text-slate-400 uppercase tracking-wide">{s.label}</p>
             </div>
           ))}
@@ -190,8 +190,8 @@ export default function LiveLocation() {
       )}
 
       {!activeRide && (
-        <div className="glass-card rounded-2xl p-6 text-center">
-          <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center mx-auto mb-3">
+        <div className="ap-surface rounded-2xl p-6 text-center">
+          <div className="w-12 h-12 rounded-2xl bg-[var(--ap-surface-2)] flex items-center justify-center mx-auto mb-3">
             <Satellite size={22} className="text-slate-400 dark:text-slate-500" />
           </div>
           <p className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-1">No Active Ride</p>

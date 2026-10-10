@@ -32,14 +32,14 @@ import ModalOverlay from '../../components/ui/ModalOverlay'
 // ─────────────────────────────────────────────────────────────
 function StatWidget({ icon: Icon, label, value, sub, gradient, pulse, highlight }) {
   return (
-    <div className={`glass-card rounded-2xl p-3.5 relative overflow-hidden ${highlight ? 'ring-2 ring-blue-400/40' : ''}`}>
+    <div className={`ap-surface rounded-2xl p-3.5 relative overflow-hidden ${highlight ? 'ring-2 ring-blue-400/40' : ''}`}>
       <div className={`absolute -top-5 -right-5 w-16 h-16 rounded-full opacity-15 blur-xl ${gradient}`} />
       <div className={`w-8 h-8 rounded-xl ${gradient} flex items-center justify-center mb-2 relative z-10`}>
         <Icon size={15} className="text-white" />
-        {pulse && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-white dark:border-navy-800 animate-pulse" />}
+        {pulse && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-white dark:border-[var(--ap-border)] animate-pulse" />}
       </div>
       <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider leading-none mb-1 relative z-10">{label}</p>
-      <p className="text-xl font-display font-black text-slate-800 dark:text-white leading-tight relative z-10">{value}</p>
+      <p className="text-xl font-sf font-semibold text-slate-800 dark:text-white leading-tight relative z-10">{value}</p>
       {sub && <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 relative z-10">{sub}</p>}
     </div>
   )
@@ -63,7 +63,7 @@ function QuickAction({ icon: Icon, label, sub, color, onClick, danger, badge }) 
       className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border transition-all duration-200 active:scale-95 text-center w-full relative
         ${danger
           ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/50 hover:bg-red-100 dark:hover:bg-red-900/30'
-          : 'glass-card hover:shadow-lg hover:-translate-y-0.5'}`}>
+          : 'ap-surface hover:shadow-lg hover:-translate-y-0.5'}`}>
       {badge && <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-blue-500 animate-pulse" />}
       <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${color}`}>
         <Icon size={20} className="text-white" />
@@ -79,17 +79,17 @@ function QuickAction({ icon: Icon, label, sub, color, onClick, danger, badge }) 
 function StatusModal({ current, onSelect, onClose }) {
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="relative w-full sm:w-80 bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl z-10 animate-fade-up">
-        <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mb-4 sm:hidden" />
-        <h3 className="font-display font-black text-slate-800 dark:text-white text-base mb-1">Set Your Status</h3>
+      <div className="relative w-full sm:w-80 ap-surface rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl z-10 animate-fade-up">
+        <div className="w-10 h-1 bg-[var(--ap-border)] rounded-full mx-auto mb-4 sm:hidden" />
+        <h3 className="font-sf font-semibold text-slate-800 dark:text-white text-base mb-1">Set Your Status</h3>
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Let dispatch know your availability</p>
         <div className="space-y-2">
           {DRIVER_STATUSES.map(s => (
             <button key={s.key} onClick={() => { onSelect(s.key); onClose() }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all
                 ${current === s.key
-                  ? `ring-2 ${s.ring} border-transparent bg-slate-50 dark:bg-navy-800`
-                  : 'border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/50 hover:bg-slate-50 dark:hover:bg-navy-800'}`}>
+                  ? `ring-2 ${s.ring} border-transparent bg-[var(--ap-surface-2)]`
+                  : 'border-[var(--ap-border)] bg-[var(--ap-surface-2)] hover:bg-[var(--ap-surface-2)]'}`}>
               <span className={`w-3 h-3 rounded-full flex-shrink-0 ${s.dot} ${current === s.key ? 'animate-pulse' : ''}`} />
               <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{s.label}</span>
               {current === s.key && <span className="ml-auto text-[10px] font-bold text-slate-400 dark:text-slate-500">Current</span>}
@@ -106,12 +106,12 @@ function PendingTripCard({ trip, onStart, isNext }) {
   const typeLabel = TRIP_TYPES[trip.tripType] || trip.tripType
   const timeParts = String(trip.scheduledTime || '—').split(' ')
   return (
-    <div className={`glass-card rounded-2xl overflow-hidden ${isNext ? 'ring-2 ring-blue-400/60 shadow-lg shadow-blue-500/10' : ''}`}>
+    <div className={`ap-surface rounded-2xl overflow-hidden ${isNext ? 'ring-2 ring-blue-400/60 shadow-lg shadow-blue-500/10' : ''}`}>
       <div className={`px-4 pt-3.5 pb-2.5 flex items-center justify-between gap-2 ${isNext ? 'bg-blue-50/80 dark:bg-blue-900/20' : ''}`}>
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex flex-col items-center justify-center ${isNext ? 'bg-blue-600' : 'bg-navy-900 dark:bg-navy-800'}`}>
+          <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex flex-col items-center justify-center ${isNext ? 'bg-blue-600' : 'bg-[var(--ap-accent)]'}`}>
             <span className="text-[9px] font-bold text-blue-300 uppercase leading-none">{timeParts[1] || ''}</span>
-            <span className="text-sm font-black text-white leading-tight">{timeParts[0]}</span>
+            <span className="text-sm font-semibold text-white leading-tight">{timeParts[0]}</span>
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
@@ -128,7 +128,7 @@ function PendingTripCard({ trip, onStart, isNext }) {
         <div className="flex items-stretch gap-2.5 mb-3">
           <div className="flex flex-col items-center gap-1 pt-1">
             <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
-            <div className="flex-1 w-0.5 border-l border-dashed border-slate-300 dark:border-navy-600 min-h-[14px]" />
+            <div className="flex-1 w-0.5 border-l border-dashed border-[var(--ap-border)] min-h-[14px]" />
             <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
           </div>
           <div className="flex-1 min-w-0 space-y-1.5">
@@ -142,7 +142,7 @@ function PendingTripCard({ trip, onStart, isNext }) {
             </div>
           </div>
           <div className="flex-shrink-0 text-right">
-            <p className="text-base font-black text-navy-800 dark:text-blue-300 tabular-nums">Rs. {trip.fare.toLocaleString('en-IN')}</p>
+            <p className="text-base font-semibold text-navy-800 dark:text-blue-300 tabular-nums">Rs. {trip.fare.toLocaleString('en-IN')}</p>
             <p className="text-[10px] text-slate-400 tabular-nums">{trip.km} km{trip.bata > 0 ? ` · Bata Rs. ${trip.bata.toLocaleString('en-IN')}` : ''}</p>
           </div>
         </div>
@@ -165,7 +165,7 @@ function PendingTripCard({ trip, onStart, isNext }) {
         <div className="flex gap-2">
           {trip.contact ? (
           <a href={`tel:${trip.contact}`}
-             className="flex items-center justify-center gap-1.5 px-3 min-h-[36px] rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+             className="flex items-center justify-center gap-1.5 px-3 min-h-[36px] rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-[var(--ap-surface-2)] transition-colors">
             <Phone size={12} /> Call
           </a>
           ) : null}
@@ -186,13 +186,13 @@ function PendingTripCard({ trip, onStart, isNext }) {
 // ── GPS area widget ────────────────────────────────────────────
 function AreaWidget({ label, area, gradient, icon: Icon }) {
   return (
-    <div className="glass-card rounded-2xl p-3.5 relative overflow-hidden col-span-2">
+    <div className="ap-surface rounded-2xl p-3.5 relative overflow-hidden col-span-2">
       <div className={`absolute -top-5 -right-5 w-16 h-16 rounded-full opacity-15 blur-xl ${gradient}`} />
       <div className={`w-8 h-8 rounded-xl ${gradient} flex items-center justify-center mb-2 relative z-10`}>
         <Icon size={15} className="text-white" />
       </div>
       <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider leading-none mb-1 relative z-10">{label}</p>
-      <p className="text-sm font-display font-black text-slate-800 dark:text-white leading-tight relative z-10 truncate">{area || '—'}</p>
+      <p className="text-sm font-sf font-semibold text-slate-800 dark:text-white leading-tight relative z-10 truncate">{area || '—'}</p>
     </div>
   )
 }
@@ -423,7 +423,7 @@ export default function DriverDashboard() {
     return (
       <div className="space-y-2.5 max-w-7xl mx-auto animate-fade-up pb-6" role="status" aria-busy="true" aria-label="Loading dashboard">
         <span className="sr-only">Loading your dashboard…</span>
-        <div className="glass-card rounded-2xl p-4 flex items-center gap-3" aria-hidden="true">
+        <div className="ap-surface rounded-2xl p-4 flex items-center gap-3" aria-hidden="true">
           <div className="skeleton w-12 h-12 rounded-full flex-shrink-0" />
           <div className="flex-1 space-y-1.5">
             <div className="skeleton h-4 w-1/3 rounded" />
@@ -432,7 +432,7 @@ export default function DriverDashboard() {
         </div>
         <div className="grid grid-cols-2 gap-2.5" aria-hidden="true">
           {[1, 2, 3, 4].map(i => (
-            <div key={i} className="glass-card rounded-2xl p-3.5 space-y-2">
+            <div key={i} className="ap-surface rounded-2xl p-3.5 space-y-2">
               <div className="skeleton w-8 h-8 rounded-xl" />
               <div className="skeleton h-3 w-16 rounded" />
               <div className="skeleton h-5 w-20 rounded" />
@@ -440,7 +440,7 @@ export default function DriverDashboard() {
           ))}
         </div>
         {[1, 2, 3].map(i => (
-          <div key={i} className="glass-card rounded-2xl p-4 flex items-center gap-3" aria-hidden="true">
+          <div key={i} className="ap-surface rounded-2xl p-4 flex items-center gap-3" aria-hidden="true">
             <div className="skeleton w-12 h-12 rounded-xl flex-shrink-0" />
             <div className="flex-1 space-y-1.5">
               <div className="skeleton h-4 w-2/5 rounded" />
@@ -456,18 +456,18 @@ export default function DriverDashboard() {
     <div className="space-y-4 max-w-7xl mx-auto animate-fade-up pb-6">
 
       {/* ── Welcome card ── */}
-      <div className="glass-card rounded-2xl p-4 relative overflow-hidden">
+      <div className="ap-surface rounded-2xl p-4 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 rounded-full opacity-10 blur-3xl bg-gradient-to-br from-blue-500 to-teal-400" />
         <div className="relative z-10">
           <div className="flex items-start justify-between gap-3 mb-3">
             <div className="flex items-center gap-3">
               <div className="relative">
                 <Avatar name={driverName} size={48} />
-                <span className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-white dark:border-navy-800 ${curStatus?.dot}`} />
+                <span className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-white dark:border-[var(--ap-border)] ${curStatus?.dot}`} />
               </div>
               <div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">{greeting}</p>
-                <h2 className="font-display font-black text-slate-800 dark:text-white text-lg leading-tight">{driverName}</h2>
+                <h2 className="font-sf font-semibold text-slate-800 dark:text-white text-lg leading-tight">{driverName}</h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400">Driver · {user?.vehicleType || '4+1 Sedan'}</p>
               </div>
             </div>
@@ -496,7 +496,7 @@ export default function DriverDashboard() {
           Driver cannot proceed without a manager-assigned vehicle.
           If freshly assigned, show a one-time confirmation prompt. */}
       {!hasVehicleAssigned && (
-        <div className="glass-card rounded-2xl p-4 border-2 border-red-200 dark:border-red-800/40 bg-red-50/50 dark:bg-red-900/10 flex items-center gap-3">
+        <div className="ap-surface rounded-2xl p-4 border-2 border-red-200 dark:border-red-800/40 bg-red-50/50 dark:bg-red-900/10 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
             <AlertTriangle size={18} className="text-red-500" />
           </div>
@@ -508,7 +508,7 @@ export default function DriverDashboard() {
       )}
 
       {hasVehicleAssigned && liveAssignment && !vehicleConfirmed && (
-        <div className="glass-card rounded-2xl p-4 border-2 border-blue-200 dark:border-blue-800/40 bg-blue-50/50 dark:bg-blue-900/10 flex items-center gap-3 flex-wrap">
+        <div className="ap-surface rounded-2xl p-4 border-2 border-blue-200 dark:border-blue-800/40 bg-blue-50/50 dark:bg-blue-900/10 flex items-center gap-3 flex-wrap">
           <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center flex-shrink-0">
             <Car size={18} className="text-blue-500" />
           </div>
@@ -577,7 +577,7 @@ export default function DriverDashboard() {
         <div className="flex items-center justify-between mb-2.5 px-0.5">
           <div>
             <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Today's Schedule</p>
-            <p className="font-display font-black text-slate-800 dark:text-white text-sm">{trips.length} trips assigned</p>
+            <p className="font-sf font-semibold text-slate-800 dark:text-white text-sm">{trips.length} trips assigned</p>
           </div>
           <button onClick={() => navigate('/assigned-trips')}
                   className="flex items-center gap-1 text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
@@ -585,7 +585,7 @@ export default function DriverDashboard() {
           </button>
         </div>
         {trips.length === 0 ? (
-          <div className="glass-card rounded-2xl p-10 text-center">
+          <div className="ap-surface rounded-2xl p-10 text-center">
             <Car size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
             <p className="font-semibold text-slate-500 dark:text-slate-400 text-sm">No trips assigned for today</p>
           </div>
@@ -617,8 +617,8 @@ export default function DriverDashboard() {
 
       {/* ── Vehicle strip ── */}
       {vehicle && (
-        <div className="glass-card rounded-2xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-navy-900 dark:bg-navy-800 flex items-center justify-center flex-shrink-0">
+        <div className="ap-surface rounded-2xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[var(--ap-accent)] flex items-center justify-center flex-shrink-0">
             <Car size={18} className="text-white" />
           </div>
           <div className="flex-1 min-w-0">

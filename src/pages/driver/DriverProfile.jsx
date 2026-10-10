@@ -8,8 +8,8 @@ import { loadSettlements, monthLabel, getSettlementStatusCfg } from '../../data/
 
 function InfoRow({ icon: Icon, label, value }) {
   return (
-    <div className="flex items-center gap-3 py-2.5 border-b border-slate-100 dark:border-navy-700 last:border-0">
-      <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-navy-700 flex items-center justify-center flex-shrink-0">
+    <div className="flex items-center gap-3 py-2.5 border-b border-[var(--ap-border)] last:border-0">
+      <div className="w-7 h-7 rounded-lg bg-[var(--ap-border)] flex items-center justify-center flex-shrink-0">
         <Icon size={13} className="text-slate-500 dark:text-slate-400" />
       </div>
       <div className="flex-1 min-w-0">
@@ -62,11 +62,11 @@ export default function DriverProfile() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <button onClick={() => navigate('/driver')}
-          className="w-9 h-9 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+          className="w-9 h-9 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-colors">
           <ArrowLeft size={17} />
         </button>
         <div>
-          <h1 className="font-display font-black text-slate-800 dark:text-white text-xl">My Profile</h1>
+          <h1 className="font-sf font-semibold text-slate-800 dark:text-white text-xl">My Profile</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">Driver account details</p>
         </div>
       </div>
@@ -81,7 +81,7 @@ export default function DriverProfile() {
               <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-400 border-2 border-navy-900" />
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="font-display font-black text-white text-xl leading-tight">{user?.name}</h2>
+              <h2 className="font-sf font-semibold text-white text-xl leading-tight">{user?.name}</h2>
               <p className="text-white/60 text-sm mt-0.5">Driver · Sri Jayam Travels</p>
               {user?.phone && (
                 <p className="text-white/40 text-xs mt-0.5 flex items-center gap-1">
@@ -102,7 +102,7 @@ export default function DriverProfile() {
               { label:'Revenue',  value: `Rs.${Math.round(totalFare/1000)}k` },
             ].map(s => (
               <div key={s.label} className="bg-white/8 rounded-xl px-2 py-2 text-center">
-                <p className="text-white font-display font-black text-sm leading-tight">{s.value}</p>
+                <p className="text-white font-sf font-semibold text-sm leading-tight">{s.value}</p>
                 <p className="text-white/40 text-[9px] font-bold uppercase mt-0.5">{s.label}</p>
               </div>
             ))}
@@ -111,7 +111,7 @@ export default function DriverProfile() {
       </div>
 
       {/* Personal info */}
-      <div className="glass-card rounded-2xl p-4">
+      <div className="ap-surface rounded-2xl p-4">
         <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Personal Details</p>
         <InfoRow icon={Phone}    label="Mobile"       value={user?.phone}  />
         <InfoRow icon={Mail}     label="Email"        value={user?.email}  />
@@ -120,14 +120,14 @@ export default function DriverProfile() {
       </div>
 
       {/* Recent trips */}
-      <div className="glass-card rounded-2xl p-4">
+      <div className="ap-surface rounded-2xl p-4">
         <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Recent Trips</p>
         {bookings.length === 0 ? (
           <p className="text-xs text-slate-400 text-center py-4">No trips found</p>
         ) : (
           <div className="space-y-2">
             {bookings.slice(0, 5).map(b => (
-              <div key={b.id} className="flex items-center gap-3 bg-slate-50 dark:bg-navy-800/50 rounded-xl p-3">
+              <div key={b.id} className="flex items-center gap-3 bg-[var(--ap-surface-2)] rounded-xl p-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{b.customer_name || b.customer}</p>
                   <p className="text-[10px] text-slate-400 truncate">{b.pickup_location || b.pickup} → {b.drop_location || b.drop}</p>
@@ -146,21 +146,21 @@ export default function DriverProfile() {
 
       {/* Payroll strip */}
       {latest && (
-        <div className="glass-card rounded-2xl p-4">
+        <div className="ap-surface rounded-2xl p-4">
           <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Payroll</p>
           <div className="grid grid-cols-3 gap-2">
-            <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-2.5 text-center col-span-2">
+            <div className="bg-[var(--ap-surface-2)] rounded-xl p-2.5 text-center col-span-2">
               <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">
                 {current ? 'Current Month' : 'Latest Settlement'}
               </p>
-              <p className="text-lg font-display font-black text-emerald-600 dark:text-emerald-400">
+              <p className="text-lg font-sf font-semibold text-emerald-600 dark:text-emerald-400">
                 Rs. {((current || latest).net_amount || (current || latest).netAmount || 0).toLocaleString('en-IN')}
               </p>
               <p className="text-[10px] text-slate-400 mt-0.5">
                 {monthLabel((current||latest).month, (current||latest).year)}
               </p>
             </div>
-            <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-2.5 text-center">
+            <div className="bg-[var(--ap-surface-2)] rounded-xl p-2.5 text-center">
               <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">Status</p>
               {(() => { const cfg = getSettlementStatusCfg(latest.status); return (
                 <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${cfg.badge}`}>{cfg.label}</span>

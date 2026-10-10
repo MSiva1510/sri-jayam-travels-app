@@ -44,9 +44,9 @@ function PauseReasonModal({ onConfirm, onClose }) {
   const [selected, setSelected] = useState(null)
   return (
     <ModalOverlay onClose={onClose} center>
-      <div className="w-full max-w-sm bg-white dark:bg-navy-900 rounded-3xl shadow-2xl p-5 space-y-4" onClick={e => e.stopPropagation()}>
+      <div className="w-full max-w-sm ap-surface rounded-3xl shadow-2xl p-5 space-y-4" onClick={e => e.stopPropagation()}>
         <div>
-          <h3 className="font-display font-black text-slate-800 dark:text-white text-base">Why are you pausing?</h3>
+          <h3 className="font-sf font-semibold text-slate-800 dark:text-white text-base">Why are you pausing?</h3>
           <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">A reason is required to pause this trip.</p>
         </div>
         <div className="space-y-2">
@@ -58,7 +58,7 @@ function PauseReasonModal({ onConfirm, onClose }) {
                 className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl border-2 transition-all ${
                   isSel
                     ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20'
-                    : 'border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/40 hover:bg-slate-50 dark:hover:bg-navy-800'
+                    : 'border-[var(--ap-border)] bg-[var(--ap-surface-2)] hover:bg-[var(--ap-surface-2)]'
                 }`}>
                 <Icon size={16} className={isSel ? 'text-blue-500' : 'text-slate-400'} />
                 <span className={`text-sm font-bold flex-1 text-left ${isSel ? 'text-blue-700 dark:text-blue-300' : 'text-slate-700 dark:text-slate-200'}`}>{r.key}</span>
@@ -69,7 +69,7 @@ function PauseReasonModal({ onConfirm, onClose }) {
         </div>
         <div className="flex gap-2">
           <button onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">
+            className="flex-1 py-2.5 rounded-xl border border-[var(--ap-border)] text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-[var(--ap-surface-2)] transition-colors">
             Cancel
           </button>
           <button onClick={() => selected && onConfirm(selected)} disabled={!selected}
@@ -84,7 +84,7 @@ function PauseReasonModal({ onConfirm, onClose }) {
 
 function StatusPill({ status }) {
   const mapped = status === 'driving' ? 'started' : status
-  const cfg = RIDE_STATE_CFG[mapped] || { bg: 'bg-slate-100 dark:bg-navy-800', text: 'text-slate-600 dark:text-slate-400', dot: 'bg-slate-400', label: status }
+  const cfg = RIDE_STATE_CFG[mapped] || { bg: 'bg-[var(--ap-surface-2)]', text: 'text-slate-600 dark:text-slate-400', dot: 'bg-slate-400', label: status }
   return (
     <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${cfg.bg} ${cfg.text}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} ${status === 'driving' ? 'animate-pulse' : ''}`} />
@@ -395,18 +395,18 @@ export default function AssignedTrips() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <button onClick={() => navigate('/driver')}
-          className="w-9 h-9 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors flex-shrink-0">
+          className="w-9 h-9 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-colors flex-shrink-0">
           <ArrowLeft size={17} />
         </button>
         <div className="flex-1 min-w-0">
-          <h1 className="font-display font-black text-slate-800 dark:text-white text-xl">Assigned Trips</h1>
+          <h1 className="font-sf font-semibold text-slate-800 dark:text-white text-xl">Assigned Trips</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">Today · {trips.length} trips scheduled</p>
         </div>
       </div>
 
       {/* Module 1 (Day 20.5): vehicle assignment gate */}
       {!hasVehicleAssigned && (
-        <div className="glass-card rounded-2xl p-4 border-2 border-red-200 dark:border-red-800/40 bg-red-50/50 dark:bg-red-900/10 flex items-center gap-3">
+        <div className="ap-surface rounded-2xl p-4 border-2 border-red-200 dark:border-red-800/40 bg-red-50/50 dark:bg-red-900/10 flex items-center gap-3">
           <AlertTriangle size={18} className="text-red-500 flex-shrink-0" />
           <div>
             <p className="text-sm font-bold text-red-700 dark:text-red-400">No vehicle assigned.</p>
@@ -451,15 +451,15 @@ export default function AssignedTrips() {
           { label: 'Completed',   value: doneCount,       color: 'text-emerald-600 dark:text-emerald-400' },
           { label: 'Total Fare',  value: `Rs. ${(totalFare/1000).toFixed(1)}k`, color: 'text-navy-800 dark:text-blue-300' },
         ].map(s => (
-          <div key={s.label} className="glass-card rounded-xl p-3 text-center">
-            <p className={`text-lg font-display font-black ${s.color}`}>{s.value}</p>
+          <div key={s.label} className="ap-surface rounded-xl p-3 text-center">
+            <p className={`text-lg font-sf font-semibold ${s.color}`}>{s.value}</p>
             <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{s.label}</p>
           </div>
         ))}
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1">
+      <div className="flex gap-1 bg-[var(--ap-surface-2)] rounded-xl p-1">
         {FILTERS.map(f => {
           const cnt = f.key === 'all' ? trips.length : trips.filter(t =>
             f.key === 'driving' ? t.status === 'driving' : t.status === f.key
@@ -468,7 +468,7 @@ export default function AssignedTrips() {
             <button key={f.key} onClick={() => setFilter(f.key)}
               className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 filter === f.key
-                  ? 'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow'
+                  ? 'bg-[var(--ap-surface-elevated)] text-slate-900 dark:text-white shadow'
                   : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
               }`}>
               {f.label}
@@ -480,7 +480,7 @@ export default function AssignedTrips() {
 
       {/* Trip list */}
       {filtered.length === 0 ? (
-        <div className="glass-card rounded-2xl p-10 text-center">
+        <div className="ap-surface rounded-2xl p-10 text-center">
           <Car size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
           <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">No trips in this category</p>
         </div>
@@ -493,13 +493,13 @@ export default function AssignedTrips() {
             const timeline   = loadTimeline(trip.tripId)
 
             return (
-              <div key={trip.tripId} className={`glass-card rounded-2xl overflow-hidden ${isDriving ? 'ring-2 ring-blue-400/50' : ''}`}>
+              <div key={trip.tripId} className={`ap-surface rounded-2xl overflow-hidden ${isDriving ? 'ring-2 ring-blue-400/50' : ''}`}>
                 {/* Card header */}
                 <div className="flex items-center gap-3 p-4 cursor-pointer select-none"
                      onClick={() => setActive(isExpanded ? null : trip.tripId)}>
-                  <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center flex-shrink-0 ${isDriving ? 'bg-blue-600 animate-pulse' : 'bg-navy-900 dark:bg-navy-800'}`}>
+                  <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center flex-shrink-0 ${isDriving ? 'bg-blue-600 animate-pulse' : 'bg-[var(--ap-accent)]'}`}>
                     <span className="text-[9px] font-bold text-blue-300 uppercase leading-none">{trip.scheduledTime.split(' ')[1]}</span>
-                    <span className="text-sm font-black text-white leading-tight">{trip.scheduledTime.split(' ')[0]}</span>
+                    <span className="text-sm font-semibold text-white leading-tight">{trip.scheduledTime.split(' ')[0]}</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-slate-800 dark:text-white text-sm truncate">{trip.customer}</p>
@@ -510,19 +510,19 @@ export default function AssignedTrips() {
                   </div>
                   <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                     <StatusPill status={trip.status} />
-                    <p className="text-sm font-black text-navy-800 dark:text-blue-300">Rs. {(trip?.fare ?? 0).toLocaleString('en-IN')}</p>
+                    <p className="text-sm font-semibold text-navy-800 dark:text-blue-300">Rs. {(trip?.fare ?? 0).toLocaleString('en-IN')}</p>
                   </div>
                 </div>
 
                 {/* Expanded */}
                 {isExpanded && (
-                  <div className="border-t border-slate-100 dark:border-navy-700 p-4 bg-slate-50/50 dark:bg-navy-800/30 space-y-3">
+                  <div className="border-t border-[var(--ap-border)] p-4 bg-slate-50/50 bg-[var(--ap-surface-2)] space-y-3">
 
                     {/* Route visual */}
-                    <div className="flex items-stretch gap-3 bg-white dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700">
+                    <div className="flex items-stretch gap-3 bg-[var(--ap-surface-2)] rounded-xl p-3 border border-[var(--ap-border)]">
                       <div className="flex flex-col items-center gap-1">
                         <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0" />
-                        <div className="flex-1 w-0.5 border-l border-dashed border-slate-300 dark:border-navy-600" />
+                        <div className="flex-1 w-0.5 border-l border-dashed border-[var(--ap-border)]" />
                         <div className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" />
                       </div>
                       <div className="flex-1 min-w-0 space-y-2">
@@ -551,7 +551,7 @@ export default function AssignedTrips() {
                           { label: 'Duration',  value: trip.duration, hi: true    },
                         ] : []),
                       ].map(d => (
-                        <div key={d.label} className="bg-white dark:bg-navy-800/60 rounded-xl p-2.5 border border-slate-100 dark:border-navy-700">
+                        <div key={d.label} className="bg-[var(--ap-surface-2)] rounded-xl p-2.5 border border-[var(--ap-border)]">
                           <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5">{d.label}</p>
                           <p className={`text-xs font-bold leading-tight ${d.mono ? 'font-mono' : ''} ${d.hi ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-200'}`}>{d.value}</p>
                         </div>
@@ -605,7 +605,7 @@ export default function AssignedTrips() {
                               {trip.km > 0 && (
                                 <div className="flex-shrink-0 text-right">
                                   <p className="text-[9px] font-bold text-blue-500 dark:text-blue-400 uppercase">Distance</p>
-                                  <p className="text-sm font-black text-slate-800 dark:text-white">{trip.km} KM</p>
+                                  <p className="text-sm font-semibold text-slate-800 dark:text-white">{trip.km} KM</p>
                                   <p className="text-[9px] font-bold text-blue-500 dark:text-blue-400 uppercase mt-1">ETA</p>
                                   <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{estimateTravelTime(trip.km)}</p>
                                 </div>
@@ -622,7 +622,7 @@ export default function AssignedTrips() {
 
                         <div className="flex gap-2">
                           <a href={`tel:${trip.contact}`}
-                            className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+                            className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-[var(--ap-surface-2)] transition-colors">
                             <Phone size={13} /> Call
                           </a>
                           <StartRideButton onStart={() => handleStart(trip.tripId)} fullWidth disabled={!hasVehicleAssigned} />
@@ -650,7 +650,7 @@ export default function AssignedTrips() {
                           {timeline.map((ev, i) => {
                             const evCfg = getEventCfg(ev.event)
                             return (
-                              <div key={i} className="flex items-center gap-2.5 px-3 py-2 bg-white dark:bg-navy-800/60 rounded-xl border border-slate-100 dark:border-navy-700">
+                              <div key={i} className="flex items-center gap-2.5 px-3 py-2 bg-[var(--ap-surface-2)] rounded-xl border border-[var(--ap-border)]">
                                 <span className={`w-2 h-2 rounded-full flex-shrink-0 ${evCfg.dot}`} />
                                 <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 flex-1">{ev.label}</span>
                                 <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{fmtTimelineTime(ev.timestamp)}</span>
@@ -680,10 +680,10 @@ export default function AssignedTrips() {
       {/* Module 14: Start KM modal */}
       {odomStart && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="w-full sm:w-96 bg-white dark:bg-navy-900 rounded-2xl shadow-2xl overflow-hidden animate-fade-up">
-            <div className="px-5 py-4 border-b border-slate-100 dark:border-navy-700">
+          <div className="w-full sm:w-96 ap-surface rounded-2xl shadow-2xl overflow-hidden animate-fade-up">
+            <div className="px-5 py-4 border-b border-[var(--ap-border)]">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Start Trip</p>
-              <h3 className="font-display font-black text-slate-800 dark:text-white text-base">Enter Start Odometer</h3>
+              <h3 className="font-sf font-semibold text-slate-800 dark:text-white text-base">Enter Start Odometer</h3>
             </div>
             <div className="px-5 py-4 space-y-3">
               <p className="text-sm text-slate-500 dark:text-slate-400">Record the vehicle odometer reading before starting this trip.</p>
@@ -691,12 +691,12 @@ export default function AssignedTrips() {
                 <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Odometer Reading (KM) <span className="text-red-500">*</span></label>
                 <input type="number" value={odomStartKm} onChange={e => setOdomStartKm(e.target.value)}
                   placeholder="e.g. 45230" autoFocus
-                  className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/25" />
+                  className="w-full px-3 py-2.5 text-sm rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/25" />
               </div>
             </div>
-            <div className="px-5 py-4 border-t border-slate-100 dark:border-navy-700 flex gap-2">
+            <div className="px-5 py-4 border-t border-[var(--ap-border)] flex gap-2">
               <button onClick={() => setOdomStart(null)}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">
+                className="flex-1 py-2.5 rounded-xl border border-[var(--ap-border)] text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-[var(--ap-surface-2)] transition-colors">
                 Cancel
               </button>
               <button onClick={confirmStartWithKm}
@@ -711,10 +711,10 @@ export default function AssignedTrips() {
       {/* Module 14: End KM modal */}
       {odomEnd && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="w-full sm:w-96 bg-white dark:bg-navy-900 rounded-2xl shadow-2xl overflow-hidden animate-fade-up">
-            <div className="px-5 py-4 border-b border-slate-100 dark:border-navy-700">
+          <div className="w-full sm:w-96 ap-surface rounded-2xl shadow-2xl overflow-hidden animate-fade-up">
+            <div className="px-5 py-4 border-b border-[var(--ap-border)]">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Complete Trip</p>
-              <h3 className="font-display font-black text-slate-800 dark:text-white text-base">Enter End Odometer</h3>
+              <h3 className="font-sf font-semibold text-slate-800 dark:text-white text-base">Enter End Odometer</h3>
             </div>
             <div className="px-5 py-4 space-y-3">
               <p className="text-sm text-slate-500 dark:text-slate-400">Record the vehicle odometer reading at trip completion.</p>
@@ -722,12 +722,12 @@ export default function AssignedTrips() {
                 <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Odometer Reading (KM) <span className="text-red-500">*</span></label>
                 <input type="number" value={odomEndKm} onChange={e => setOdomEndKm(e.target.value)}
                   placeholder="e.g. 45530" autoFocus
-                  className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-red-500/25" />
+                  className="w-full px-3 py-2.5 text-sm rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-red-500/25" />
               </div>
             </div>
-            <div className="px-5 py-4 border-t border-slate-100 dark:border-navy-700 flex gap-2">
+            <div className="px-5 py-4 border-t border-[var(--ap-border)] flex gap-2">
               <button onClick={() => setOdomEnd(null)}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">
+                className="flex-1 py-2.5 rounded-xl border border-[var(--ap-border)] text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-[var(--ap-surface-2)] transition-colors">
                 Cancel
               </button>
               <button onClick={confirmEndWithKm}

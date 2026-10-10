@@ -138,11 +138,11 @@ export default function RideHistory() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <button onClick={() => navigate('/driver')}
-          className="w-9 h-9 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors flex-shrink-0">
+          className="w-9 h-9 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-colors flex-shrink-0">
           <ArrowLeft size={17} />
         </button>
         <div>
-          <h1 className="font-display font-black text-slate-800 dark:text-white text-xl">Ride History</h1>
+          <h1 className="font-sf font-semibold text-slate-800 dark:text-white text-xl">Ride History</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">{history.length} trips · {new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })}</p>
         </div>
       </div>
@@ -161,20 +161,20 @@ export default function RideHistory() {
           { label: 'KM Driven',      value: totalKm.toLocaleString(),                   icon: Car,        color: 'from-violet-600 to-purple-500' },
           { label: 'GPS Tracked',    value: tripsWithGPS,                               icon: Signal,     color: 'from-blue-500 to-indigo-600'   },
         ].map(s => (
-          <div key={s.label} className="glass-card rounded-2xl p-3.5 relative overflow-hidden">
+          <div key={s.label} className="ap-surface rounded-2xl p-3.5 relative overflow-hidden">
             <div className={`absolute -top-4 -right-4 w-14 h-14 rounded-full opacity-15 blur-xl bg-gradient-to-br ${s.color}`} />
             <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${s.color} flex items-center justify-center mb-2 relative z-10`}>
               <s.icon size={13} className="text-white" />
             </div>
             <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5 relative z-10">{s.label}</p>
-            <p className="text-sm font-display font-black text-slate-800 dark:text-white leading-tight relative z-10">{s.value}</p>
+            <p className="text-sm font-sf font-semibold text-slate-800 dark:text-white leading-tight relative z-10">{s.value}</p>
           </div>
         ))}
       </div>
 
       {/* Lifecycle stats strip */}
       {tripsWithLC > 0 && (
-        <div className="glass-card rounded-2xl p-4">
+        <div className="ap-surface rounded-2xl p-4">
           <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Lifecycle Stats</p>
           <div className="grid grid-cols-3 gap-2">
             {[
@@ -182,8 +182,8 @@ export default function RideHistory() {
               { label: 'Total Pauses',    value: totalPauses,  color: 'text-amber-600 dark:text-amber-400'     },
               { label: 'GPS Recorded',    value: tripsWithGPS, color: 'text-emerald-600 dark:text-emerald-400' },
             ].map(s => (
-              <div key={s.label} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-2.5 text-center">
-                <p className={`text-lg font-display font-black ${s.color}`}>{s.value}</p>
+              <div key={s.label} className="bg-[var(--ap-surface-2)] rounded-xl p-2.5 text-center">
+                <p className={`text-lg font-sf font-semibold ${s.color}`}>{s.value}</p>
                 <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">{s.label}</p>
               </div>
             ))}
@@ -192,15 +192,15 @@ export default function RideHistory() {
       )}
 
       {/* Earnings bar — fare is the company's, bata is yours */}
-      <div className="glass-card rounded-2xl p-4">
+      <div className="ap-surface rounded-2xl p-4">
         <div className="flex items-center justify-between mb-1">
           <div>
             <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Fare Collected (company)</p>
-            <p className="font-display font-black text-slate-800 dark:text-white text-base tabular-nums">Rs. {totalFare.toLocaleString('en-IN')}</p>
+            <p className="font-sf font-semibold text-slate-800 dark:text-white text-base tabular-nums">Rs. {totalFare.toLocaleString('en-IN')}</p>
           </div>
           <div className="text-right">
             <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Your Bata</p>
-            <p className="font-display font-black text-emerald-600 dark:text-emerald-400 text-base tabular-nums">Rs. {totalEarnings.toLocaleString('en-IN')}</p>
+            <p className="font-sf font-semibold text-emerald-600 dark:text-emerald-400 text-base tabular-nums">Rs. {totalEarnings.toLocaleString('en-IN')}</p>
           </div>
         </div>
         <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
@@ -222,7 +222,7 @@ export default function RideHistory() {
               className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
                 filter === f.key
                   ? 'bg-navy-900 dark:bg-blue-700 text-white shadow'
-                  : 'bg-slate-100 dark:bg-navy-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-navy-700'
+                  : 'bg-[var(--ap-surface-2)] text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)]'
               }`}>
               {f.label}
               <span className="ml-1.5 opacity-70">{f.count}</span>
@@ -233,7 +233,7 @@ export default function RideHistory() {
 
       {/* History list */}
       {filtered.length === 0 ? (
-        <div className="glass-card rounded-2xl p-10 text-center">
+        <div className="ap-surface rounded-2xl p-10 text-center">
           <Clock size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
           <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">No rides in this category</p>
         </div>
@@ -250,17 +250,17 @@ export default function RideHistory() {
             const stateCfg     = RIDE_STATE_CFG[trip.rideState] || RIDE_STATE_CFG.completed
 
             return (
-              <div key={i} className="glass-card rounded-2xl overflow-hidden hover:shadow-md transition-all duration-200">
+              <div key={i} className="ap-surface rounded-2xl overflow-hidden hover:shadow-md transition-all duration-200">
 
                 {/* Row header */}
                 <div className="flex items-center gap-3 p-3.5 cursor-pointer select-none"
                      onClick={() => setExpanded(isOpen ? null : i)}>
                   {/* Date badge */}
-                  <div className="w-11 h-11 rounded-xl bg-navy-900 dark:bg-navy-800 flex flex-col items-center justify-center flex-shrink-0">
+                  <div className="w-11 h-11 rounded-xl bg-[var(--ap-accent)] flex flex-col items-center justify-center flex-shrink-0">
                     <span className="text-[8px] font-bold text-blue-400 uppercase leading-none">
                       {typeof trip.date === 'string' ? trip.date.slice(3, 6) : '—'}
                     </span>
-                    <span className="text-sm font-black text-white leading-tight">
+                    <span className="text-sm font-semibold text-white leading-tight">
                       {typeof trip.date === 'string' ? trip.date.slice(0, 2) : '?'}
                     </span>
                   </div>
@@ -294,7 +294,7 @@ export default function RideHistory() {
 
                   <div className="text-right flex-shrink-0 flex items-center gap-2">
                     <div>
-                      <p className="text-sm font-black text-emerald-600 dark:text-emerald-400">
+                      <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
                         Rs. {(trip.earnings || 0).toLocaleString('en-IN')}
                       </p>
                       <p className="text-[10px] text-slate-400">your pay</p>
@@ -308,13 +308,13 @@ export default function RideHistory() {
 
                 {/* Expanded detail */}
                 {isOpen && (
-                  <div className="border-t border-slate-100 dark:border-navy-700 p-3.5 pt-3 bg-slate-50/60 dark:bg-navy-800/30 space-y-3">
+                  <div className="border-t border-[var(--ap-border)] p-3.5 pt-3 bg-slate-50/60 bg-[var(--ap-surface-2)] space-y-3">
 
                     {/* Route */}
-                    <div className="flex items-stretch gap-3 bg-white dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700">
+                    <div className="flex items-stretch gap-3 bg-[var(--ap-surface-2)] rounded-xl p-3 border border-[var(--ap-border)]">
                       <div className="flex flex-col items-center gap-1 pt-0.5">
                         <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
-                        <div className="flex-1 w-0.5 border-l border-dashed border-slate-300 dark:border-navy-600 min-h-[14px]" />
+                        <div className="flex-1 w-0.5 border-l border-dashed border-[var(--ap-border)] min-h-[14px]" />
                         <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
                       </div>
                       <div className="flex-1 min-w-0 space-y-2">
@@ -339,7 +339,7 @@ export default function RideHistory() {
                         { label: 'Start',     value: trip.startTime || '—' },
                         { label: 'End',       value: trip.endTime   || '—' },
                       ].map(d => (
-                        <div key={d.label} className="bg-white dark:bg-navy-800/60 rounded-xl p-2.5 border border-slate-100 dark:border-navy-700">
+                        <div key={d.label} className="bg-[var(--ap-surface-2)] rounded-xl p-2.5 border border-[var(--ap-border)]">
                           <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5">{d.label}</p>
                           <p className={`text-xs font-bold leading-tight ${d.hi ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-200'}`}>{d.value}</p>
                         </div>
@@ -404,7 +404,7 @@ export default function RideHistory() {
                                 cancelled: { dot: 'bg-red-500',     label: 'Cancelled'},
                               }[ev.type] || { dot: 'bg-slate-400', label: ev.type }
                               return (
-                                <div key={ei} className="flex items-center gap-2.5 px-3 py-2 bg-white dark:bg-navy-800/60 rounded-xl border border-slate-100 dark:border-navy-700">
+                                <div key={ei} className="flex items-center gap-2.5 px-3 py-2 bg-[var(--ap-surface-2)] rounded-xl border border-[var(--ap-border)]">
                                   <span className={`w-2 h-2 rounded-full flex-shrink-0 ${evCfg.dot}`} />
                                   <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{ev.label}</span>
                                   <span className="ml-auto text-[10px] text-slate-400 dark:text-slate-500 font-mono">
@@ -440,7 +440,7 @@ export default function RideHistory() {
                                 time={trip.gps.endCoord.timestamp ? new Date(trip.gps.endCoord.timestamp).toLocaleTimeString() : undefined} />
                             )}
                             {(trip.gps.startCoord || trip.gps.endCoord) && (
-                              <div className="bg-slate-900 dark:bg-navy-950 rounded-xl p-3 border border-slate-700 dark:border-navy-700">
+                              <div className="bg-slate-900 dark:bg-[var(--ap-bg)] rounded-xl p-3 border border-slate-700 dark:border-[var(--ap-border)]">
                                 <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-2">Raw Coordinates</p>
                                 <div className="space-y-1.5">
                                   {trip.gps.startCoord && (
@@ -480,7 +480,7 @@ export default function RideHistory() {
                         )}
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2 bg-slate-50 dark:bg-navy-800/40 border border-slate-100 dark:border-navy-700 rounded-xl px-3 py-2">
+                      <div className="flex items-center gap-2 bg-[var(--ap-surface-2)] border border-[var(--ap-border)] rounded-xl px-3 py-2">
                         <WifiOff size={12} className="text-slate-400 flex-shrink-0" />
                         <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">No GPS data for this trip</p>
                       </div>
