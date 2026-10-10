@@ -94,12 +94,12 @@ export default function Login() {
   const leaveForgot = () => { setForgotMode(false); setResetSent(false); setLoginError('') }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 sm:p-8 bg-[#e9e7e4] dark:bg-navy-950 overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center p-4 sm:p-8 bg-[#e9e7e4] dark:bg-[var(--ap-bg)] overflow-hidden">
 
       {/* Dark mode toggle */}
       <button
         onClick={() => setDarkMode(!darkMode)}
-        className="fixed top-5 right-5 z-20 w-9 h-9 rounded-xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-navy-800/70 backdrop-blur flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-navy-700 transition-all"
+        className="fixed top-5 right-5 z-20 w-9 h-9 rounded-xl border border-black/10 dark:border-white/10 bg-white/60 bg-[var(--ap-surface-2)] backdrop-blur flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-white hover:bg-[var(--ap-surface-2)] transition-all"
         title={darkMode ? 'Light mode' : 'Dark mode'}
       >
         {darkMode
@@ -112,7 +112,7 @@ export default function Login() {
       <div className="login-scene w-full max-w-[1040px]">
         <div
           className="login-card grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] rounded-[28px] overflow-hidden
-                     bg-[#f6f2ec] dark:bg-navy-900 shadow-[0_40px_80px_-30px_rgba(15,23,42,0.45)] dark:shadow-[0_40px_80px_-30px_rgba(0,0,0,0.8)]
+                     bg-[#f6f2ec] dark:bg-[var(--ap-surface)] shadow-[0_40px_80px_-30px_rgba(15,23,42,0.45)] dark:shadow-[0_40px_80px_-30px_rgba(0,0,0,0.8)]
                      border border-white/60 dark:border-white/5"
         >
           {/* ── Left: mascots ─────────────────────────────────── */}
@@ -120,10 +120,10 @@ export default function Login() {
             <div className="rise flex items-center gap-3" style={{ '--d': 0 }}>
               <div className="w-10 h-10 rounded-2xl bg-navy-900 dark:bg-white/10 flex items-center justify-center overflow-hidden p-1.5 shadow-md">
                 <img src={BIZ.logo} alt="SJT" className="w-full h-full object-contain"
-                  onError={e => { e.target.style.display='none'; e.target.parentNode.innerHTML='<span class="text-white font-black text-xs">SJT</span>' }} />
+                  onError={e => { e.target.style.display='none'; e.target.parentNode.innerHTML='<span class="text-white font-semibold text-xs">SJT</span>' }} />
               </div>
               <div>
-                <p className="font-display font-black text-slate-800 dark:text-white text-sm tracking-wide leading-tight">SRI JAYAM TRAVELS</p>
+                <p className="font-sf font-semibold text-slate-800 dark:text-white text-sm tracking-wide leading-tight">SRI JAYAM TRAVELS</p>
                 <p className="text-slate-400 dark:text-slate-500 text-[10px] tracking-[0.2em]">PUDUCHERRY</p>
               </div>
             </div>
@@ -141,7 +141,7 @@ export default function Login() {
               ].map(st => (
                 <div key={st.label}
                   className="rounded-2xl border border-slate-900/[0.06] dark:border-white/10 bg-white/50 dark:bg-white/5 px-4 py-3">
-                  <p className="text-2xl font-display font-black text-slate-800 dark:text-white leading-tight tabular-nums">{fmt(st.value)}</p>
+                  <p className="text-2xl font-sf font-semibold text-slate-800 dark:text-white leading-tight tabular-nums">{fmt(st.value)}</p>
                   <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{st.label}</p>
                 </div>
               ))}
@@ -149,7 +149,7 @@ export default function Login() {
           </div>
 
           {/* ── Right: form ───────────────────────────────────── */}
-          <div className="relative bg-white dark:bg-navy-800/60 lg:rounded-l-[28px] lg:shadow-[-20px_0_40px_-30px_rgba(15,23,42,0.35)] px-6 sm:px-10 lg:px-14 py-10 lg:py-14 flex flex-col justify-center text-slate-800 dark:text-slate-100">
+          <div className="relative bg-[var(--ap-surface-2)] lg:rounded-l-[28px] lg:shadow-[-20px_0_40px_-30px_rgba(15,23,42,0.35)] px-6 sm:px-10 lg:px-14 py-10 lg:py-14 flex flex-col justify-center text-slate-800 dark:text-slate-100">
 
             {forgotMode ? (
               /* ── Forgot password ─────────────────────────── */
@@ -158,7 +158,7 @@ export default function Login() {
                   className="rise inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-white mb-6 transition-colors" style={{ '--d': 0 }}>
                   <ArrowLeft size={14} /> Back to login
                 </button>
-                <h2 className="rise text-3xl font-display font-black" style={{ '--d': 1 }}>Reset password</h2>
+                <h2 className="rise text-3xl font-sf font-semibold" style={{ '--d': 1 }}>Reset password</h2>
                 <p className="rise text-sm text-slate-500 dark:text-slate-400 mt-2 mb-8" style={{ '--d': 2 }}>
                   Enter your account email and we'll send a reset link.
                 </p>
@@ -192,9 +192,9 @@ export default function Login() {
               <div className="max-w-[320px] w-full mx-auto">
                 <div className="rise w-11 h-11 mx-auto mb-6 rounded-2xl bg-slate-900 dark:bg-white/10 flex items-center justify-center overflow-hidden p-2" style={{ '--d': 0 }}>
                   <img src={BIZ.logo} alt="" className="w-full h-full object-contain"
-                    onError={e => { e.target.style.display='none'; e.target.parentNode.innerHTML='<span class="text-white font-black text-xs">SJT</span>' }} />
+                    onError={e => { e.target.style.display='none'; e.target.parentNode.innerHTML='<span class="text-white font-semibold text-xs">SJT</span>' }} />
                 </div>
-                <h2 className="rise text-3xl font-display font-black text-center" style={{ '--d': 1 }}>Welcome back!</h2>
+                <h2 className="rise text-3xl font-sf font-semibold text-center" style={{ '--d': 1 }}>Welcome back!</h2>
                 <p className="rise text-xs text-slate-400 dark:text-slate-500 text-center mt-1.5 mb-8" style={{ '--d': 2 }}>Please enter your details</p>
 
                 {loginError && <ErrorBanner text={loginError} />}

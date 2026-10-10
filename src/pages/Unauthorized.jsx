@@ -8,7 +8,7 @@ export default function Unauthorized() {
   const colors = user ? ROLE_COLORS[user.role] : null
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-navy-950 bg-mesh px-5">
+    <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-[var(--ap-bg)] bg-mesh px-5">
       <div className="max-w-md w-full text-center">
 
         {/* Icon */}
@@ -16,7 +16,7 @@ export default function Unauthorized() {
           <ShieldOff size={36} className="text-red-500" />
         </div>
 
-        <h1 className="text-3xl font-display font-black text-slate-800 dark:text-white mb-2">
+        <h1 className="text-3xl font-sf font-semibold text-slate-800 dark:text-white mb-2">
           Access Denied
         </h1>
         <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm leading-relaxed">
@@ -37,7 +37,7 @@ export default function Unauthorized() {
         <div className="flex gap-3 justify-center">
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 font-semibold text-sm hover:bg-slate-50 dark:hover:bg-navy-700 transition-all"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 font-semibold text-sm hover:bg-[var(--ap-surface-2)] transition-all"
           >
             <ArrowLeft size={15} />
             Go Back

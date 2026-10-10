@@ -263,7 +263,7 @@ export default function AuditLog() {
         action={
           <button
             onClick={load}
-            className="px-4 py-2 rounded-xl bg-navy-900 dark:bg-white text-white dark:text-navy-900 text-sm font-bold hover:opacity-90 transition-all"
+            className="px-4 py-2 rounded-xl bg-navy-900 dark:bg-white text-white text-[var(--ap-text-1)] text-sm font-bold hover:opacity-90 transition-all"
           >
             Refresh
           </button>
@@ -282,18 +282,18 @@ export default function AuditLog() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search action, table, user…"
-          className="px-3 py-2 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 text-sm text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 w-64 focus:outline-none"
+          className="px-3 py-2 rounded-xl border border-[var(--ap-border)] ap-surface text-sm text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 w-64 focus:outline-none"
         />
         <select
           value={moduleFilter}
           onChange={e => setModuleFilter(e.target.value)}
-          className="px-3 py-2 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 text-sm text-slate-800 dark:text-white focus:outline-none dark:[&>option]:bg-navy-900"
+          className="px-3 py-2 rounded-xl border border-[var(--ap-border)] ap-surface text-sm text-slate-800 dark:text-white focus:outline-none dark:[&>option]:bg-navy-900"
         >
           {modules.map(m => <option key={m} value={m}>{m === 'all' ? 'All modules' : m}</option>)}
         </select>
       </div>
 
-      <div className="rounded-2xl border border-slate-200/80 dark:border-navy-700 bg-white dark:bg-navy-900 overflow-hidden">
+      <div className="rounded-2xl border border-[var(--ap-border)] ap-surface overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-sm text-slate-400">Loading audit log…</div>
         ) : filtered.length === 0 ? (
@@ -301,7 +301,7 @@ export default function AuditLog() {
             {events.length === 0 ? 'No audit events recorded yet.' : 'No events match your search.'}
           </div>
         ) : (
-          <div className="divide-y divide-slate-100 dark:divide-navy-800">
+          <div className="divide-y divide-[var(--ap-border)]">
             {pageRows.map((e, i) => (
               <div key={e.id || i} className="flex items-start gap-2.5 px-4 py-2">
                 <div className="flex-1 min-w-0">
@@ -332,7 +332,7 @@ export default function AuditLog() {
             value={baseSize}
             onChange={e => setBaseSize(Number(e.target.value))}
             title="Base rows at 100% zoom — auto ±1 row per 10% browser zoom"
-            className="px-2.5 py-2 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 text-xs font-bold text-slate-600 dark:text-slate-300 focus:outline-none"
+            className="px-2.5 py-2 rounded-xl border border-[var(--ap-border)] ap-surface text-xs font-bold text-slate-600 dark:text-slate-300 focus:outline-none"
           >
             {[8, 12, 20].map(n => <option key={n} value={n}>{n} / page</option>)}
           </select>
@@ -342,7 +342,7 @@ export default function AuditLog() {
           <button
             disabled={safePage <= 1}
             onClick={() => setPage(safePage - 1)}
-            className="px-3 py-2 rounded-xl border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-navy-800 transition-colors"
+            className="px-3 py-2 rounded-xl border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-[var(--ap-surface-2)] transition-colors"
           >
             Prev
           </button>
@@ -352,8 +352,8 @@ export default function AuditLog() {
               <button
                 onClick={() => setPage(p)}
                 className={`min-w-[32px] h-8 px-1.5 rounded-xl text-xs font-bold tabular-nums transition-colors ${p === safePage
-                  ? 'bg-navy-900 dark:bg-white text-white dark:text-navy-900'
-                  : 'border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-800'}`}
+                  ? 'bg-navy-900 dark:bg-white text-white text-[var(--ap-text-1)]'
+                  : 'border border-[var(--ap-border)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)]'}`}
               >
                 {p}
               </button>
@@ -362,7 +362,7 @@ export default function AuditLog() {
           <button
             disabled={safePage >= totalPages}
             onClick={() => setPage(safePage + 1)}
-            className="px-3 py-2 rounded-xl border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-navy-800 transition-colors"
+            className="px-3 py-2 rounded-xl border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-[var(--ap-surface-2)] transition-colors"
           >
             Next
           </button>
@@ -374,11 +374,11 @@ export default function AuditLog() {
                 onKeyDown={e => { if (e.key === 'Enter') submitGoTo() }}
                 placeholder={`1–${totalPages}`}
                 title={`Go to page (1–${totalPages})`}
-                className="w-16 px-2 py-2 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 text-xs font-bold tabular-nums text-slate-600 dark:text-slate-300 focus:outline-none text-center"
+                className="w-16 px-2 py-2 rounded-xl border border-[var(--ap-border)] ap-surface text-xs font-bold tabular-nums text-slate-600 dark:text-slate-300 focus:outline-none text-center"
               />
               <button
                 onClick={submitGoTo}
-                className="px-3 py-2 rounded-xl bg-navy-900 dark:bg-white text-white dark:text-navy-900 text-xs font-bold hover:opacity-90 transition-all"
+                className="px-3 py-2 rounded-xl bg-navy-900 dark:bg-white text-white text-[var(--ap-text-1)] text-xs font-bold hover:opacity-90 transition-all"
               >
                 Go
               </button>

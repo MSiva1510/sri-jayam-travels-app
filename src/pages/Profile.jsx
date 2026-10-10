@@ -10,7 +10,7 @@ import { useApp } from '../context/AppContext'
 function Toggle({ checked, onChange }) {
   return (
     <button role="switch" aria-checked={checked} onClick={() => onChange(!checked)}
-      className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${checked ? 'bg-blue-600' : 'bg-slate-200 dark:bg-navy-700'}`}>
+      className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${checked ? 'bg-blue-600' : 'bg-[var(--ap-border)]'}`}>
       <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
     </button>
   )
@@ -19,12 +19,12 @@ function Toggle({ checked, onChange }) {
 // Fix 4: Solid, readable section card — minimal transparency
 function Section({ icon: Icon, title, children }) {
   return (
-    <div className="rounded-2xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 overflow-hidden shadow-sm">
-      <div className="flex items-center gap-2.5 px-5 py-3.5 bg-slate-100 dark:bg-navy-800 border-b border-slate-200 dark:border-navy-700">
+    <div className="rounded-2xl border border-[var(--ap-border)] ap-surface overflow-hidden shadow-sm">
+      <div className="flex items-center gap-2.5 px-5 py-3.5 bg-[var(--ap-surface-2)] border-b border-[var(--ap-border)]">
         <Icon size={15} className="text-navy-700 dark:text-blue-400" />
         <p className="text-xs font-bold text-navy-800 dark:text-slate-100 uppercase tracking-wider">{title}</p>
       </div>
-      <div className="p-5 space-y-4 bg-white dark:bg-navy-900">{children}</div>
+      <div className="p-5 space-y-4 ap-surface">{children}</div>
     </div>
   )
 }
@@ -34,11 +34,11 @@ function Field({ label, value, onChange, type = 'text', readOnly }) {
     <div>
       <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">{label}</label>
       <input type={type} value={value} onChange={onChange ? e => onChange(e.target.value) : undefined} readOnly={readOnly}
-        className={`w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-navy-600
+        className={`w-full px-3 py-2.5 text-sm rounded-xl border border-[var(--ap-border)]
           text-slate-800 dark:text-slate-100 focus:outline-none transition-colors
           ${readOnly
-            ? 'bg-slate-100 dark:bg-navy-800 cursor-default'
-            : 'bg-white dark:bg-navy-800 focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 dark:focus:border-blue-500'
+            ? 'bg-[var(--ap-surface-2)] cursor-default'
+            : 'bg-[var(--ap-surface-2)] focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 dark:focus:border-blue-500'
           }`} />
     </div>
   )
@@ -130,17 +130,17 @@ export default function Profile() {
 
       {/* ── 1. My Profile ── */}
       {/* Hero card — solid white/dark background */}
-      <div className="rounded-2xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 shadow-sm overflow-hidden">
+      <div className="rounded-2xl border border-[var(--ap-border)] ap-surface shadow-sm overflow-hidden">
         {/* Top accent */}
         <div className="h-1 bg-gradient-to-r from-navy-700 to-blue-500" />
         <div className="p-5">
           <div className="flex items-center gap-4 mb-5">
             <div className="relative">
               <Avatar name={user.name} size={60} />
-              <span className={`absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full border-2 border-white dark:border-navy-900 ${roleColors?.dot}`} />
+              <span className={`absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full border-2 border-white border-[var(--ap-border)] ${roleColors?.dot}`} />
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="font-display font-black text-slate-800 dark:text-white text-xl leading-tight">{user.name}</h2>
+              <h2 className="font-sf font-semibold text-slate-800 dark:text-white text-xl leading-tight">{user.name}</h2>
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{user.email}</p>
               <div className="mt-2">
                 <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full ${roleColors?.bg} ${roleColors?.text}`}>
@@ -159,8 +159,8 @@ export default function Profile() {
               { icon: Calendar, label: 'Joined',   value: user.joined  },
               { icon: Shield,   label: 'Role',     value: ROLE_LABELS[user.role] },
             ].map(d => (
-              <div key={d.label} className="flex items-center gap-3 py-2 border-b border-slate-100 dark:border-navy-800 last:border-0">
-                <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-navy-800 flex items-center justify-center flex-shrink-0">
+              <div key={d.label} className="flex items-center gap-3 py-2 border-b border-[var(--ap-border)] last:border-0">
+                <div className="w-7 h-7 rounded-lg bg-[var(--ap-surface-2)] flex items-center justify-center flex-shrink-0">
                   <d.icon size={13} className="text-slate-500 dark:text-slate-400" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -196,9 +196,9 @@ export default function Profile() {
           checked={darkMode}
           onChange={setDarkMode}
         />
-        <div className="pt-1 border-t border-slate-100 dark:border-navy-800">
+        <div className="pt-1 border-t border-[var(--ap-border)]">
           <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Language</label>
-          <select className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-navy-600 bg-white dark:bg-navy-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+          <select className="w-full px-3 py-2.5 text-sm rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/30">
             <option>English</option>
             <option>Tamil</option>
           </select>
