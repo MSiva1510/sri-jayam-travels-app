@@ -4,12 +4,20 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
-  FileText, Plus, Search, Calendar, AlertTriangle,
-  CheckCircle, Clock, Download, Trash2, X, RefreshCw,
+  FileText, Plus, Search, AlertTriangle,
+  CheckCircle, Clock, Download, Trash2, X,
   Car, User, Route, FolderOpen, Eye, Columns3,
 } from 'lucide-react'
 import PageHeader   from '../components/ui/PageHeader'
 import ModalOverlay from '../components/ui/ModalOverlay'
+import Button       from '../components/ui/Button'
+import IconButton   from '../components/ui/IconButton'
+import MetricCard   from '../components/ui/MetricCard'
+import StatusPill   from '../components/ui/StatusPill'
+import Callout      from '../components/ui/Callout'
+import EmptyState   from '../components/ui/EmptyState'
+import SegmentedControl from '../components/ui/SegmentedControl'
+import { fieldCls, Select as FieldSelect } from '../components/ui/Field'
 import { useAuth }  from '../context/AuthContext'
 import supabase     from '../lib/supabase'
 import { loadDrivers } from '../data/driverData'
@@ -171,15 +179,12 @@ async function removeDoc(id) {
   writeLocal(_local)
 }
 
+const STATUS_TONE = { active: 'green', expiring_soon: 'amber', expired: 'red', pending: 'gray' }
+
 // ── Status badge ──────────────────────────────────────────────
 function StatusBadge({ status }) {
   const cfg = STATUS_CFG[status] || STATUS_CFG.active
-  return (
-    <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${cfg.badge}`}>
-      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${cfg.dot}`} />
-      {cfg.label}
-    </span>
-  )
+  return <StatusPill tone={STATUS_TONE[status] || 'gray'}>{cfg.label}</StatusPill>
 }
 
 // ── Add Document Modal ─────────────────────────────────────
@@ -265,23 +270,21 @@ function AddDocModal({ onClose, onSave, drivers, vehicles }) {
     setSaving(false)
   }
 
-  const INP = 'w-full px-3 py-2.5 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500/25'
+  const INP = fieldCls
 
   return (
     <ModalOverlay onClose={onClose}>
       <div role="dialog" aria-modal="true" aria-label="Add document"
-        className="relative w-full sm:w-[500px] max-h-[92vh] sm:max-h-[88vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
-        <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
+        className="relative w-full sm:w-[500px] max-h-[92vh] sm:max-h-[88vh] ap-surface rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
+        <div className="w-10 h-1 bg-[var(--ap-border)] rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-navy-700 flex-shrink-0">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--ap-border)] flex-shrink-0">
           <div>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Document</p>
-            <h3 className="font-display font-black text-slate-800 dark:text-white text-base">Add Document</h3>
+            <h3 className="font-sf font-semibold text-slate-800 dark:text-white text-base">Add Document</h3>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700 transition-colors">
-            <X size={15} />
-          </button>
+          <IconButton icon={X} label="Close" onClick={onClose} />
         </div>
 
         {/* Body */}
@@ -298,8 +301,8 @@ function AddDocModal({ onClose, onSave, drivers, vehicles }) {
                     onClick={() => upd({ category:cat.key, doc_type:DOC_TYPES[cat.key]?.[0]?.key||'', entity_id:'' })}
                     className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-all ${
                       form.category === cat.key
-                        ? 'border-navy-400 bg-navy-50 dark:bg-navy-800 ring-2 ring-navy-400/30'
-                        : 'border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/40 hover:bg-slate-50 dark:hover:bg-navy-800'
+                        ? 'border-[var(--ap-accent-2)] bg-[var(--ap-surface-2)] ring-2 ring-[var(--ap-accent-2)]/30'
+                        : 'border-[var(--ap-border)] bg-[var(--ap-surface-2)] hover:bg-[var(--ap-surface)]'
                     }`}>
                     <Icon size={15} className={cat.color} />
                     <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{cat.label}</span>
@@ -363,7 +366,7 @@ function AddDocModal({ onClose, onSave, drivers, vehicles }) {
             <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wide">Notes</label>
             <textarea value={form.notes} onChange={e => upd({ notes:e.target.value })}
               placeholder="Document number, remarks…" rows={2}
-              className={`${INP} resize-none`} />
+              className={`${INP} h-auto min-h-[72px] py-3 resize-none`} />
           </div>
 
           {/* File Upload */}
@@ -411,14 +414,11 @@ function AddDocModal({ onClose, onSave, drivers, vehicles }) {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-slate-100 dark:border-navy-700 flex gap-2 flex-shrink-0">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">
-            Cancel
-          </button>
-          <button onClick={handleSave} disabled={saving}
-            className="flex-1 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-sm font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-md active:scale-95 disabled:opacity-50">
+        <div className="px-5 py-4 border-t border-[var(--ap-border)] flex gap-2 flex-shrink-0">
+          <Button variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" className="flex-1" disabled={saving} onClick={handleSave}>
             {saving ? 'Saving…' : 'Add Document'}
-          </button>
+          </Button>
         </div>
       </div>
     </ModalOverlay>
@@ -620,133 +620,88 @@ export default function Documents() {
   return (
     <div className="space-y-4 animate-fade-up">
       {/* 1. Page header — compact, ~64px */}
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-[12px] bg-navy-900 dark:bg-blue-700 flex items-center justify-center flex-shrink-0">
-            <FileText size={18} className="text-white" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-[28px] leading-tight font-display font-black text-slate-800 dark:text-white">Documents</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Manage driver and vehicle documents</p>
-          </div>
-        </div>
-        {canManage && (
-          <button onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 px-4 min-h-[40px] rounded-lg bg-navy-900 dark:bg-blue-700 text-white text-[13px] font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all active:scale-95 flex-shrink-0">
-            <Plus size={15} /> Add Document
-          </button>
+      <PageHeader
+        title="Documents"
+        subtitle="Manage driver and vehicle documents"
+        icon={FileText}
+        action={canManage && (
+          <Button variant="primary" icon={Plus} onClick={() => setShowAdd(true)}>Add Document</Button>
         )}
-      </div>
+      />
 
       {error && (
-        <div className="bg-red-50 dark:bg-red-900/15 border border-red-200 dark:border-red-800/30 rounded-lg px-3 py-2.5 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <AlertTriangle size={14} className="text-red-600 flex-shrink-0" />
-            <p className="text-[13px] font-bold text-red-700 dark:text-red-400 truncate">Unable to load documents — {error}</p>
-          </div>
-          <button onClick={load} className="px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-400 text-white text-xs font-bold flex items-center gap-1.5 flex-shrink-0">
-            <RefreshCw size={12} /> Try again
-          </button>
-        </div>
+        <Callout tone="red" icon={AlertTriangle} title={`Unable to load documents — ${error}`}
+          actionLabel="Try again" onAction={load} />
       )}
 
       {/* 2. Summary KPIs — compact operational cards */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-2">
-        {[
-          { label:'Total Documents', value:counts.total,    color:'text-blue-600 dark:text-blue-400',         bg:'bg-blue-100 dark:bg-blue-900/30',         Icon: FileText,     filter:'all'          },
-          { label:'Valid',           value:counts.valid,    color:'text-emerald-600 dark:text-emerald-400',   bg:'bg-emerald-100 dark:bg-emerald-900/30',   Icon: CheckCircle,  filter:'active'       },
-          { label:'Expiring (30 days)', value:counts.expiring, color:'text-amber-600 dark:text-amber-400',   bg:'bg-amber-100 dark:bg-amber-900/30',       Icon: Clock,        filter:'expiring_soon'},
-          { label:'Expired',         value:counts.expired,  color:'text-red-600 dark:text-red-400',           bg:'bg-red-100 dark:bg-red-900/30',           Icon: AlertTriangle, filter:'expired'      },
-        ].map(s => (
-          <button key={s.label} onClick={() => setStatusFilter(s.filter)} aria-label={`Filter: ${s.label}`}
-            className="flex items-center gap-2.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-3.5 py-3 text-left hover:shadow-md active:scale-[0.99] transition-all min-h-[80px]">
-            <span className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${s.bg}`}>
-              <s.Icon size={15} className={s.color} />
-            </span>
-            <span className="min-w-0">
-              <span className={`block text-[26px] leading-none font-display font-black tabular-nums ${s.color}`}>{s.value}</span>
-              <span className="block text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-tight">{s.label}</span>
-            </span>
-          </button>
-        ))}
+        <MetricCard label="Total Documents"    value={counts.total}    icon={FileText}    tone="blue"  onClick={() => setStatusFilter('all')} />
+        <MetricCard label="Valid"              value={counts.valid}    icon={CheckCircle} tone="green" onClick={() => setStatusFilter('active')} />
+        <MetricCard label="Expiring (30 days)" value={counts.expiring} icon={Clock}       tone="amber" onClick={() => setStatusFilter('expiring_soon')} />
+        <MetricCard label="Expired"            value={counts.expired}  icon={AlertTriangle} tone="red" onClick={() => setStatusFilter('expired')} />
       </div>
 
       {/* Category tabs (existing filter) */}
-      <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-lg p-1 w-fit max-w-full overflow-x-auto" role="group" aria-label="Filter by category">
-        {CATEGORIES.map(cat => {
-          const { Icon } = cat
-          return (
-            <button key={cat.key} onClick={() => setCategory(cat.key)} aria-pressed={category === cat.key}
-              className={`flex items-center gap-1.5 px-3 min-h-[32px] rounded-md text-xs font-bold transition-all whitespace-nowrap ${
-                category === cat.key
-                  ? 'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-              }`}>
-              <Icon size={12} />
-              <span className="hidden sm:inline">{cat.label}</span>
-            </button>
-          )
-        })}
-      </div>
+      <SegmentedControl
+        ariaLabel="Filter by category"
+        value={category}
+        onChange={setCategory}
+        scroll
+        options={CATEGORIES.map(cat => ({ key: cat.key, label: cat.label, icon: cat.Icon }))}
+      />
 
       {/* 3. Search + filters + export toolbar — one row, wraps */}
-      <div className="flex items-center gap-2 flex-wrap rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-3 py-2">
+      <div className="flex items-center gap-2 flex-wrap ap-surface px-3 py-2">
         <div className="flex items-center gap-2 flex-1 min-w-[180px]">
           <Search size={14} className="text-slate-400 flex-shrink-0" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search documents, owner, number…"
             aria-label="Search documents"
             className="bg-transparent text-[13px] text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none w-full font-body" />
         </div>
-        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} aria-label="Filter by document type"
-          className="px-2.5 min-h-[36px] text-xs font-bold rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body max-w-[150px]">
-          <option value="all">All Types</option>
-          {TYPE_OPTIONS.map(t => <option key={`${t.key}`} value={t.key}>{t.label}</option>)}
-        </select>
-        <select value={ownerFilter} onChange={e => setOwnerFilter(e.target.value)} aria-label="Filter by owner"
-          className="px-2.5 min-h-[36px] text-xs font-bold rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body max-w-[160px]">
-          <option value="all">All Owners</option>
-          {ownerOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} aria-label="Filter by status"
-          className="px-2.5 min-h-[36px] text-xs font-bold rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
-          <option value="all">All Status</option>
-          <option value="active">Valid</option>
-          <option value="expiring_soon">Expiring</option>
-          <option value="expired">Expired</option>
-        </select>
+        <div className="w-[150px]">
+          <FieldSelect value={typeFilter} onChange={e => setTypeFilter(e.target.value)} aria-label="Filter by document type">
+            <option value="all">All Types</option>
+            {TYPE_OPTIONS.map((t, i) => <option key={`${t.key}-${i}`} value={t.key}>{t.label}</option>)}
+          </FieldSelect>
+        </div>
+        <div className="w-[160px]">
+          <FieldSelect value={ownerFilter} onChange={e => setOwnerFilter(e.target.value)} aria-label="Filter by owner">
+            <option value="all">All Owners</option>
+            {ownerOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </FieldSelect>
+        </div>
+        <div className="w-[130px]">
+          <FieldSelect value={statusFilter} onChange={e => setStatusFilter(e.target.value)} aria-label="Filter by status">
+            <option value="all">All Status</option>
+            <option value="active">Valid</option>
+            <option value="expiring_soon">Expiring</option>
+            <option value="expired">Expired</option>
+          </FieldSelect>
+        </div>
         {hasActiveFilters && (
-          <button onClick={clearFilters}
-            className="px-3 min-h-[36px] rounded-lg text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-navy-800 transition-colors whitespace-nowrap">
-            Clear Filters
-          </button>
+          <Button variant="ghost" size="sm" onClick={clearFilters}>Clear Filters</Button>
         )}
-        <button onClick={exportCsv} aria-label="Export filtered documents to CSV"
-          className="flex items-center gap-1.5 px-3 min-h-[36px] rounded-lg border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-800 active:scale-95 transition-all whitespace-nowrap">
-          <Download size={13} /> Export
-        </button>
+        <Button variant="outline" size="sm" icon={Download} onClick={exportCsv} className="whitespace-nowrap">Export</Button>
         <div className="relative" ref={colsRef}>
-          <button onClick={() => setColsOpen(v => !v)}
-            aria-label="Choose table columns" aria-expanded={colsOpen} aria-haspopup="menu"
-            className="flex items-center gap-1.5 px-3 min-h-[36px] rounded-lg border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-800 active:scale-95 transition-all whitespace-nowrap">
-            <Columns3 size={13} /> Columns
-          </button>
+          <Button variant="outline" size="sm" icon={Columns3} onClick={() => setColsOpen(v => !v)} className="whitespace-nowrap" aria-expanded={colsOpen} aria-haspopup="menu">Columns</Button>
           {colsOpen && (
             <div role="menu" aria-label="Table columns"
-              className="absolute right-0 top-full mt-2 w-52 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 shadow-2xl overflow-hidden z-50">
+              className="absolute right-0 top-full mt-2 w-52 ap-surface-elevated border border-[var(--ap-border)] shadow-2xl overflow-hidden z-50">
               <p className="px-3.5 pt-3 pb-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Show columns</p>
               <div className="p-1.5">
                 {ALL_DOC_COLS.map(c => {
                   const on = visibleCols.includes(c.key)
                   return (
                     <button key={c.key} onClick={() => toggleCol(c.key)} role="menuitemcheckbox" aria-checked={on}
-                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-800 transition-colors text-left">
-                      <span className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 text-[10px] font-black transition-colors ${on ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 dark:border-navy-600 text-transparent'}`}>✓</span>
+                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-colors text-left">
+                      <span className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 text-[10px] font-semibold transition-colors ${on ? 'bg-[var(--ap-accent-2)] border-[var(--ap-accent-2)] text-white' : 'border-[var(--ap-border)] text-transparent'}`}>✓</span>
                       {c.label}
                     </button>
                   )
                 })}
               </div>
-              <p className="px-3.5 py-2 border-t border-slate-100 dark:border-navy-700 text-[10px] text-slate-400 dark:text-slate-500">Actions always shown</p>
+              <p className="px-3.5 py-2 border-t border-[var(--ap-border)] text-[10px] text-slate-400 dark:text-slate-500">Actions always shown</p>
             </div>
           )}
         </div>
@@ -754,14 +709,14 @@ export default function Documents() {
 
       {/* 4. Main data table */}
       {loading ? (
-        <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 overflow-hidden" role="status" aria-busy="true" aria-label="Loading documents">
+        <div className="rounded-xl border border-[var(--ap-border)] ap-surface overflow-hidden" role="status" aria-busy="true" aria-label="Loading documents">
           <span className="sr-only">Loading documents…</span>
-          <div className="hidden md:grid px-4 py-2.5 gap-3 border-b border-slate-100 dark:border-navy-800" style={{ gridTemplateColumns: `repeat(${visibleCols.length}, minmax(0,1fr)) 120px` }} aria-hidden="true">
+          <div className="hidden md:grid px-4 py-2.5 gap-3 border-b border-[var(--ap-border)]" style={{ gridTemplateColumns: `repeat(${visibleCols.length}, minmax(0,1fr)) 120px` }} aria-hidden="true">
             {visibleCols.map(k => <div key={k} className="skeleton h-3 rounded" />)}
             <div className="skeleton h-3 rounded" />
           </div>
           {[1,2,3,4,5].map(i => (
-            <div key={i} className="flex items-center gap-3 px-4 py-3 border-b border-slate-100 dark:border-navy-800 last:border-0" aria-hidden="true">
+            <div key={i} className="flex items-center gap-3 px-4 py-3 border-b border-[var(--ap-border)] last:border-0" aria-hidden="true">
               <div className="skeleton w-8 h-8 rounded-lg flex-shrink-0" />
               <div className="flex-1 space-y-1.5">
                 <div className="skeleton h-3.5 w-2/5 rounded" />
@@ -773,36 +728,29 @@ export default function Documents() {
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-4 py-12 text-center">
-          <FileText size={32} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-          {docs.length === 0 ? (
-            <>
-              <p className="text-slate-600 dark:text-slate-300 font-bold text-sm">No documents found</p>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Upload a document to get started.</p>
-              {canManage && (
-                <button onClick={() => setShowAdd(true)}
-                  className="mt-4 inline-flex items-center gap-2 px-4 min-h-[40px] rounded-lg bg-navy-900 dark:bg-blue-700 text-white text-[13px] font-bold hover:bg-navy-800 transition-all">
-                  <Plus size={14} /> Add Document
-                </button>
-              )}
-            </>
-          ) : (
-            <>
-              <p className="text-slate-600 dark:text-slate-300 font-bold text-sm">No documents match your filters.</p>
-              <button onClick={clearFilters}
-                className="mt-4 px-4 min-h-[40px] rounded-lg border border-slate-200 dark:border-navy-700 text-[13px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-800 transition-colors">
-                Clear Filters
-              </button>
-            </>
-          )}
-        </div>
+        docs.length === 0 ? (
+          <EmptyState
+            icon={FileText}
+            title="No documents found"
+            description="Upload a document to get started."
+            className="ap-surface"
+            action={canManage && <Button variant="primary" icon={Plus} onClick={() => setShowAdd(true)}>Add Document</Button>}
+          />
+        ) : (
+          <EmptyState
+            icon={FileText}
+            title="No documents match your filters."
+            className="ap-surface"
+            action={<Button variant="secondary" onClick={clearFilters}>Clear Filters</Button>}
+          />
+        )
       ) : (
         <>
         {/* Desktop table */}
-        <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 overflow-hidden hidden md:block">
+        <div className="rounded-xl border border-[var(--ap-border)] ap-surface overflow-hidden hidden md:block">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-800/70">
+              <tr className="border-b border-[var(--ap-border)] bg-[var(--ap-surface-2)]">
                 {visibleCols.map(k => (
                   <th key={k} className="px-3 py-2.5 text-left text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">{colLabel(k)}</th>
                 ))}
@@ -815,7 +763,7 @@ export default function Documents() {
                 const ref = doc.notes || doc.file_name || '—'
                 const days = doc.daysLeft
                 return (
-                  <tr key={doc.id} className="border-b border-slate-100 dark:border-navy-800 last:border-0 hover:bg-slate-50 dark:hover:bg-navy-800/50 transition-colors">
+                  <tr key={doc.id} className="border-b border-[var(--ap-border)] last:border-0 hover:bg-[var(--ap-surface-2)]/50 transition-colors">
                     {visibleCols.map(k => {
                       if (k === 'doc') return (
                         <td key={k} className="px-3 py-3 max-w-[240px]">
@@ -823,7 +771,7 @@ export default function Documents() {
                             <span className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
                               doc.computedStatus === 'expired' ? 'bg-red-100 dark:bg-red-900/30' :
                               doc.computedStatus === 'expiring_soon' ? 'bg-amber-100 dark:bg-amber-900/30' :
-                              'bg-slate-100 dark:bg-navy-800'}`}>
+                              'bg-[var(--ap-surface-2)]'}`}>
                               <FileText size={15} className={
                                 doc.computedStatus === 'expired' ? 'text-red-500' :
                                 doc.computedStatus === 'expiring_soon' ? 'text-amber-500' :
@@ -851,7 +799,7 @@ export default function Documents() {
                         <td key={k} className="px-3 py-3 max-w-[170px]">
                           {owner ? (
                             <span className="flex items-center gap-2 min-w-0">
-                              <span className="w-6 h-6 rounded-full bg-slate-200 dark:bg-navy-700 flex items-center justify-center text-[10px] font-black text-slate-600 dark:text-slate-300 flex-shrink-0">
+                              <span className="w-6 h-6 rounded-full bg-[var(--ap-border)] flex items-center justify-center text-[10px] font-semibold text-slate-600 dark:text-slate-300 flex-shrink-0">
                                 {(owner.name || '?').charAt(0).toUpperCase()}
                               </span>
                               <span className="min-w-0">
@@ -890,21 +838,19 @@ export default function Documents() {
                       <span className="inline-flex gap-1">
                         {doc.file_url && (
                           <a href={doc.file_url} target="_blank" rel="noopener noreferrer" title="View document" aria-label={`View ${doc.title}`}
-                            className="w-8 h-8 rounded-lg inline-flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-navy-800 hover:text-slate-800 dark:hover:text-white transition-colors">
+                            className="w-8 h-8 rounded-lg inline-flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)] hover:text-slate-800 dark:hover:text-white transition-colors">
                             <Eye size={14} />
                           </a>
                         )}
                         {doc.file_url && (
                           <a href={doc.file_url} download={doc.file_name || 'document'} title="Download document" aria-label={`Download ${doc.title}`}
-                            className="w-8 h-8 rounded-lg inline-flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-navy-800 hover:text-slate-800 dark:hover:text-white transition-colors">
+                            className="w-8 h-8 rounded-lg inline-flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)] hover:text-slate-800 dark:hover:text-white transition-colors">
                             <Download size={14} />
                           </a>
                         )}
                         {canManage && (
-                          <button onClick={() => handleDelete(doc.id)} title="Delete document" aria-label={`Delete ${doc.title}`}
-                            className="w-8 h-8 rounded-lg inline-flex items-center justify-center text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-colors">
-                            <Trash2 size={14} />
-                          </button>
+                          <IconButton icon={Trash2} size={14} tone="danger" label={`Delete ${doc.title}`}
+                            onClick={() => handleDelete(doc.id)} />
                         )}
                       </span>
                     </td>
@@ -921,12 +867,12 @@ export default function Documents() {
             const owner = ownerOf(doc)
             const days = doc.daysLeft
             return (
-              <div key={doc.id} className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 p-3.5">
+              <div key={doc.id} className="rounded-xl border border-[var(--ap-border)] ap-surface p-3.5">
                 <div className="flex items-center gap-2.5">
                   <span className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
                     doc.computedStatus === 'expired' ? 'bg-red-100 dark:bg-red-900/30' :
                     doc.computedStatus === 'expiring_soon' ? 'bg-amber-100 dark:bg-amber-900/30' :
-                    'bg-slate-100 dark:bg-navy-800'}`}>
+                    'bg-[var(--ap-surface-2)]'}`}>
                     <FileText size={16} className={
                       doc.computedStatus === 'expired' ? 'text-red-500' :
                       doc.computedStatus === 'expiring_soon' ? 'text-amber-500' :
@@ -940,7 +886,7 @@ export default function Documents() {
                   </div>
                   <StatusBadge status={doc.computedStatus} />
                 </div>
-                <div className="flex items-center justify-between gap-2 mt-2.5 pt-2.5 border-t border-slate-100 dark:border-navy-800">
+                <div className="flex items-center justify-between gap-2 mt-2.5 pt-2.5 border-t border-[var(--ap-border)]">
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
                     {doc.expiry_date ? <>Exp {fmtDate(doc.expiry_date)}{days != null && (
                       <span className={days < 0 ? 'text-red-500 font-bold' : days <= 30 ? 'text-amber-600 dark:text-amber-400 font-bold' : ''}>
@@ -951,21 +897,19 @@ export default function Documents() {
                   <span className="inline-flex gap-1 flex-shrink-0">
                     {doc.file_url && (
                       <a href={doc.file_url} target="_blank" rel="noopener noreferrer" title="View" aria-label={`View ${doc.title}`}
-                        className="w-9 h-9 rounded-lg inline-flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-navy-800 transition-colors">
+                        className="w-9 h-9 rounded-lg inline-flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)] transition-colors">
                         <Eye size={15} />
                       </a>
                     )}
                     {doc.file_url && (
                       <a href={doc.file_url} download={doc.file_name || 'document'} title="Download" aria-label={`Download ${doc.title}`}
-                        className="w-9 h-9 rounded-lg inline-flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-navy-800 transition-colors">
+                        className="w-9 h-9 rounded-lg inline-flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)] transition-colors">
                         <Download size={15} />
                       </a>
                     )}
                     {canManage && (
-                      <button onClick={() => handleDelete(doc.id)} title="Delete" aria-label={`Delete ${doc.title}`}
-                        className="w-9 h-9 rounded-lg inline-flex items-center justify-center text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 transition-colors">
-                        <Trash2 size={15} />
-                      </button>
+                      <IconButton icon={Trash2} size={15} tone="danger" label={`Delete ${doc.title}`}
+                        onClick={() => handleDelete(doc.id)} />
                     )}
                   </span>
                 </div>
@@ -982,7 +926,7 @@ export default function Documents() {
             </p>
             <div className="flex items-center gap-1">
               <button onClick={() => setPage(safePage - 1)} disabled={safePage <= 1} aria-label="Previous page"
-                className="min-w-[32px] min-h-[32px] px-2 rounded-lg border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-800 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                className="min-w-[32px] min-h-[32px] px-2 rounded-lg border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
                 ‹
               </button>
               {pageItems.map((n, i) => n === '…'
@@ -991,14 +935,14 @@ export default function Documents() {
                   <button key={n} onClick={() => setPage(n)} aria-label={`Go to page ${n}`} aria-current={n === safePage ? 'page' : undefined}
                     className={`min-w-[32px] min-h-[32px] px-2 rounded-lg text-xs font-bold tabular-nums active:scale-95 transition-all ${
                       n === safePage
-                        ? 'bg-navy-900 dark:bg-blue-600 text-white shadow'
-                        : 'border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-800'
+                        ? 'bg-[var(--ap-accent)] text-white shadow'
+                        : 'border border-[var(--ap-border)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)]'
                     }`}>
                     {n}
                   </button>
                 ))}
               <button onClick={() => setPage(safePage + 1)} disabled={safePage >= totalPages} aria-label="Next page"
-                className="min-w-[32px] min-h-[32px] px-2 rounded-lg border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-800 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                className="min-w-[32px] min-h-[32px] px-2 rounded-lg border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
                 ›
               </button>
             </div>

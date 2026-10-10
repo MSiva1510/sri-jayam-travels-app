@@ -6,14 +6,14 @@ import { ChevronDown } from 'lucide-react'
 const base = 'ap-field ap-focus w-full h-12 rounded-[12px] px-3.5 text-sm font-medium outline-none transition-colors'
 export const fieldCls = base
 
-export function Input(props) {
-  return <input className={base} {...props} />
+export function Input({ className = '', ...props }) {
+  return <input className={`${base} ${className}`} {...props} />
 }
 
-export function Select({ children, ...props }) {
+export function Select({ children, className = '', ...props }) {
   return (
     <span className="relative block">
-      <select className={`${base} appearance-none pr-9 cursor-pointer`} {...props}>
+      <select className={`${base} appearance-none pr-9 cursor-pointer ${className}`} {...props}>
         {children}
       </select>
       <ChevronDown size={14} strokeWidth={2.5}
@@ -22,8 +22,8 @@ export function Select({ children, ...props }) {
   )
 }
 
-export function Textarea({ rows = 3, ...props }) {
-  return <textarea className={`${base} h-auto min-h-[72px] py-3 leading-relaxed resize-y`} rows={rows} {...props} />
+export function Textarea({ rows = 3, className = '', ...props }) {
+  return <textarea className={`${base} h-auto min-h-[72px] py-3 leading-relaxed resize-y ${className}`} rows={rows} {...props} />
 }
 
 export default function Field({

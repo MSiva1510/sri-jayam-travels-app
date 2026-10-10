@@ -1,6 +1,6 @@
 export default function Button({
   children, onClick, variant = 'primary', size = 'md',
-  icon: Icon, iconRight, disabled, className = '',
+  icon: Icon, iconRight, disabled, className = '', ...rest
 }) {
   const base = 'inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-200 cursor-pointer select-none focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed'
 
@@ -25,6 +25,7 @@ export default function Button({
       className={`${base} ${variants[variant]} ${sizes[size]} ${className}`}
       onClick={onClick}
       disabled={disabled}
+      {...rest}
     >
       {Icon && !iconRight && <Icon size={size === 'sm' ? 13 : size === 'lg' ? 18 : 15} />}
       {children}
