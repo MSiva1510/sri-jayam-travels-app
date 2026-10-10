@@ -129,7 +129,7 @@ export default function RouteReplay() {
   if (!vehicleId) return (
     <div className="space-y-5 animate-fade-up">
       <PageHeader title="Route Replay" subtitle="Select a vehicle and date from GPS History" />
-      <div className="glass-card rounded-2xl p-10 text-center">
+      <div className="ap-surface rounded-2xl p-10 text-center">
         <MapPin size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
         <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">No vehicle selected.</p>
         <Link to="/gps-history" className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors">
@@ -146,7 +146,7 @@ export default function RouteReplay() {
         subtitle={`${regLabel} · ${dateLabel}`}
         action={
           <Link to="/gps-history"
-            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl border border-[var(--ap-border)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-colors">
             <ArrowLeft size={14} /> Back to History
           </Link>
         }
@@ -154,7 +154,7 @@ export default function RouteReplay() {
 
       {/* Loading */}
       {loading && (
-        <div className="glass-card rounded-2xl p-10 text-center">
+        <div className="ap-surface rounded-2xl p-10 text-center">
           <Loader2 size={28} className="mx-auto text-blue-600 animate-spin mb-3" />
           <p className="text-sm text-slate-500 dark:text-slate-400">Loading GPS track…</p>
         </div>
@@ -162,7 +162,7 @@ export default function RouteReplay() {
 
       {/* Error */}
       {!loading && error && (
-        <div className="glass-card rounded-2xl p-5 border-l-4 border-red-500 flex items-start gap-3">
+        <div className="ap-surface rounded-2xl p-5 border-l-4 border-red-500 flex items-start gap-3">
           <AlertCircle size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-semibold text-red-600 dark:text-red-400">No data</p>

@@ -317,7 +317,7 @@ export default function GpsHistory() {
     navigate(`/gps-history/replay?vehicleId=${vid}&since=${encodeURIComponent(since)}&until=${encodeURIComponent(until)}`)
   }
 
-  const selCls = 'px-3 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-bold w-full'
+  const selCls = 'px-3 py-2.5 text-xs rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none font-bold w-full'
 
   return (
     <div className="space-y-4 animate-fade-up">
@@ -327,7 +327,7 @@ export default function GpsHistory() {
         action={
           <div className="flex items-center gap-2">
             <button onClick={goReplay} disabled={!trip}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-200 font-bold text-sm hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors disabled:opacity-40">
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-600 dark:text-slate-200 font-bold text-sm hover:bg-[var(--ap-surface-2)] transition-colors disabled:opacity-40">
               <Play size={14} /> Replay Trip
             </button>
             <button onClick={handleExport} disabled={events.length === 0}
@@ -339,7 +339,7 @@ export default function GpsHistory() {
       />
 
       {/* Filter bar */}
-      <div className="glass-card rounded-2xl p-3.5">
+      <div className="ap-surface rounded-2xl p-3.5">
         <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2 items-end">
           <div className="col-span-2 sm:col-span-2 xl:col-span-2">
             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Trip</label>
@@ -397,7 +397,7 @@ export default function GpsHistory() {
             <div className="relative">
               <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by trip, vehicle, driver…"
-                className="w-full pl-8 pr-3 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none" />
+                className="w-full pl-8 pr-3 py-2.5 text-xs rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none" />
             </div>
           </div>
           <div className="col-span-2 sm:col-span-2 xl:col-span-1">
@@ -411,13 +411,13 @@ export default function GpsHistory() {
 
       {/* Trip summary */}
       {trip && (
-        <div className="glass-card rounded-2xl p-4">
+        <div className="ap-surface rounded-2xl p-4">
           <div className="flex flex-wrap items-start gap-x-7 gap-y-3">
             <div className="flex items-start gap-2.5 min-w-[210px]">
-              <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white flex-shrink-0 text-sm font-black">🧾</div>
+              <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white flex-shrink-0 text-sm font-semibold">🧾</div>
               <div>
                 <div className="flex items-center gap-2">
-                  <p className="font-display font-black text-slate-800 dark:text-white">{trip.bookingNo}</p>
+                  <p className="font-sf font-semibold text-slate-800 dark:text-white">{trip.bookingNo}</p>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 capitalize">{trip.status}</span>
                 </div>
                 <p className="text-[10px] text-slate-400 mt-0.5">Booked on {fmtD(trip.createdAt || trip.startDate)}</p>
@@ -436,7 +436,7 @@ export default function GpsHistory() {
             ].map(([l, v, s, extra, dot]) => (
               <div key={l} className="min-w-[105px]">
                 <p className="text-[10px] text-slate-400">{l}</p>
-                <p className="text-xs font-black text-slate-800 dark:text-white tabular-nums whitespace-nowrap">
+                <p className="text-xs font-semibold text-slate-800 dark:text-white tabular-nums whitespace-nowrap">
                   {dot === 'green' ? '🟢 ' : dot === 'red' ? '🔴 ' : ''}{v}
                 </p>
                 {s ? <p className="text-[10px] text-slate-400 truncate max-w-[130px]">{s}</p> : null}
@@ -450,7 +450,7 @@ export default function GpsHistory() {
       {/* Map */}
       <div className="relative">
         {loading || fbLoading ? (
-          <div className="glass-card rounded-2xl p-14 text-center">
+          <div className="ap-surface rounded-2xl p-14 text-center">
             <div className="w-7 h-7 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
             <p className="text-xs text-slate-400">{fbLoading ? 'Placing route from booking details…' : 'Loading GPS track…'}</p>
           </div>
@@ -458,14 +458,14 @@ export default function GpsHistory() {
           <div className="relative">
             <ReplayMap points={points} currentIndex={currentIndex} coloredPath={replay?.coloredPath ?? []} darkMode={darkMode} height={470} stops={replay?.stops ?? []} />
             <button onClick={goReplay} title="Open full replay"
-              className="absolute right-3 top-3 z-[400] px-3 py-2 text-xs font-bold rounded-xl bg-white/95 dark:bg-navy-900/95 border border-slate-200 dark:border-navy-700 shadow flex items-center gap-1.5 hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
+              className="absolute right-3 top-3 z-[400] px-3 py-2 text-xs font-bold rounded-xl bg-[var(--ap-surface)]/95 border border-[var(--ap-border)] shadow flex items-center gap-1.5 hover:bg-[var(--ap-surface-2)] transition-colors">
               ⤢ Full Map
             </button>
             <div className="absolute right-3 top-14 z-[400] flex flex-col gap-1.5">
-              <div className="px-3 py-2 rounded-xl bg-white/95 dark:bg-navy-900/95 border border-slate-200 dark:border-navy-700 shadow text-xs font-black tabular-nums whitespace-nowrap">
+              <div className="px-3 py-2 rounded-xl bg-[var(--ap-surface)]/95 border border-[var(--ap-border)] shadow text-xs font-semibold tabular-nums whitespace-nowrap">
                 🛣 {stats ? `${stats.totalDistanceKm} km` : '—'}
               </div>
-              <div className="px-3 py-2 rounded-xl bg-white/95 dark:bg-navy-900/95 border border-slate-200 dark:border-navy-700 shadow text-xs font-black tabular-nums whitespace-nowrap">
+              <div className="px-3 py-2 rounded-xl bg-[var(--ap-surface)]/95 border border-[var(--ap-border)] shadow text-xs font-semibold tabular-nums whitespace-nowrap">
                 🕐 {stats ? formatDuration(stats.durationSec) : '—'}
               </div>
             </div>
@@ -483,7 +483,7 @@ export default function GpsHistory() {
             </div>
           </div>
         ) : (
-          <div className="glass-card rounded-2xl p-12 text-center">
+          <div className="ap-surface rounded-2xl p-12 text-center">
             <MapPin size={32} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
             <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{error || 'Select a trip and press Apply to draw its route.'}</p>
             {!error && <p className="text-xs text-slate-400 mt-1">Route, playback and events appear here from live GPS points.</p>}
@@ -493,7 +493,7 @@ export default function GpsHistory() {
 
       {/* Estimated timeline strip (separate card below the map) */}
       {fallback && points.length <= 1 && (
-        <div className="glass-card rounded-2xl px-5 py-4 overflow-x-auto">
+        <div className="ap-surface rounded-2xl px-5 py-4 overflow-x-auto">
           <div className="flex items-start min-w-[420px]">
             {[
               { label: 'From', sub: fallback.from?.label || trip?.pickup || '—', time: fmtD(dateFrom), color: '#10b981' },
@@ -501,7 +501,7 @@ export default function GpsHistory() {
             ].map((n, i) => (
               <div key={i} className="flex-1 flex flex-col items-center relative">
                 {i > 0 && <div className="absolute top-[7px] h-[3px] rounded-full bg-gradient-to-r from-blue-500 to-blue-400/70" style={{ width: '100%', left: '-50%' }} />}
-                <span className="w-3.5 h-3.5 rounded-full border-[3px] border-white dark:border-navy-900 relative z-10 flex-shrink-0"
+                <span className="w-3.5 h-3.5 rounded-full border-[3px] border-white border-[var(--ap-border)] relative z-10 flex-shrink-0"
                   style={{ background: n.color, boxShadow: `0 0 10px ${n.color}` }} />
                 <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200 mt-1.5 whitespace-nowrap">{n.label}</p>
                 <p className="text-[10px] text-slate-400 tabular-nums whitespace-nowrap">{n.time}</p>
@@ -519,16 +519,16 @@ export default function GpsHistory() {
 
       {/* Estimated-route facts (old trips without GPS) */}
       {fallback && points.length <= 1 && (
-        <div className="glass-card rounded-2xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="ap-surface rounded-2xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
             ['From', fallback.from?.label || trip?.pickup || '—'],
             ['To', fallback.to?.label || trip?.drop || '—'],
             ['Distance', `~${fallback.distanceKm} km`],
             ['Drive time', fallback.durationSec ? `~${formatDuration(fallback.durationSec)}` : (fallback.straight ? 'Straight-line — routing unavailable' : '—')],
           ].map(([l, v]) => (
-            <div key={l} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl px-3 py-2.5">
+            <div key={l} className="bg-[var(--ap-surface-2)] rounded-xl px-3 py-2.5">
               <p className="text-[10px] text-slate-400 uppercase tracking-wide font-bold">{l}</p>
-              <p className="text-xs font-black text-slate-800 dark:text-white truncate mt-0.5">{v}</p>
+              <p className="text-xs font-semibold text-slate-800 dark:text-white truncate mt-0.5">{v}</p>
             </div>
           ))}
         </div>
@@ -542,7 +542,7 @@ export default function GpsHistory() {
 
       {/* Tabs */}
       {points.length > 0 && (
-        <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-2xl p-1.5 overflow-x-auto no-scrollbar w-fit max-w-full">
+        <div className="flex gap-1 bg-[var(--ap-surface-2)] rounded-2xl p-1.5 overflow-x-auto no-scrollbar w-fit max-w-full">
           {TABS.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
               className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${tab === t.key ? 'bg-navy-900 dark:bg-blue-700 text-white shadow' : 'text-slate-500 dark:text-slate-400'}`}>
@@ -553,11 +553,11 @@ export default function GpsHistory() {
       )}
 
       {points.length > 0 && tab === 'events' && (
-        <div className="glass-card rounded-2xl overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-navy-700">
+        <div className="ap-surface rounded-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--ap-border)]">
             <p className="text-sm font-bold text-slate-800 dark:text-white">GPS Events ({evRows.length})</p>
             <select value={evFilter} onChange={e => setEvFilter(e.target.value)}
-              className="px-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-bold">
+              className="px-3 py-1.5 text-xs rounded-lg border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none font-bold">
               <option value="all">All Events</option>
               <option value="started">Trip Started</option>
               <option value="enroute">En Route</option>
@@ -568,7 +568,7 @@ export default function GpsHistory() {
           <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-slate-50/80 dark:bg-navy-800/50 border-b border-slate-100 dark:border-navy-700">
+                <tr className="bg-[var(--ap-surface-2)] border-b border-[var(--ap-border)]">
                   {['#', 'Time', 'Location', 'Speed', 'GPS Status', 'Ignition', 'Event Type', ''].map(h => (
                     <th key={h} className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
@@ -576,7 +576,7 @@ export default function GpsHistory() {
               </thead>
               <tbody>
                 {evSlice.map(e => (
-                  <tr key={e.idx} className="border-b border-slate-50 dark:border-navy-800 hover:bg-slate-50/50 dark:hover:bg-navy-800/30 transition-colors">
+                  <tr key={e.idx} className="border-b border-[var(--ap-border)] hover:bg-[var(--ap-surface-2)] transition-colors">
                     <td className="px-3 py-2.5 text-xs text-slate-400 tabular-nums">{e.idx + 1}</td>
                     <td className="px-3 py-2.5 text-[11px] tabular-nums whitespace-nowrap">{fmtDT(e.point.timestamp)}</td>
                     <td className="px-3 py-2.5 text-xs text-slate-600 dark:text-slate-300 max-w-[220px] truncate">{e.point.address || '—'}</td>
@@ -597,7 +597,7 @@ export default function GpsHistory() {
           </div>
           <div className="space-y-2 p-3 md:hidden">
             {evSlice.map(e => (
-              <div key={e.idx} onClick={() => doSeek(e.idx)} className="rounded-xl border border-slate-100 dark:border-navy-700 p-3 cursor-pointer active:scale-[0.99] transition-transform">
+              <div key={e.idx} onClick={() => doSeek(e.idx)} className="rounded-xl border border-[var(--ap-border)] p-3 cursor-pointer active:scale-[0.99] transition-transform">
                 <div className="flex items-center gap-2">
                   <p className="text-[11px] text-slate-400 tabular-nums flex-1">{fmtDT(e.point.timestamp)}</p>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${EV_STYLE[e.type]}`}>{e.label}</span>
@@ -608,13 +608,13 @@ export default function GpsHistory() {
             ))}
           </div>
           {evPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-2.5 border-t border-slate-100 dark:border-navy-700">
+            <div className="flex items-center justify-between px-4 py-2.5 border-t border-[var(--ap-border)]">
               <p className="text-xs text-slate-400 tabular-nums">Page {evSafe} of {evPages}</p>
               <div className="flex items-center gap-1.5">
                 <button disabled={evSafe <= 1} onClick={() => setEvPage(evSafe - 1)} aria-label="Previous"
-                  className="w-7 h-7 rounded-lg border border-slate-200 dark:border-navy-700 flex items-center justify-center text-slate-500 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors"><ChevronLeft size={13} /></button>
+                  className="w-7 h-7 rounded-lg border border-[var(--ap-border)] flex items-center justify-center text-slate-500 disabled:opacity-40 hover:bg-[var(--ap-surface-2)] transition-colors"><ChevronLeft size={13} /></button>
                 <button disabled={evSafe >= evPages} onClick={() => setEvPage(evSafe + 1)} aria-label="Next"
-                  className="w-7 h-7 rounded-lg border border-slate-200 dark:border-navy-700 flex items-center justify-center text-slate-500 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors"><ChevronRight size={13} /></button>
+                  className="w-7 h-7 rounded-lg border border-[var(--ap-border)] flex items-center justify-center text-slate-500 disabled:opacity-40 hover:bg-[var(--ap-surface-2)] transition-colors"><ChevronRight size={13} /></button>
               </div>
             </div>
           )}
@@ -630,18 +630,18 @@ export default function GpsHistory() {
       )}
 
       {points.length > 0 && tab === 'stops' && (
-        <div className="glass-card rounded-2xl p-4">
+        <div className="ap-surface rounded-2xl p-4">
           <p className="text-sm font-bold text-slate-800 dark:text-white mb-2">Stops ({stops.length})</p>
           {stops.length === 0 ? <p className="text-xs text-slate-400 text-center py-6">No stops detected on this route.</p> : (
             <div className="space-y-2">
               {stops.map((s, i) => (
-                <div key={i} onClick={() => seekToTs(s.startTs)} className="flex items-center gap-3 rounded-xl border border-slate-100 dark:border-navy-700 p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-navy-800/40 transition-colors">
-                  <span className="w-7 h-7 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 text-xs font-black flex items-center justify-center flex-shrink-0">P</span>
+                <div key={i} onClick={() => seekToTs(s.startTs)} className="flex items-center gap-3 rounded-xl border border-[var(--ap-border)] p-3 cursor-pointer hover:bg-[var(--ap-surface-2)]/40 transition-colors">
+                  <span className="w-7 h-7 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 text-xs font-semibold flex items-center justify-center flex-shrink-0">P</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{s.address || 'Unnamed stop'}</p>
                     <p className="text-[10px] text-slate-400 tabular-nums">{fmtT(s.startTs)} → {fmtT(s.endTs)}</p>
                   </div>
-                  <span className="text-xs font-black text-amber-500 tabular-nums flex-shrink-0">{formatDuration(s.durationSec)}</span>
+                  <span className="text-xs font-semibold text-amber-500 tabular-nums flex-shrink-0">{formatDuration(s.durationSec)}</span>
                 </div>
               ))}
             </div>
@@ -653,16 +653,16 @@ export default function GpsHistory() {
         <div className="space-y-4">
           <TripStats stats={stats} />
           {trip && (
-            <div className="glass-card rounded-2xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="ap-surface rounded-2xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
                 ['Booking', trip.bookingNo || '—'], ['Customer', trip.customer || '—'],
                 ['Driver', trip.driver || '—'], ['Vehicle', trip.vehicle || '—'],
                 ['Route', `${trip.pickup || '—'} → ${trip.drop || '—'}`], ['Fare', rs(trip.fare)],
                 ['GPS Points', points.length], ['Status', trip.status || '—'],
               ].map(([l, v]) => (
-                <div key={l} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl px-3 py-2.5">
+                <div key={l} className="bg-[var(--ap-surface-2)] rounded-xl px-3 py-2.5">
                   <p className="text-[10px] text-slate-400 uppercase tracking-wide font-bold">{l}</p>
-                  <p className="text-xs font-black text-slate-800 dark:text-white truncate mt-0.5">{v}</p>
+                  <p className="text-xs font-semibold text-slate-800 dark:text-white truncate mt-0.5">{v}</p>
                 </div>
               ))}
             </div>
@@ -696,13 +696,13 @@ function TimelineStrip({ stats, stops, segments, onSeekTs, startSub, endSub }) {
   })
   nodes.push({ t: stats.endTs, label: 'Trip Completed', color: '#ef4444', ts: stats.endTs, sub: endSub })
   return (
-    <div className="glass-card rounded-2xl px-5 py-4 overflow-x-auto">
+    <div className="ap-surface rounded-2xl px-5 py-4 overflow-x-auto">
       <div className="flex items-start min-w-[560px]">
         {nodes.map((n, i) => (
           <div key={i} className="flex-1 flex flex-col items-center relative">
             {i > 0 && <div className="absolute top-[7px] h-[3px] rounded-full bg-gradient-to-r from-blue-500 to-blue-400/70" style={{ width: '100%', left: '-50%' }} />}
             <button onClick={() => n.ts && onSeekTs(n.ts)} title={n.sub || n.label}
-              className="w-3.5 h-3.5 rounded-full border-[3px] border-white dark:border-navy-900 relative z-10 flex-shrink-0"
+              className="w-3.5 h-3.5 rounded-full border-[3px] border-white border-[var(--ap-border)] relative z-10 flex-shrink-0"
               style={{ background: n.color, boxShadow: `0 0 10px ${n.color}` }} />
             <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200 mt-1.5 whitespace-nowrap">{n.label}</p>
             {n.sub ? <p className="text-[10px] text-slate-400 tabular-nums whitespace-nowrap">{n.sub}</p> : null}
@@ -735,7 +735,7 @@ function SpeedCharts({ points }) {
   const maxH = Math.max(...hours.map(b => b.km), 0.01)
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <div className="glass-card rounded-2xl p-4">
+      <div className="ap-surface rounded-2xl p-4">
         <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Speed Profile</p>
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 150 }}>
           {[0.25, 0.5, 0.75].map(f => (
@@ -746,7 +746,7 @@ function SpeedCharts({ points }) {
         </svg>
         <p className="text-[10px] text-slate-400 mt-1">Speed (km/h) across {points.length} GPS points · peak {Math.round(maxS)} km/h</p>
       </div>
-      <div className="glass-card rounded-2xl p-4">
+      <div className="ap-surface rounded-2xl p-4">
         <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Distance by Hour</p>
         <div className="flex items-end gap-1 h-32">
           {hours.map(b => (

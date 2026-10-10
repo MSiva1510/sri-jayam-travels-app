@@ -13,7 +13,7 @@ import { useAuth }                                                      from '..
 function Toggle({ checked, onChange }) {
   return (
     <button role="switch" aria-checked={checked} onClick={() => onChange(!checked)}
-      className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${checked ? 'bg-blue-600' : 'bg-slate-200 dark:bg-navy-700'}`}>
+      className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${checked ? 'bg-blue-600' : 'bg-[var(--ap-border)]'}`}>
       <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
     </button>
   )
@@ -21,8 +21,8 @@ function Toggle({ checked, onChange }) {
 
 function SectionCard({ icon: Icon, title, children }) {
   return (
-    <div className="glass-card rounded-2xl overflow-hidden">
-      <div className="flex items-center gap-2.5 px-5 py-3.5 bg-slate-50/80 dark:bg-navy-800/60 border-b border-slate-100 dark:border-navy-700">
+    <div className="ap-surface rounded-2xl overflow-hidden">
+      <div className="flex items-center gap-2.5 px-5 py-3.5 bg-[var(--ap-surface-2)] border-b border-[var(--ap-border)]">
         <Icon size={15} className="text-navy-700 dark:text-blue-400" />
         <p className="text-xs font-bold text-navy-800 dark:text-slate-200 uppercase tracking-wider">{title}</p>
       </div>
@@ -32,8 +32,8 @@ function SectionCard({ icon: Icon, title, children }) {
 }
 
 function Field({ label, name, value, onChange, type = 'text', options, rows = 3, help, sensitive }) {
-  const cls = `w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-navy-700
-               bg-white dark:bg-navy-800/60 text-slate-700 dark:text-slate-200
+  const cls = `w-full px-3 py-2.5 text-sm rounded-xl border border-[var(--ap-border)]
+               bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200
                focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400
                transition-colors font-body`
   const inputType = sensitive ? 'password' : type
@@ -85,9 +85,9 @@ function VendorAccountsCard({ cfg, setCfg }) {
       setTesting(null)
     }
   }
-  const inp = 'w-full px-2.5 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none'
+  const inp = 'w-full px-2.5 py-2 text-xs rounded-lg border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none'
   return (
-    <div className="glass-card rounded-2xl p-5">
+    <div className="ap-surface rounded-2xl p-5">
       <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Vendor Accounts</p>
       <p className="text-[11px] text-slate-400 mt-0.5 mb-3">
         Primary account above, plus any extra KingsTrack logins (e.g. CY under different company/user IDs). All accounts poll each cycle with shared rate-limiting and merge into one fleet.
@@ -96,7 +96,7 @@ function VendorAccountsCard({ cfg, setCfg }) {
         {accounts.map((a, i) => {
           const r = results[i]
           return (
-            <div key={i} className="rounded-xl border border-slate-200 dark:border-navy-700 p-3 space-y-2">
+            <div key={i} className="rounded-xl border border-[var(--ap-border)] p-3 space-y-2">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <input value={a.label || ''} onChange={e => upd(i, 'label', e.target.value)} placeholder="Label" aria-label="Account label" className={inp} />
                 <input value={a.company_id || ''} onChange={e => upd(i, 'company_id', e.target.value)} placeholder="Company ID" aria-label="Company ID" className={inp} />
@@ -104,7 +104,7 @@ function VendorAccountsCard({ cfg, setCfg }) {
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={() => test(i)} disabled={testing === i || (!a.company_id && !a.user_id)}
-                  className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-navy-700 text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors disabled:opacity-50">
+                  className="px-3 py-1.5 rounded-lg border border-[var(--ap-border)] text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-colors disabled:opacity-50">
                   {testing === i ? 'Testing…' : 'Test'}
                 </button>
                 <button onClick={() => remove(i)} title="Remove account" aria-label="Remove account"
@@ -122,7 +122,7 @@ function VendorAccountsCard({ cfg, setCfg }) {
         })}
       </div>
       <button onClick={add}
-        className="mt-3 flex items-center gap-1.5 px-3 py-2 rounded-xl border border-dashed border-slate-300 dark:border-navy-600 text-xs font-bold text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+        className="mt-3 flex items-center gap-1.5 px-3 py-2 rounded-xl border border-dashed border-[var(--ap-border)] text-xs font-bold text-slate-500 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-colors">
         <Plus size={13} /> Add Account
       </button>
     </div>
@@ -229,7 +229,7 @@ export default function FleetSettings() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="glass-card rounded-2xl p-8 flex items-center gap-3">
+        <div className="ap-surface rounded-2xl p-8 flex items-center gap-3">
           <Loader2 className="animate-spin text-blue-500" size={20} />
           <span className="text-sm text-slate-500">Loading GPS settings…</span>
         </div>
@@ -286,7 +286,7 @@ export default function FleetSettings() {
           ))}
         </div>
 
-        <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-navy-700">
+        <div className="flex items-center justify-between pt-2 border-t border-[var(--ap-border)]">
           <div>
             <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">GPS Sync Enabled</p>
             <p className="text-xs text-slate-400 dark:text-slate-500">When disabled, polling is suspended across the dashboard.</p>
