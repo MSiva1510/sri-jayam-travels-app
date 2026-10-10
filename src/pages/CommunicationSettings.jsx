@@ -94,9 +94,9 @@ function ConnectionCard({ def, row, readOnly, busy, onSave, onDisconnect }) {
   }
 
   return (
-    <div className={`rounded-xl p-4 border ${connected ? 'border-emerald-200 dark:border-emerald-800/40 bg-emerald-50/50 dark:bg-emerald-900/10' : 'border-slate-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-800/40'}`}>
+    <div className={`rounded-xl p-4 border ${connected ? 'border-emerald-200 dark:border-emerald-800/40 bg-emerald-50/50 dark:bg-emerald-900/10' : 'border-[var(--ap-border)] bg-[var(--ap-surface-2)]'}`}>
       <div className="flex items-center gap-3 mb-1">
-        <div className="w-9 h-9 rounded-xl bg-white dark:bg-navy-800 flex items-center justify-center flex-shrink-0 text-lg shadow-sm">{def.icon}</div>
+        <div className="w-9 h-9 rounded-xl bg-[var(--ap-surface-2)] flex items-center justify-center flex-shrink-0 text-lg shadow-sm">{def.icon}</div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{def.label}</p>
           <p className="text-[10px] text-slate-400">{def.hint}</p>
@@ -120,7 +120,7 @@ function ConnectionCard({ def, row, readOnly, busy, onSave, onDisconnect }) {
             <div>
               <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Provider</label>
               <select value={provider} onChange={e => setProvider(e.target.value)}
-                className="w-full px-2.5 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none">
+                className="w-full px-2.5 py-2 text-xs rounded-lg border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none">
                 {def.providers.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
@@ -129,7 +129,7 @@ function ConnectionCard({ def, row, readOnly, busy, onSave, onDisconnect }) {
                 <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">{f.label}</label>
                 <input type={showKeys ? 'text' : (f.type || 'text')} value={vals[f.key] || ''} onChange={e => setVal(f.key, e.target.value)}
                   placeholder={f.label} autoComplete="off"
-                  className="w-full px-2.5 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none" />
+                  className="w-full px-2.5 py-2 text-xs rounded-lg border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none" />
               </div>
             ))}
           </div>
@@ -158,7 +158,7 @@ function ConnectionCard({ def, row, readOnly, busy, onSave, onDisconnect }) {
 function Toggle({ on, onToggle, disabled }) {
   return (
     <button type="button" onClick={onToggle} disabled={disabled}
-      className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${on?'bg-navy-800 dark:bg-blue-600':'bg-slate-200 dark:bg-navy-700'} ${disabled?'opacity-50 cursor-not-allowed':''}`}>
+      className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${on?'bg-navy-800 dark:bg-blue-600':'bg-[var(--ap-border)]'} ${disabled?'opacity-50 cursor-not-allowed':''}`}>
       <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${on?'left-6':'left-1'}`}/>
     </button>
   )
@@ -277,8 +277,8 @@ export default function CommunicationSettings() {
 
   if (prefLoading || !local) return (
     <div className="space-y-4 animate-pulse">
-      <div className="h-10 bg-slate-200 dark:bg-navy-700 rounded-xl w-48"/>
-      {[1,2,3].map(i=><div key={i} className="h-16 bg-slate-200 dark:bg-navy-700 rounded-xl"/>)}
+      <div className="h-10 bg-[var(--ap-border)] rounded-xl w-48"/>
+      {[1,2,3].map(i=><div key={i} className="h-16 bg-[var(--ap-border)] rounded-xl"/>)}
     </div>
   )
 
@@ -296,7 +296,7 @@ export default function CommunicationSettings() {
       />
 
       {/* Mobile app push */}
-      <div className="glass-card rounded-2xl p-5 space-y-3">
+      <div className="ap-surface rounded-2xl p-5 space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div>
             <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Mobile App Push</p>
@@ -305,19 +305,19 @@ export default function CommunicationSettings() {
           <Toggle on={!!mpSettings?.enabled} onToggle={toggleMobilePush} disabled={!isAdmin || !mpSettings || mpSaving} />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl px-3 py-2.5 border border-slate-100 dark:border-navy-700">
+          <div className="bg-[var(--ap-surface-2)] rounded-xl px-3 py-2.5 border border-[var(--ap-border)]">
             <p className="text-[10px] text-slate-400 uppercase tracking-wide font-bold">Status</p>
-            <p className={`text-sm font-black ${mpSettings?.enabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
+            <p className={`text-sm font-semibold ${mpSettings?.enabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
               {mpSettings ? (mpSettings.enabled ? 'Enabled' : 'Disabled') : '…'}
             </p>
           </div>
-          <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl px-3 py-2.5 border border-slate-100 dark:border-navy-700">
+          <div className="bg-[var(--ap-surface-2)] rounded-xl px-3 py-2.5 border border-[var(--ap-border)]">
             <p className="text-[10px] text-slate-400 uppercase tracking-wide font-bold">App Registrations</p>
-            <p className="text-sm font-black tabular-nums">{mpTokens.length} <span className="text-slate-400 font-bold">/ {mpDrivers.length} drivers</span></p>
+            <p className="text-sm font-semibold tabular-nums">{mpTokens.length} <span className="text-slate-400 font-bold">/ {mpDrivers.length} drivers</span></p>
           </div>
-          <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl px-3 py-2.5 border border-slate-100 dark:border-navy-700">
+          <div className="bg-[var(--ap-surface-2)] rounded-xl px-3 py-2.5 border border-[var(--ap-border)]">
             <p className="text-[10px] text-slate-400 uppercase tracking-wide font-bold">Push Sender</p>
-            <p className="text-sm font-black">{pushRow ? (pushRow.provider || pushRow.provider_name || 'Custom') : '—'}</p>
+            <p className="text-sm font-semibold">{pushRow ? (pushRow.provider || pushRow.provider_name || 'Custom') : '—'}</p>
             <p className={`text-[10px] font-bold ${pushRow?.is_active ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
               {pushRow?.is_active ? 'Connected' : 'Not connected — connect FCM/APNs above'}
             </p>
@@ -327,10 +327,10 @@ export default function CommunicationSettings() {
           <div className="space-y-2">
             <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Broadcast to Mobile App</p>
             <input value={bcTitle} onChange={e => setBcTitle(e.target.value)} placeholder="Title (e.g. Trip Update)"
-              className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none" />
+              className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none" />
             <textarea value={bcBody} onChange={e => setBcBody(e.target.value)} placeholder="Message to all registered driver apps…"
               rows={2}
-              className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none resize-none" />
+              className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none resize-none" />
             <div className="flex items-center gap-2 flex-wrap">
               <button onClick={handleBroadcast} disabled={bcBusy || !bcBody.trim() || !mpSettings?.enabled || mpTokens.length === 0}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all active:scale-95 disabled:opacity-50">
@@ -356,11 +356,11 @@ export default function CommunicationSettings() {
       </div>
 
       {/* Channel toggles */}
-      <div className="glass-card rounded-2xl p-5 space-y-1">
+      <div className="ap-surface rounded-2xl p-5 space-y-1">
         <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">Notification Channels</p>
         {CHANNEL_SETTINGS.map(ch => (
-          <div key={ch.key} className="flex items-center gap-4 py-3 border-b border-slate-100 dark:border-navy-700 last:border-0">
-            <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center flex-shrink-0 text-lg">
+          <div key={ch.key} className="flex items-center gap-4 py-3 border-b border-[var(--ap-border)] last:border-0">
+            <div className="w-9 h-9 rounded-xl bg-[var(--ap-surface-2)] flex items-center justify-center flex-shrink-0 text-lg">
               {ch.icon}
             </div>
             <div className="flex-1 min-w-0">
@@ -377,7 +377,7 @@ export default function CommunicationSettings() {
       </div>
 
       {/* Category toggles */}
-      <div className="glass-card rounded-2xl p-5 space-y-1">
+      <div className="ap-surface rounded-2xl p-5 space-y-1">
         <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">Notification Categories</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
           {CATEGORY_SETTINGS.map(cat => (
@@ -394,7 +394,7 @@ export default function CommunicationSettings() {
       </div>
 
       {/* Quiet hours */}
-      <div className="glass-card rounded-2xl p-5 space-y-4">
+      <div className="ap-surface rounded-2xl p-5 space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Quiet Hours</p>
@@ -408,24 +408,24 @@ export default function CommunicationSettings() {
               <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Start</label>
               <input type="time" value={local.quiet_hours_start||'22:00'}
                 onChange={e=>setLocal(p=>({...p,quiet_hours_start:e.target.value}))}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-navy-500/25"/>
+                className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-navy-500/25"/>
             </div>
             <div>
               <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">End</label>
               <input type="time" value={local.quiet_hours_end||'07:00'}
                 onChange={e=>setLocal(p=>({...p,quiet_hours_end:e.target.value}))}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-navy-500/25"/>
+                className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-navy-500/25"/>
             </div>
           </div>
         )}
       </div>
 
       {/* Channel connections */}
-      <div className="glass-card rounded-2xl p-5 space-y-3">
+      <div className="ap-surface rounded-2xl p-5 space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Channel Connections</p>
           <button onClick={loadProviders} title="Refresh connections" aria-label="Refresh connections"
-            className="w-7 h-7 rounded-lg border border-slate-200 dark:border-navy-700 flex items-center justify-center text-slate-400 hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
+            className="w-7 h-7 rounded-lg border border-[var(--ap-border)] flex items-center justify-center text-slate-400 hover:bg-[var(--ap-surface-2)] transition-colors">
             <RefreshCw size={12} />
           </button>
         </div>

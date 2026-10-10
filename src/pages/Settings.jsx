@@ -53,7 +53,7 @@ const TABS = [
 function Toggle({ checked, onChange }) {
   return (
     <button role="switch" aria-checked={checked} onClick={() => onChange(!checked)}
-      className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${checked ? 'bg-blue-600' : 'bg-slate-200 dark:bg-navy-700'}`}>
+      className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${checked ? 'bg-blue-600' : 'bg-[var(--ap-border)]'}`}>
       <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
     </button>
   )
@@ -61,8 +61,8 @@ function Toggle({ checked, onChange }) {
 
 function SectionCard({ icon: Icon, title, sub, children, right }) {
   return (
-    <div className="glass-card rounded-2xl overflow-hidden">
-      <div className="flex items-center gap-2.5 px-5 py-3.5 bg-slate-50/80 dark:bg-navy-800/60 border-b border-slate-100 dark:border-navy-700">
+    <div className="ap-surface rounded-2xl overflow-hidden">
+      <div className="flex items-center gap-2.5 px-5 py-3.5 bg-[var(--ap-surface-2)] border-b border-[var(--ap-border)]">
         <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white flex-shrink-0">
           <Icon size={15} />
         </div>
@@ -78,8 +78,8 @@ function SectionCard({ icon: Icon, title, sub, children, right }) {
 }
 
 function Field({ label, name, value, onChange, type = 'text', options, rows = 3, required, icon: Icon }) {
-  const cls = `w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-navy-700
-               bg-white dark:bg-navy-800/60 text-slate-700 dark:text-slate-200
+  const cls = `w-full px-3 py-2.5 text-sm rounded-xl border border-[var(--ap-border)]
+               bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200
                focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400
                transition-colors font-body ${Icon ? 'pl-9' : ''}`
   return (
@@ -218,7 +218,7 @@ export default function Settings() {
     return (
       <div className="space-y-5 animate-fade-up">
         <PageHeader title="Settings" subtitle="Manage your business configuration and application preferences" />
-        <div className="glass-card rounded-2xl p-10 text-center text-slate-400 text-sm font-medium">Loading settings…</div>
+        <div className="ap-surface rounded-2xl p-10 text-center text-slate-400 text-sm font-medium">Loading settings…</div>
       </div>
     )
   }
@@ -258,7 +258,7 @@ export default function Settings() {
 
       {/* Tab bar */}
       <div className="overflow-x-auto no-scrollbar">
-        <div className="flex gap-1.5 bg-slate-100 dark:bg-navy-800 rounded-2xl p-1.5" style={{ minWidth: 'max-content' }}>
+        <div className="flex gap-1.5 bg-[var(--ap-surface-2)] rounded-2xl p-1.5" style={{ minWidth: 'max-content' }}>
           {TABS.map(([k, l, Icon]) => (
             <button key={k} onClick={() => setTab(k)}
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${tab === k ? 'bg-blue-600 text-white shadow' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
@@ -280,17 +280,17 @@ export default function Settings() {
               <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Logo URL / Upload</label>
               <div className="flex items-center gap-2.5">
                 <input value={cfg.biz.logo} onChange={e => updateBiz('logo', e.target.value)} placeholder="uploads/logo/sjt-logo.png"
-                  className="flex-1 min-w-0 px-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30 font-body" />
+                  className="flex-1 min-w-0 px-3 py-2.5 text-sm rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30 font-body" />
                 <label title="Upload logo (max 2MB)"
-                  className="w-10 h-10 rounded-xl border border-slate-200 dark:border-navy-700 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors cursor-pointer flex-shrink-0">
+                  className="w-10 h-10 rounded-xl border border-[var(--ap-border)] flex items-center justify-center text-slate-500 hover:bg-[var(--ap-surface-2)] transition-colors cursor-pointer flex-shrink-0">
                   📤
                   <input type="file" accept="image/*" className="hidden" onChange={e => handleLogoFile(e.target.files?.[0])} />
                 </label>
-                <div className="w-10 h-10 rounded-full bg-navy-900 dark:bg-navy-700 border-2 border-blue-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                <div className="w-10 h-10 rounded-full bg-navy-900 dark:bg-[var(--ap-surface-2)] border-2 border-blue-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
                   {cfg.biz.logo
                     ? <img src={cfg.biz.logo} alt="Logo" className="w-full h-full object-contain"
                         onError={e => { e.target.style.display = 'none' }} />
-                    : <span className="text-white font-black text-[10px]">SJT</span>}
+                    : <span className="text-white font-semibold text-[10px]">SJT</span>}
                 </div>
               </div>
               {logoBusy && <p className="text-[11px] text-slate-400 mt-1">Reading file…</p>}
@@ -360,13 +360,13 @@ export default function Settings() {
                 const active = themeMode === k
                 return (
                   <button key={k} onClick={() => setThemeMode(k)}
-                    className={`ap-focus flex items-center gap-2.5 px-3.5 py-3 rounded-2xl border-2 text-left transition-all ${active ? 'border-blue-600 bg-blue-600/10 shadow' : 'border-slate-200 dark:border-navy-700 hover:border-slate-300 dark:hover:border-navy-600'}`}>
+                    className={`ap-focus flex items-center gap-2.5 px-3.5 py-3 rounded-2xl border-2 text-left transition-all ${active ? 'border-blue-600 bg-blue-600/10 shadow' : 'border-[var(--ap-border)] hover:border-slate-300 hover:border-[var(--ap-accent-2)]'}`}>
                     <Icon size={22} className={active ? 'text-blue-500' : 'text-slate-400'} strokeWidth={1.5} />
                     <span className="flex-1">
                       <span className="block text-sm font-semibold text-slate-800 dark:text-white">{l}</span>
                       <span className="block text-[11px] text-slate-500 dark:text-slate-400">{s}</span>
                     </span>
-                    <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${active ? 'border-blue-600 bg-blue-600' : 'border-slate-300 dark:border-navy-600'}`}>
+                    <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${active ? 'border-blue-600 bg-blue-600' : 'border-[var(--ap-border)]'}`}>
                       {active && <Check size={12} className="text-white" />}
                     </span>
                   </button>
@@ -381,7 +381,7 @@ export default function Settings() {
                 const active = pairKey === p.key
                 return (
                   <button key={p.key} onClick={() => pickPair(p.key)}
-                    className={`ap-focus rounded-2xl border-2 px-2 py-3 text-center transition-all ${active ? 'border-blue-600 shadow' : 'border-slate-200 dark:border-navy-700 hover:border-slate-300 dark:hover:border-navy-600'}`}>
+                    className={`ap-focus rounded-2xl border-2 px-2 py-3 text-center transition-all ${active ? 'border-blue-600 shadow' : 'border-[var(--ap-border)] hover:border-slate-300 hover:border-[var(--ap-accent-2)]'}`}>
                     <span className="relative inline-block w-11 h-11 mb-2">
                       <span className="absolute inset-0 rounded-full border border-white/20"
                         style={{ background: `linear-gradient(135deg, ${p.brand} 0 50%, ${p.sb} 50% 100%)` }} />
@@ -409,9 +409,9 @@ export default function Settings() {
                   const active = sidebarStyle === k
                   return (
                     <button key={k} onClick={() => setSidebarStyle(k)}
-                      className={`ap-focus rounded-2xl border-2 p-3 text-left transition-all ${active ? 'border-blue-600 shadow' : 'border-slate-200 dark:border-navy-700 hover:border-slate-300 dark:hover:border-navy-600'}`}>
+                      className={`ap-focus rounded-2xl border-2 p-3 text-left transition-all ${active ? 'border-blue-600 shadow' : 'border-[var(--ap-border)] hover:border-slate-300 hover:border-[var(--ap-accent-2)]'}`}>
                       <span className="flex items-center gap-2 mb-1.5">
-                        <span className="w-8 h-8 rounded-lg bg-navy-900 dark:bg-navy-700 flex items-end gap-[3px] p-1.5">
+                        <span className="w-8 h-8 rounded-lg bg-navy-900 dark:bg-[var(--ap-surface-2)] flex items-end gap-[3px] p-1.5">
                           <span className={`rounded-sm bg-blue-400 ${k === 'default' ? 'w-2.5 h-5' : k === 'compact' ? 'w-1.5 h-5' : 'w-1 h-4 opacity-50'}`} />
                           <span className={`flex-1 space-y-[3px] ${k === 'minimal' ? 'opacity-0' : ''}`}>
                             <span className="block h-1 rounded bg-white/40" />
@@ -429,14 +429,14 @@ export default function Settings() {
               </div>
             </SectionCard>
             <SectionCard icon={CaseSensitive} title="Text Size" sub="Adjust the application font size">
-              <div className="rounded-xl bg-slate-100 dark:bg-navy-800/70 border border-slate-200 dark:border-navy-700 px-3.5 py-3">
+              <div className="rounded-xl bg-[var(--ap-surface-2)]/70 border border-[var(--ap-border)] px-3.5 py-3">
                 <div className="flex items-center gap-3">
-                  <span className="font-black text-slate-400 dark:text-slate-500" style={{ fontSize: 11 }}>A</span>
+                  <span className="font-semibold text-slate-400 dark:text-slate-500" style={{ fontSize: 11 }}>A</span>
                   <input type="range" min={12} max={24} step={1} value={fontSize} aria-label="Text size in pixels"
                     onChange={e => setFontSize(Number(e.target.value))}
                     className="flex-1 h-1.5 cursor-pointer accent-blue-600" />
-                  <span className="font-black text-slate-700 dark:text-slate-200" style={{ fontSize: 17 }}>A</span>
-                  <span className="min-w-[60px] text-center px-2 py-1.5 rounded-lg bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-600 text-sm font-black tabular-nums text-slate-800 dark:text-white">
+                  <span className="font-semibold text-slate-700 dark:text-slate-200" style={{ fontSize: 17 }}>A</span>
+                  <span className="min-w-[60px] text-center px-2 py-1.5 rounded-lg ap-surface border border-[var(--ap-border)] text-sm font-semibold tabular-nums text-slate-800 dark:text-white">
                     {fontSize}
                   </span>
                   <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">px</span>
@@ -444,7 +444,7 @@ export default function Settings() {
                 <div className="flex justify-between mt-2 px-[2px]">
                   {[12, 14, 16, 18, 20, 22, 24].map(t => (
                     <button key={t} onClick={() => setFontSize(t)}
-                      className={`min-w-[26px] py-0.5 rounded-md text-[10px] font-bold tabular-nums transition-colors ap-focus ${fontSize === t ? 'bg-blue-600 text-white shadow' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-navy-700'}`}>
+                      className={`min-w-[26px] py-0.5 rounded-md text-[10px] font-bold tabular-nums transition-colors ap-focus ${fontSize === t ? 'bg-blue-600 text-white shadow' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-[var(--ap-surface-2)]'}`}>
                       {t}
                     </button>
                   ))}
@@ -492,10 +492,10 @@ function IntegrationTab({ navigate }) {
     }),
   ]
   return (
-    <div className="glass-card rounded-2xl p-5 space-y-1">
+    <div className="ap-surface rounded-2xl p-5 space-y-1">
       <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Connected Services</p>
       {rows.map(r => (
-        <div key={r.name} className="flex items-center gap-3 py-2.5 border-b border-slate-100 dark:border-navy-700 last:border-0">
+        <div key={r.name} className="flex items-center gap-3 py-2.5 border-b border-[var(--ap-border)] last:border-0">
           <span className={`w-2 h-2 rounded-full flex-shrink-0 ${r.ok == null ? 'bg-slate-300' : r.ok ? 'bg-emerald-500' : 'bg-red-500'}`} />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{r.name}</p>
@@ -506,7 +506,7 @@ function IntegrationTab({ navigate }) {
           </span>
           {r.to && (
             <button onClick={() => navigate(r.to)}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-navy-700 text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors flex-shrink-0">
+              className="px-3 py-1.5 rounded-lg border border-[var(--ap-border)] text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-colors flex-shrink-0">
               Configure
             </button>
           )}
@@ -537,13 +537,13 @@ function BackupTab() {
   }
   return (
     <div className="space-y-4">
-      <div className="glass-card rounded-2xl p-5">
+      <div className="ap-surface rounded-2xl p-5">
         <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Master Data Export</p>
         <p className="text-[11px] text-slate-400 mb-3">Download full CSV snapshots of each register.</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {jobs.map(j => (
             <button key={j[0]} onClick={() => runExport(j)} disabled={busy}
-              className="flex items-center justify-between px-4 py-3 rounded-xl border border-slate-200 dark:border-navy-700 text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors disabled:opacity-50">
+              className="flex items-center justify-between px-4 py-3 rounded-xl border border-[var(--ap-border)] text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-[var(--ap-surface-2)] transition-colors disabled:opacity-50">
               {j[0]}
               <Download size={14} className="text-slate-400" />
             </button>
@@ -551,7 +551,7 @@ function BackupTab() {
         </div>
         {busy && <p className="text-[11px] text-slate-400 mt-2">Exporting {busy}…</p>}
       </div>
-      <div className="glass-card rounded-2xl p-5 flex items-center gap-3">
+      <div className="ap-surface rounded-2xl p-5 flex items-center gap-3">
         <div className="flex-1">
           <p className="text-sm font-bold text-slate-700 dark:text-slate-200">Scheduled Backups</p>
           <p className="text-[11px] text-slate-400">Configure automatic backups and restore points.</p>
@@ -603,7 +603,7 @@ function SystemTab({ user }) {
   ]
   return (
     <div className="space-y-4">
-      <div className="glass-card rounded-2xl p-5">
+      <div className="ap-surface rounded-2xl p-5">
         <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Environment</p>
         <div className="space-y-2">
           {rows.map(([l, v]) => (
@@ -614,7 +614,7 @@ function SystemTab({ user }) {
           ))}
         </div>
       </div>
-      <div className="glass-card rounded-2xl p-5 flex items-center gap-3">
+      <div className="ap-surface rounded-2xl p-5 flex items-center gap-3">
         <div className="flex-1">
           <p className="text-sm font-bold text-slate-700 dark:text-slate-200">Clear cached data</p>
           <p className="text-[11px] text-slate-400">Refreshes lists, trips and reports from the server. Theme and sign-in are kept.</p>
