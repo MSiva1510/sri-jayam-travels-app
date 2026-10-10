@@ -12,21 +12,64 @@ import supabase from '../lib/supabase'
 import { withTimeout } from '../utils/withTimeout'
 
 export const GPS_SETTINGS_CATEGORY = 'gps'
-export const SENSITIVE_KEYS = new Set(['api_url', 'company_id', 'user_id', 'api_token', 'api_email'])
+export const SENSITIVE_KEYS = new Set(['api_url', 'company_id', 'user_id', 'api_token', 'api_email', 'gps_vendors'])
+
+// Vendor endpoints used as defaults when a vendor has no custom URL.
+export const KINGSTRACK_DEFAULT_URL = 'https://mvt.apmkingstrack.com/fleettracking/api/live/json'
+export const GPSTRACK_DEFAULT_URL   = 'https://app.gpstrack.in/api/get_current_data'
+
+// Each vendor exposes exactly two credential details; each "vehicle group"
+// (e.g. CY / DY / VY) is one labelled set of those two details. All enabled
+// groups across all enabled vendors are polled together and merged.
+//
+//   kingstrack detail 1 = company_id   detail 2 = user_id
+//   gpstrack   detail 1 = token        detail 2 = email
+export const GPS_VENDOR_DEFS = [
+  {
+    vendor:  'kingstrack',
+    label:   'KingsTrack',
+    api_url: KINGSTRACK_DEFAULT_URL,
+    details: [
+      { key: 'company_id', label: 'Company ID', sensitive: true },
+      { key: 'user_id',    label: 'User ID',    sensitive: true },
+    ],
+  },
+  {
+    vendor:  'gpstrack',
+    label:   'GPSTrack.in',
+    api_url: GPSTRACK_DEFAULT_URL,
+    details: [
+      { key: 'token', label: 'API Token',    sensitive: true },
+      { key: 'email', label: 'Account Email', sensitive: false },
+    ],
+  },
+]
+
+/** Fresh copy of the two-vendor config, pre-seeded with one empty group each. */
+export function defaultVendors() {
+  return GPS_VENDOR_DEFS.map(d => ({
+    vendor:  d.vendor,
+    enabled: d.vendor === 'kingstrack',
+    api_url: d.api_url,
+    groups:  [],
+  }))
+}
 
 export const GPS_DEFAULT_SETTINGS = {
+  // Legacy single-provider keys (kept for backward compatibility / fallback).
   provider:           'kingstrack',
-  api_url:            'https://mvt.apmkingstrack.com/fleettracking/api/live/json',
+  api_url:            KINGSTRACK_DEFAULT_URL,
   company_id:         '',
   user_id:            '',
+  api_token:          '',
+  api_email:          '',
+  gps_accounts:       [],
+  // Preferred multi-vendor model: both vendors configured at once.
+  gps_vendors:        defaultVendors(),
   refresh_interval:   60,
   timeout:            30,
   retry_count:        3,
   enabled:            true,
-  // Extra vendor accounts (CY may live under different company_id/user_id
-  // than DF/VF). [{ label, company_id, user_id }]. Primary account is
-  // always company_id/user_id above; extras are polled additionally.
-  gps_accounts:       [],
   // Alert settings
   overspeed_limit:    80, // km/h
   idle_time_limit:    30, // minutes
@@ -40,6 +83,7 @@ export const GPS_SETTINGS_DESCRIPTIONS = {
   company_id:         'Vendor account id (issued by provider).',
   user_id:            'Vendor user id (issued by provider).',
   gps_accounts:       'Extra vendor accounts [{ label, company_id, user_id }] polled alongside the primary.',
+  gps_vendors:        'Two-vendor config [{ vendor, enabled, api_url, groups:[{ label, ...details }] }]. Each group is one labelled set of the vendor\'s two credential details; all enabled groups are polled and merged.',
   api_token:          'GPSTrack.in API token (provider = gpstrack).',
   api_email:          'GPSTrack.in account email (provider = gpstrack).',
   refresh_interval:   'Seconds between fleet polls.',
@@ -175,11 +219,21 @@ async function setMany(updates, { updated_by } = {}) {
 /** Test that sensitive credentials parse and api_url is well-formed. */
 function validate(settings = {}) {
   const errs = []
-  if (!settings.provider) errs.push('provider is required')
-  if (settings.provider && !['kingstrack', 'gpstrack'].includes(settings.provider)) {
+  const vendors = Array.isArray(settings.gps_vendors) ? settings.gps_vendors : []
+  if (vendors.length) {
+    const known = new Set(GPS_VENDOR_DEFS.map(v => v.vendor))
+    const enabledAny = vendors.some(v => v?.enabled)
+    if (settings.enabled && !enabledAny) errs.push('enable at least one GPS vendor')
+    for (const v of vendors) {
+      if (!v || !known.has(v.vendor)) { errs.push(`unknown GPS vendor "${v?.vendor ?? ''}"`); continue }
+      if (v.api_url && !/^https?:\/\//i.test(v.api_url)) errs.push(`${v.vendor} api_url must be http(s)`)
+    }
+  } else if (!settings.provider) {
+    errs.push('provider is required')
+  } else if (!['kingstrack', 'gpstrack'].includes(settings.provider)) {
     errs.push(`provider "${settings.provider}" is not registered`)
   }
-  if (settings.api_url && !/^https?:\/\//i.test(settings.api_url)) {
+  if (!vendors.length && settings.api_url && !/^https?:\/\//i.test(settings.api_url)) {
     errs.push('api_url must be http(s)')
   }
   if (settings.refresh_interval && (Number(settings.refresh_interval) < 5 || Number(settings.refresh_interval) > 3600)) {

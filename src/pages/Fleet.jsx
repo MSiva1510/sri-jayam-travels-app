@@ -316,6 +316,12 @@ export default function Fleet() {
                   refresh_interval: settings.refresh_interval,
                   company_id: settings.company_id, user_id: settings.user_id,
                   api_url: settings.api_url,
+                  vendors: (Array.isArray(settings.gps_vendors) ? settings.gps_vendors : []).map(v => ({
+                    vendor: v.vendor, enabled: v.enabled, api_url: v.api_url,
+                    groups: (Array.isArray(v.groups) ? v.groups : []).map(g => ({
+                      label: g.label, company_id: g.company_id, user_id: g.user_id, email: g.email,
+                    })),
+                  })),
                   extraAccounts: (Array.isArray(settings.gps_accounts) ? settings.gps_accounts : []).map(a => ({
                     label: a.label, company_id: a.company_id, user_id: a.user_id,
                   })),
