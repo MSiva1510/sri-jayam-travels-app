@@ -50,7 +50,7 @@ function KpiCard({ icon, value, label, sub, delta, tone = 'blue', valueClass = '
     orange: 'bg-orange-100 dark:bg-orange-900/30 text-orange-400',
   }
   return (
-    <div className="glass-card rounded-2xl p-4 relative">
+    <div className="ap-surface rounded-2xl p-4 relative">
       <div className="flex items-start justify-between gap-2 mb-2.5">
         <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${tiles[tone]}`}>{icon}</div>
         {delta != null && (
@@ -59,7 +59,7 @@ function KpiCard({ icon, value, label, sub, delta, tone = 'blue', valueClass = '
           </span>
         )}
       </div>
-      <p className={`text-xl font-display font-black tabular-nums leading-none ${valueClass}`}>{value}</p>
+      <p className={`text-xl font-sf font-semibold tabular-nums leading-none ${valueClass}`}>{value}</p>
       <p className="text-xs font-bold text-slate-600 dark:text-slate-200 mt-1">{label}</p>
       {sub && <p className="text-[10px] text-slate-400 mt-0.5">{sub}</p>}
     </div>
@@ -68,9 +68,9 @@ function KpiCard({ icon, value, label, sub, delta, tone = 'blue', valueClass = '
 
 function Panel({ title, sub, icon, right, children }) {
   return (
-    <div className="glass-card rounded-2xl p-4">
+    <div className="ap-surface rounded-2xl p-4">
       <div className="flex items-center gap-2.5 mb-3">
-        {icon && <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center flex-shrink-0">{icon}</div>}
+        {icon && <div className="w-8 h-8 rounded-xl bg-[var(--ap-surface-2)] flex items-center justify-center flex-shrink-0">{icon}</div>}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-slate-800 dark:text-white">{title}</p>
           {sub && <p className="text-[11px] text-slate-400">{sub}</p>}
@@ -84,11 +84,11 @@ function Panel({ title, sub, icon, right, children }) {
 
 function GranToggle({ value, onChange, options = [['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly']] }) {
   return (
-    <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1">
+    <div className="flex gap-1 bg-[var(--ap-surface-2)] rounded-xl p-1">
       {options.map(([k, l]) => (
         <button key={k} onClick={() => onChange(k)}
           className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap ${
-            value === k ? 'bg-navy-900 dark:bg-blue-700 text-white shadow' : 'text-slate-500 dark:text-slate-400'
+            value === k ? 'bg-[var(--ap-accent)] text-white shadow' : 'text-slate-500 dark:text-slate-400'
           }`}>{l}</button>
       ))}
     </div>
@@ -147,7 +147,7 @@ function Donut({ segments, total, totalLabel }) {
           })}
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <p className="text-2xl font-display font-black tabular-nums leading-none">{total}</p>
+          <p className="text-2xl font-sf font-semibold tabular-nums leading-none">{total}</p>
           <p className="text-[9px] text-slate-400 mt-0.5">{totalLabel}</p>
         </div>
       </div>
@@ -156,7 +156,7 @@ function Donut({ segments, total, totalLabel }) {
           <div key={g.label} className="flex items-center gap-2 text-xs">
             <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: g.color }} />
             <span className="text-slate-500 dark:text-slate-400 flex-1 truncate">{g.label}</span>
-            <span className="font-black tabular-nums">{g.value}</span>
+            <span className="font-semibold tabular-nums">{g.value}</span>
             <span className="font-bold tabular-nums w-11 text-right" style={{ color: g.color }}>{sum ? Math.round(g.value / sum * 100) : 0}%</span>
           </div>
         ))}
@@ -171,7 +171,7 @@ function RankTable({ rows, cols, emptyText = 'No data' }) {
     <div className="overflow-x-auto -mx-1">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-100 dark:border-navy-700">
+          <tr className="border-b border-[var(--ap-border)]">
             {cols.map(c => (
               <th key={c.label} className={`px-2 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap ${c.right ? 'text-right' : 'text-left'}`}>{c.label}</th>
             ))}
@@ -179,7 +179,7 @@ function RankTable({ rows, cols, emptyText = 'No data' }) {
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={i} className="border-b border-slate-50 dark:border-navy-800/50 last:border-0">
+            <tr key={i} className="border-b border-[var(--ap-border)] last:border-0">
               {cols.map(c => (
                 <td key={c.label} className={`px-2 py-2 text-xs whitespace-nowrap ${c.right ? 'text-right' : ''} ${c.cls ? c.cls(r) : 'text-slate-600 dark:text-slate-300'}`}>
                   {c.render ? c.render(r, i) : r[c.key]}
@@ -202,7 +202,7 @@ function Pager({ page, totalPages, total, pageSize, onPage, label }) {
       {totalPages > 1 && (
         <div className="flex items-center gap-1">
           <button disabled={page <= 1} onClick={() => onPage(page - 1)} aria-label="Previous"
-            className="w-7 h-7 rounded-lg border border-slate-200 dark:border-navy-700 flex items-center justify-center text-slate-500 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors"><ChevronLeft size={13} /></button>
+            className="w-7 h-7 rounded-lg border border-[var(--ap-border)] flex items-center justify-center text-slate-500 disabled:opacity-40 hover:bg-[var(--ap-surface-2)] transition-colors"><ChevronLeft size={13} /></button>
           {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
             let p = i + 1
             if (totalPages > 5) {
@@ -211,11 +211,11 @@ function Pager({ page, totalPages, total, pageSize, onPage, label }) {
             }
             return (
               <button key={p} onClick={() => onPage(p)}
-                className={`min-w-[28px] h-7 px-1.5 rounded-lg text-xs font-bold tabular-nums transition-colors ${p === page ? 'bg-navy-900 dark:bg-blue-700 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-navy-700'}`}>{p}</button>
+                className={`min-w-[28px] h-7 px-1.5 rounded-lg text-xs font-bold tabular-nums transition-colors ${p === page ? 'bg-[var(--ap-accent)] text-white' : 'text-slate-500 hover:bg-[var(--ap-surface-2)]'}`}>{p}</button>
             )
           })}
           <button disabled={page >= totalPages} onClick={() => onPage(page + 1)} aria-label="Next"
-            className="w-7 h-7 rounded-lg border border-slate-200 dark:border-navy-700 flex items-center justify-center text-slate-500 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors"><ChevronRight size={13} /></button>
+            className="w-7 h-7 rounded-lg border border-[var(--ap-border)] flex items-center justify-center text-slate-500 disabled:opacity-40 hover:bg-[var(--ap-surface-2)] transition-colors"><ChevronRight size={13} /></button>
         </div>
       )}
     </div>
@@ -225,7 +225,7 @@ function Pager({ page, totalPages, total, pageSize, onPage, label }) {
 function FilterSel({ value, onChange, children, wide }) {
   return (
     <select value={value} onChange={e => onChange(e.target.value)}
-      className={`px-3 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-bold ${wide ? 'flex-1 min-w-[150px]' : ''}`}>
+      className={`px-3 py-2.5 text-xs rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none font-bold ${wide ? 'flex-1 min-w-[150px]' : ''}`}>
       {children}
     </select>
   )
@@ -234,7 +234,7 @@ function FilterSel({ value, onChange, children, wide }) {
 function ExportBtn({ onClick, label = 'Export' }) {
   return (
     <button onClick={onClick}
-      className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-md active:scale-95 whitespace-nowrap">
+      className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[var(--ap-accent)] text-white text-xs font-bold hover:opacity-90 transition-all shadow-md active:scale-95 whitespace-nowrap">
       <Download size={13} /> {label}
     </button>
   )
@@ -245,14 +245,14 @@ function ExportPanel({ onCSV, onExcel, onPDF }) {
   return (
     <div className="relative">
       <button onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-md active:scale-95 whitespace-nowrap">
+        className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[var(--ap-accent)] text-white text-xs font-bold hover:opacity-90 transition-all shadow-md active:scale-95 whitespace-nowrap">
         <Download size={13} /> Export ▾
       </button>
       {open && (
-        <div className="absolute right-0 top-11 bg-white dark:bg-navy-800 border border-slate-200 dark:border-navy-700 rounded-xl shadow-xl z-20 overflow-hidden py-1 min-w-[130px]">
+        <div className="absolute right-0 top-11 bg-[var(--ap-surface-2)] border border-[var(--ap-border)] rounded-xl shadow-xl z-20 overflow-hidden py-1 min-w-[130px]">
           {[{ label: 'CSV', icon: '📊', fn: onCSV }, { label: 'Excel', icon: '📗', fn: onExcel }, { label: 'PDF', icon: '📄', fn: onPDF }].map(o => (
             <button key={o.label} onClick={() => { o.fn?.(); setOpen(false) }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-[var(--ap-surface-2)] transition-colors">
               <span>{o.icon}</span> {o.label}
             </button>
           ))}
@@ -277,7 +277,7 @@ const ST4 = {
   completed: { label: 'Completed', color: '#10b981', badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
   ongoing:   { label: 'Ongoing',   color: '#f59e0b', badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
   cancelled: { label: 'Cancelled', color: '#ef4444', badge: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
-  scheduled: { label: 'Scheduled', color: '#64748b', badge: 'bg-slate-100 text-slate-600 dark:bg-navy-700 dark:text-slate-300' },
+  scheduled: { label: 'Scheduled', color: '#64748b', badge: 'bg-[var(--ap-surface-2)] text-slate-600 dark:text-slate-300' },
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -433,7 +433,7 @@ function OverviewRanks() {
           { label: '#', render: (_, i) => <span className="text-slate-400 tabular-nums">{i + 1}</span> },
           { label: 'Route', render: r => <span className="font-bold text-slate-700 dark:text-slate-200">{r.route}</span> },
           { label: 'Trips', key: 'trips', right: true, render: r => <span className="tabular-nums">{r.trips}</span> },
-          { label: 'Revenue', right: true, render: r => <span className="font-black text-amber-500 tabular-nums">{rs(r.revenue)}</span> },
+          { label: 'Revenue', right: true, render: r => <span className="font-semibold text-amber-500 tabular-nums">{rs(r.revenue)}</span> },
         ]} />
       </Panel>
       <Panel title="Top Customers by Revenue" right={link('/customers')}>
@@ -441,7 +441,7 @@ function OverviewRanks() {
           { label: '#', render: (_, i) => <span className="text-slate-400 tabular-nums">{i + 1}</span> },
           { label: 'Customer', render: r => <span className="font-bold text-slate-700 dark:text-slate-200">{r.customer}</span> },
           { label: 'Trips', right: true, render: r => <span className="tabular-nums">{r.trips}</span> },
-          { label: 'Revenue', right: true, render: r => <span className="font-black text-amber-500 tabular-nums">{rs(r.revenue)}</span> },
+          { label: 'Revenue', right: true, render: r => <span className="font-semibold text-amber-500 tabular-nums">{rs(r.revenue)}</span> },
         ]} />
       </Panel>
       <Panel title="Expense Breakdown" right={link('/expenses')}>
@@ -449,7 +449,7 @@ function OverviewRanks() {
           { label: '#', render: (_, i) => <span className="text-slate-400 tabular-nums">{i + 1}</span> },
           { label: 'Category', render: r => <span className="font-bold text-slate-700 dark:text-slate-200 capitalize">{String(r.cat).replace(/_/g, ' ')}</span> },
           { label: 'Amount', right: true, render: r => <span className="tabular-nums">{rs(r.amount)}</span> },
-          { label: '%', right: true, render: r => <span className="font-black tabular-nums">{r.pct}%</span> },
+          { label: '%', right: true, render: r => <span className="font-semibold tabular-nums">{r.pct}%</span> },
         ]} />
       </Panel>
     </div>
@@ -590,7 +590,7 @@ function TripReports() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 flex-1 min-w-[180px] max-w-xs">
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] flex-1 min-w-[180px] max-w-xs">
           <Search size={13} className="text-slate-400 flex-shrink-0" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by Trip ID, Customer, Route…"
             className="bg-transparent text-xs text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none w-full" />
@@ -611,10 +611,10 @@ function TripReports() {
           {drivers.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
         </FilterSel>
         <input type="date" value={from} max={to} onChange={e => setFrom(e.target.value)}
-          className="px-3 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-bold" />
+          className="px-3 py-2.5 text-xs rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none font-bold" />
         <input type="date" value={to} min={from} max={today} onChange={e => setTo(e.target.value)}
-          className="px-3 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-bold" />
-        <button onClick={clearAll} className="flex items-center gap-1 px-3 py-2.5 text-xs font-bold rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+          className="px-3 py-2.5 text-xs rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none font-bold" />
+        <button onClick={clearAll} className="flex items-center gap-1 px-3 py-2.5 text-xs font-bold rounded-xl text-slate-500 hover:bg-[var(--ap-surface-2)] transition-colors">
           <X size={13} /> Clear
         </button>
         <ExportBtn onClick={handleExport} />
@@ -627,7 +627,7 @@ function TripReports() {
           <div className="overflow-x-auto -mx-1 hidden md:block">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-100 dark:border-navy-700">
+                <tr className="border-b border-[var(--ap-border)]">
                   {['#', 'Date', 'Trip ID', 'Customer', 'Route', 'Vehicle', 'Driver', 'Status', 'Trip Fare', 'Expenses', 'Net Revenue', 'Actions'].map(h => (
                     <th key={h} className={`px-2 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap ${['Trip Fare', 'Expenses', 'Net Revenue', 'Actions'].includes(h) ? 'text-right' : 'text-left'}`}>{h}</th>
                   ))}
@@ -639,7 +639,7 @@ function TripReports() {
                   const exp = tripExp(b)
                   const fare = Number(b.fare) || 0
                   return (
-                    <tr key={b.id} className="border-b border-slate-50 dark:border-navy-800/50 last:border-0 hover:bg-slate-50/50 dark:hover:bg-navy-800/30 transition-colors">
+                    <tr key={b.id} className="border-b border-[var(--ap-border)] last:border-0 hover:bg-[var(--ap-surface-2)] transition-colors">
                       <td className="px-2 py-2.5 text-xs text-slate-400 tabular-nums">{(safePage - 1) * TRIP_PAGE + i + 1}</td>
                       <td className="px-2 py-2.5 text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">{fullDt(b.startDate)}</td>
                       <td className="px-2 py-2.5 text-[11px] font-mono text-slate-500 whitespace-nowrap">{b.bookingNo}</td>
@@ -650,7 +650,7 @@ function TripReports() {
                       <td className="px-2 py-2.5"><span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${st.badge}`}>● {st.label}</span></td>
                       <td className="px-2 py-2.5 text-xs font-bold tabular-nums text-right">{rs(fare)}</td>
                       <td className="px-2 py-2.5 text-xs tabular-nums text-right text-slate-500">{rs(exp)}</td>
-                      <td className="px-2 py-2.5 text-xs font-black tabular-nums text-right text-emerald-500">{rs(fare - exp)}</td>
+                      <td className="px-2 py-2.5 text-xs font-semibold tabular-nums text-right text-emerald-500">{rs(fare - exp)}</td>
                       <td className="px-2 py-2.5 text-right">
                         <button onClick={() => navigate('/trips')} title="View in Trips" aria-label="View in Trips"
                           className="w-7 h-7 rounded-lg inline-flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
@@ -669,7 +669,7 @@ function TripReports() {
               const exp = tripExp(b)
               const fare = Number(b.fare) || 0
               return (
-                <div key={b.id} className="rounded-xl border border-slate-100 dark:border-navy-700 p-3">
+                <div key={b.id} className="rounded-xl border border-[var(--ap-border)] p-3">
                   <div className="flex items-center gap-2 mb-1">
                     <p className="text-xs font-mono text-slate-500 flex-1">{b.bookingNo}</p>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${st.badge}`}>● {st.label}</span>
@@ -679,7 +679,7 @@ function TripReports() {
                   <div className="flex items-center gap-3 mt-1.5 text-xs tabular-nums">
                     <span className="font-bold">{rs(fare)}</span>
                     <span className="text-slate-400">− {rs(exp)}</span>
-                    <span className="font-black text-emerald-500 ml-auto">{rs(fare - exp)}</span>
+                    <span className="font-semibold text-emerald-500 ml-auto">{rs(fare - exp)}</span>
                   </div>
                 </div>
               )
@@ -719,7 +719,7 @@ function DriverPerformance() {
         {data.length === 0 ? <EmptyBlock text="No driver data." /> : (
           <div className="space-y-2.5">
             {data.map((d, i) => (
-              <div key={d.id} className="rounded-xl border border-slate-100 dark:border-navy-700 p-3">
+              <div key={d.id} className="rounded-xl border border-[var(--ap-border)] p-3">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="relative flex-shrink-0">
                     <Avatar name={d.name} size={36} />
@@ -733,11 +733,11 @@ function DriverPerformance() {
                     <p className="text-[10px] text-slate-400 truncate">{d.vehicle || '—'} · {d.presentDays} days present · {d.workingHours}</p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-base font-black tabular-nums">{d.completedTrips}<span className="text-[10px] text-slate-400 font-bold">/{d.totalTrips}</span></p>
-                    <p className="text-[10px] font-black text-emerald-500 tabular-nums">{rsK(d.revenue)}</p>
+                    <p className="text-base font-semibold tabular-nums">{d.completedTrips}<span className="text-[10px] text-slate-400 font-bold">/{d.totalTrips}</span></p>
+                    <p className="text-[10px] font-semibold text-emerald-500 tabular-nums">{rsK(d.revenue)}</p>
                   </div>
                 </div>
-                <div className="h-1.5 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden">
+                <div className="h-1.5 bg-[var(--ap-border)] rounded-full overflow-hidden">
                   <div className="h-full rounded-full bg-blue-500" style={{ width: `${Math.round(d.completedTrips / maxTrips * 100)}%` }} />
                 </div>
               </div>
@@ -775,32 +775,32 @@ function VehiclePerformance() {
         {data.length === 0 ? <EmptyBlock text="No vehicle data." /> : (
           <div className="space-y-2.5">
             {data.map((v, i) => (
-              <div key={v.id} className="rounded-xl border border-slate-100 dark:border-navy-700 p-3">
+              <div key={v.id} className="rounded-xl border border-[var(--ap-border)] p-3">
                 <div className="flex items-center gap-3 mb-2">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${i === 0 ? 'bg-blue-600' : 'bg-navy-900 dark:bg-navy-800'}`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${i === 0 ? 'bg-blue-600' : 'bg-[var(--ap-accent)]'}`}>
                     <Car size={17} className="text-white" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-display font-black text-slate-800 dark:text-white text-sm tracking-wider">{v.reg}</p>
+                      <p className="font-sf font-semibold text-slate-800 dark:text-white text-sm tracking-wider">{v.reg}</p>
                       {i === 0 && <span className="text-[9px] font-bold text-amber-500 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full">Most Used</span>}
                     </div>
                     <p className="text-[10px] text-slate-400">{v.model} · {v.type} · {Number(v.distance).toLocaleString('en-IN')} km</p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-base font-black tabular-nums">{v.completedTrips}<span className="text-[10px] text-slate-400 font-bold">/{v.totalTrips}</span></p>
-                    <p className="text-[10px] font-black text-amber-500 tabular-nums">{rsK(v.totalCost)}</p>
+                    <p className="text-base font-semibold tabular-nums">{v.completedTrips}<span className="text-[10px] text-slate-400 font-bold">/{v.totalTrips}</span></p>
+                    <p className="text-[10px] font-semibold text-amber-500 tabular-nums">{rsK(v.totalCost)}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2 mb-2">
                   {[['Fuel', v.fuelCost, 'text-orange-500'], ['Maint', v.maintCost, 'text-red-500'], ['Total', v.totalCost, 'text-amber-500']].map(([l, val, c]) => (
-                    <div key={l} className="bg-slate-50 dark:bg-navy-800/60 rounded-lg py-1.5 text-center">
-                      <p className={`text-xs font-black tabular-nums ${c}`}>{rs(val)}</p>
+                    <div key={l} className="bg-[var(--ap-surface-2)] rounded-lg py-1.5 text-center">
+                      <p className={`text-xs font-semibold tabular-nums ${c}`}>{rs(val)}</p>
                       <p className="text-[9px] text-slate-400">{l}</p>
                     </div>
                   ))}
                 </div>
-                <div className="h-1.5 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden">
+                <div className="h-1.5 bg-[var(--ap-border)] rounded-full overflow-hidden">
                   <div className="h-full rounded-full bg-teal-500" style={{ width: `${Math.round(v.completedTrips / maxTrips * 100)}%` }} />
                 </div>
               </div>
@@ -853,7 +853,7 @@ function CustomerReports() {
             { label: '#', render: (_, i) => <span className="text-slate-400 tabular-nums">{i + 1}</span> },
             { label: 'Customer', render: c => <span className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-200"><Avatar name={c.name} size={22} /><span className="truncate">{c.name}</span></span> },
             { label: 'Trips', right: true, render: c => <span className="tabular-nums">{c.totalTrips}</span> },
-            { label: 'Revenue', right: true, render: c => <span className="font-black text-amber-500 tabular-nums">{rs(c.totalRevenue)}</span> },
+            { label: 'Revenue', right: true, render: c => <span className="font-semibold text-amber-500 tabular-nums">{rs(c.totalRevenue)}</span> },
           ]} />
         </Panel>
         <Panel title="Top Customers by Trips">
@@ -863,10 +863,10 @@ function CustomerReports() {
                 <div key={c.id} className="flex items-center gap-2.5">
                   <span className="text-[10px] font-bold text-slate-400 w-4 flex-shrink-0 tabular-nums">{i + 1}</span>
                   <p className="text-xs font-bold text-slate-700 dark:text-slate-200 flex-1 truncate">{c.name}</p>
-                  <div className="w-24 h-1.5 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden flex-shrink-0">
+                  <div className="w-24 h-1.5 bg-[var(--ap-border)] rounded-full overflow-hidden flex-shrink-0">
                     <div className="h-full rounded-full bg-violet-500" style={{ width: `${Math.round(c.totalTrips / maxTrips * 100)}%` }} />
                   </div>
-                  <span className="text-xs font-black tabular-nums w-8 text-right">{c.totalTrips}</span>
+                  <span className="text-xs font-semibold tabular-nums w-8 text-right">{c.totalTrips}</span>
                 </div>
               ))}
             </div>
@@ -874,7 +874,7 @@ function CustomerReports() {
         </Panel>
       </div>
       <Panel title={`All Customers (${rows.length})`} right={<ExportBtn onClick={handleExport} />}>
-        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 flex-1 min-w-[160px] max-w-xs mb-3">
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] flex-1 min-w-[160px] max-w-xs mb-3">
           <Search size={13} className="text-slate-400 flex-shrink-0" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search customer…"
             className="bg-transparent text-xs text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none w-full" />
@@ -883,7 +883,7 @@ function CustomerReports() {
           <div className="overflow-x-auto -mx-1 hidden md:block">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-100 dark:border-navy-700">
+                <tr className="border-b border-[var(--ap-border)]">
                   {['#', 'Customer', 'Type', 'Trips', 'Completed', 'Revenue'].map(h => (
                     <th key={h} className={`px-2 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap ${['Trips', 'Completed', 'Revenue'].includes(h) ? 'text-right' : 'text-left'}`}>{h}</th>
                   ))}
@@ -891,13 +891,13 @@ function CustomerReports() {
               </thead>
               <tbody>
                 {pageRows.map((c, i) => (
-                  <tr key={c.id} className="border-b border-slate-50 dark:border-navy-800/50 last:border-0 hover:bg-slate-50/50 dark:hover:bg-navy-800/30 transition-colors">
+                  <tr key={c.id} className="border-b border-[var(--ap-border)] last:border-0 hover:bg-[var(--ap-surface-2)] transition-colors">
                     <td className="px-2 py-2.5 text-xs text-slate-400 tabular-nums">{(safePage - 1) * CUST_PAGE + i + 1}</td>
                     <td className="px-2 py-2.5"><span className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200"><Avatar name={c.name} size={24} /><span className="truncate">{c.name}</span></span></td>
                     <td className="px-2 py-2.5 text-xs text-slate-500 capitalize">{c.type || '—'}</td>
                     <td className="px-2 py-2.5 text-xs tabular-nums text-right">{c.totalTrips}</td>
                     <td className="px-2 py-2.5 text-xs font-bold text-emerald-500 tabular-nums text-right">{c.completedTrips}</td>
-                    <td className="px-2 py-2.5 text-xs font-black tabular-nums text-right">{rs(c.totalRevenue)}</td>
+                    <td className="px-2 py-2.5 text-xs font-semibold tabular-nums text-right">{rs(c.totalRevenue)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -905,13 +905,13 @@ function CustomerReports() {
           </div>
           <div className="space-y-2 md:hidden">
             {pageRows.map(c => (
-              <div key={c.id} className="rounded-xl border border-slate-100 dark:border-navy-700 p-3 flex items-center gap-2.5">
+              <div key={c.id} className="rounded-xl border border-[var(--ap-border)] p-3 flex items-center gap-2.5">
                 <Avatar name={c.name} size={32} />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{c.name}</p>
                   <p className="text-[10px] text-slate-400">{c.totalTrips} trips · {c.completedTrips} completed</p>
                 </div>
-                <p className="text-xs font-black tabular-nums">{rs(c.totalRevenue)}</p>
+                <p className="text-xs font-semibold tabular-nums">{rs(c.totalRevenue)}</p>
               </div>
             ))}
           </div>
@@ -957,9 +957,9 @@ function ExpenseAnalytics() {
               ))}
             </div>
           )}
-          <div className="flex justify-between text-xs border-t border-slate-100 dark:border-navy-700 pt-2 mt-2">
+          <div className="flex justify-between text-xs border-t border-[var(--ap-border)] pt-2 mt-2">
             <span className="text-slate-500">This Month</span>
-            <span className="font-black text-amber-500 tabular-nums">{rs(data.monthTotal)}</span>
+            <span className="font-semibold text-amber-500 tabular-nums">{rs(data.monthTotal)}</span>
           </div>
         </Panel>
         <Panel title="Expense Breakdown" sub="By category · all time">
@@ -968,7 +968,7 @@ function ExpenseAnalytics() {
               { label: '#', render: (_, i) => <span className="text-slate-400 tabular-nums">{i + 1}</span> },
               { label: 'Category', render: t => <span className="font-bold text-slate-700 dark:text-slate-200 capitalize">{String(t.label).replace(/_/g, ' ')}</span> },
               { label: 'Amount', right: true, render: t => <span className="tabular-nums">{rs(t.total)}</span> },
-              { label: '%', right: true, render: t => <span className="font-black tabular-nums">{Math.round(t.total / catTotal * 100)}%</span> },
+              { label: '%', right: true, render: t => <span className="font-semibold tabular-nums">{Math.round(t.total / catTotal * 100)}%</span> },
             ]} />
           )}
         </Panel>
@@ -1012,8 +1012,8 @@ function PayrollAnalytics() {
             {
               label: 'Paid', right: true, render: d => (
                 <span className="min-w-[140px] inline-block">
-                  <span className="block font-black text-emerald-500 tabular-nums">{rs(d.paid)}</span>
-                  <span className="block h-1 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden mt-1">
+                  <span className="block font-semibold text-emerald-500 tabular-nums">{rs(d.paid)}</span>
+                  <span className="block h-1 bg-[var(--ap-border)] rounded-full overflow-hidden mt-1">
                     <span className="block h-full rounded-full bg-emerald-500" style={{ width: `${Math.round(d.paid / maxPay * 100)}%` }} />
                   </span>
                 </span>
@@ -1072,7 +1072,7 @@ function MonthlySummary() {
             { label: 'Bookings', right: true, render: r => <span className="tabular-nums">{r.bookings}</span> },
             { label: 'Completed', right: true, render: r => <span className="font-bold text-emerald-500 tabular-nums">{r.completed}</span> },
             { label: 'Cancelled', right: true, render: r => <span className="text-red-500 tabular-nums">{r.cancelled}</span> },
-            { label: 'Revenue', right: true, render: r => <span className="font-black tabular-nums">{rs(r.revenue)}</span> },
+            { label: 'Revenue', right: true, render: r => <span className="font-semibold tabular-nums">{rs(r.revenue)}</span> },
           ]} />
         </>)}
       </Panel>
@@ -1116,9 +1116,9 @@ function OperationsMonitor() {
         <Panel key={g.title} title={g.title} icon={g.icon}>
           <div className="space-y-2">
             {g.items.map(it => (
-              <div key={it.l} className="flex items-center justify-between bg-slate-50 dark:bg-navy-800/60 rounded-xl px-3 py-2.5">
+              <div key={it.l} className="flex items-center justify-between bg-[var(--ap-surface-2)] rounded-xl px-3 py-2.5">
                 <KpiDot label={it.l} tone={it.tone} />
-                <span className="text-lg font-display font-black tabular-nums">{it.value}</span>
+                <span className="text-lg font-sf font-semibold tabular-nums">{it.value}</span>
               </div>
             ))}
           </div>
@@ -1149,7 +1149,7 @@ function BusinessAlerts() {
   const TI = { insurance: '🛡', permit: '📋', fc: '📄', puc: '💨', service: '🔧' }
   const highs = alerts.filter(a => a.priority === 'high').length
   if (alerts.length === 0) return (
-    <div className="glass-card rounded-2xl p-10 text-center">
+    <div className="ap-surface rounded-2xl p-10 text-center">
       <CheckCircle size={34} className="mx-auto text-emerald-400 mb-3" />
       <p className="font-bold text-slate-700 dark:text-slate-200 text-sm">All documents are up to date</p>
       <p className="text-xs text-slate-400 mt-1">No alerts at this time</p>
@@ -1221,7 +1221,7 @@ export default function Reports() {
   useEffect(() => { getBusinessAlerts().then(setAlerts).catch(() => { }) }, [])
 
   if (isDriver) return (
-    <div className="glass-card rounded-2xl p-12 text-center">
+    <div className="ap-surface rounded-2xl p-12 text-center">
       <AlertTriangle size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
       <p className="font-bold text-slate-500 dark:text-slate-400">Reports are not available for drivers.</p>
     </div>
@@ -1241,15 +1241,15 @@ export default function Reports() {
       />
 
       <div className="overflow-x-auto no-scrollbar">
-        <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-2xl p-1.5" style={{ minWidth: 'max-content' }}>
+        <div className="flex gap-1 bg-[var(--ap-surface-2)] rounded-2xl p-1.5" style={{ minWidth: 'max-content' }}>
           {TABS.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${tab === t.key ? 'bg-navy-900 dark:bg-blue-700 text-white shadow' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${tab === t.key ? 'bg-[var(--ap-accent)] text-white shadow' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                 }`}>
               <t.icon size={13} />
               {t.label}
               {t.key === 'alerts' && alerts.length > 0 && (
-                <span className="w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center ml-0.5">{alerts.length}</span>
+                <span className="w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-semibold flex items-center justify-center ml-0.5">{alerts.length}</span>
               )}
             </button>
           ))}
