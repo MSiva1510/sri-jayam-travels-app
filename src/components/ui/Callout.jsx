@@ -10,7 +10,7 @@ const TONES = {
 }
 
 export default function Callout({
-  tone = 'blue', icon: Icon, title, sub, actionLabel, onAction, actionDisabled, className = '',
+  tone = 'blue', icon: Icon, title, sub, actionLabel, onAction, actionDisabled, className = '', children,
 }) {
   const t = TONES[tone] || TONES.blue
   return (
@@ -21,9 +21,10 @@ export default function Callout({
             <Icon size={15} strokeWidth={2.25} />
           </span>
         )}
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className={`text-sm font-semibold ${t.text}`}>{title}</p>
           {sub && <p className={`text-xs opacity-80 ${t.text}`}>{sub}</p>}
+          {children}
         </div>
       </div>
       {actionLabel && (

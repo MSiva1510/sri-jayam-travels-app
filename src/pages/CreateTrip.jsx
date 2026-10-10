@@ -12,6 +12,10 @@ import { addTimelineEvent } from '../data/tripTimelineData'
 import { loadDrivers } from '../data/driverData'
 import { loadVehicles } from '../data/vehicleData'
 import PageHeader from '../components/ui/PageHeader'
+import Button from '../components/ui/Button'
+import IconButton from '../components/ui/IconButton'
+import Callout from '../components/ui/Callout'
+import { fieldCls } from '../components/ui/Field'
 import { validateField, sanitizeInput } from '../utils/formValidation'
 import { useAuth } from '../context/AuthContext'
 
@@ -49,22 +53,14 @@ function Input({ id, type = 'text', value, onChange, placeholder, min, max, requ
   return (
     <div className="relative">
       {Icon && (
-        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none">
+        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none z-10">
           <Icon size={14} />
         </div>
       )}
       <input
         id={id} type={type} value={value} onChange={handleChange}
         placeholder={placeholder} min={min} max={max} required={required}
-        className={`
-          w-full px-3 py-2.5 rounded-lg border border-slate-200 dark:border-navy-700
-          bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100
-          placeholder-slate-300 dark:placeholder-slate-600 text-sm
-          focus:outline-none focus:ring-2 focus:ring-navy-500/25 focus:border-navy-400 dark:focus:border-blue-500
-          transition-all font-body
-          ${Icon ? 'pl-9' : ''}
-          ${className}
-        `}
+        className={`${fieldCls} ${Icon ? 'pl-9' : ''} ${className}`}
       />
     </div>
   )
@@ -74,11 +70,7 @@ function Select({ id, value, onChange, children, required }) {
   return (
     <select
       id={id} value={value} onChange={onChange} required={required}
-      className="w-full px-3 py-2.5 rounded-lg border border-slate-200 dark:border-navy-700
-                 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100
-                 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500/25
-                 focus:border-navy-400 dark:focus:border-blue-500 transition-all font-body
-                 appearance-none"
+      className={`${fieldCls} appearance-none`}
     >
       {children}
     </select>
@@ -89,21 +81,17 @@ function Textarea({ value, onChange, placeholder, rows = 3 }) {
   return (
     <textarea
       value={value} onChange={onChange} placeholder={placeholder} rows={rows}
-      className="w-full px-3 py-2.5 rounded-lg border border-slate-200 dark:border-navy-700
-                 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100
-                 placeholder-slate-300 dark:placeholder-slate-600 text-sm
-                 focus:outline-none focus:ring-2 focus:ring-navy-500/25 focus:border-navy-400
-                 dark:focus:border-blue-500 resize-none transition-all font-body"
+      className={`${fieldCls} h-auto min-h-[72px] py-3 leading-relaxed resize-none`}
     />
   )
 }
 
 function FieldGroup({ title, icon: Icon, children }) {
   return (
-    <div className="glass-card rounded-2xl overflow-hidden">
-      <div className="flex items-center gap-2.5 px-5 py-3 bg-slate-50/80 dark:bg-navy-800/60 border-b border-slate-100 dark:border-navy-700">
-        {Icon && <Icon size={14} className="text-navy-700 dark:text-blue-400 flex-shrink-0" />}
-        <p className="text-xs font-bold text-navy-800 dark:text-slate-200 uppercase tracking-wider">{title}</p>
+    <div className="ap-surface overflow-hidden">
+      <div className="flex items-center gap-2.5 px-5 py-3 bg-[var(--ap-surface-2)] border-b border-[var(--ap-border)]">
+        {Icon && <Icon size={14} className="text-slate-600 dark:text-slate-300 flex-shrink-0" />}
+        <p className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">{title}</p>
       </div>
       <div className="p-5 space-y-4">{children}</div>
     </div>
@@ -192,7 +180,7 @@ function LocalVisitFields({ data, set }) {
           {(data.stops || []).map((stop, i) => (
             <div key={i} className="flex items-center gap-2">
               <div className="flex items-center gap-1.5 flex-shrink-0">
-                <span className="w-5 h-5 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 text-[10px] font-black flex items-center justify-center">
+                <span className="w-5 h-5 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 text-[10px] font-semibold flex items-center justify-center">
                   {i + 1}
                 </span>
               </div>
@@ -201,7 +189,7 @@ function LocalVisitFields({ data, set }) {
                 value={stop}
                 onChange={e => updateStop(i, e.target.value.slice(0, 100))}
                 placeholder={`Stop ${i + 1} — e.g. Auroville`}
-                className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/25 focus:border-violet-400 transition-all font-body placeholder-slate-300 dark:placeholder-slate-600"
+                className={`${fieldCls} flex-1 min-w-0`}
               />
               <button
                 type="button"
@@ -261,21 +249,21 @@ function MultiDayFields({ data, set }) {
 
       {/* Day timeline placeholder */}
       {days > 0 && (
-        <div className="glass-card rounded-2xl p-5">
+        <div className="ap-surface rounded-2xl p-5">
           <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
             Day Timeline (Placeholder)
           </p>
           <div className="space-y-2">
             {Array.from({ length: Math.min(days, 7) }).map((_, i) => (
-              <div key={i} className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-navy-800/50 rounded-xl border border-slate-100 dark:border-navy-700">
+              <div key={i} className="flex items-center gap-3 p-3 bg-[var(--ap-surface-2)] rounded-xl border border-[var(--ap-border)]">
                 <div className="w-7 h-7 rounded-lg bg-amber-500 flex items-center justify-center flex-shrink-0">
-                  <span className="text-white text-[10px] font-black">{i + 1}</span>
+                  <span className="text-white text-[10px] font-semibold">{i + 1}</span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Day {i + 1}</p>
                   <p className="text-[10px] text-slate-400 dark:text-slate-500">Route & stops to be configured</p>
                 </div>
-                <span className="text-[10px] text-slate-300 dark:text-navy-600 font-mono">TBD</span>
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">TBD</span>
               </div>
             ))}
           </div>
@@ -288,7 +276,7 @@ function MultiDayFields({ data, set }) {
           { label: 'Hotel Expense', sub: 'Per night accommodation placeholder', icon: '🏨' },
           { label: 'Driver Bata',   sub: 'Per day allowance placeholder',        icon: '💵' },
         ].map(p => (
-          <div key={p.label} className="glass-card rounded-xl p-4 flex items-center gap-3">
+          <div key={p.label} className="ap-surface rounded-xl p-4 flex items-center gap-3">
             <span className="text-2xl flex-shrink-0">{p.icon}</span>
             <div>
               <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{p.label}</p>
@@ -368,7 +356,7 @@ function SelfDriveFields({ data, set }) {
               value={data.endKm}
               onChange={e => set({ ...data, endKm: e.target.value })}
               placeholder="Filled on return"
-              className="bg-slate-50 dark:bg-navy-800/40"
+              className="bg-[var(--ap-surface-2)]"
             />
           </div>
           <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">Filled when vehicle is returned</p>
@@ -511,18 +499,18 @@ export default function CreateTrip() {
   if (submitted && cfg) {
     return (
       <div className="max-w-lg mx-auto animate-fade-up">
-        <div className="glass-card rounded-3xl p-8 text-center space-y-5">
+        <div className="ap-surface rounded-3xl p-8 text-center space-y-5">
           <div className={`w-20 h-20 rounded-3xl bg-gradient-to-br ${cfg.gradient} flex items-center justify-center mx-auto shadow-xl text-3xl`}>
             {cfg.icon}
           </div>
           <div>
-            <h2 className="font-display font-black text-slate-800 dark:text-white text-2xl">Trip Created!</h2>
+            <h2 className="font-sf font-semibold text-slate-800 dark:text-white text-2xl">Trip Created!</h2>
             <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
               {cfg.label} for <strong>{common.customer}</strong> has been saved.
             </p>
           </div>
           {/* Summary */}
-          <div className="bg-slate-50 dark:bg-navy-800/60 rounded-2xl p-4 text-left space-y-2.5">
+          <div className="bg-[var(--ap-surface-2)] rounded-2xl p-4 text-left space-y-2.5">
             {[
               { label: 'Trip Type',   value: cfg.label },
               { label: 'Customer',    value: common.customer },
@@ -538,18 +526,16 @@ export default function CreateTrip() {
             ))}
           </div>
           <div className="flex gap-3">
-            <button
+            <Button
+              variant="secondary"
+              className="flex-1"
               onClick={() => { setStep(0); setTripType(null); setCommon(EMPTY_COMMON); setTypeData({}); setSubmitted(false) }}
-              className="flex-1 py-3 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 font-bold text-sm hover:bg-slate-50 dark:hover:bg-navy-700 transition-all"
             >
               New Trip
-            </button>
-            <button
-              onClick={() => navigate('/trips')}
-              className="flex-1 py-3 rounded-xl bg-navy-900 dark:bg-blue-700 text-white font-bold text-sm hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-lg"
-            >
+            </Button>
+            <Button variant="primary" className="flex-1" onClick={() => navigate('/trips')}>
               View All Trips
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -564,10 +550,9 @@ export default function CreateTrip() {
           title="Create Trip"
           subtitle="Select the type of trip to begin"
           action={
-            <button onClick={() => navigate('/trips')}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 text-slate-600 dark:text-slate-300 text-sm font-semibold hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
-              <ArrowLeft size={15} /> Back
-            </button>
+            <Button variant="secondary" icon={ArrowLeft} onClick={() => navigate('/trips')}>
+              Back
+            </Button>
           }
         />
 
@@ -587,7 +572,7 @@ export default function CreateTrip() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="font-display font-black text-slate-800 dark:text-white text-base">{type.label}</p>
+                  <p className="font-sf font-semibold text-slate-800 dark:text-white text-base">{type.label}</p>
                   <ChevronRight size={16} className="text-slate-400 dark:text-slate-500 flex-shrink-0 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">{type.description}</p>
@@ -604,18 +589,13 @@ export default function CreateTrip() {
     <div className="space-y-5 animate-fade-up max-w-2xl">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <button
-          onClick={() => setStep(0)}
-          className="w-9 h-9 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors flex-shrink-0"
-        >
-          <ArrowLeft size={17} />
-        </button>
+        <IconButton icon={ArrowLeft} size={17} label="Back to trip types" onClick={() => setStep(0)} />
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${cfg.gradient} flex items-center justify-center text-xl flex-shrink-0 shadow-md`}>
             {cfg.icon}
           </div>
           <div>
-            <h1 className="font-display font-black text-slate-800 dark:text-white text-xl leading-tight">{cfg.label}</h1>
+            <h1 className="font-sf font-semibold text-slate-800 dark:text-white text-xl leading-tight">{cfg.label}</h1>
             <p className="text-xs text-slate-500 dark:text-slate-400">{cfg.description}</p>
           </div>
         </div>
@@ -623,17 +603,13 @@ export default function CreateTrip() {
 
       {/* Errors summary */}
       {Object.keys(errors).length > 0 && (
-        <div className="flex items-start gap-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-xl px-4 py-3">
-          <AlertTriangle size={15} className="text-red-500 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-bold text-red-700 dark:text-red-400">Please fix the following:</p>
-            <ul className="mt-1 space-y-0.5">
-              {Object.values(errors).map((msg, i) => (
-                <li key={i} className="text-xs text-red-600 dark:text-red-400">{msg}</li>
-              ))}
-            </ul>
-          </div>
-        </div>
+        <Callout tone="red" icon={AlertTriangle} title="Please fix the following:">
+          <ul className="mt-1 space-y-0.5">
+            {Object.values(errors).map((msg, i) => (
+              <li key={i} className="text-xs text-red-600 dark:text-red-400">{msg}</li>
+            ))}
+          </ul>
+        </Callout>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
