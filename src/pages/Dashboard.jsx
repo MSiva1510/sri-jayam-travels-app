@@ -80,7 +80,7 @@ function DonutRing({ pct, color, size = 128 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" className="-rotate-90" role="img" aria-label={`Profit margin ${safePct}%`}>
       <title>{safePct}% margin</title>
-      <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth="6" className="stroke-slate-200 dark:stroke-navy-700" />
+      <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth="6" className="stroke-slate-200 dark:stroke-[var(--ap-border)]" />
       <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth="6" stroke={color}
         strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" style={{ transition: 'stroke-dasharray 0.6s ease' }} />
     </svg>

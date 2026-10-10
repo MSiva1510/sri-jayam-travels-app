@@ -14,7 +14,10 @@ function timeAgo(iso) {
   return new Date(iso).toLocaleString()
 }
 
-function StatusBadge({ ok }) {
+function StatusBadge({ ok, degraded }) {
+  if (ok && degraded) {
+    return <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Degraded</span>
+  }
   if (ok === null) {
     return <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300">Idle</span>
   }
@@ -37,11 +40,12 @@ export default function GpsHealthCard() {
           <div>
             <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">GPS Provider Health</h3>
             <p className="text-[11px] text-slate-400 dark:text-slate-500">
-              {settings?.provider || 'kingstrack'} • refresh every {settings?.refresh_interval ?? 60}s
+              {(settings?.provider || 'kingstrack').split(/[,+]/).map(p => p.trim()).filter(Boolean).join(' + ')}
+              {' • refresh every '}{settings?.refresh_interval ?? 60}s
             </p>
           </div>
         </div>
-        <StatusBadge ok={health.ok} />
+        <StatusBadge ok={health.ok} degraded={health.degraded} />
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
@@ -50,6 +54,26 @@ export default function GpsHealthCard() {
         <Stat icon={Activity}    label="Vehicles"        value={health.lastVehicleCount ?? 0} />
         <Stat icon={RefreshCw}   label="Status"          value={running ? 'Running' : 'Stopped'} />
       </div>
+
+      {/* One row per vendor — shows at a glance which half of the fleet is stale */}
+      {Array.isArray(health.providers) && health.providers.length > 1 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+          {health.providers.map(p => (
+            <div key={p.name}
+              className={`flex items-center justify-between gap-2 px-3 py-2 rounded-xl border text-xs ${
+                p.ok ? 'border-[var(--ap-border)] bg-[var(--ap-surface-2)]'
+                     : 'border-rose-200 dark:border-rose-800/50 bg-rose-50 dark:bg-rose-900/20'}`}>
+              <span className="flex items-center gap-1.5 min-w-0">
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${p.ok ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                <span className="font-semibold text-slate-600 dark:text-slate-300">{p.name}</span>
+              </span>
+              <span className={`truncate ${p.ok ? 'text-slate-400 dark:text-slate-500' : 'text-rose-600 dark:text-rose-400'}`}>
+                {p.ok ? `${p.count} vehicle${p.count === 1 ? '' : 's'}` : p.error}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {health.lastError && (
         <div className="flex items-start gap-2 p-3 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800/50 mb-3">
@@ -64,7 +88,7 @@ export default function GpsHealthCard() {
         </p>
         <button
           onClick={() => syncNow()}
-          className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1.5 transition-colors"
+          className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-[var(--ap-accent)] hover:opacity-90 text-white flex items-center gap-1.5 transition-colors"
         >
           <RefreshCw size={12} /> Sync Now
         </button>

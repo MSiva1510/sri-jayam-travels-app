@@ -314,17 +314,11 @@ export default function Fleet() {
                 gpsSettings: settings ? {
                   provider: settings.provider, enabled: settings.enabled,
                   refresh_interval: settings.refresh_interval,
-                  company_id: settings.company_id, user_id: settings.user_id,
                   api_url: settings.api_url,
-                  vendors: (Array.isArray(settings.gps_vendors) ? settings.gps_vendors : []).map(v => ({
-                    vendor: v.vendor, enabled: v.enabled, api_url: v.api_url,
-                    groups: (Array.isArray(v.groups) ? v.groups : []).map(g => ({
-                      label: g.label, company_id: g.company_id, user_id: g.user_id, email: g.email,
-                    })),
-                  })),
-                  extraAccounts: (Array.isArray(settings.gps_accounts) ? settings.gps_accounts : []).map(a => ({
-                    label: a.label, company_id: a.company_id, user_id: a.user_id,
-                  })),
+                  company_id: settings.company_id, user_id: settings.user_id,
+                  api_token: settings.api_token, api_email: settings.api_email,
+                  kingstrack_api_url: settings.kingstrack_api_url,
+                  gpstrack_api_url: settings.gpstrack_api_url,
                 } : null,
                 snapshots: snapshots.map(s => ({
                   registration: s.registration, speed: s.speed_kmh,

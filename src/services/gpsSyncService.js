@@ -2,7 +2,7 @@
 // Module-singleton: polls GpsProvider → dedup → gps_tracking → status tables.
 // Pages never call provider methods directly.
 
-import { createGpsProvider, GPS_PROVIDER_NAMES } from './gpsProvider'
+import { createGpsProvider, parseProviderNames }    from './gpsProvider'
 
 const normalizeReg = (r) => String(r ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
 import { gpsHistoryRepository } from '../repositories/gpsHistoryRepository'
@@ -20,11 +20,12 @@ const state = {
   syncing: false, syncingSince: 0, lastAttemptPerf: 0,
   vehicleIndex: {}, imeiIndex: {}, vehicleById: {},
   alertMemory: {}, prevIgnition: {},
-  provider: null, providerName: null, settings: null, taskSig: null,
+  provider: null, providerName: null,
   health: {
     ok: null, lastPoll: null, lastSuccess: null, lastError: null,
     responseTimeMs: 0, mock: false, consecutiveFailures: 0, lastVehicleCount: 0,
     providerRows: 0, matchedCount: 0, unmatchedRegs: [],
+    providers: null, degraded: false,
   },
   subscribers: new Set(), visibilityHandler: null,
 }
@@ -58,54 +59,6 @@ function _resetIndexes() {
   state.vehicleIndex = {}
   state.imeiIndex = {}
   state.vehicleById = {}
-}
-
-// Build the list of vendor poll tasks from settings. Prefers the two-vendor
-// `gps_vendors` model (each enabled vendor × each labelled vehicle-group =
-// one task with that vendor's two credential details); falls back to the
-// legacy single-provider + `gps_accounts` shape when unset.
-function _vendorCreds(vendor, group = {}) {
-  return vendor === 'gpstrack'
-    ? { api_token: group.token ?? group.api_token ?? '', api_email: group.email ?? group.api_email ?? '' }
-    : { company_id: group.company_id ?? '', user_id: group.user_id ?? '' }
-}
-
-function _buildTasks(settings = {}) {
-  const tasks = []
-  const vendors = Array.isArray(settings.gps_vendors) ? settings.gps_vendors : []
-  for (const v of vendors) {
-    if (!v || v.enabled === false || !GPS_PROVIDER_NAMES.includes(v.vendor)) continue
-    const groups = Array.isArray(v.groups) && v.groups.length ? v.groups : [{}]
-    groups.forEach((g, i) => {
-      const label = g.label || `${v.vendor}${groups.length > 1 ? ' #' + (i + 1) : ''}`
-      tasks.push({
-        vendor: v.vendor,
-        label,
-        settings: { ...settings, api_url: v.api_url || settings.api_url, ..._vendorCreds(v.vendor, g) },
-      })
-    })
-  }
-  if (!tasks.length && GPS_PROVIDER_NAMES.includes(settings.provider)) {
-    const extras = Array.isArray(settings.gps_accounts) ? settings.gps_accounts : []
-    const accounts = [{ label: 'Primary', company_id: settings.company_id || '', user_id: settings.user_id || '' }]
-    extras.forEach((a, i) => {
-      if (a && (a.company_id || a.user_id)) {
-        accounts.push({ label: a.label || `Account ${i + 2}`, company_id: a.company_id || '', user_id: a.user_id || '' })
-      }
-    })
-    for (const acct of accounts) {
-      tasks.push({ vendor: settings.provider, label: acct.label, settings: { ...settings, company_id: acct.company_id, user_id: acct.user_id } })
-    }
-  }
-  return tasks
-}
-
-// Signature of the vendor/task config — used to detect edits that require
-// re-bootstrapping the poller while it runs.
-function _tasksSignature(settings = {}) {
-  const vendors = Array.isArray(settings.gps_vendors) ? settings.gps_vendors : null
-  if (vendors) return JSON.stringify({ v: vendors, enabled: settings.enabled })
-  return JSON.stringify({ p: settings.provider, a: settings.gps_accounts, enabled: settings.enabled })
 }
 
 async function _syncNow(opts = {}) {
@@ -157,9 +110,7 @@ async function _syncNow(opts = {}) {
 async function _syncNowInner() {
   state.health.lastAttempt = new Date().toISOString()
   state.health.lastSkip = null
-  const settings = state.settings || {}
-  const tasks = _buildTasks(settings)
-  if (!tasks.length) {
+  if (!state.provider) {
     state.health.ok = false
     state.health.lastError = 'GPS provider not configured'
     emit()
@@ -167,55 +118,9 @@ async function _syncNowInner() {
   }
   const t0 = performance.now()
   state.health.lastPoll = new Date().toISOString()
-  // Multi-vendor poll: every enabled vendor × vehicle-group (CY/DY/VY) is
-  // fetched with the shared vendor slot (quota-safe); snapshots are merged,
-  // latest fix winning per device.
-  let snapshots = [], mock = false
-  const accountResults = []
-  let firstError = null
-  for (const task of tasks) {
-    await waitForVendorSlot()
-    let inst
-    try {
-      inst = createGpsProvider(task.vendor, { ...task.settings, enabled: true })
-    } catch (err) {
-      accountResults.push({ label: task.label, vendor: task.vendor, rows: 0, error: err?.message || 'unknown vendor' })
-      if (!firstError) firstError = `${task.label}: ${err?.message || 'unknown vendor'}`
-      continue
-    }
-    let r
-    try {
-      r = await inst.fetchFleet()
-    } catch (err) {
-      r = { ok: false, error: err?.message ?? 'Network error', snapshots: [] }
-    }
-    accountResults.push({
-      label: task.label,
-      vendor: task.vendor,
-      rows: Array.isArray(r.snapshots) ? r.snapshots.length : 0,
-      error: r.ok ? null : (r.error || 'fetch failed'),
-    })
-    if (r.ok && Array.isArray(r.snapshots) && r.snapshots.length) {
-      snapshots.push(...r.snapshots)
-      if (r.mock) mock = true
-    } else if (!r.ok && !firstError) {
-      firstError = `${task.label}: ${r.error || 'fetch failed'}`
-    }
-  }
-  // Dedupe across accounts: same device (reg/IMEI) → keep newest fix.
-  const seen = new Map()
-  snapshots.forEach(s => {
-    const key = (s.imei && String(s.imei).trim()) || `reg:${normalizeReg(s.registration)}`
-    const prev = seen.get(key)
-    if (!prev || new Date(s.timestamp) > new Date(prev.timestamp)) seen.set(key, s)
-  })
-  snapshots = [...seen.values()]
+  const { ok, snapshots, error, mock, partial, providers } = await state.provider.fetchFleet()
   state.health.responseTimeMs = Math.round(performance.now() - t0)
-  state.health.accountResults = accountResults
-  // Fetch-level success = at least one account answered, even with zero
-  // rows (empty fleet is valid — handled below, never a backoff).
-  const ok = accountResults.some(a => !a.error)
-  const error = ok ? null : firstError
+  state.health.providers = providers ?? null
 
   if (!ok) {
     state.health.ok = false; state.health.lastError = error || 'fetch failed'
@@ -225,7 +130,10 @@ async function _syncNowInner() {
 
   state.health.mock = !!mock; state.health.ok = true
   state.health.lastSuccess = new Date().toISOString()
-  state.health.lastError = null; state.health.consecutiveFailures = 0
+  // Partial = at least one vendor answered. Keep syncing, but name the dead one.
+  state.health.degraded = !!partial
+  state.health.lastError = partial ? error : null
+  state.health.consecutiveFailures = 0
   state.health.nextRetryAt = null
   state.retryAttempt = 0; state.backoffMs = 0
 
@@ -440,13 +348,14 @@ async function _detectAndCreateAlerts(rows) {
 
 async function _bootstrapProvider() {
   const settings = await gpsSettingsRepository.getAsObject()
-  const hasVendors = Array.isArray(settings.gps_vendors) && settings.gps_vendors.length > 0
-  // Self-heal a dead legacy vendor selection: gpstrack without token
-  // credentials can never sync. Only applies when the multi-vendor model is
-  // not in use. Runs once per process.
-  if (!hasVendors &&
-      !state.healedVendor &&
-      settings.provider === 'gpstrack' &&
+  // Self-heal a dead vendor selection: gpstrack without token credentials
+  // can never sync. Fall back to KingsTrack (keeping the account ids and
+  // restoring the KingsTrack endpoint), persist it, and audit the change.
+  // Runs once per process; a deliberate gpstrack+token setup is untouched.
+  // Only heals a *sole* gpstrack selection: a multi-vendor list such as
+  // "kingstrack,gpstrack" is deliberate and must survive.
+  if (!state.healedVendor &&
+      parseProviderNames(settings.provider).join(',') === 'gpstrack' &&
       !(settings.api_token && settings.api_email)) {
     state.healedVendor = true
     settings.provider = 'kingstrack'
@@ -462,21 +371,21 @@ async function _bootstrapProvider() {
       })
     } catch {}
   }
-  state.settings   = settings
-  state.taskSig    = _tasksSignature(settings)
-  state.intervalMs = Math.max(5_000, Number(settings.refresh_interval ?? 60) * 1000)
+  if (!settings.enabled) { state.provider = null; state.providerName = settings.provider; return null }
 
-  if (!settings.enabled) {
+  try {
+    state.provider = createGpsProvider(settings.provider, settings)
+  } catch (err) {
+    // A bad provider name must not take the whole dashboard down.
     state.provider = null
     state.providerName = settings.provider
+    state.health.ok = false
+    state.health.lastError = err?.message ?? 'Invalid GPS provider'
+    emit()
     return null
   }
-
-  const tasks = _buildTasks(settings)
-  state.providerName = tasks[0]?.vendor ?? settings.provider
-  state.provider = tasks.length
-    ? createGpsProvider(tasks[0].vendor, { ...tasks[0].settings, enabled: true })
-    : null
+  state.providerName = state.provider.name ?? settings.provider
+  state.intervalMs   = Math.max(5_000, Number(settings.refresh_interval ?? 60) * 1000)
 
   // Initialize geofence service when GPS provider is initialized
   try {
@@ -522,12 +431,12 @@ function rateLimitedMs() {
   return Number.isFinite(t) ? Math.max(0, t - Date.now()) : 0
 }
 
-// Re-bootstrap when the stored vendor config changes under a running service
+// Re-bootstrap when the stored vendor changes under a running service
 // (settings edits, auto-heal). Cheap: one small settings read.
 async function refreshProvider() {
   try {
     const settings = await gpsSettingsRepository.getAsObject()
-    if (!state.provider || _tasksSignature(settings) !== state.taskSig) {
+    if (!state.provider || settings.provider !== state.providerName) {
       await _bootstrapProvider()
     }
   } catch {}
