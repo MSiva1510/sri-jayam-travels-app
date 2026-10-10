@@ -11,10 +11,11 @@ import { useEffect, useRef, useMemo, memo } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { Maximize2 } from 'lucide-react'
-import { cartoLeafletUrl, CARTO_LEAFLET_SUBDOMAINS, LEAFLET_ATTRIBUTION } from '../../utils/mapTiles'
 
-// Keyless CARTO raster tiles with a real theme per mode — no CSS invert
-// hacks, so labels stay legible in both light and dark.
+// Keyless OSM tiles in both themes (CARTO dark_all now needs an API
+// key); dark mode restyles tiles via the shared fleet-map-dark CSS.
+const TILES = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 
 // ── Icon factories ────────────────────────────────────────────
 function makeCurrentIcon(speed) {
@@ -150,9 +151,8 @@ const ReplayMap = memo(function ReplayMap({ points = [], currentIndex = 0, color
     <div className={`ap-surface rounded-2xl overflow-hidden relative ${darkMode ? 'fleet-map-dark' : ''}`} style={{ height }}>
       <MapContainer center={centre} zoom={12} scrollWheelZoom style={{ height: '100%', width: '100%' }}>
         <TileLayer
-          url={cartoLeafletUrl(darkMode)}
-          subdomains={CARTO_LEAFLET_SUBDOMAINS}
-          attribution={LEAFLET_ATTRIBUTION}
+          url={TILES}
+          attribution={ATTRIBUTION}
           maxZoom={19}
         />
 

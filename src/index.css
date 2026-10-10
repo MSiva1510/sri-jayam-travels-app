@@ -422,8 +422,11 @@
   }
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-  /* Leaflet container backdrop while tiles load (both maps now use real
-     CARTO light/dark tiles, so no invert filter — it would double-darken). */
+  /* Fleet map: keyless OSM tiles restyled for dark mode (CARTO dark_all
+     now requires an API key). Markers/popups are unaffected. */
+  .fleet-map-dark .leaflet-tile-pane {
+    filter: invert(92%) hue-rotate(180deg) grayscale(18%) brightness(0.92) contrast(0.92);
+  }
   .fleet-map-dark .leaflet-container { background: #0b1530; }
   /* Fleet marker labels: dark pill + white text in both themes */
   .leaflet-tooltip.fleet-car-tip {

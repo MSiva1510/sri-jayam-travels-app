@@ -1,9 +1,7 @@
 // ─── Fleet Map (MapLibre) ───────────────────────────────────────
 // Open-source tiles with real light + dark themes (no API key):
-//   light → CARTO "voyager"  ·  dark → CARTO "dark_all"
-//   satellite → keyless Esri World Imagery · last resort → OSM raster.
-// Raster tiles fail per-tile, never blanking the whole panel; the OSM
-// fallback only engages when a style never finishes loading.
+//   light → OpenFreeMap "liberty"  ·  dark → OpenFreeMap "dark"
+//   satellite → keyless Esri World Imagery.
 // One small car marker per vehicle (rotated to bearing, white reg
 // label), click → detail panel. Markers ease toward live fixes via
 // rAF so motion looks continuous instead of jumpy.
@@ -13,8 +11,34 @@ import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Maximize2 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
-import { streetStyle, satelliteStyle, osmFallbackStyle } from '../../utils/mapTiles'
 import { carSvg, carStatusOf, CAR_STATUS_COLORS } from './carIcon'
+
+const STYLE_LIGHT = 'https://tiles.openfreemap.org/styles/liberty'
+const STYLE_DARK = 'https://tiles.openfreemap.org/styles/dark'
+const OSM_FALLBACK = {
+  version: 8,
+  sources: {
+    osm: {
+      type: 'raster',
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution: '© OpenStreetMap contributors',
+    },
+  },
+  layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+}
+const SAT_STYLE = {
+  version: 8,
+  sources: {
+    esri: {
+      type: 'raster',
+      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+      tileSize: 256,
+      attribution: 'Imagery © Esri',
+    },
+  },
+  layers: [{ id: 'esri', type: 'raster', source: 'esri' }],
+}
 
 const statusOf = carStatusOf
 const MARKER_SIZE = 18
@@ -40,9 +64,8 @@ export default function FleetMap({ snapshots = [], onSelect, layer = 'map', loca
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
   const [styleFailed, setStyleFailed] = useState(false)
-  const loadedRef = useRef(false) // true once a style has fully loaded
 
-  const styleSpec = layer === 'satellite' ? satelliteStyle() : streetStyle(darkMode)
+  const styleUrl = layer === 'satellite' ? SAT_STYLE : darkMode ? STYLE_DARK : STYLE_LIGHT
 
   const centre = useMemo(() => {
     const pts = snapshots
@@ -59,17 +82,13 @@ export default function FleetMap({ snapshots = [], onSelect, layer = 'map', loca
     if (!containerRef.current || mapRef.current) return
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: styleSpec,
+      style: styleUrl,
       center: centre,
       zoom: 11,
       attributionControl: { compact: true },
     })
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left')
-    map.on('load', () => { loadedRef.current = true })
-    map.on('styledata', () => { try { if (map.isStyleLoaded()) loadedRef.current = true } catch {} })
-    // A style that never finishes loading (blocked style host, offline)
-    // falls back to OSM raster — but one bad tile must NOT flip the style.
-    map.on('error', () => { if (!loadedRef.current) setStyleFailed(true) })
+    map.on('error', () => setStyleFailed(true))
     mapRef.current = map
     return () => {
       markersRef.current.forEach(m => m.marker.remove())
@@ -80,20 +99,19 @@ export default function FleetMap({ snapshots = [], onSelect, layer = 'map', loca
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Fallback to OSM raster if the themed style fails to load
+  // Fallback to OSM raster if the vector style fails to load
   const fellBack = useRef(false)
   useEffect(() => {
     if (styleFailed && !fellBack.current && mapRef.current) {
       fellBack.current = true
-      try { mapRef.current.setStyle(osmFallbackStyle()) } catch {}
+      try { mapRef.current.setStyle(OSM_FALLBACK) } catch {}
     }
   }, [styleFailed])
 
   // Switch light / dark / satellite styles (markers persist)
   useEffect(() => {
     if (mapRef.current && !fellBack.current) {
-      loadedRef.current = false
-      try { mapRef.current.setStyle(styleSpec) } catch {}
+      try { mapRef.current.setStyle(styleUrl) } catch {}
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layer, darkMode])
