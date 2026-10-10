@@ -7,6 +7,14 @@ import {
 } from 'lucide-react'
 import PageHeader   from '../components/ui/PageHeader'
 import Avatar       from '../components/ui/Avatar'
+import Button       from '../components/ui/Button'
+import MetricCard   from '../components/ui/MetricCard'
+import StatusPill   from '../components/ui/StatusPill'
+import IconButton   from '../components/ui/IconButton'
+import Callout      from '../components/ui/Callout'
+import SegmentedControl from '../components/ui/SegmentedControl'
+import { fieldCls, Select as FieldSelect } from '../components/ui/Field'
+import { useToast } from '../components/ui/Toast'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import { useAuth }  from '../context/AuthContext'
 import { vehicleRepository }                       from '../repositories/vehicleRepository'
@@ -23,20 +31,10 @@ import { withTimeout } from '../utils/withTimeout'
 // ─────────────────────────────────────────────────────────────
 //  Status config
 // ─────────────────────────────────────────────────────────────
-const STATUS_CFG = {
-  active:      { label:'Available',   badge:'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', dot:'bg-emerald-500' },
-  assigned:    { label:'Assigned',    badge:'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',             dot:'bg-blue-500'    },
-  maintenance: { label:'Maintenance', badge:'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',                 dot:'bg-red-500'     },
-  offline:     { label:'Offline',     badge:'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',            dot:'bg-slate-400'   },
-}
+const STATUS_TONE  = { active:'green', assigned:'blue', maintenance:'red', offline:'gray' }
+const STATUS_LABEL = { active:'Available', assigned:'Assigned', maintenance:'Maintenance', offline:'Offline' }
 function StatusBadge({ status }) {
-  const cfg = STATUS_CFG[status] || STATUS_CFG.active
-  return (
-    <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${cfg.badge}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-      {cfg.label}
-    </span>
-  )
+  return <StatusPill tone={STATUS_TONE[status] || 'gray'}>{STATUS_LABEL[status] || 'Available'}</StatusPill>
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -45,13 +43,13 @@ function StatusBadge({ status }) {
 function DocRow({ icon: Icon, label, number, expiry }) {
   const st = docStatus(expiry)
   return (
-    <div className="flex items-center gap-2.5 py-2 border-b border-slate-100 dark:border-navy-700 last:border-0">
-      <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-navy-800 flex items-center justify-center flex-shrink-0">
+    <div className="flex items-center gap-2.5 py-2 border-b border-[var(--ap-border)] last:border-0">
+      <div className="w-7 h-7 rounded-lg bg-[var(--ap-surface-2)] flex items-center justify-center flex-shrink-0">
         <Icon size={12} className="text-slate-500 dark:text-slate-400" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{label}</p>
+          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{label}</p>
           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${st.badge}`}>{st.label}</span>
         </div>
         {number && <p className="text-xs font-mono text-slate-600 dark:text-slate-300 truncate">{number}</p>}
@@ -99,11 +97,11 @@ function VField({ label, field, type='text', required, value, onChange }) {
   }
   return (
     <div>
-      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+      <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
         {label}{required && <span className="text-red-500 ml-1">*</span>}
       </label>
       <input type={type} value={value || ''} onChange={handleChange} required={required}
-        className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition-all" />
+        className={fieldCls} />
     </div>
   )
 }
@@ -111,11 +109,10 @@ function VField({ label, field, type='text', required, value, onChange }) {
 function VSelectField({ label, field, options, value, onChange }) {
   return (
     <div>
-      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">{label}</label>
-      <select value={value || ''} onChange={e => onChange(field, e.target.value)}
-        className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none appearance-none">
+      <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">{label}</label>
+      <FieldSelect value={value || ''} onChange={e => onChange(field, e.target.value)}>
         {options.map(o => <option key={o}>{o}</option>)}
-      </select>
+      </FieldSelect>
     </div>
   )
 }
@@ -142,60 +139,58 @@ function VehicleServicePanel({ vehicle: v }) {
     const updated = [item,...services]; setServices(updated); writeSvc(v.id||v.reg,updated)
     setForm({service_type:'general',service_date:'',next_service_date:'',service_km:'',cost:'',vendor:'',notes:''}); setShowAdd(false)
   }
-  const INP = 'w-full px-2.5 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none'
+  const INP = fieldCls
   return (
     <div className="space-y-3">
       {v.nextServiceKm && v.km && (
-        <div className="bg-white dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700">
+        <div className="bg-[var(--ap-surface-2)] rounded-xl p-3 border border-[var(--ap-border)]">
           <div className="flex justify-between text-xs mb-1.5">
             <span className="text-slate-500 dark:text-slate-400 font-medium">KM to Next Service</span>
             <span className="font-bold text-slate-700 dark:text-slate-200">{Number(v.km).toLocaleString()} / {Number(v.nextServiceKm).toLocaleString()} km</span>
           </div>
-          <div className="h-2 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden">
+          <div className="h-2 bg-[var(--ap-surface-2)] rounded-full overflow-hidden">
             <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full" style={{width:`${Math.min(100,Math.round((v.km/v.nextServiceKm)*100))}%`}} />
           </div>
-          <p className="text-[10px] text-slate-400 mt-1 text-right">{Math.max(0,v.nextServiceKm-v.km).toLocaleString()} km remaining</p>
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 text-right">{Math.max(0,v.nextServiceKm-v.km).toLocaleString()} km remaining</p>
         </div>
       )}
       <div className="grid grid-cols-3 gap-2">
-        <div className="bg-white dark:bg-navy-800/60 rounded-xl p-2.5 text-center border border-slate-100 dark:border-navy-700"><p className="text-base font-black text-slate-700 dark:text-white">{services.length}</p><p className="text-[9px] text-slate-400 uppercase">Records</p></div>
-        <div className="bg-white dark:bg-navy-800/60 rounded-xl p-2.5 text-center border border-slate-100 dark:border-navy-700"><p className="text-base font-black text-emerald-600 dark:text-emerald-400">Rs.{totalCost.toLocaleString('en-IN')}</p><p className="text-[9px] text-slate-400 uppercase">Total Cost</p></div>
-        <div className="bg-white dark:bg-navy-800/60 rounded-xl p-2.5 text-center border border-slate-100 dark:border-navy-700"><p className="text-xs font-black text-slate-700 dark:text-white">{latest?.service_date||'—'}</p><p className="text-[9px] text-slate-400 uppercase">Last Done</p></div>
+        <div className="bg-[var(--ap-surface-2)] rounded-xl p-2.5 text-center border border-[var(--ap-border)]"><p className="text-base font-sf font-semibold text-slate-700 dark:text-white">{services.length}</p><p className="text-[9px] text-slate-500 dark:text-slate-400 uppercase">Records</p></div>
+        <div className="bg-[var(--ap-surface-2)] rounded-xl p-2.5 text-center border border-[var(--ap-border)]"><p className="text-base font-sf font-semibold text-emerald-600 dark:text-emerald-400">Rs.{totalCost.toLocaleString('en-IN')}</p><p className="text-[9px] text-slate-500 dark:text-slate-400 uppercase">Total Cost</p></div>
+        <div className="bg-[var(--ap-surface-2)] rounded-xl p-2.5 text-center border border-[var(--ap-border)]"><p className="text-xs font-sf font-semibold text-slate-700 dark:text-white">{latest?.service_date||'—'}</p><p className="text-[9px] text-slate-500 dark:text-slate-400 uppercase">Last Done</p></div>
       </div>
-      <button onClick={()=>setShowAdd(o=>!o)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all active:scale-95 shadow-md">
-        <Plus size={13} /> Log Service
-      </button>
+      <Button variant="primary" size="sm" icon={Plus} onClick={()=>setShowAdd(o=>!o)}>Log Service</Button>
       {showAdd && (
-        <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3 border border-slate-200 dark:border-navy-700 space-y-2.5">
+        <div className="bg-[var(--ap-surface-2)] rounded-xl p-3 border border-[var(--ap-border)] space-y-2.5">
           <div className="grid grid-cols-2 gap-2">
-            <div><label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Type</label>
+            <div><label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase block mb-1">Type</label>
               <select value={form.service_type} onChange={e=>setForm(f=>({...f,service_type:e.target.value}))} className={INP}>{SVC_TYPES.map(t=><option key={t.key} value={t.key}>{t.label}</option>)}</select></div>
-            <div><label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Date *</label>
+            <div><label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase block mb-1">Date *</label>
               <input type="date" value={form.service_date} onChange={e=>setForm(f=>({...f,service_date:e.target.value}))} className={INP} /></div>
-            <div><label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Next Service</label>
+            <div><label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase block mb-1">Next Service</label>
               <input type="date" value={form.next_service_date} onChange={e=>setForm(f=>({...f,next_service_date:e.target.value}))} className={INP} /></div>
-            <div><label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Cost (Rs.)</label>
+            <div><label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase block mb-1">Cost (Rs.)</label>
               <input type="number" value={form.cost} onChange={e=>setForm(f=>({...f,cost:e.target.value}))} placeholder="0" className={INP} /></div>
-            <div><label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">KM</label>
+            <div><label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase block mb-1">KM</label>
               <input type="number" value={form.service_km} onChange={e=>setForm(f=>({...f,service_km:e.target.value}))} placeholder="0" className={INP} /></div>
-            <div><label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Vendor</label>
+            <div><label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase block mb-1">Vendor</label>
               <input value={form.vendor} onChange={e=>setForm(f=>({...f,vendor:e.target.value}))} placeholder="Garage name" className={INP} /></div>
           </div>
           <input value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} placeholder="Notes (optional)" className={INP} />
           <div className="flex gap-2">
-            <button onClick={()=>setShowAdd(false)} className="flex-1 py-2 rounded-lg border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">Cancel</button>
-            <button onClick={handleAdd} className="flex-1 py-2 rounded-lg bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 transition-all active:scale-95">Save</button>
+            <Button variant="outline" size="sm" className="flex-1" onClick={()=>setShowAdd(false)}>Cancel</Button>
+            <Button variant="primary" size="sm" className="flex-1" onClick={handleAdd}>Save</Button>
           </div>
         </div>
       )}
-      {services.length === 0 ? <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-3">No service records yet.</p> : (
+      {services.length === 0 ? <p className="text-xs text-slate-500 dark:text-slate-400 text-center py-3">No service records yet.</p> : (
         <div className="space-y-2">
           {[...services].sort((a,b)=>(b.service_date||'').localeCompare(a.service_date||'')).map(svc=>(
-            <div key={svc.id} className="bg-white dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-navy-700 flex items-center justify-center flex-shrink-0 text-sm">{SVC_ICONS[svc.service_type]||'🔧'}</div>
+            <div key={svc.id} className="bg-[var(--ap-surface-2)] rounded-xl p-3 border border-[var(--ap-border)] flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-[var(--ap-surface-2)] flex items-center justify-center flex-shrink-0 text-sm">{SVC_ICONS[svc.service_type]||'🔧'}</div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{SVC_TYPES.find(t=>t.key===svc.service_type)?.label||svc.service_type}</p>
-                <div className="flex items-center gap-2 text-[10px] text-slate-400 flex-wrap">
+                <div className="flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400 flex-wrap">
                   <span>{svc.service_date}</span>{svc.vendor&&<span>· {svc.vendor}</span>}{svc.service_km&&<span>· {Number(svc.service_km).toLocaleString()} km</span>}
                 </div>
               </div>
@@ -209,7 +204,7 @@ function VehicleServicePanel({ vehicle: v }) {
 }
 
 function VSectionHead({ title }) {
-  return <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest pt-2 pb-1 border-t border-slate-100 dark:border-navy-700 mt-2">{title}</p>
+  return <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest pt-2 pb-1 border-t border-[var(--ap-border)] mt-2">{title}</p>
 }
 
 function VehicleModal({ vehicle, onClose, onSave }) {
@@ -238,15 +233,13 @@ function VehicleModal({ vehicle, onClose, onSave }) {
 
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="relative w-full sm:w-[500px] max-h-[92vh] sm:max-h-[85vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
-        <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-navy-700 flex-shrink-0">
-          <h3 className="font-display font-black text-slate-800 dark:text-white text-base">
+      <div className="relative w-full sm:w-[500px] max-h-[92vh] sm:max-h-[85vh] ap-surface rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
+        <div className="w-10 h-1 bg-slate-500/20 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--ap-border)] flex-shrink-0">
+          <h3 className="font-sf font-semibold text-slate-900 dark:text-white text-base tracking-tight">
             {vehicle ? 'Edit Vehicle' : 'Add Vehicle'}
           </h3>
-          <button onClick={onClose} aria-label="Close vehicle form" className="min-w-[36px] min-h-[36px] w-9 h-9 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700 active:scale-95 transition-all">
-            <X size={16} />
-          </button>
+          <IconButton icon={X} label="Close vehicle form" size={16} onClick={onClose} className="w-9 h-9 rounded-xl bg-slate-500/10" />
         </div>
 
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
@@ -290,14 +283,11 @@ function VehicleModal({ vehicle, onClose, onSave }) {
           </div>
         </div>
 
-        <div className="px-5 py-4 border-t border-slate-100 dark:border-navy-700 flex gap-2 flex-shrink-0">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">
-            Cancel
-          </button>
-          <button onClick={handleSave} disabled={!form.reg || saving}
-            className="flex-1 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-sm font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-md active:scale-95 disabled:opacity-50">
+        <div className="px-5 py-4 border-t border-[var(--ap-border)] flex gap-2 flex-shrink-0">
+          <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" className="flex-1" onClick={handleSave} disabled={!form.reg || saving}>
             {saving ? 'Saving…' : (vehicle ? 'Save Changes' : 'Add Vehicle')}
-          </button>
+          </Button>
         </div>
       </div>
     </ModalOverlay>
@@ -344,49 +334,46 @@ function AssignmentModal({ vehicle, drivers, onClose, onConfirm }) {
 
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="relative w-full sm:w-96 bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl animate-fade-up">
-        <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mb-4 sm:hidden" />
+      <div className="relative w-full sm:w-96 ap-surface rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl animate-fade-up">
+        <div className="w-10 h-1 bg-slate-500/20 rounded-full mx-auto mb-4 sm:hidden" />
         <div className="flex items-start justify-between mb-4">
           <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Assign Driver</p>
-            <h3 className="font-display font-black text-slate-800 dark:text-white text-base">{vehicle.reg}</h3>
+            <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Assign Driver</p>
+            <h3 className="font-sf font-semibold text-slate-900 dark:text-white text-base tracking-tight">{vehicle.reg}</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">{vehicle.model} · {vehicle.type}</p>
           </div>
-          <button onClick={onClose} aria-label="Close assign dialog" className="min-w-[36px] min-h-[36px] w-9 h-9 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700 active:scale-95 transition-all">
-            <X size={16} />
-          </button>
+          <IconButton icon={X} label="Close assign dialog" size={16} onClick={onClose} className="w-9 h-9 rounded-xl bg-slate-500/10" />
         </div>
-        <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3 mb-4 space-y-1">
+        <div className="bg-[var(--ap-surface-2)] rounded-xl p-3 mb-4 space-y-1">
           {[['Date', dateStr], ['Time', timeStr]].map(([l,v]) => (
             <div key={l} className="flex justify-between text-xs">
-              <span className="text-slate-500 font-medium">{l}</span>
-              <span className="font-bold text-slate-700 dark:text-slate-200">{v}</span>
+              <span className="text-slate-500 dark:text-slate-400 font-medium">{l}</span>
+              <span className="font-semibold text-slate-700 dark:text-slate-200">{v}</span>
             </div>
           ))}
         </div>
         <div className="space-y-2 mb-4 max-h-52 overflow-y-auto">
           {drivers.map(d => (
             <button key={d.id} onClick={() => setSelectedDriver(d.name)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all ${
+              className={`ap-focus w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all ${
                 selectedDriver === d.name
-                  ? 'border-navy-400 bg-navy-50 dark:bg-navy-800 ring-2 ring-navy-400/30'
-                  : 'border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/40 hover:bg-slate-50 dark:hover:bg-navy-800'
+                  ? 'border-[var(--ap-accent)] bg-[var(--ap-surface-2)] ring-2 ring-[var(--ap-accent)]/25'
+                  : 'border-[var(--ap-border)] hover:bg-[var(--ap-surface-2)]'
               }`}>
               <Avatar name={d.name} size={28} />
               <div className="flex-1 text-left">
-                <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{d.name}</p>
-                <p className="text-[10px] text-slate-400">{d.vehicle || 'No vehicle assigned'}</p>
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{d.name}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">{d.vehicle || 'No vehicle assigned'}</p>
               </div>
-              {selectedDriver === d.name && <CheckCircle size={16} className="text-navy-600 dark:text-blue-400 flex-shrink-0" />}
+              {selectedDriver === d.name && <CheckCircle size={16} className="text-[var(--ap-accent)] flex-shrink-0" />}
             </button>
           ))}
         </div>
         <div className="flex gap-2">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">Cancel</button>
-          <button onClick={handleConfirm} disabled={!selectedDriver || saving}
-            className="flex-1 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-sm font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-md disabled:opacity-40 active:scale-95">
+          <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" className="flex-1" onClick={handleConfirm} disabled={!selectedDriver || saving}>
             {saving ? 'Assigning…' : 'Confirm'}
-          </button>
+          </Button>
         </div>
       </div>
     </ModalOverlay>
@@ -406,10 +393,10 @@ function VehicleDetail({ v, trips, assignments, drivers, onEdit, onAssign, onDel
   const isIdle      = statusEntry.status !== 'in_use'
 
   return (
-    <div className="border-t border-slate-100 dark:border-navy-700 bg-slate-50/50 dark:bg-navy-800/20">
+    <div className="border-t border-[var(--ap-border)] bg-[var(--ap-surface-2)]">
       {/* Live status bar */}
       <div className="px-4 pt-4">
-        <div className="bg-white dark:bg-navy-800/60 rounded-xl p-3.5 border border-slate-100 dark:border-navy-700 flex items-center justify-between gap-3 flex-wrap">
+        <div className="ap-surface rounded-xl p-3.5 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2.5">
             <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${statusCfg.badge}`}>
               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${statusCfg.dot} ${statusEntry.status === 'in_use' ? 'animate-pulse' : ''}`} />
@@ -427,12 +414,12 @@ function VehicleDetail({ v, trips, assignments, drivers, onEdit, onAssign, onDel
               <span className="ml-1">{statusEntry.fuelLevel !== null ? `${statusEntry.fuelLevel}%` : '—'}</span>
             </span>
             <span className="flex items-center gap-1">
-              <MapPin size={11} className="text-slate-400" />
+              <MapPin size={11} className="text-slate-500 dark:text-slate-400" />
               {statusEntry.area || (isIdle ? 'Last location unknown' : '—')}
             </span>
             {statusEntry.updatedAt && (
               <span className="flex items-center gap-1">
-                <Clock size={11} className="text-slate-400" />
+                <Clock size={11} className="text-slate-500 dark:text-slate-400" />
                 {fmtAuditTime(statusEntry.updatedAt)}
               </span>
             )}
@@ -441,22 +428,19 @@ function VehicleDetail({ v, trips, assignments, drivers, onEdit, onAssign, onDel
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 px-4 pt-3 pb-0">
-        {[['docs','Documents'],['service','Service'],['history','History']].map(([k,l]) => (
-          <button key={k} onClick={() => setTab(k)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              tab === k
-                ? 'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-            }`}>{l}
-          </button>
-        ))}
+      <div className="px-4 pt-3">
+        <SegmentedControl
+          ariaLabel="Vehicle detail sections"
+          value={tab}
+          onChange={setTab}
+          options={[['docs','Documents'],['service','Service'],['history','History']].map(([k,l]) => ({ key:k, label:l }))}
+        />
       </div>
 
       <div className="p-4 space-y-3">
         {/* Documents tab */}
         {tab === 'docs' && (
-          <div className="bg-white dark:bg-navy-800/60 rounded-xl p-4 border border-slate-100 dark:border-navy-700">
+          <div className="ap-surface rounded-xl p-4">
             <DocRow icon={Shield}   label="Insurance"       number={v.insNumber}    expiry={v.insExpiry}    />
             <DocRow icon={FileText} label="Permit"          number={v.permitNumber} expiry={v.permitExpiry} />
             <DocRow icon={FileText} label="Fitness (FC)"    number={v.fcNumber}     expiry={v.fcExpiry}     />
@@ -472,44 +456,40 @@ function VehicleDetail({ v, trips, assignments, drivers, onEdit, onAssign, onDel
           <div>
             {vHistory.length === 0 ? (
               <div className="text-center py-6">
-                <History size={28} className="mx-auto text-slate-300 dark:text-slate-600 mb-2" />
-                <p className="text-xs text-slate-400 dark:text-slate-500">No assignment history yet</p>
+                <History size={28} className="mx-auto text-slate-500 dark:text-slate-400 mb-2" />
+                <p className="text-xs text-slate-500 dark:text-slate-400">No assignment history yet</p>
               </div>
             ) : (
               <div className="space-y-2">
                 {vHistory.map((h, i) => (
-                  <div key={i} className="bg-white dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700 flex items-center gap-3">
+                  <div key={i} className="ap-surface rounded-xl p-3 flex items-center gap-3">
                     <Avatar name={h.driverName} size={28} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{h.driverName}</p>
-                      <p className="text-[10px] text-slate-400">
+                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{h.driverName}</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">
                         Assigned {h.assignedDate} {h.assignedTime}
                         {h.releasedDate ? ` → Released ${h.releasedDate}` : ' · Active'}
                       </p>
                     </div>
-                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                      h.releasedDate
-                        ? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
-                        : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                    }`}>
+                    <StatusPill tone={h.releasedDate ? 'gray' : 'green'}>
                       {h.releasedDate ? 'Released' : 'Current'}
-                    </span>
+                    </StatusPill>
                   </div>
                 ))}
               </div>
             )}
-            <div className="mt-3 pt-3 border-t border-slate-100 dark:border-navy-700">
-              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">Trip Summary</p>
+            <div className="mt-3 pt-3 border-t border-[var(--ap-border)]">
+              <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Trip Summary</p>
               <div className="grid grid-cols-2 gap-2">
-                <div className="bg-white dark:bg-navy-800/60 rounded-xl p-2.5 border border-slate-100 dark:border-navy-700 text-center">
-                  <p className="text-lg font-display font-black text-navy-800 dark:text-blue-300">{vTrips.length}</p>
-                  <p className="text-[10px] text-slate-400">Total Trips</p>
+                <div className="ap-surface rounded-xl p-2.5 text-center">
+                  <p className="text-lg font-sf font-semibold text-slate-900 dark:text-blue-300">{vTrips.length}</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Total Trips</p>
                 </div>
-                <div className="bg-white dark:bg-navy-800/60 rounded-xl p-2.5 border border-slate-100 dark:border-navy-700 text-center">
-                  <p className="text-lg font-display font-black text-emerald-600 dark:text-emerald-400">
+                <div className="ap-surface rounded-xl p-2.5 text-center">
+                  <p className="text-lg font-sf font-semibold text-emerald-600 dark:text-emerald-400">
                     {vTrips.reduce((s,t) => s + (t.km || 0), 0).toLocaleString()}
                   </p>
-                  <p className="text-[10px] text-slate-400">Total KM</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Total KM</p>
                 </div>
               </div>
             </div>
@@ -519,22 +499,13 @@ function VehicleDetail({ v, trips, assignments, drivers, onEdit, onAssign, onDel
         {/* Action buttons */}
         <div className="flex gap-2 flex-wrap pt-1">
           {canAssign && v.status !== 'maintenance' && (
-            <button onClick={() => onAssign(v)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all active:scale-95 shadow-md">
-              <User size={13} /> Assign Driver
-            </button>
+            <Button variant="primary" size="sm" icon={User} onClick={() => onAssign(v)}>Assign Driver</Button>
           )}
           {canEdit && (
-            <button onClick={() => onEdit(v)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
-              <Edit2 size={13} /> Edit
-            </button>
+            <Button variant="outline" size="sm" icon={Edit2} onClick={() => onEdit(v)}>Edit</Button>
           )}
           {canDelete && (
-            <button onClick={() => onDelete(v.id)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/15 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/25 transition-colors">
-              <X size={13} /> Delete
-            </button>
+            <Button variant="danger" size="sm" icon={X} onClick={() => onDelete(v.id)}>Delete</Button>
           )}
         </div>
       </div>
@@ -555,7 +526,7 @@ function VStatusDonut({ segments }) {
       <div className="relative w-[148px] h-[148px] flex-shrink-0" role="img"
         aria-label={segments.map(g => `${g.label} ${g.value}`).join(', ')}>
         <svg viewBox="0 0 64 64" className="w-full h-full -rotate-90">
-          <circle cx="32" cy="32" r={r} fill="none" strokeWidth="7" className="stroke-slate-100 dark:stroke-navy-700" />
+          <circle cx="32" cy="32" r={r} fill="none" strokeWidth="7" className="stroke-[var(--ap-surface-2)]" />
           {segments.map(g => {
             const frac = g.value / sum
             const el = (
@@ -570,8 +541,8 @@ function VStatusDonut({ segments }) {
           })}
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <p className="text-3xl font-display font-black text-slate-800 dark:text-white leading-none tabular-nums">{total}</p>
-          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Vehicles</p>
+          <p className="text-3xl font-sf font-semibold text-slate-800 dark:text-white leading-none tabular-nums">{total}</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Vehicles</p>
         </div>
       </div>
       <div className="space-y-2 text-sm min-w-0 flex-1">
@@ -623,7 +594,7 @@ function UsageBars({ trips }) {
   return (
     <div role="img" aria-label={fallback ? 'Completed trips, most recent active periods' : 'Completed trips, last 30 days'} className="flex-1 flex flex-col min-h-0">
       {fallback && (
-        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-1.5 flex-shrink-0">Recent active periods</p>
+        <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1.5 flex-shrink-0">Recent active periods</p>
       )}
       <div className="flex items-end gap-2 h-44 flex-shrink-0">
         {view.map(b => (
@@ -632,7 +603,7 @@ function UsageBars({ trips }) {
             <div className="flex items-end flex-1 min-h-0">
               <div className="w-4 rounded-t-md bg-blue-600 dark:bg-blue-500 transition-all" style={{ height: `${Math.max((b.done / max) * 100, b.done > 0 ? 10 : 4)}%` }} />
             </div>
-            <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 tabular-nums whitespace-nowrap">{b.label}</span>
+            <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 tabular-nums whitespace-nowrap">{b.label}</span>
           </div>
         ))}
       </div>
@@ -648,6 +619,7 @@ function UsageBars({ trips }) {
 // ─────────────────────────────────────────────────────────────
 export default function Vehicles() {
   const { isAdmin, isManager, isDriver, user } = useAuth()
+  const { toast } = useToast()
 
   const canAdd    = isAdmin || isManager
   const canEdit   = isAdmin || isManager
@@ -664,12 +636,11 @@ export default function Vehicles() {
   const [assignModal, setAssignModal] = useState(null)
   const [editModal,   setEditModal]   = useState(null)
   const [showAdd,     setShowAdd]     = useState(false)
-  const [toast,       setToast]       = useState('')
   const [search,      setSearch]      = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [typeFilter,  setTypeFilter]  = useState('all')
 
-  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
+  const showToast = (title) => toast?.({ type: 'success', title })
 
   // ── Load all data from Supabase ───────────────────────────
   const reload = useCallback(async () => {
@@ -832,7 +803,7 @@ export default function Vehicles() {
         </div>
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-3" aria-hidden="true">
           {[1, 2, 3, 4].map(i => (
-            <div key={i} className="ios-card p-3.5 flex items-center gap-3">
+            <div key={i} className="ap-surface p-3.5 flex items-center gap-3">
               <div className="skeleton w-9 h-9 rounded-[13px] flex-shrink-0" />
               <div className="flex-1 space-y-1.5">
                 <div className="skeleton h-5 w-12 rounded" />
@@ -841,7 +812,7 @@ export default function Vehicles() {
             </div>
           ))}
         </div>
-        <div className="glass-card rounded-[20px] p-4 space-y-2.5" aria-hidden="true">
+        <div className="ap-surface rounded-[20px] p-4 space-y-2.5" aria-hidden="true">
           {[1, 2, 3, 4, 5].map(i => (
             <div key={i} className="flex items-center gap-2.5">
               <div className="skeleton w-8 h-8 rounded-[10px] flex-shrink-0" />
@@ -862,17 +833,10 @@ export default function Vehicles() {
         action={
           <div className="flex items-center gap-2 flex-wrap">
             {canAdd && (
-              <button onClick={exportCsv}
-                aria-label="Export vehicles to CSV"
-                className="flex items-center gap-1.5 px-3 min-h-[40px] rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 active:scale-95 transition-all">
-                <Download size={14} /> Export
-              </button>
+              <Button variant="outline" icon={Download} onClick={exportCsv} aria-label="Export vehicles to CSV">Export</Button>
             )}
             {canAdd && (
-              <button onClick={() => setShowAdd(true)}
-                className="flex items-center gap-2 px-4 min-h-[40px] rounded-xl bg-navy-900 dark:bg-blue-700 text-white font-bold text-sm hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-lg active:scale-95">
-                <Plus size={15} /> Add Vehicle
-              </button>
+              <Button variant="primary" icon={Plus} onClick={() => setShowAdd(true)}>Add Vehicle</Button>
             )}
           </div>
         }
@@ -880,17 +844,7 @@ export default function Vehicles() {
 
       {/* Load error */}
       {loadError && (
-        <div className="bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-700/30 rounded-xl px-4 py-2.5 flex items-center gap-2">
-          <span className="text-amber-600 dark:text-amber-400 text-sm font-semibold">⚠ {loadError}</span>
-        </div>
-      )}
-
-      {/* Toast */}
-      {toast && (
-        <div className="flex items-center gap-2.5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 rounded-xl px-4 py-2.5">
-          <CheckCircle size={15} className="text-emerald-600 flex-shrink-0" />
-          <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">{toast}</p>
-        </div>
+        <Callout tone="amber" icon={AlertTriangle} title={loadError} actionLabel="Retry" onAction={reload} />
       )}
 
       {/* Expiry alerts */}
@@ -919,27 +873,19 @@ export default function Vehicles() {
       {/* Stat cards */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
         {[
-          { label:'Total Vehicles', value: counts.total,       color:'text-blue-600 dark:text-blue-400',         bg:'bg-blue-50 dark:bg-blue-900/20',         Icon: Car },
-          { label:'Available',      value: vAvail.length,      color:'text-emerald-600 dark:text-emerald-400',   bg:'bg-emerald-50 dark:bg-emerald-900/20',   Icon: CheckCircle },
-          { label:'On Trip',        value: vOnTrip.length,     color:'text-amber-600 dark:text-amber-400',       bg:'bg-amber-50 dark:bg-amber-900/20',       Icon: Gauge },
-          { label:'Maintenance',    value: counts.maintenance, color:'text-red-500 dark:text-red-400',           bg:'bg-red-50 dark:bg-red-900/20',           Icon: Wrench },
+          { label:'Total Vehicles', value: counts.total,       tone:'blue',  Icon: Car },
+          { label:'Available',      value: vAvail.length,      tone:'green', Icon: CheckCircle },
+          { label:'On Trip',        value: vOnTrip.length,     tone:'amber', Icon: Gauge },
+          { label:'Maintenance',    value: counts.maintenance, tone:'red',   Icon: Wrench },
         ].map(s => (
-          <div key={s.label} className="ios-card p-3.5 flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-[13px] ${s.bg} flex items-center justify-center flex-shrink-0`}>
-              <s.Icon size={16} className={s.color} />
-            </div>
-            <div className="min-w-0">
-              <p className={`text-xl font-display font-black leading-none tabular-nums ${s.color}`}>{s.value}</p>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">{s.label} · {statPct(s.value)}%</p>
-            </div>
-          </div>
+          <MetricCard key={s.label} icon={s.Icon} tone={s.tone} label={s.label} value={s.value} sub={`${statPct(s.value)}% of fleet`} />
         ))}
       </div>
 
       {/* Overview: status donut + usage + fleet totals */}
       {!isDriver && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-stretch">
-          <div className="glass-card rounded-2xl p-5 h-full flex flex-col">
+          <div className="ap-surface rounded-2xl p-5 h-full flex flex-col">
             <p className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-4">Vehicle Status</p>
             <div className="flex-1 flex items-center">
               <VStatusDonut segments={[
@@ -950,14 +896,14 @@ export default function Vehicles() {
               ]} />
             </div>
           </div>
-          <div className="glass-card rounded-2xl p-5 h-full flex flex-col">
+          <div className="ap-surface rounded-2xl p-5 h-full flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm font-bold text-slate-700 dark:text-slate-200">Vehicle Usage</p>
-              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-navy-700 rounded-lg px-2 py-1">Last 30 Days</span>
+              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 border border-[var(--ap-border)] rounded-lg px-2 py-1">Last 30 Days</span>
             </div>
             <UsageBars trips={trips} />
           </div>
-          <div className="glass-card rounded-2xl p-5 h-full flex flex-col">
+          <div className="ap-surface rounded-2xl p-5 h-full flex flex-col">
             <p className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-4">Fleet Overview</p>
             <div className="space-y-2.5 flex-1">
               {[
@@ -966,13 +912,13 @@ export default function Vehicles() {
                 { label: 'Active Vehicles', value: `${vAvail.length} / ${displayVehicles.length}`, Icon: CheckCircle, cls: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
                 { label: 'Doc Alerts', value: alerts.length, Icon: AlertTriangle, cls: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20' },
               ].map(r => (
-                <div key={r.label} className="flex items-center gap-3 rounded-xl bg-slate-50 dark:bg-navy-800/60 border border-slate-100 dark:border-navy-700 px-3.5 py-2.5">
+                <div key={r.label} className="flex items-center gap-3 rounded-xl bg-[var(--ap-surface-2)] border border-[var(--ap-border)] px-3.5 py-2.5">
                   <div className={`w-9 h-9 rounded-[13px] ${r.bg} flex items-center justify-center flex-shrink-0`}>
                     <r.Icon size={16} className={r.cls} />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500">{r.label}</p>
-                    <p className="text-base font-display font-black text-slate-800 dark:text-white tabular-nums leading-tight">{r.value}</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">{r.label}</p>
+                    <p className="text-base font-sf font-semibold text-slate-900 dark:text-white tabular-nums leading-tight">{r.value}</p>
                   </div>
                 </div>
               ))}
@@ -983,40 +929,41 @@ export default function Vehicles() {
 
       {/* Table toolbar */}
       <div className="flex items-center gap-2 flex-wrap">
-        <div className="flex items-center gap-2 px-3 min-h-[36px] rounded-xl border border-slate-200 dark:border-navy-700 bg-white/70 dark:bg-navy-800/60 flex-1 min-w-[140px] max-w-xs">
-          <Search size={13} className="text-slate-400 flex-shrink-0" />
+        <div className="relative flex-1 min-w-[160px] max-w-xs">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 pointer-events-none" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search reg, model, driver…"
-            aria-label="Search vehicles"
-            className="bg-transparent text-sm text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 outline-none w-full font-body" />
+            aria-label="Search vehicles" className={`${fieldCls} pl-9`} />
         </div>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} aria-label="Filter by status"
-          className="px-2.5 min-h-[36px] text-xs font-bold rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
-          <option value="all">All Status</option>
-          <option value="active">Available</option>
-          <option value="maintenance">Maintenance</option>
-          <option value="offline">Offline</option>
-        </select>
-        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} aria-label="Filter by type"
-          className="px-2.5 min-h-[36px] text-xs font-bold rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
-          <option value="all">All Types</option>
-          {vehicleTypes.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
+        <div className="w-[140px]">
+          <FieldSelect value={statusFilter} onChange={e => setStatusFilter(e.target.value)} aria-label="Filter by status">
+            <option value="all">All Status</option>
+            <option value="active">Available</option>
+            <option value="maintenance">Maintenance</option>
+            <option value="offline">Offline</option>
+          </FieldSelect>
+        </div>
+        <div className="w-[140px]">
+          <FieldSelect value={typeFilter} onChange={e => setTypeFilter(e.target.value)} aria-label="Filter by type">
+            <option value="all">All Types</option>
+            {vehicleTypes.map(t => <option key={t} value={t}>{t}</option>)}
+          </FieldSelect>
+        </div>
       </div>
 
       {/* Desktop table */}
-      <div className="glass-card rounded-[20px] overflow-hidden hidden md:block">
+      <div className="ap-surface rounded-[20px] overflow-hidden hidden md:block">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-100 dark:border-navy-700 bg-slate-50 dark:bg-navy-800">
+            <tr className="border-b border-[var(--ap-border)] bg-[var(--ap-surface-2)]">
               {['Vehicle', 'Number', 'Type', 'Status', 'Driver', 'Last Trip', 'KM', 'Actions'].map(h => (
-                <th key={h} className="px-4 py-2.5 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{h}</th>
+                <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {filteredVehicles.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">
+                <td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
                   No vehicles found
                 </td>
               </tr>
@@ -1028,35 +975,31 @@ export default function Vehicles() {
               return (
                 <Fragment key={v.id}>
                 <tr onClick={() => setExpanded(isOpen ? null : v.id)}
-                  className="border-b border-slate-50 dark:border-navy-800 hover:bg-blue-50/40 dark:hover:bg-navy-800/40 transition-colors cursor-pointer">
+                  className="border-b border-[var(--ap-border)] hover:bg-[var(--ap-surface-2)] transition-colors cursor-pointer">
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-[10px] bg-navy-900 dark:bg-navy-800 flex items-center justify-center flex-shrink-0">
                         <Car size={14} className="text-white" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate max-w-[150px]">{v.model || v.type || 'Vehicle'}</p>
-                        <p className="text-[10px] text-slate-400">{vTrips.length} trips</p>
+                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[150px]">{v.model || v.type || 'Vehicle'}</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">{vTrips.length} trips</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-2.5 text-xs font-mono font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">{v.reg}</td>
+                  <td className="px-4 py-2.5 text-xs font-mono font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">{v.reg}</td>
                   <td className="px-4 py-2.5 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{v.type || '—'}</td>
                   <td className="px-4 py-2.5"><StatusBadge status={v.status} /></td>
                   <td className="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-300 truncate max-w-[130px]">{driverName}</td>
                   <td className="px-4 py-2.5 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap tabular-nums">{lastTripOf(v.reg) || '—'}</td>
-                  <td className="px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap tabular-nums">{(Number(v?.km) || 0).toLocaleString()} km</td>
+                  <td className="px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap tabular-nums">{(Number(v?.km) || 0).toLocaleString()} km</td>
                   <td className="px-4 py-2.5">
                     <div className="flex gap-1.5">
-                      <button onClick={(e) => { e.stopPropagation(); setExpanded(isOpen ? null : v.id) }} aria-label={`View ${v.reg}`}
-                        className="min-w-[32px] min-h-[32px] w-8 h-8 rounded-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center hover:bg-blue-100 dark:hover:bg-blue-900/50 active:scale-95 transition-all">
-                        <Eye size={14} />
-                      </button>
+                      <IconButton icon={Eye} label={`View ${v.reg}`} tone="brand" size={14}
+                        onClick={(e) => { e.stopPropagation(); setExpanded(isOpen ? null : v.id) }} />
                       {canEdit && (
-                      <button onClick={(e) => { e.stopPropagation(); setEditModal(v) }} aria-label={`Edit ${v.reg}`}
-                        className="min-w-[32px] min-h-[32px] w-8 h-8 rounded-[10px] bg-slate-100 dark:bg-navy-700 text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-navy-600 active:scale-95 transition-all">
-                        <Edit2 size={14} />
-                      </button>
+                        <IconButton icon={Edit2} label={`Edit ${v.reg}`} size={14}
+                          onClick={(e) => { e.stopPropagation(); setEditModal(v) }} />
                       )}
                     </div>
                   </td>
@@ -1089,7 +1032,7 @@ export default function Vehicles() {
       {/* Mobile cards — stacked, no slider */}
       <div className="md:hidden space-y-2">
         {filteredVehicles.length === 0 ? (
-          <div className="glass-card rounded-[20px] px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">
+          <div className="ap-surface rounded-[20px] px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
             No vehicles found
           </div>
         ) : filteredVehicles.map(v => {
@@ -1097,17 +1040,17 @@ export default function Vehicles() {
           const assignment = getAssignment(v.reg)
           const driverName = assignment?.driverName || v.driver || 'Unassigned'
           return (
-            <div key={v.id} className="glass-card rounded-2xl overflow-hidden">
+            <div key={v.id} className="ap-surface rounded-2xl overflow-hidden">
               <div className="flex items-center gap-2.5 p-3.5 cursor-pointer select-none" onClick={() => setExpanded(isOpen ? null : v.id)}>
                 <div className="w-10 h-10 rounded-[13px] bg-navy-900 dark:bg-navy-800 flex items-center justify-center flex-shrink-0">
                   <Car size={16} className="text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-slate-800 dark:text-white truncate font-mono">{v.reg}</p>
-                  <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">{v.model || v.type || ''} · {driverName}</p>
+                  <p className="text-sm font-sf font-semibold text-slate-900 dark:text-white truncate font-mono">{v.reg}</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{v.model || v.type || ''} · {driverName}</p>
                 </div>
                 <StatusBadge status={v.status} />
-                {isOpen ? <ChevronUp size={14} className="text-slate-400 flex-shrink-0" /> : <ChevronDown size={14} className="text-slate-400 flex-shrink-0" />}
+                {isOpen ? <ChevronUp size={14} className="text-slate-500 dark:text-slate-400 flex-shrink-0" /> : <ChevronDown size={14} className="text-slate-500 dark:text-slate-400 flex-shrink-0" />}
               </div>
               {isOpen && (
                 <VehicleDetail
