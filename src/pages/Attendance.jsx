@@ -2,10 +2,19 @@ import { useState, useEffect, useCallback, useMemo, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   CalendarCheck, Clock, UserCheck, UserX,
-  ChevronDown, ChevronUp, Calendar, Car, AlertTriangle,
+  Calendar, Car, AlertTriangle,
   Users, Zap, RefreshCw, Phone, Check, Search, Eye,
 } from 'lucide-react'
 import Avatar     from '../components/ui/Avatar'
+import PageHeader from '../components/ui/PageHeader'
+import Button     from '../components/ui/Button'
+import MetricCard from '../components/ui/MetricCard'
+import IconButton from '../components/ui/IconButton'
+import StatusPill from '../components/ui/StatusPill'
+import Callout    from '../components/ui/Callout'
+import EmptyState from '../components/ui/EmptyState'
+import SegmentedControl from '../components/ui/SegmentedControl'
+import { fieldCls } from '../components/ui/Field'
 import { useAuth } from '../context/AuthContext'
 import { loadDrivers } from '../data/driverData'
 import { loadBookings } from '../data/tripTypes'
@@ -17,14 +26,10 @@ import {
 import { loadRecentActivity, fmtAuditTime } from '../data/auditLogData'
 
 // ── Attendance status badge ────────────────────────────────────
+const ATTENDANCE_TONE = { present: 'green', absent: 'red', leave: 'amber', 'half-day': 'blue' }
 function AttBadge({ status }) {
   const cfg = getAttendanceCfg(status)
-  return (
-    <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${cfg.bg} ${cfg.text}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-      {cfg.label}
-    </span>
-  )
+  return <StatusPill tone={ATTENDANCE_TONE[status] || 'gray'}>{cfg.label}</StatusPill>
 }
 
 // ── Working hours bar ─────────────────────────────────────────
@@ -37,7 +42,7 @@ function HoursBar({ hours }) {
   return (
     <div className="min-w-[80px]">
       <p className="text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">{hours}</p>
-      <div className="h-1.5 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden">
+      <div className="h-1.5 bg-[var(--ap-border)] rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${pct >= 80 ? 'bg-emerald-500' : pct >= 50 ? 'bg-blue-500' : 'bg-amber-500'}`}
              style={{ width: `${pct}%` }} />
       </div>
@@ -48,11 +53,12 @@ function HoursBar({ hours }) {
 // ── Status buckets (driver-page scoped) ──────────────────────────
 // present bucket includes half-day (matches the summary chips).
 const DRIVER_STATUS_PILL = {
-  present: { label: 'Present', badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', dot: 'bg-emerald-500' },
-  leave:   { label: 'On Leave', badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',        dot: 'bg-amber-500' },
-  absent:  { label: 'Absent',  badge: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',                 dot: 'bg-red-500' },
-  unknown: { label: 'Not Marked', badge: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',         dot: 'bg-slate-400' },
+  present: { label: 'Present', tone: 'green' },
+  leave:   { label: 'On Leave', tone: 'amber' },
+  absent:  { label: 'Absent',  tone: 'red' },
+  unknown: { label: 'Not Marked', tone: 'gray' },
 }
+const MARK_VARIANT = { present: 'teal', absent: 'danger', leave: 'amber', 'half-day': 'primary' }
 function bucketOf(record) {
   if (!record) return 'unknown'
   if (record.status === 'leave') return 'leave'
@@ -82,7 +88,7 @@ function DriverAttDetail({ record, onMark }) {
               value: `${record.tripSessions.length}`,
             }] : []),
           ].map(d => (
-            <div key={d.label} className="bg-white dark:bg-navy-800/60 rounded-xl p-2.5 border border-slate-100 dark:border-navy-700">
+            <div key={d.label} className="bg-[var(--ap-surface-2)] rounded-xl p-2.5 border border-[var(--ap-border)]">
               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">{d.label}</p>
               <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{d.value}</p>
             </div>
@@ -93,16 +99,9 @@ function DriverAttDetail({ record, onMark }) {
         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Mark Attendance</p>
         <div className="flex gap-2 flex-wrap">
           {ATTENDANCE_TYPES.map(t => (
-            <button key={t.key}
-              onClick={() => onMark(t.key)}
-              aria-pressed={record?.status === t.key}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 min-h-[36px] ${
-                record?.status === t.key
-                  ? `${t.bg} ${t.text} ring-2 ring-offset-1`
-                  : 'bg-slate-100 dark:bg-navy-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-navy-600'
-              }`}>
-              {t.label}
-            </button>
+            <Button key={t.key} size="sm"
+              variant={record?.status === t.key ? (MARK_VARIANT[t.key] || 'primary') : 'secondary'}
+              onClick={() => onMark(t.key)}>{t.label}</Button>
           ))}
         </div>
       </div>
@@ -143,18 +142,13 @@ function DriverAttendanceView({ user }) {
 
   return (
     <div className="space-y-5">
-      {loadError && (
-        <div className="bg-red-50 dark:bg-red-900/15 border border-red-200 dark:border-red-800/30 rounded-2xl p-4 flex items-center gap-2">
-          <AlertTriangle size={15} className="text-red-600 dark:text-red-400 flex-shrink-0" />
-          <p className="text-sm font-bold text-red-700 dark:text-red-400">{loadError}</p>
-        </div>
-      )}
+      {loadError && <Callout tone="red" icon={AlertTriangle} title={loadError} />}
       {/* Today card */}
-      <div className="glass-card rounded-2xl p-5">
+      <div className="ap-surface rounded-2xl p-5">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Today</p>
-            <h2 className="text-lg font-display font-black text-slate-800 dark:text-white">
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Today</p>
+            <h2 className="text-lg font-sf font-semibold text-slate-800 dark:text-white">
               {new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' })}
             </h2>
           </div>
@@ -168,17 +162,17 @@ function DriverAttendanceView({ user }) {
               { label:'Vehicle',   value: todayRec.vehicle  || '—', icon: Car      },
               { label:'Working',   value: todayRec.workingHours || (todayRec.checkIn ? 'In progress' : '—'), icon: Clock },
             ].map(d => (
-              <div key={d.label} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3 flex items-start gap-2">
-                <d.icon size={13} className="text-slate-400 dark:text-slate-500 mt-0.5 flex-shrink-0" />
+              <div key={d.label} className="bg-[var(--ap-surface-2)] rounded-xl p-3 flex items-start gap-2">
+                <d.icon size={13} className="text-slate-500 dark:text-slate-400 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">{d.label}</p>
+                  <p className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{d.label}</p>
                   <p className="text-xs font-bold text-slate-700 dark:text-slate-200 mt-0.5">{d.value}</p>
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="text-center py-4 text-sm text-slate-400 dark:text-slate-500">
+          <div className="text-center py-4 text-sm text-slate-500 dark:text-slate-400">
             No attendance record for today yet.<br />
             <span className="text-xs">Auto check-in happens when you start your first ride.</span>
           </div>
@@ -186,43 +180,36 @@ function DriverAttendanceView({ user }) {
       </div>
 
       {/* Monthly summary */}
-      <div className="glass-card rounded-2xl p-5">
-        <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">
+      <div className="ap-surface rounded-2xl p-5">
+        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
           {new Date().toLocaleString('en-IN', { month:'long' })} Summary
         </p>
         <div className="grid grid-cols-2 gap-3 mb-3">
-          {[
-            { label:'Present Days',    value: presentDays, color:'text-emerald-600 dark:text-emerald-400' },
-            { label:'Absent Days',     value: absentDays,  color:'text-red-600 dark:text-red-400'         },
-            { label:'Leave Days',      value: leaveDays,   color:'text-amber-600 dark:text-amber-400'     },
-            { label:'Total Hours',     value: totalHoursStr, color:'text-blue-600 dark:text-blue-400'     },
-          ].map(s => (
-            <div key={s.label} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3 text-center">
-              <p className={`text-lg font-display font-black ${s.color}`}>{s.value}</p>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{s.label}</p>
-            </div>
-          ))}
+          <MetricCard label="Present Days" value={presentDays} icon={UserCheck} tone="green" />
+          <MetricCard label="Absent Days"  value={absentDays}  icon={UserX} tone="red" />
+          <MetricCard label="Leave Days"   value={leaveDays}   icon={Zap} tone="amber" />
+          <MetricCard label="Total Hours"  value={totalHoursStr} icon={Clock} tone="blue" />
         </div>
       </div>
 
       {/* History list */}
       <div>
-        <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3 px-0.5">
+        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 px-0.5">
           Attendance History
         </p>
         <div className="space-y-2">
           {myRecords.slice(0, 14).map((r, i) => (
-            <div key={i} className="glass-card rounded-xl px-4 py-3 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-navy-900 dark:bg-navy-800 flex flex-col items-center justify-center flex-shrink-0">
+            <div key={i} className="ap-surface rounded-xl px-4 py-3 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[var(--ap-text-1)] flex flex-col items-center justify-center flex-shrink-0">
                 <span className="text-[8px] font-bold text-blue-400 uppercase leading-none">{r.date ? `${r.date.slice(5,7)}/${r.date.slice(8,10)}` : '—'}</span>
-                <span className="text-xs font-black text-white leading-tight">
+                <span className="text-xs font-semibold text-white leading-tight">
                   {r.date ? new Date(r.date + 'T00:00:00').toLocaleDateString('en-IN', { weekday:'short' }) : '—'}
                 </span>
               </div>
               <div className="flex-1 min-w-0">
                 <AttBadge status={r.status} />
                 {r.checkIn && (
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
                     {r.checkIn}{r.checkOut ? ` – ${r.checkOut}` : ' (no checkout)'}
                   </p>
                 )}
@@ -348,20 +335,11 @@ function AdminAttendanceView({ isAdmin }) {
   return (
     <div className="space-y-5">
       {loadError && (
-        <div className="bg-red-50 dark:bg-red-900/15 border border-red-200 dark:border-red-800/30 rounded-2xl p-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <AlertTriangle size={15} className="text-red-600 dark:text-red-400 flex-shrink-0" />
-            <p className="text-sm font-bold text-red-700 dark:text-red-400">{loadError}</p>
-          </div>
-          <button onClick={reload}
-            className="px-3 py-1.5 rounded-xl bg-red-500 hover:bg-red-400 text-white text-xs font-bold transition-all active:scale-95 shadow-md flex-shrink-0">
-            Retry
-          </button>
-        </div>
+        <Callout tone="red" icon={AlertTriangle} title={loadError} actionLabel="Retry" onAction={reload} />
       )}
 
       {/* Date strip */}
-      <div className="glass-card rounded-2xl px-4 py-3 flex items-center gap-3 flex-wrap">
+      <div className="ap-surface rounded-2xl px-4 py-3 flex items-center gap-3 flex-wrap">
         <div className="w-9 h-9 rounded-[13px] bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center flex-shrink-0">
           <Calendar size={16} className="text-blue-600 dark:text-blue-400" />
         </div>
@@ -369,79 +347,58 @@ function AdminAttendanceView({ isAdmin }) {
           <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
             {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' })}
           </p>
-          <p className="text-[11px] text-slate-400 dark:text-slate-500 tabular-nums">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
             {dateRecords.length} of {drivers.length} marked
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={() => setSelectedDate(new Date().toISOString().slice(0,10))}
-            className="px-3 min-h-[36px] rounded-xl border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 active:scale-95 transition-all">
-            Today
-          </button>
+          <Button variant="outline" size="sm" onClick={() => setSelectedDate(new Date().toISOString().slice(0,10))}>Today</Button>
           <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
             max={new Date().toISOString().slice(0,10)} aria-label="Select date"
-            className="px-3 min-h-[36px] text-sm rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30" />
+            className={`${fieldCls} w-auto h-10`} />
         </div>
       </div>
 
       {/* Summary cards (real data) */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-        {[
-          { label:'Total Drivers', value: counts.total,   color:'text-blue-600 dark:text-blue-400',         bg:'bg-blue-50 dark:bg-blue-900/20',         Icon: Users },
-          { label:'Present',       value: counts.present, color:'text-emerald-600 dark:text-emerald-400',   bg:'bg-emerald-50 dark:bg-emerald-900/20',   Icon: UserCheck },
-          { label:'On Leave',      value: counts.leave,   color:'text-amber-600 dark:text-amber-400',       bg:'bg-amber-50 dark:bg-amber-900/20',       Icon: Zap },
-          { label:'Absent',        value: counts.absent,  color:'text-red-500 dark:text-red-400',           bg:'bg-red-50 dark:bg-red-900/20',           Icon: UserX },
-        ].map(s => (
-          <div key={s.label} className="ios-card p-3.5 flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-[13px] ${s.bg} flex items-center justify-center flex-shrink-0`}>
-              <s.Icon size={16} className={s.color} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[26px] font-display font-black leading-none tabular-nums text-slate-800 dark:text-white">{s.value}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">{s.label}</p>
-            </div>
-          </div>
-        ))}
+        <MetricCard label="Total Drivers" value={counts.total}   icon={Users}     tone="blue" />
+        <MetricCard label="Present"       value={counts.present} icon={UserCheck} tone="green" />
+        <MetricCard label="On Leave"      value={counts.leave}   icon={Zap}       tone="amber" />
+        <MetricCard label="Absent"        value={counts.absent}  icon={UserX}     tone="red" />
       </div>
 
       {/* Main grid: management panel + side panel */}
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-3 items-start">
-        <section aria-label="Driver attendance" className="glass-card rounded-[20px] p-4 md:p-5 min-w-0">
+        <section aria-label="Driver attendance" className="ap-surface rounded-[20px] p-4 md:p-5 min-w-0">
           <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
             <div>
-              <h2 className="text-[16px] font-display font-black text-slate-800 dark:text-white leading-tight">All Drivers</h2>
-              <p className="text-xs text-slate-400 dark:text-slate-500 tabular-nums">{filteredRows.length} shown</p>
+              <h2 className="text-[16px] font-sf font-semibold text-slate-800 dark:text-white leading-tight">All Drivers</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">{filteredRows.length} shown</p>
             </div>
           </div>
 
           {/* Filter tabs — buckets supported by attendance data */}
-          <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1 w-fit max-w-full overflow-x-auto no-scrollbar mb-3" role="group" aria-label="Filter by attendance status">
-            {[
+          <SegmentedControl
+            ariaLabel="Filter by attendance status"
+            value={driverTab}
+            onChange={setDriverTab}
+            scroll
+            className="mb-3"
+            options={[
               { key: 'all', label: 'All' },
               { key: 'present', label: 'Present' },
               { key: 'leave', label: 'On Leave' },
               { key: 'absent', label: 'Absent' },
               { key: 'unknown', label: 'Not Marked' },
-            ].map(t => (
-              <button key={t.key} onClick={() => setDriverTab(t.key)}
-                aria-pressed={driverTab === t.key}
-                className={`px-3.5 min-h-[32px] rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-                  driverTab === t.key
-                    ? 'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                }`}>
-                {t.label}
-              </button>
-            ))}
-          </div>
+            ]}
+          />
 
           {/* Panel toolbar: search */}
           <div className="flex items-center gap-2 flex-wrap mb-3">
-            <div className="flex items-center gap-2 px-3 min-h-[36px] rounded-xl border border-slate-200 dark:border-navy-700 bg-white/70 dark:bg-navy-800/60 flex-1 min-w-[140px]">
-              <Search size={13} className="text-slate-400 flex-shrink-0" />
+            <div className="relative flex-1 min-w-[140px]">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search Drivers"
-                aria-label="Search drivers"
-                className="bg-transparent text-sm text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 outline-none w-full font-body" />
+                aria-label="Search drivers" className={`${fieldCls} pl-9`} />
             </div>
           </div>
 
@@ -449,7 +406,7 @@ function AdminAttendanceView({ isAdmin }) {
           <div className="overflow-hidden hidden md:block">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-100 dark:border-navy-700">
+                <tr className="border-b border-[var(--ap-border)]">
                   {['Driver', 'Phone', 'Status', 'Vehicle', "Today's Assignment", 'Trips', 'Actions'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{h}</th>
                   ))}
@@ -458,9 +415,8 @@ function AdminAttendanceView({ isAdmin }) {
               <tbody>
                 {filteredRows.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center">
-                      <p className="text-sm font-bold text-slate-500 dark:text-slate-400">No drivers found</p>
-                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Try a different search or filter</p>
+                    <td colSpan={7} className="!border-0">
+                      <EmptyState icon={Search} title="No drivers found" description="Try a different search or filter." />
                     </td>
                   </tr>
                 ) : filteredRows.map((d) => {
@@ -468,14 +424,14 @@ function AdminAttendanceView({ isAdmin }) {
                   const isOpen = expandedDriver === d.name
                   return (
                   <Fragment key={d.id || d.name}>
-                  <tr className="border-b border-slate-50 dark:border-navy-800 last:border-0 hover:bg-slate-50/60 dark:hover:bg-navy-800/40 transition-colors">
+                  <tr className="border-b border-[var(--ap-border)] last:border-0 hover:bg-[var(--ap-surface-2)] transition-colors">
                     <td className="px-4 py-3 min-h-[68px]">
                       <div className="flex items-center gap-2.5">
                         <Avatar name={d.name} size={32} />
                         <div className="min-w-0">
                           <p className="text-[13px] font-bold text-slate-700 dark:text-slate-200 truncate max-w-[170px]">{d.name}</p>
                           {d.id && (
-                            <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500 truncate">{d.id}</p>
+                            <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate">{d.id}</p>
                           )}
                         </div>
                       </div>
@@ -490,10 +446,7 @@ function AdminAttendanceView({ isAdmin }) {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${st.badge}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${st.dot}`} />
-                        {st.label}
-                      </span>
+                      <StatusPill tone={st.tone} className="whitespace-nowrap">{st.label}</StatusPill>
                     </td>
                     <td className="px-4 py-3 text-[13px] font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">{d.vehicle || '—'}</td>
                     <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300 max-w-[190px] truncate">
@@ -502,16 +455,14 @@ function AdminAttendanceView({ isAdmin }) {
                     <td className="px-4 py-3 text-[13px] font-bold text-slate-700 dark:text-slate-200 tabular-nums">{d.trips}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1.5">
-                        <button onClick={() => setExpandedDriver(isOpen ? null : d.name)} aria-label={isOpen ? `Collapse ${d.name}` : `View ${d.name}`} title="View"
+                        <IconButton icon={Eye} size={15} tone="brand"
+                          label={isOpen ? `Collapse ${d.name}` : `View ${d.name}`}
                           aria-expanded={isOpen}
-                          className="min-w-[36px] min-h-[36px] w-9 h-9 rounded-[12px] bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center hover:bg-blue-100 dark:hover:bg-blue-900/50 active:scale-95 transition-all">
-                          <Eye size={15} />
-                        </button>
+                          onClick={() => setExpandedDriver(isOpen ? null : d.name)} />
                         {!d.record && (
-                          <button onClick={() => handleMarkAttendance(d.name, 'present')} aria-label={`Mark ${d.name} present`} title="Mark present"
-                            className="min-w-[36px] min-h-[36px] w-9 h-9 rounded-[12px] bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center hover:bg-emerald-100 dark:hover:bg-emerald-900/50 active:scale-95 transition-all">
-                            <Check size={15} />
-                          </button>
+                          <IconButton icon={Check} size={15}
+                            label={`Mark ${d.name} present`}
+                            onClick={() => handleMarkAttendance(d.name, 'present')} />
                         )}
                       </div>
                     </td>
@@ -519,7 +470,7 @@ function AdminAttendanceView({ isAdmin }) {
                   {isOpen && (
                     <tr>
                       <td colSpan={7} className="!p-0 !border-0">
-                        <div className="border-t border-slate-100 dark:border-navy-700 bg-slate-50/50 dark:bg-navy-800/30 px-4 py-4">
+                        <div className="border-t border-[var(--ap-border)] bg-[var(--ap-surface-2)]/30 px-4 py-4">
                           <DriverAttDetail record={d.record} onMark={(status) => handleMarkAttendance(d.name, status)} />
                         </div>
                       </td>
@@ -535,47 +486,39 @@ function AdminAttendanceView({ isAdmin }) {
           {/* Mobile cards — stacked, no slider */}
           <div className="md:hidden space-y-2">
             {filteredRows.length === 0 ? (
-              <div className="rounded-[20px] border border-slate-200 dark:border-navy-700 px-4 py-10 text-center">
-                <p className="text-sm font-bold text-slate-500 dark:text-slate-400">No drivers found</p>
-                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Try a different search or filter</p>
-              </div>
+              <EmptyState icon={Search} title="No drivers found" description="Try a different search or filter." className="border border-[var(--ap-border)] rounded-[20px]" />
             ) : filteredRows.map((d) => {
               const st = DRIVER_STATUS_PILL[d.bucket] || DRIVER_STATUS_PILL.unknown
               const isOpen = expandedDriver === d.name
               return (
-              <div key={d.id || d.name} className="rounded-2xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/40 p-3.5">
+              <div key={d.id || d.name} className="rounded-2xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] p-3.5">
                 <div className="flex items-center gap-2.5" onClick={() => setExpandedDriver(isOpen ? null : d.name)}>
                   <Avatar name={d.name} size={36} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{d.name}</p>
-                    <p className="text-[11px] text-slate-400 dark:text-slate-500 tabular-nums truncate">{d.mobile || 'No mobile'}</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums truncate">{d.mobile || 'No mobile'}</p>
                   </div>
-                  <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap flex-shrink-0 ${st.badge}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${st.dot}`} />
-                    {st.label}
-                  </span>
+                  <StatusPill tone={st.tone} className="whitespace-nowrap flex-shrink-0">{st.label}</StatusPill>
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-300 truncate mt-2">
                   {d.vehicle || 'No vehicle'}{d.assign ? ` · ${d.assign.pickup || '—'} → ${d.assign.drop || '—'}` : ''}
                 </p>
-                <div className="flex items-center justify-between gap-2 mt-2.5 pt-2.5 border-t border-slate-100 dark:border-white/5">
+                <div className="flex items-center justify-between gap-2 mt-2.5 pt-2.5 border-t border-[var(--ap-border)]">
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">{d.trips} trips</p>
                   <div className="flex gap-1.5 flex-shrink-0">
-                    <button onClick={() => setExpandedDriver(isOpen ? null : d.name)} aria-label={isOpen ? `Collapse ${d.name}` : `View ${d.name}`} title="View"
+                    <IconButton icon={Eye} size={15} tone="brand"
+                      label={isOpen ? `Collapse ${d.name}` : `View ${d.name}`}
                       aria-expanded={isOpen}
-                      className="min-w-[36px] min-h-[36px] w-9 h-9 rounded-[12px] bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center active:scale-95 transition-all">
-                      <Eye size={15} />
-                    </button>
+                      onClick={() => setExpandedDriver(isOpen ? null : d.name)} />
                     {!d.record && (
-                      <button onClick={() => handleMarkAttendance(d.name, 'present')} aria-label={`Mark ${d.name} present`} title="Mark present"
-                        className="min-w-[36px] min-h-[36px] w-9 h-9 rounded-[12px] bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center active:scale-95 transition-all">
-                        <Check size={15} />
-                      </button>
+                      <IconButton icon={Check} size={15}
+                        label={`Mark ${d.name} present`}
+                        onClick={() => handleMarkAttendance(d.name, 'present')} />
                     )}
                   </div>
                 </div>
                 {isOpen && (
-                  <div className="mt-2.5 pt-2.5 border-t border-slate-100 dark:border-white/5">
+                  <div className="mt-2.5 pt-2.5 border-t border-[var(--ap-border)]">
                     <DriverAttDetail record={d.record} onMark={(status) => handleMarkAttendance(d.name, status)} />
                   </div>
                 )}
@@ -586,9 +529,9 @@ function AdminAttendanceView({ isAdmin }) {
         </section>
 
         {/* 6. Right-side panel: availability + quick actions */}
-        <aside aria-label="Attendance overview" className="glass-card rounded-[20px] p-4 md:p-5 min-w-0 space-y-5">
+        <aside aria-label="Attendance overview" className="ap-surface rounded-[20px] p-4 md:p-5 min-w-0 space-y-5">
           <div>
-            <h2 className="text-[16px] font-display font-black text-slate-800 dark:text-white leading-tight mb-3">Availability</h2>
+            <h2 className="text-[16px] font-sf font-semibold text-slate-800 dark:text-white leading-tight mb-3">Availability</h2>
             <div className="space-y-1.5">
               {[
                 { label: 'Present', value: counts.present, dot: 'bg-emerald-500' },
@@ -605,20 +548,20 @@ function AdminAttendanceView({ isAdmin }) {
             </div>
           </div>
           <div>
-            <h2 className="text-[16px] font-display font-black text-slate-800 dark:text-white leading-tight mb-3">Quick Actions</h2>
+            <h2 className="text-[16px] font-sf font-semibold text-slate-800 dark:text-white leading-tight mb-3">Quick Actions</h2>
             <div className="grid grid-cols-2 gap-2">
               <button onClick={() => setSelectedDate(new Date().toISOString().slice(0,10))}
-                className="flex flex-col items-start gap-2 p-3 rounded-2xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/40 hover:shadow-md active:scale-[0.98] transition-all text-left min-h-[76px]">
+                className="flex flex-col items-start gap-2 p-3 rounded-2xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] hover:shadow-md active:scale-[0.98] transition-all text-left min-h-[76px]">
                 <span className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center flex-shrink-0"><Calendar size={15} className="text-white" /></span>
                 <span className="text-xs font-bold text-slate-700 dark:text-slate-200 leading-tight">Today</span>
               </button>
               <button onClick={() => reload()}
-                className="flex flex-col items-start gap-2 p-3 rounded-2xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/40 hover:shadow-md active:scale-[0.98] transition-all text-left min-h-[76px]">
+                className="flex flex-col items-start gap-2 p-3 rounded-2xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] hover:shadow-md active:scale-[0.98] transition-all text-left min-h-[76px]">
                 <span className="w-8 h-8 rounded-xl bg-teal-600 flex items-center justify-center flex-shrink-0"><RefreshCw size={15} className="text-white" /></span>
                 <span className="text-xs font-bold text-slate-700 dark:text-slate-200 leading-tight">Refresh</span>
               </button>
               <button onClick={() => navigate('/drivers')}
-                className="flex flex-col items-start gap-2 p-3 rounded-2xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/40 hover:shadow-md active:scale-[0.98] transition-all text-left min-h-[76px] col-span-2">
+                className="flex flex-col items-start gap-2 p-3 rounded-2xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] hover:shadow-md active:scale-[0.98] transition-all text-left min-h-[76px] col-span-2">
                 <span className="w-8 h-8 rounded-xl bg-violet-600 flex items-center justify-center flex-shrink-0"><Users size={15} className="text-white" /></span>
                 <span className="text-xs font-bold text-slate-700 dark:text-slate-200 leading-tight">View Drivers</span>
               </button>
@@ -629,17 +572,17 @@ function AdminAttendanceView({ isAdmin }) {
 
       {/* 7. Recent activity (real audit trail — omitted when empty) */}
       {driverActivity.length > 0 && (
-        <section aria-label="Recent driver activity" className="glass-card rounded-[20px] p-4 md:p-5">
-          <h2 className="text-[16px] font-display font-black text-slate-800 dark:text-white leading-tight mb-3">Recent Activity</h2>
-          <div className="divide-y divide-slate-100 dark:divide-navy-800">
+        <section aria-label="Recent driver activity" className="ap-surface rounded-[20px] p-4 md:p-5">
+          <h2 className="text-[16px] font-sf font-semibold text-slate-800 dark:text-white leading-tight mb-3">Recent Activity</h2>
+          <div className="divide-y divide-[var(--ap-border)]">
             {driverActivity.map(ev => (
               <div key={ev.id} className="flex items-center gap-3 py-2.5">
                 <span className="text-base flex-shrink-0" aria-hidden="true">{ev.icon}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{ev.label}</p>
-                  {ev.description && <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{ev.description}</p>}
+                  {ev.description && <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{ev.description}</p>}
                 </div>
-                <span className="text-[10px] text-slate-400 dark:text-slate-500 flex-shrink-0">{fmtAuditTime(ev.timestamp)}</span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 flex-shrink-0">{fmtAuditTime(ev.timestamp)}</span>
               </div>
             ))}
           </div>
@@ -648,10 +591,10 @@ function AdminAttendanceView({ isAdmin }) {
 
       {/* Admin: full analytics */}
       {isAdmin && (
-        <div className="glass-card rounded-2xl p-5">
+        <div className="ap-surface rounded-2xl p-5">
           <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Monthly Overview — All Drivers</p>
           {driverRows.length === 0 && (
-            <p className="text-xs text-slate-400 dark:text-slate-500 py-2">No drivers found.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 py-2">No drivers found.</p>
           )}
           {driverRows.map(d => d.name).map(name => {
             const dRecords = allRecords.filter(r => r.driver === name)
@@ -671,7 +614,7 @@ function AdminAttendanceView({ isAdmin }) {
                   <span className="text-xs font-bold text-slate-700 dark:text-slate-200 flex-1">{name}</span>
                   <span className="text-[10px] text-slate-400">{Math.floor(totalMin/60)}h total</span>
                 </div>
-                <div className="h-2 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden flex">
+                <div className="h-2 bg-[var(--ap-border)] rounded-full overflow-hidden flex">
                   <div className="h-full bg-emerald-500" style={{ width:`${(p/7)*100}%` }} />
                   <div className="h-full bg-amber-400"   style={{ width:`${(l/7)*100}%` }} />
                   <div className="h-full bg-red-400"     style={{ width:`${(a/7)*100}%` }} />
@@ -698,24 +641,16 @@ export default function Attendance() {
 
   return (
     <div className="space-y-4 md:space-y-3 animate-fade-up">
-      {/* 1. Page header (driver-page scoped — shell untouched) */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-11 h-11 rounded-[14px] bg-navy-900 dark:bg-blue-700 flex items-center justify-center flex-shrink-0 shadow-lg">
-            <CalendarCheck size={20} className="text-white" />
+      <PageHeader
+        title="Attendance"
+        subtitle={isDriver ? 'Your work schedule & hours' : 'Driver attendance management'}
+        action={
+          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 min-h-[40px]">
+            <CalendarCheck size={14} className="text-navy-700 dark:text-blue-400" />
+            {new Date().toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })}
           </div>
-          <div className="min-w-0">
-            <h1 className="text-[28px] leading-tight font-display font-black text-slate-800 dark:text-white">Attendance</h1>
-            <p className="text-[13px] text-slate-500 dark:text-slate-400">
-              {isDriver ? 'Your work schedule & hours' : 'Driver attendance management'}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 flex-shrink-0 min-h-[40px]">
-          <CalendarCheck size={14} className="text-navy-700 dark:text-blue-400" />
-          {new Date().toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })}
-        </div>
-      </div>
+        }
+      />
       {isDriver
         ? <div className="max-w-2xl mx-auto w-full"><DriverAttendanceView user={user} /></div>
         : <AdminAttendanceView isAdmin={isAdmin} />
