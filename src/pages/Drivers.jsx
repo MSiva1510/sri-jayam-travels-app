@@ -365,7 +365,7 @@ function PerfBars({ bookings }) {
       <div className="flex items-end gap-2.5 h-44 flex-shrink-0">
         {view.map(d => (
           <div key={d.key} className="flex-1 flex flex-col items-center gap-1.5 min-w-0 h-full" title={`${d.label} ${d.sub}: ${d.done} done / ${d.all} assigned`}>
-            <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 tabular-nums leading-none">{d.all > 0 ? d.all : ''}</span>
+            <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 tabular-nums leading-none">{d.all > 0 ? d.all : ''}</span>
             <div className="flex items-end gap-1 flex-1 min-h-0">
               <div className="w-4 rounded-t-md bg-blue-600 dark:bg-blue-500 transition-all" style={{ height: `${Math.max((d.done / max) * 100, d.done > 0 ? 10 : 4)}%` }} />
               <div className="w-4 rounded-t-md bg-[var(--ap-surface-2)] transition-all" style={{ height: `${Math.max((d.all / max) * 100, d.all > 0 ? 10 : 4)}%` }} />
@@ -456,7 +456,7 @@ function DriverModal({ driver, bookings, payslips, onClose }) {
               { label:'Bata Pending', value: fmtK(pendingPay),        color:'text-amber-600 dark:text-amber-400'  },
             ].map(s => (
               <div key={s.label} className="bg-[var(--ap-surface-2)] rounded-xl p-3 text-center">
-                <p className={`text-base font-black tabular-nums ${s.color}`}>{s.value}</p>
+                <p className={`text-base font-semibold tabular-nums ${s.color}`}>{s.value}</p>
                 <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{s.label}</p>
               </div>
             ))}

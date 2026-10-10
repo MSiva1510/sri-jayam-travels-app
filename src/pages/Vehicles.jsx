@@ -599,7 +599,7 @@ function UsageBars({ trips }) {
       <div className="flex items-end gap-2 h-44 flex-shrink-0">
         {view.map(b => (
           <div key={b.key} className="flex-1 flex flex-col items-center gap-1.5 min-w-0 h-full" title={`${b.label}: ${b.done} completed`}>
-            <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 tabular-nums leading-none">{b.done > 0 ? b.done : ''}</span>
+            <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 tabular-nums leading-none">{b.done > 0 ? b.done : ''}</span>
             <div className="flex items-end flex-1 min-h-0">
               <div className="w-4 rounded-t-md bg-blue-600 dark:bg-blue-500 transition-all" style={{ height: `${Math.max((b.done / max) * 100, b.done > 0 ? 10 : 4)}%` }} />
             </div>
@@ -978,7 +978,7 @@ export default function Vehicles() {
                   className="border-b border-[var(--ap-border)] hover:bg-[var(--ap-surface-2)] transition-colors cursor-pointer">
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-[10px] bg-navy-900 dark:bg-navy-800 flex items-center justify-center flex-shrink-0">
+                      <div className="w-8 h-8 rounded-[10px] bg-[var(--ap-accent)] flex items-center justify-center flex-shrink-0">
                         <Car size={14} className="text-white" />
                       </div>
                       <div className="min-w-0">
@@ -1042,7 +1042,7 @@ export default function Vehicles() {
           return (
             <div key={v.id} className="ap-surface rounded-2xl overflow-hidden">
               <div className="flex items-center gap-2.5 p-3.5 cursor-pointer select-none" onClick={() => setExpanded(isOpen ? null : v.id)}>
-                <div className="w-10 h-10 rounded-[13px] bg-navy-900 dark:bg-navy-800 flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 rounded-[13px] bg-[var(--ap-accent)] flex items-center justify-center flex-shrink-0">
                   <Car size={16} className="text-white" />
                 </div>
                 <div className="flex-1 min-w-0">

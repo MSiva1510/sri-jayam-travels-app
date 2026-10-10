@@ -450,7 +450,7 @@ export default function Dashboard() {
               const stCfg   = getStatusCfg(b.status)
               return (
                 <button key={b.id} onClick={() => navigate('/trips')}
-                  className="w-full flex items-center gap-3 px-4 py-3 border-b ap-hairline last:border-0 hover:bg-blue-50/40 dark:hover:bg-navy-800/40 transition-colors text-left">
+                  className="w-full flex items-center gap-3 px-4 py-3 border-b ap-hairline last:border-0 hover:bg-blue-50/40 hover:bg-[var(--ap-surface-2)] transition-colors text-left">
                   <span className={`w-8 h-8 rounded-xl bg-gradient-to-br ${typeCfg?.gradient || 'from-slate-400 to-slate-500'} flex items-center justify-center text-sm flex-shrink-0`} aria-hidden="true">
                     {typeCfg?.icon}
                   </span>
@@ -656,7 +656,7 @@ export default function Dashboard() {
                           Rs. {t.total.toLocaleString('en-IN')} <span className="text-slate-400 font-normal">({pct}%)</span>
                         </span>
                       </div>
-                      <div className="h-1.5 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden">
+                      <div className="h-1.5 bg-[var(--ap-border)] rounded-full overflow-hidden">
                         <div className={`h-full rounded-full bg-gradient-to-r ${t.color}`}
                           style={{ width: `${pct}%`, transition: 'width .5s' }} />
                       </div>
@@ -822,7 +822,7 @@ export default function Dashboard() {
                       <p className="text-xs font-semibold text-red-500 tabular-nums">Rs. {driverCost.toLocaleString('en-IN')}</p>
                     )}
                   </div>
-                  <div className="h-1.5 bg-slate-100 dark:bg-navy-700 rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-[var(--ap-border)] rounded-full overflow-hidden">
                     <div className="h-full bg-gradient-to-r from-teal-500 to-cyan-400 rounded-full" style={{ width: `${Math.min(100, Math.max(0, farePct))}%` }} />
                   </div>
                   <p className="text-[10px] text-slate-400 mt-0.5">{farePct}% of total fare</p>

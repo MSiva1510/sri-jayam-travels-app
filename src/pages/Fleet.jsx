@@ -448,7 +448,7 @@ function MapView({ snapshots, total, counts, selected, setSelected, locateTarget
                 ariaLabel="Map layer"
                 value={layer}
                 onChange={setLayer}
-                className="bg-white/90 dark:bg-navy-950/90 shadow-lg ring-1 ring-black/5"
+                className="bg-[var(--ap-surface)]/90 shadow-lg ring-1 ring-black/5"
                 options={[{ key: 'map', label: 'Map' }, { key: 'satellite', label: 'Satellite' }]}
               />
             </div>

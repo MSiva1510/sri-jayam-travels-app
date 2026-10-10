@@ -311,7 +311,7 @@ function BookingTimeline({ bookingId }) {
   if (events.length === 0) return <p className="text-xs text-slate-500 dark:text-slate-400 px-1 py-2">No timeline events yet.</p>
   return (
     <div className="relative pl-5">
-      <div className="absolute left-2 top-2 bottom-2 w-0.5 bg-slate-200 dark:bg-navy-700" />
+      <div className="absolute left-2 top-2 bottom-2 w-0.5 bg-[var(--ap-border)]" />
       <div className="space-y-3">
         {events.map((ev, i) => (
           <div key={ev.id||i} className="relative flex items-start gap-3">
@@ -359,7 +359,7 @@ const TRANS_STYLES = {
   emerald:'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100',
   teal:   'bg-teal-50 dark:bg-teal-900/20 border-teal-200 dark:border-teal-800/40 text-teal-700 dark:text-teal-400 hover:bg-teal-100',
   red:    'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/40 text-red-600 dark:text-red-400 hover:bg-red-100',
-  slate:  'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-navy-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100',
+  slate:  'bg-slate-50 dark:bg-slate-800/40 border-[var(--ap-border)] text-slate-600 dark:text-slate-300 hover:bg-slate-100',
 }
 function WorkflowActions({ booking, onStatusChange, currentUser, canEdit }) {
   const [showRemarks, setShowRemarks] = useState(false)
@@ -413,20 +413,20 @@ function RouteHistoryModal({ booking, onClose }) {
         </div>
         <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
           {points.length === 0 && !histEntry ? (
-            <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-navy-800/40 rounded-xl px-4 py-3">
+            <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500 bg-[var(--ap-surface-2)] rounded-xl px-4 py-3">
               <AlertTriangle size={13} /> No GPS route data recorded for this trip yet.
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-3">
-              <div className="bg-slate-50 dark:bg-navy-800/50 rounded-xl p-3 text-center">
+              <div className="bg-[var(--ap-surface-2)] rounded-xl p-3 text-center">
                 <p className="text-lg font-sf font-semibold text-slate-900 dark:text-white">{histEntry?.distanceKm ?? distance} km</p>
                 <p className="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5">Distance</p>
               </div>
-              <div className="bg-slate-50 dark:bg-navy-800/50 rounded-xl p-3 text-center">
+              <div className="bg-[var(--ap-surface-2)] rounded-xl p-3 text-center">
                 <p className="text-lg font-sf font-semibold text-slate-900 dark:text-white">{histEntry?.duration || '—'}</p>
                 <p className="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5">Duration</p>
               </div>
-              <div className="bg-slate-50 dark:bg-navy-800/50 rounded-xl p-3 text-center">
+              <div className="bg-[var(--ap-surface-2)] rounded-xl p-3 text-center">
                 <p className="text-lg font-sf font-semibold text-slate-900 dark:text-white">{histEntry?.routePoints??points.length}</p>
                 <p className="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5">GPS Points</p>
               </div>
@@ -493,7 +493,7 @@ function BookingDetail({ booking, onEdit, onDelete, onAssign, onWhatsApp, canEdi
             <div className="flex items-stretch gap-3 bg-[var(--ap-surface)] rounded-xl p-3 border border-[var(--ap-border)]">
               <div className="flex flex-col items-center gap-1 pt-0.5">
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0" />
-                <div className="flex-1 w-0.5 border-l border-dashed border-slate-300 dark:border-navy-600 min-h-[14px]" />
+                <div className="flex-1 w-0.5 border-l border-dashed border-[var(--ap-border)] min-h-[14px]" />
                 <div className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" />
               </div>
               <div className="flex-1 min-w-0 space-y-2">
@@ -552,13 +552,13 @@ function BookingDetail({ booking, onEdit, onDelete, onAssign, onWhatsApp, canEdi
                 <button onClick={() => onWhatsApp && onWhatsApp(booking,'assigned')} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold transition-all active:scale-95 shadow-md"><MessageCircle size={13} /> WhatsApp</button>
               )}
               {canEdit && !['completed','cancelled','closed'].includes(booking.status) && (
-                <button onClick={() => onEdit(booking)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors"><Edit2 size={13} /> Edit</button>
+                <button onClick={() => onEdit(booking)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-[var(--ap-surface-2)] transition-colors"><Edit2 size={13} /> Edit</button>
               )}
               {canDelete && (
                 <button onClick={() => onDelete(booking.id)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/15 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/25 transition-colors"><Trash2 size={13} /> Delete</button>
               )}
               {booking.status === 'cancelled' && canAssign && (
-                <button onClick={() => onWhatsApp && onWhatsApp(booking,'cancelled')} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-500 dark:text-slate-400 text-xs font-bold hover:bg-slate-50 transition-colors"><MessageCircle size={13} /> Notify Customer</button>
+                <button onClick={() => onWhatsApp && onWhatsApp(booking,'cancelled')} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-500 dark:text-slate-400 text-xs font-bold hover:bg-slate-50 transition-colors"><MessageCircle size={13} /> Notify Customer</button>
               )}
             </div>
           </>
@@ -609,10 +609,10 @@ function CalendarView({ bookings }) {
   const selLabel = selDay ? new Date(yr, mon, selDay).toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short', year:'numeric' }) : ''
   return (
     <div className="ap-surface rounded-2xl overflow-hidden md:flex-1 md:min-h-0 md:flex md:flex-col">
-      <div className="flex items-center justify-between px-4 py-2 bg-slate-50/80 dark:bg-navy-800/60 border-b border-slate-100 dark:border-navy-700 md:shrink-0">
-        <button onClick={prev} aria-label="Previous month" className="w-8 h-8 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors"><ChevronLeft size={15} /></button>
+      <div className="flex items-center justify-between px-4 py-2 bg-[var(--ap-surface-2)] border-b border-[var(--ap-border)] md:shrink-0">
+        <button onClick={prev} aria-label="Previous month" className="w-8 h-8 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-colors"><ChevronLeft size={15} /></button>
         <p className="font-sf font-semibold text-slate-900 dark:text-white text-sm tabular-nums">{MONTH_NAMES[mon]} {yr}</p>
-        <button onClick={next} aria-label="Next month" className="w-8 h-8 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors"><ChevronRight size={15} /></button>
+        <button onClick={next} aria-label="Next month" className="w-8 h-8 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-colors"><ChevronRight size={15} /></button>
       </div>
       <div className="p-2 md:flex-1 md:min-h-0 md:flex md:flex-col">
         <div className="grid grid-cols-7 gap-1 mb-1 md:shrink-0">
@@ -629,7 +629,7 @@ function CalendarView({ bookings }) {
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelDay(day) } }}
                 aria-label={`${dateStr}${hasCal ? `, ${trips.length} trips` : ', no trips'}`}
                 title={hasCal ? `${trips.length} trip${trips.length!==1?'s':''} — tap for details` : 'No trips'}
-                className={`ap-focus min-h-[44px] sm:min-h-[54px] md:min-h-0 md:overflow-hidden rounded-xl flex flex-col items-center justify-start pt-1 px-0.5 border transition-all cursor-pointer hover:shadow-md active:scale-[0.98] ${isToday?'bg-blue-600 border-blue-500 shadow-lg':hasCal?'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/40':'border-slate-100 dark:border-navy-800 bg-transparent'}`}>
+                className={`ap-focus min-h-[44px] sm:min-h-[54px] md:min-h-0 md:overflow-hidden rounded-xl flex flex-col items-center justify-start pt-1 px-0.5 border transition-all cursor-pointer hover:shadow-md active:scale-[0.98] ${isToday?'bg-blue-600 border-blue-500 shadow-lg':hasCal?'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/40':'border-[var(--ap-border)] bg-transparent'}`}>
                 <span className={`text-[11px] font-bold leading-none tabular-nums ${isToday?'text-white':hasCal?'text-emerald-700 dark:text-emerald-400':'text-slate-500 dark:text-slate-500'}`}>{day}</span>
                 {hasCal && !isToday && <div className="flex flex-wrap gap-0.5 mt-1 justify-center">{trips.slice(0,4).map((t,ti)=><span key={ti} className={`w-1.5 h-1.5 rounded-full ${getStatusCfg(t.status).dot.replace(' animate-pulse','')}`}/>)}</div>}
                 {hasCal && !isToday && trips.length > 1 && <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold tabular-nums">{trips.length}</span>}
@@ -644,14 +644,14 @@ function CalendarView({ bookings }) {
       {selDay && (
         <ModalOverlay onClose={() => setSelDay(null)} center>
           <div className="w-[92vw] max-w-sm max-h-[75vh] flex flex-col rounded-[20px] ap-surface shadow-2xl overflow-hidden animate-fade-up" role="dialog" aria-modal="true" aria-label={`Trips on ${selLabel}`}>
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-navy-700">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--ap-border)]">
               <div>
                 <p className="text-sm font-extrabold text-slate-800 dark:text-white leading-tight">{selLabel}</p>
                 <p className="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums">{selTrips.length} trip{selTrips.length !== 1 ? 's' : ''}</p>
               </div>
               <button onClick={() => setSelDay(null)}
                 aria-label="Close day details"
-                className="min-w-[36px] min-h-[36px] w-9 h-9 rounded-[12px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-navy-800 active:scale-95 transition-all flex items-center justify-center">
+                className="min-w-[36px] min-h-[36px] w-9 h-9 rounded-[12px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-[var(--ap-surface-2)] active:scale-95 transition-all flex items-center justify-center">
                 <X size={16} />
               </button>
             </div>
@@ -663,7 +663,7 @@ function CalendarView({ bookings }) {
                   { label:'Missed', value:selMissed.length, cls:'text-red-500 dark:text-red-400' },
                   { label:'Cancelled', value:selCancelled.length, cls:'text-slate-400 dark:text-slate-500' },
                 ].map(s => (
-                  <div key={s.label} className="rounded-xl bg-slate-50 dark:bg-navy-800/60 border border-slate-100 dark:border-navy-700 px-2 py-2 text-center">
+                  <div key={s.label} className="rounded-xl bg-[var(--ap-surface-2)] border border-[var(--ap-border)] px-2 py-2 text-center">
                     <p className={`text-lg font-sf font-semibold tabular-nums ${s.cls}`}>{s.value}</p>
                     <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">{s.label}</p>
                   </div>
@@ -674,7 +674,7 @@ function CalendarView({ bookings }) {
               ) : (
                 <div className="space-y-2">
                   {selTrips.map(t => (
-                    <div key={t.id} className="rounded-xl border border-slate-100 dark:border-navy-700 px-3 py-2.5">
+                    <div key={t.id} className="rounded-xl border border-[var(--ap-border)] px-3 py-2.5">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{t.customer}</p>
                         <StatusBadge status={t.status} />

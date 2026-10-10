@@ -180,7 +180,7 @@ export default function PublicBooking() {
             <Car size={18} className="text-white" />
           </div>
           <div>
-            <h1 className="font-black text-slate-800 text-base leading-tight">Sri Jayam Travels</h1>
+            <h1 className="font-semibold text-slate-800 text-base leading-tight">Sri Jayam Travels</h1>
             <p className="text-xs text-slate-500">Online Booking Portal · Puducherry</p>
           </div>
         </div>
@@ -209,7 +209,7 @@ export default function PublicBooking() {
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
               <div className="px-5 py-4 bg-teal-600">
                 <p className="text-teal-100 text-xs font-bold uppercase tracking-widest mb-0.5">Step 1 of 3</p>
-                <h2 className="text-white font-black text-xl">Your Information</h2>
+                <h2 className="text-white font-semibold text-xl">Your Information</h2>
                 <p className="text-teal-100 text-xs mt-1">We'll call you back to confirm the fare</p>
               </div>
               <div className="px-5 py-5 space-y-4">
@@ -228,7 +228,7 @@ export default function PublicBooking() {
               </div>
               <div className="px-5 pb-5">
                 <button onClick={goToType}
-                  className="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-black text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-95">
+                  className="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-95">
                   Continue <ChevronRight size={15} />
                 </button>
               </div>
@@ -243,7 +243,7 @@ export default function PublicBooking() {
                   <ArrowLeft size={11} /> Back
                 </button>
                 <p className="text-teal-100 text-xs font-bold uppercase tracking-widest mb-0.5">Step 2 of 3</p>
-                <h2 className="text-white font-black text-xl">Select Trip Type</h2>
+                <h2 className="text-white font-semibold text-xl">Select Trip Type</h2>
                 <p className="text-teal-100 text-xs mt-1">Hello {name} — choose your journey type</p>
               </div>
               <div className="px-5 py-4 grid grid-cols-2 gap-3">
@@ -252,7 +252,7 @@ export default function PublicBooking() {
                     className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-slate-100 hover:border-teal-400 hover:bg-teal-50 transition-all text-center group active:scale-95">
                     <span className="text-2xl">{t.icon}</span>
                     <div>
-                      <p className="text-xs font-black text-slate-800 group-hover:text-teal-700">{t.label}</p>
+                      <p className="text-xs font-semibold text-slate-800 group-hover:text-teal-700">{t.label}</p>
                       <p className="text-[10px] text-slate-400 mt-0.5">{t.desc}</p>
                     </div>
                   </button>
@@ -269,7 +269,7 @@ export default function PublicBooking() {
                   <ArrowLeft size={11} /> Back
                 </button>
                 <p className="text-teal-100 text-xs font-bold uppercase tracking-widest mb-0.5">Step 3 of 3</p>
-                <h2 className="text-white font-black text-xl">
+                <h2 className="text-white font-semibold text-xl">
                   {TRIP_TYPES.find(t => t.key === tripType)?.icon}{' '}
                   {TRIP_TYPES.find(t => t.key === tripType)?.label}
                 </h2>
@@ -341,7 +341,7 @@ export default function PublicBooking() {
 
                 {tripType === 'self_drive' && (
                   <div className="space-y-3 p-3 bg-rose-50 rounded-xl border border-rose-100">
-                    <p className="text-[10px] font-black text-rose-700 uppercase tracking-wider">Self Drive Details</p>
+                    <p className="text-[10px] font-semibold text-rose-700 uppercase tracking-wider">Self Drive Details</p>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <Label required>Number of Days</Label>
@@ -415,7 +415,7 @@ export default function PublicBooking() {
                   <p className="text-xs text-red-600 font-semibold bg-red-50 border border-red-200 rounded-lg px-3 py-2">{submitError}</p>
                 )}
                 <button onClick={handleSubmit} disabled={submitting}
-                  className="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-black text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-95">
+                  className="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-95">
                   {submitting ? 'Submitting…' : <>Submit Booking <ChevronRight size={15} /></>}
                 </button>
               </div>
@@ -430,12 +430,12 @@ export default function PublicBooking() {
                   <CheckCircle size={32} className="text-teal-600" />
                 </div>
                 <div>
-                  <h2 className="font-black text-slate-800 text-xl mb-1">Booking Received!</h2>
+                  <h2 className="font-semibold text-slate-800 text-xl mb-1">Booking Received!</h2>
                   <p className="text-sm text-slate-500">We'll confirm your trip shortly</p>
                 </div>
                 <div className="bg-teal-50 border border-teal-100 rounded-xl px-5 py-4">
                   <p className="text-xs text-teal-600 font-bold uppercase tracking-wider mb-1">Booking Reference</p>
-                  <p className="text-2xl font-black text-teal-700 tracking-widest">{bookingRef}</p>
+                  <p className="text-2xl font-semibold text-teal-700 tracking-widest">{bookingRef}</p>
                   <p className="text-xs text-teal-500 mt-1">Save this number for tracking</p>
                 </div>
                 <div className="text-left space-y-2 bg-slate-50 rounded-xl px-4 py-3">
@@ -458,7 +458,7 @@ export default function PublicBooking() {
                   Our team will contact you on <strong>{mobile}</strong> to confirm your booking.
                 </p>
                 <button onClick={reset}
-                  className="w-full py-3 rounded-xl border-2 border-teal-200 text-teal-700 font-black text-sm flex items-center justify-center gap-2 hover:bg-teal-50 transition-colors">
+                  className="w-full py-3 rounded-xl border-2 border-teal-200 text-teal-700 font-semibold text-sm flex items-center justify-center gap-2 hover:bg-teal-50 transition-colors">
                   <RotateCcw size={14} /> Book Another Trip
                 </button>
               </div>

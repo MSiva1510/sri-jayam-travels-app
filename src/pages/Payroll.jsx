@@ -584,7 +584,7 @@ function SalaryHistoryPanel({ settlements, onViewPayslip }) {
           {filtered.map(s => (
             <div key={s.id} className="ap-surface rounded-xl overflow-hidden">
               <div className="flex items-center gap-3 p-3.5">
-                <div className="w-10 h-10 rounded-xl bg-navy-900 dark:bg-navy-800 flex flex-col items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-[var(--ap-accent)] flex flex-col items-center justify-center flex-shrink-0">
                   <span className="text-[9px] font-bold text-blue-400 uppercase leading-none">{MN[s.month]}</span>
                   <span className="text-xs font-semibold text-white leading-tight">{s.year}</span>
                 </div>
@@ -718,7 +718,7 @@ function TripPayslipCard({ p }) {
     <div className="ap-surface rounded-2xl overflow-hidden">
       <div className="flex items-center gap-3 p-4 cursor-pointer" onClick={() => setOpen(v => !v)}>
         {/* Date badge */}
-        <div className="w-11 h-11 rounded-xl bg-navy-900 dark:bg-navy-800 flex flex-col items-center justify-center flex-shrink-0">
+        <div className="w-11 h-11 rounded-xl bg-[var(--ap-accent)] flex flex-col items-center justify-center flex-shrink-0">
           <span className="text-[8px] font-bold text-blue-400 uppercase leading-none">
             {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date(p.date).getMonth()]}
           </span>
@@ -1179,7 +1179,7 @@ export default function Payroll() {
               <tbody>
                 {pageRows.map(p => (
                   <tr key={p.driver} onClick={() => setDrawerDriver(p.driver)}
-                    className="border-b border-[var(--ap-border)] hover:bg-slate-50/50 dark:hover:bg-navy-800/30 transition-colors cursor-pointer">
+                    className="border-b border-[var(--ap-border)] hover:bg-[var(--ap-surface-2)] transition-colors cursor-pointer">
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-2">
                         <Avatar name={p.driver} size={28} />
@@ -1303,7 +1303,7 @@ export default function Payroll() {
                   </div>
                 </div>
                 {/* Totals + actions */}
-                <div className="bg-navy-900 dark:bg-navy-800 rounded-xl px-4 py-3">
+                <div className="bg-[var(--ap-accent)] rounded-xl px-4 py-3">
                   <div className="flex justify-between text-xs text-white/70"><span>Paid</span><span className="font-bold tabular-nums">{money(p.paidAmount)}</span></div>
                   <div className="flex justify-between mt-1">
                     <span className="text-xs text-white/70 font-bold">Balance</span>

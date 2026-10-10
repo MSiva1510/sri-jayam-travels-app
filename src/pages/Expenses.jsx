@@ -726,7 +726,7 @@ export default function Expenses() {
               return (
                 <div key={exp.id} className="border-b border-[var(--ap-border)] last:border-0">
                   {/* Row */}
-                  <div className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-amber-50/30 dark:hover:bg-navy-800/40 transition-colors select-none"
+                  <div className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-amber-50/30 hover:bg-[var(--ap-surface-2)] transition-colors select-none"
                        onClick={() => setExpanded(isOpen ? null : exp.id)}>
                     {/* Type icon */}
                     <div className={`w-8 h-8 rounded-[10px] bg-gradient-to-br ${typeCfg.color} flex items-center justify-center text-base flex-shrink-0 shadow-sm`}>
@@ -781,7 +781,7 @@ export default function Expenses() {
         <div className="flex items-center gap-1 sm:gap-1.5">
           <button onClick={() => setPage(safePage - 1)} disabled={safePage <= 1}
             aria-label="Previous page"
-            className="min-w-[32px] min-h-[32px] sm:min-w-[36px] sm:min-h-[36px] px-2 sm:px-2.5 rounded-[10px] sm:rounded-[12px] border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+            className="min-w-[32px] min-h-[32px] sm:min-w-[36px] sm:min-h-[36px] px-2 sm:px-2.5 rounded-[10px] sm:rounded-[12px] border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
             ←
           </button>
           <span className="hidden sm:contents">
@@ -794,7 +794,7 @@ export default function Expenses() {
                 className={`min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] text-xs font-bold tabular-nums active:scale-95 transition-all ${
                   n === safePage
                     ? 'bg-navy-900 dark:bg-blue-600 text-white shadow'
-                    : 'border border-[var(--ap-border)] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700'
+                    : 'border border-[var(--ap-border)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)]'
                 }`}>
                 {n}
               </button>
@@ -802,7 +802,7 @@ export default function Expenses() {
           </span>
           <button onClick={() => setPage(safePage + 1)} disabled={safePage >= totalPages}
             aria-label="Next page"
-            className="min-w-[32px] min-h-[32px] sm:min-w-[36px] sm:min-h-[36px] px-2 sm:px-2.5 rounded-[10px] sm:rounded-[12px] border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+            className="min-w-[32px] min-h-[32px] sm:min-w-[36px] sm:min-h-[36px] px-2 sm:px-2.5 rounded-[10px] sm:rounded-[12px] border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
             →
           </button>
           <span className="text-[11px] text-slate-500 dark:text-slate-400 ml-0.5 sm:ml-1">Go to</span>
@@ -814,7 +814,7 @@ export default function Expenses() {
             placeholder={String(totalPages)}
             inputMode="numeric"
             aria-label={`Go to page, 1 to ${totalPages}`}
-            className="w-12 sm:w-14 min-h-[32px] sm:min-h-[36px] rounded-[10px] sm:rounded-[12px] border border-[var(--ap-border)] bg-white dark:bg-navy-800 px-2 text-center text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500 tabular-nums"
+            className="w-12 sm:w-14 min-h-[32px] sm:min-h-[36px] rounded-[10px] sm:rounded-[12px] border border-[var(--ap-border)] bg-[var(--ap-surface-2)] px-2 text-center text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500 tabular-nums"
           />
         </div>
       </div>
