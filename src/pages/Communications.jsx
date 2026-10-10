@@ -13,6 +13,7 @@ import {
   ExternalLink, XCircle,
 } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
+import StatusPill from '../components/ui/StatusPill'
 import { useCommunicationCtx } from '../hooks/useCommunication'
 import { exportToCSV } from '../data/reportData'
 import { fmtAuditTime } from '../data/auditLogData'
@@ -62,9 +63,14 @@ const CAT_COLORS = {
   general:    'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
 }
 
+const STATUS_TONE = {
+  pending: 'amber', processing: 'blue', queued: 'blue', delivered: 'green',
+  failed: 'red', retrying: 'amber', cancelled: 'gray', unread: 'blue', read: 'gray', archived: 'gray',
+}
+
 function StatusBadge({ status }) {
   const cfg = STATUS_CFG[status] || STATUS_CFG.pending
-  return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.badge}`}>{cfg.label}</span>
+  return <StatusPill tone={STATUS_TONE[status] || 'gray'}>{cfg.label}</StatusPill>
 }
 
 function ChannelChip({ channel }) {
@@ -108,15 +114,15 @@ function Kpi({ icon, value, label, sub, tone }) {
     amber:    'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
     violet:   'bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400',
     teal:     'bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400',
-    slate:    'bg-slate-100 dark:bg-navy-800 text-slate-500 dark:text-slate-400',
+    slate:    'bg-[var(--ap-surface-2)] text-slate-500 dark:text-slate-400',
   }
   return (
-    <div className="glass-card rounded-xl px-3 py-3 flex items-center gap-2.5">
+    <div className="ap-surface rounded-xl px-3 py-3 flex items-center gap-2.5">
       <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-base ${tones[tone] || tones.slate}`}>
         {icon}
       </div>
       <div className="min-w-0">
-        <p className="text-xl font-display font-black text-slate-800 dark:text-white tabular-nums leading-none">{value}</p>
+        <p className="text-xl font-sf font-semibold text-slate-800 dark:text-white tabular-nums leading-none">{value}</p>
         <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mt-1">{label}</p>
         {sub && <p className="text-[9px] text-slate-400 truncate">{sub}</p>}
       </div>
@@ -125,7 +131,7 @@ function Kpi({ icon, value, label, sub, tone }) {
 }
 function KpiSkeleton() {
   return (
-    <div className="glass-card rounded-xl px-3 py-3 flex items-center gap-2.5">
+    <div className="ap-surface rounded-xl px-3 py-3 flex items-center gap-2.5">
       <div className="w-9 h-9 rounded-xl skeleton flex-shrink-0" />
       <div className="flex-1 space-y-1.5"><div className="h-4 w-12 rounded skeleton" /><div className="h-2 w-16 rounded skeleton" /></div>
     </div>
@@ -141,7 +147,7 @@ function SectionTitle({ children, right }) {
 }
 function EmptyState({ icon, title, sub }) {
   return (
-    <div className="glass-card rounded-2xl p-10 text-center">
+    <div className="ap-surface rounded-2xl p-10 text-center">
       <div className="text-3xl mb-2 opacity-60">{icon}</div>
       <p className="text-slate-500 dark:text-slate-400 font-bold text-sm">{title}</p>
       {sub && <p className="text-slate-400 text-xs mt-1">{sub}</p>}
@@ -150,9 +156,9 @@ function EmptyState({ icon, title, sub }) {
 }
 function SkeletonRows({ n = 6 }) {
   return (
-    <div className="glass-card rounded-2xl overflow-hidden">
+    <div className="ap-surface rounded-2xl overflow-hidden">
       {Array.from({ length: n }).map((_, i) => (
-        <div key={i} className="flex items-center gap-3 px-4 py-3 border-b border-slate-50 dark:border-navy-800 last:border-0">
+        <div key={i} className="flex items-center gap-3 px-4 py-3 border-b border-[var(--ap-border)] last:border-0">
           <div className="h-3 w-8 rounded skeleton" />
           <div className="flex-1 space-y-1.5"><div className="h-3 w-40 rounded skeleton" /><div className="h-2 w-24 rounded skeleton" /></div>
           <div className="h-5 w-16 rounded-full skeleton" />
@@ -172,12 +178,12 @@ function Pager({ page, totalPages, total, pageSize, onPage }) {
       {totalPages > 1 && (
         <div className="flex items-center gap-1.5">
           <button disabled={page <= 1} onClick={() => onPage(page - 1)} aria-label="Previous page"
-            className="w-8 h-8 rounded-lg border border-slate-200 dark:border-navy-700 flex items-center justify-center text-slate-500 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+            className="w-8 h-8 rounded-lg border border-[var(--ap-border)] flex items-center justify-center text-slate-500 disabled:opacity-40 hover:bg-[var(--ap-surface-2)] transition-colors">
             <ChevronLeft size={14} />
           </button>
-          <span className="min-w-[32px] h-8 px-2 rounded-lg bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold flex items-center justify-center tabular-nums">{page}</span>
+          <span className="min-w-[32px] h-8 px-2 rounded-lg bg-[var(--ap-accent)] text-white text-xs font-bold flex items-center justify-center tabular-nums">{page}</span>
           <button disabled={page >= totalPages} onClick={() => onPage(page + 1)} aria-label="Next page"
-            className="w-8 h-8 rounded-lg border border-slate-200 dark:border-navy-700 flex items-center justify-center text-slate-500 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+            className="w-8 h-8 rounded-lg border border-[var(--ap-border)] flex items-center justify-center text-slate-500 disabled:opacity-40 hover:bg-[var(--ap-surface-2)] transition-colors">
             <ChevronRight size={14} />
           </button>
         </div>
@@ -190,21 +196,21 @@ function Drawer({ title, sub, onClose, children, actions }) {
   return createPortal(
     <div className="fixed inset-0 z-[100]">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="absolute inset-x-0 bottom-0 sm:inset-x-auto sm:right-0 sm:top-0 sm:bottom-0 sm:w-[440px] max-h-[92vh] sm:max-h-none bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-none shadow-2xl flex flex-col animate-fade-up">
-        <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
-        <div className="flex items-start justify-between gap-3 px-5 pt-4 sm:pt-5 pb-3 border-b border-slate-100 dark:border-navy-700 flex-shrink-0">
+      <div className="absolute inset-x-0 bottom-0 sm:inset-x-auto sm:right-0 sm:top-0 sm:bottom-0 sm:w-[440px] max-h-[92vh] sm:max-h-none ap-surface rounded-t-3xl sm:rounded-none shadow-2xl flex flex-col animate-fade-up">
+        <div className="w-10 h-1 bg-[var(--ap-border)] rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
+        <div className="flex items-start justify-between gap-3 px-5 pt-4 sm:pt-5 pb-3 border-b border-[var(--ap-border)] flex-shrink-0">
           <div className="min-w-0">
-            <h3 className="font-display font-black text-slate-800 dark:text-white text-base">{title}</h3>
+            <h3 className="font-sf font-semibold text-slate-800 dark:text-white text-base">{title}</h3>
             {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
           </div>
           <button onClick={onClose} aria-label="Close details"
-            className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700 transition-colors flex-shrink-0">
+            className="w-8 h-8 rounded-xl bg-[var(--ap-surface-2)] flex items-center justify-center text-slate-500 hover:bg-[var(--ap-surface-2)] transition-colors flex-shrink-0">
             <X size={15} />
           </button>
         </div>
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">{children}</div>
         {actions && (
-          <div className="px-5 py-3.5 border-t border-slate-100 dark:border-navy-700 flex gap-2 flex-shrink-0">{actions}</div>
+          <div className="px-5 py-3.5 border-t border-[var(--ap-border)] flex gap-2 flex-shrink-0">{actions}</div>
         )}
       </div>
     </div>,
@@ -215,7 +221,7 @@ function MetaGrid({ items }) {
   return (
     <div className="grid grid-cols-2 gap-2">
       {items.map(m => (
-        <div key={m.label} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl px-3 py-2 border border-slate-100 dark:border-navy-700 min-w-0">
+        <div key={m.label} className="bg-[var(--ap-surface-2)] rounded-xl px-3 py-2 border border-[var(--ap-border)] min-w-0">
           <p className="text-[9px] text-slate-400 uppercase tracking-wide font-bold">{m.label}</p>
           <div className="text-xs font-bold text-slate-700 dark:text-slate-200 mt-0.5 break-words">{m.value}</div>
         </div>
@@ -276,16 +282,16 @@ function NotificationsTab() {
     <div className="space-y-4">
       {/* Controls */}
       <div className="flex flex-wrap gap-2 items-center">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white/70 dark:bg-navy-800/60 flex-1 min-w-[160px] max-w-xs">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--ap-border)] bg-[var(--ap-surface-2)] flex-1 min-w-[160px] max-w-xs">
           <Search size={13} className="text-slate-400" />
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search notifications…"
             className="bg-transparent text-sm text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none w-full" />
         </div>
 
-        <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1">
+        <div className="flex gap-1 bg-[var(--ap-surface-2)] rounded-xl p-1">
           {[['all','All'],['unread','Unread'],['read','Read'],['archived','Archived']].map(([k,l]) => (
             <button key={k} onClick={()=>setFilter(k)}
-              className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${filter===k?'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow':'text-slate-500 dark:text-slate-400'}`}>
+              className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${filter===k?'bg-[var(--ap-surface-elevated)] text-slate-900 dark:text-white shadow':'text-slate-500 dark:text-slate-400'}`}>
               {l}
               {k==='unread'&&unreadCount>0&&<span className="ml-1 text-[9px] bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded-full">{unreadCount}</span>}
             </button>
@@ -294,7 +300,7 @@ function NotificationsTab() {
 
         {categories.length > 0 && (
           <select value={catFilter} onChange={e=>setCat(e.target.value)}
-            className="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none">
+            className="px-3 py-2 text-xs rounded-lg border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none">
             <option value="all">All Categories</option>
             {categories.map(c=><option key={c} value={c} className="capitalize">{c}</option>)}
           </select>
@@ -303,12 +309,12 @@ function NotificationsTab() {
         <div className="flex gap-2 ml-auto">
           {unreadCount > 0 && (
             <button onClick={markAllRead}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-colors">
               <CheckCheck size={13}/> Mark All Read
             </button>
           )}
           <button onClick={loadNotifs}
-            className="w-8 h-8 rounded-lg border border-slate-200 dark:border-navy-700 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
+            className="w-8 h-8 rounded-lg border border-[var(--ap-border)] flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-[var(--ap-surface-2)] transition-colors">
             <RefreshCw size={13}/>
           </button>
         </div>
@@ -317,10 +323,10 @@ function NotificationsTab() {
       {/* List */}
       {notifLoading ? (
         <div className="space-y-2">
-          {[1,2,3].map(i=><div key={i} className="h-16 glass-card rounded-xl animate-pulse"/>)}
+          {[1,2,3].map(i=><div key={i} className="h-16 ap-surface rounded-xl animate-pulse"/>)}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="glass-card rounded-2xl p-12 text-center">
+        <div className="ap-surface rounded-2xl p-12 text-center">
           <Bell size={32} className="mx-auto text-slate-300 dark:text-slate-600 mb-3"/>
           <p className="text-slate-400 text-sm">No notifications found</p>
         </div>
@@ -331,9 +337,9 @@ function NotificationsTab() {
             const catColor = CAT_COLORS[n.category] || CAT_COLORS.general
             return (
               <div key={n.id}
-                className={`glass-card rounded-xl overflow-hidden border-l-4 ${isUnread?'border-blue-500':'border-transparent'}`}>
+                className={`ap-surface rounded-xl overflow-hidden border-l-4 ${isUnread?'border-blue-500':'border-transparent'}`}>
                 <div className="flex items-start gap-3 p-3.5">
-                  <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center flex-shrink-0 text-base">
+                  <div className="w-9 h-9 rounded-xl bg-[var(--ap-surface-2)] flex items-center justify-center flex-shrink-0 text-base">
                     {n.icon||'🔔'}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -354,7 +360,7 @@ function NotificationsTab() {
                     {isUnread&&<button onClick={()=>markRead(n.id)} title="Mark read"
                       className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"><BookOpen size={12}/></button>}
                     <button onClick={()=>archive(n.id)} title="Archive"
-                      className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors"><Archive size={12}/></button>
+                      className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-[var(--ap-surface-2)] transition-colors"><Archive size={12}/></button>
                     <button onClick={()=>dismiss(n.id)} title="Dismiss"
                       className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"><Trash2 size={12}/></button>
                   </div>
@@ -436,7 +442,7 @@ function CommLogsTab() {
   const safePage = Math.min(Math.max(1, page), totalPages)
   const pageRows = filtered.slice((safePage - 1) * LOG_PAGE_SIZE, safePage * LOG_PAGE_SIZE)
 
-  const selCls = 'px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none max-w-[150px]'
+  const selCls = 'px-3 py-2 text-xs rounded-lg border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none max-w-[150px]'
   const clearFilters = () => { setSearch(''); setChannel('all'); setStatus('all'); setRecipient('all'); setTrigger('all'); setRange('all') }
   const hasFilters = search || channel !== 'all' || status !== 'all' || recipient !== 'all' || trigger !== 'all' || range !== 'all'
 
@@ -465,7 +471,7 @@ function CommLogsTab() {
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="font-display font-black text-slate-800 dark:text-white text-base">Communication Logs</h3>
+        <h3 className="font-sf font-semibold text-slate-800 dark:text-white text-base">Communication Logs</h3>
         <p className="text-xs text-slate-400 mt-0.5">Track message delivery, failures, retries and communication history</p>
       </div>
 
@@ -482,7 +488,7 @@ function CommLogsTab() {
 
       {/* Filter toolbar */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white/70 dark:bg-navy-800/60 flex-1 min-w-[180px] max-w-xs">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--ap-border)] bg-[var(--ap-surface-2)] flex-1 min-w-[180px] max-w-xs">
           <Search size={13} className="text-slate-400 flex-shrink-0" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search message, recipient, ID…"
             className="bg-transparent text-xs text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none w-full" />
@@ -508,17 +514,17 @@ function CommLogsTab() {
         </select>
         {hasFilters && (
           <button onClick={clearFilters}
-            className="px-3 py-2 text-xs font-bold rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+            className="px-3 py-2 text-xs font-bold rounded-lg text-slate-500 hover:bg-[var(--ap-surface-2)] transition-colors">
             Clear
           </button>
         )}
         <div className="flex gap-2 ml-auto">
           <button onClick={reload} title="Refresh" aria-label="Refresh logs"
-            className="w-8 h-8 rounded-lg border border-slate-200 dark:border-navy-700 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
+            className="w-8 h-8 rounded-lg border border-[var(--ap-border)] flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-[var(--ap-surface-2)] transition-colors">
             <RefreshCw size={13} />
           </button>
           <button onClick={handleExport}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-colors">
             <Download size={13} /> Export Logs
           </button>
         </div>
@@ -528,11 +534,11 @@ function CommLogsTab() {
       {loading ? (
         <SkeletonRows n={7} />
       ) : loadError ? (
-        <div className="glass-card rounded-2xl p-10 text-center">
+        <div className="ap-surface rounded-2xl p-10 text-center">
           <AlertTriangle size={28} className="mx-auto text-red-400 mb-2" />
           <p className="text-sm font-bold text-slate-600 dark:text-slate-300">{loadError}</p>
           <button onClick={reload}
-            className="mt-3 px-4 py-2 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 transition-all">
+            className="mt-3 px-4 py-2 rounded-xl bg-[var(--ap-accent)] text-white text-xs font-bold hover:opacity-90 transition-all">
             Retry
           </button>
         </div>
@@ -540,11 +546,11 @@ function CommLogsTab() {
         <EmptyState icon="📭" title={hasFilters ? 'No logs match these filters' : 'No communication logs yet'}
           sub={hasFilters ? 'Try clearing search or choosing a different filter.' : 'Logs appear here once the system sends communications.'} />
       ) : (<>
-        <div className="glass-card rounded-2xl overflow-hidden hidden md:block">
+        <div className="ap-surface rounded-2xl overflow-hidden hidden md:block">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0">
-                <tr className="bg-slate-50/95 dark:bg-navy-800/95 border-b border-slate-100 dark:border-navy-700">
+                <tr className="bg-[var(--ap-surface-2)]/95 border-b border-[var(--ap-border)]">
                   {['#', 'Message', 'Channel', 'Recipient', 'Trigger', 'Status', 'Sent At', 'Delivered At', 'Actions'].map(h => (
                     <th key={h} className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
@@ -553,7 +559,7 @@ function CommLogsTab() {
               <tbody>
                 {pageRows.map((l, i) => (
                   <tr key={l.id || i} onClick={() => setDrawer(l)}
-                    className="border-b border-slate-50 dark:border-navy-800 hover:bg-slate-50/50 dark:hover:bg-navy-800/30 transition-colors cursor-pointer">
+                    className="border-b border-[var(--ap-border)] hover:bg-[var(--ap-surface-2)] transition-colors cursor-pointer">
                     <td className="px-3 py-2.5 text-xs text-slate-400 tabular-nums">{(safePage - 1) * LOG_PAGE_SIZE + i + 1}</td>
                     <td className="px-3 py-2.5 max-w-[220px]">
                       <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{l.subject || prettyEvent(l.event_type)}</p>
@@ -581,7 +587,7 @@ function CommLogsTab() {
                           <Eye size={13} />
                         </button>
                         <button onClick={() => doCopy(l)} title="Copy message" aria-label="Copy message"
-                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-[var(--ap-surface-2)] transition-colors">
                           <Copy size={13} />
                         </button>
                         {l.channel === 'whatsapp' && l.recipient_contact && (
@@ -603,7 +609,7 @@ function CommLogsTab() {
         <div className="space-y-2 md:hidden">
           {pageRows.map((l, i) => (
             <div key={l.id || i} onClick={() => setDrawer(l)}
-              className="glass-card rounded-2xl p-3.5 cursor-pointer active:scale-[0.99] transition-transform">
+              className="ap-surface rounded-2xl p-3.5 cursor-pointer active:scale-[0.99] transition-transform">
               <div className="flex items-center gap-2 mb-1.5">
                 <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate flex-1">{l.subject || prettyEvent(l.event_type)}</p>
                 <StatusBadge status={l.status} />
@@ -629,7 +635,7 @@ function CommLogsTab() {
           onClose={() => setDrawer(null)}
           actions={<>
             <button onClick={() => doCopy(drawer)}
-              className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+              className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-colors">
               <Copy size={13} /> {copied ? 'Copied!' : 'Copy'}
             </button>
             {drawer.channel === 'whatsapp' && drawer.recipient_contact && (
@@ -639,7 +645,7 @@ function CommLogsTab() {
               </button>
             )}
             <button onClick={() => setDrawer(null)}
-              className="flex-1 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 transition-all">
+              className="flex-1 py-2.5 rounded-xl bg-[var(--ap-accent)] text-white text-xs font-bold hover:opacity-90 transition-all">
               Close
             </button>
           </>}>
@@ -649,7 +655,7 @@ function CommLogsTab() {
           </div>
           {drawer.status === 'failed' && (
             <div className="bg-red-50 dark:bg-red-900/15 border border-red-200 dark:border-red-800/30 rounded-xl px-3.5 py-3">
-              <p className="text-xs font-black text-red-600 dark:text-red-400">Delivery failed</p>
+              <p className="text-xs font-semibold text-red-600 dark:text-red-400">Delivery failed</p>
               <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-0.5">Reason: {drawer.failure_reason || 'Unknown'}</p>
               <p className="text-[10px] text-red-500/70 dark:text-red-400/60 mt-1">No automatic retry is configured — copy the message or follow up on {drawer.channel || 'the channel'} manually.</p>
             </div>
@@ -668,7 +674,7 @@ function CommLogsTab() {
           </div>
           <div>
             <SectionTitle>Message Content</SectionTitle>
-            <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl px-3.5 py-3 border border-slate-100 dark:border-navy-700">
+            <div className="bg-[var(--ap-surface-2)] rounded-xl px-3.5 py-3 border border-[var(--ap-border)]">
               <p className="text-xs text-slate-700 dark:text-slate-200 whitespace-pre-wrap break-words">{drawer.body || drawer.subject || '—'}</p>
             </div>
           </div>
@@ -687,8 +693,8 @@ function CommLogsTab() {
           </div>
           <div>
             <SectionTitle>Recipients (1)</SectionTitle>
-            <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-navy-800/60 rounded-xl px-3 py-2.5 border border-slate-100 dark:border-navy-700">
-              <div className="w-8 h-8 rounded-full bg-navy-100 dark:bg-navy-700 flex items-center justify-center text-xs font-black text-navy-700 dark:text-blue-300 flex-shrink-0">
+            <div className="flex items-center gap-2.5 bg-[var(--ap-surface-2)] rounded-xl px-3 py-2.5 border border-[var(--ap-border)]">
+              <div className="w-8 h-8 rounded-full bg-[var(--ap-surface-2)] flex items-center justify-center text-xs font-semibold text-slate-700 dark:text-slate-200 flex-shrink-0">
                 {(drawer.recipient_name || '?').charAt(0).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
@@ -770,7 +776,7 @@ function ScheduledTab() {
   const safePage = Math.min(Math.max(1, page), totalPages)
   const pageRows = filtered.slice((safePage - 1) * SCHED_PAGE_SIZE, safePage * SCHED_PAGE_SIZE)
 
-  const selCls = 'px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none max-w-[150px]'
+  const selCls = 'px-3 py-2 text-xs rounded-lg border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none max-w-[150px]'
   const hasFilters = search || type !== 'all' || status !== 'all'
 
   const handleCancel = (job) => {
@@ -784,11 +790,11 @@ function ScheduledTab() {
     <div className="space-y-4">
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex-1 min-w-[180px]">
-          <h3 className="font-display font-black text-slate-800 dark:text-white text-base">Scheduled Communications</h3>
+          <h3 className="font-sf font-semibold text-slate-800 dark:text-white text-base">Scheduled Communications</h3>
           <p className="text-xs text-slate-400 mt-0.5">Manage upcoming messages and automated notifications</p>
         </div>
         <button onClick={refresh} title="Refresh" aria-label="Refresh schedules"
-          className="w-8 h-8 rounded-lg border border-slate-200 dark:border-navy-700 flex items-center justify-center text-slate-400 hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
+          className="w-8 h-8 rounded-lg border border-[var(--ap-border)] flex items-center justify-center text-slate-400 hover:bg-[var(--ap-surface-2)] transition-colors">
           <RefreshCw size={13} />
         </button>
       </div>
@@ -801,7 +807,7 @@ function ScheduledTab() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white/70 dark:bg-navy-800/60 flex-1 min-w-[180px] max-w-xs">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--ap-border)] bg-[var(--ap-surface-2)] flex-1 min-w-[180px] max-w-xs">
           <Search size={13} className="text-slate-400 flex-shrink-0" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search scheduled messages…"
             className="bg-transparent text-xs text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none w-full" />
@@ -818,7 +824,7 @@ function ScheduledTab() {
         </select>
         {hasFilters && (
           <button onClick={() => { setSearch(''); setType('all'); setStatus('all') }}
-            className="px-3 py-2 text-xs font-bold rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+            className="px-3 py-2 text-xs font-bold rounded-lg text-slate-500 hover:bg-[var(--ap-surface-2)] transition-colors">
             Clear
           </button>
         )}
@@ -828,11 +834,11 @@ function ScheduledTab() {
         <EmptyState icon="🗓️" title={hasFilters ? 'No schedules match these filters' : 'No scheduled communications'}
           sub={hasFilters ? 'Try clearing search or choosing a different filter.' : 'Schedules are created automatically when bookings, documents, or trips are added.'} />
       ) : (<>
-        <div className="glass-card rounded-2xl overflow-hidden hidden md:block">
+        <div className="ap-surface rounded-2xl overflow-hidden hidden md:block">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0">
-                <tr className="bg-slate-50/95 dark:bg-navy-800/95 border-b border-slate-100 dark:border-navy-700">
+                <tr className="bg-[var(--ap-surface-2)]/95 border-b border-[var(--ap-border)]">
                   {['#', 'Schedule', 'Detail', 'Scheduled For', 'Repeat', 'Status', 'Actions'].map(h => (
                     <th key={h} className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
@@ -843,7 +849,7 @@ function ScheduledTab() {
                   const st = schedStatus(j)
                   return (
                     <tr key={j.id || i} onClick={() => setDrawer(j)}
-                      className="border-b border-slate-50 dark:border-navy-800 hover:bg-slate-50/50 dark:hover:bg-navy-800/30 transition-colors cursor-pointer">
+                      className="border-b border-[var(--ap-border)] hover:bg-[var(--ap-surface-2)] transition-colors cursor-pointer">
                       <td className="px-3 py-2.5 text-xs text-slate-400 tabular-nums">{(safePage - 1) * SCHED_PAGE_SIZE + i + 1}</td>
                       <td className="px-3 py-2.5 max-w-[200px]">
                         <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{prettyEvent(j.type)}</p>
@@ -883,7 +889,7 @@ function ScheduledTab() {
             const st = schedStatus(j)
             return (
               <div key={j.id || i} onClick={() => setDrawer(j)}
-                className="glass-card rounded-2xl p-3.5 cursor-pointer active:scale-[0.99] transition-transform">
+                className="ap-surface rounded-2xl p-3.5 cursor-pointer active:scale-[0.99] transition-transform">
                 <div className="flex items-center gap-2 mb-1">
                   <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate flex-1">{prettyEvent(j.type)}</p>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${SCHED_STATUS[st].badge}`}>{SCHED_STATUS[st].label}</span>
@@ -910,7 +916,7 @@ function ScheduledTab() {
               <XCircle size={13} /> Cancel Schedule
             </button>
             <button onClick={() => setDrawer(null)}
-              className="flex-1 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 transition-all">
+              className="flex-1 py-2.5 rounded-xl bg-[var(--ap-accent)] text-white text-xs font-bold hover:opacity-90 transition-all">
               Close
             </button>
           </>}>
@@ -932,7 +938,7 @@ function ScheduledTab() {
           </div>
           <div>
             <SectionTitle>Trigger Payload</SectionTitle>
-            <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl px-3.5 py-3 border border-slate-100 dark:border-navy-700">
+            <div className="bg-[var(--ap-surface-2)] rounded-xl px-3.5 py-3 border border-[var(--ap-border)]">
               {drawer.payload && Object.keys(drawer.payload).length ? (
                 <div className="space-y-1">
                   {Object.entries(drawer.payload).map(([k, v]) => (
@@ -968,20 +974,20 @@ export default function Communications() {
         subtitle="Notification center, delivery logs, and channel analytics"
         action={
           <a href="/communications-settings"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-[var(--ap-surface-2)] transition-colors">
             <Settings size={15}/> Settings
           </a>
         }
       />
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-slate-100 dark:bg-navy-800 rounded-xl p-1 overflow-x-auto no-scrollbar w-fit">
+      <div className="flex gap-1 bg-[var(--ap-surface-2)] rounded-xl p-1 overflow-x-auto no-scrollbar w-fit">
         {TABS.map(t=>{
           const { Icon } = t
           return (
             <button key={t.key} onClick={()=>setTab(t.key)}
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-                tab===t.key?'bg-white dark:bg-navy-700 text-navy-900 dark:text-white shadow':'text-slate-500 dark:text-slate-400'
+                tab===t.key?'bg-[var(--ap-surface-elevated)] text-slate-900 dark:text-white shadow':'text-slate-500 dark:text-slate-400'
               }`}>
               <Icon size={12}/>
               {t.label}
