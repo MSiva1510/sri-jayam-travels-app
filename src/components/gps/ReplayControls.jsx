@@ -12,7 +12,7 @@ const ReplayControls = memo(function ReplayControls({
   const progress = total > 1 ? Math.round((currentIndex / (total - 1)) * 100) : 0
 
   return (
-    <div className="glass-card rounded-2xl p-4 space-y-4">
+    <div className="ap-surface rounded-2xl p-4 space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">Playback Controls</h3>
         <span className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">
@@ -34,20 +34,20 @@ const ReplayControls = memo(function ReplayControls({
           </button>
         )}
         <button onClick={onStop}
-          className="p-2 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-navy-800 transition-colors">
+          className="p-2 rounded-xl border border-[var(--ap-border)] text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)] transition-colors">
           <Square size={15} />
         </button>
 
         {/* Speed selector */}
         <div className="flex items-center gap-1 ml-auto">
           <Gauge size={12} className="text-slate-400" />
-          <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-navy-700">
+          <div className="flex rounded-lg overflow-hidden border border-[var(--ap-border)]">
             {REPLAY_SPEEDS.map(s => (
               <button key={s.value} onClick={() => onSpeedChange(s.value)}
                 className={`px-2.5 py-1 text-[11px] font-bold transition-colors ${
                   speed === s.value
                     ? 'bg-blue-600 text-white'
-                    : 'bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-navy-700'
+                    : 'bg-[var(--ap-surface-2)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)]'
                 }`}>
                 {s.label}
               </button>
@@ -75,19 +75,19 @@ const ReplayControls = memo(function ReplayControls({
       {/* Current point info */}
       {currentPoint && (
         <div className="grid grid-cols-3 gap-2">
-          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-navy-800/60 border border-slate-100 dark:border-navy-700">
+          <div className="p-2.5 rounded-xl bg-[var(--ap-surface-2)] border border-[var(--ap-border)]">
             <div className="flex items-center gap-1 text-[10px] text-slate-400 mb-0.5"><Clock size={9} />Time</div>
             <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">
               {new Date(currentPoint.timestamp).toLocaleTimeString()}
             </p>
           </div>
-          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-navy-800/60 border border-slate-100 dark:border-navy-700">
+          <div className="p-2.5 rounded-xl bg-[var(--ap-surface-2)] border border-[var(--ap-border)]">
             <div className="flex items-center gap-1 text-[10px] text-slate-400 mb-0.5"><Gauge size={9} />Speed</div>
             <p className="text-xs font-bold text-slate-700 dark:text-slate-200">
               {Number(currentPoint.speed_kmh ?? 0).toFixed(0)} km/h
             </p>
           </div>
-          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-navy-800/60 border border-slate-100 dark:border-navy-700">
+          <div className="p-2.5 rounded-xl bg-[var(--ap-surface-2)] border border-[var(--ap-border)]">
             <div className="flex items-center gap-1 text-[10px] text-slate-400 mb-0.5"><MapPin size={9} />Odo</div>
             <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">
               {currentPoint.odometer ? `${Number(currentPoint.odometer).toFixed(0)} km` : '—'}

@@ -27,8 +27,8 @@ export default function FleetSearch({ value, onChange, placeholder = 'Search by 
         value={local}
         onChange={e => setLocal(e.target.value)}
         placeholder={placeholder}
-        className="w-full pl-9 pr-9 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-navy-700
-                   bg-white dark:bg-navy-800/60 text-slate-700 dark:text-slate-200
+        className="w-full pl-9 pr-9 py-2.5 text-sm rounded-xl border border-[var(--ap-border)]
+                   bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200
                    focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400
                    transition-colors"
       />

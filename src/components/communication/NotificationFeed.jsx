@@ -37,8 +37,8 @@ export default function NotificationFeed({ limit = 5, showHeader = true, onViewA
   if (notifLoading) {
     return (
       <div className="space-y-2">
-        {showHeader && <div className="h-5 bg-slate-200 dark:bg-navy-700 rounded w-40 animate-pulse"/>}
-        {[1,2,3].map(i => <div key={i} className="h-12 bg-slate-200 dark:bg-navy-700 rounded-xl animate-pulse"/>)}
+        {showHeader && <div className="h-5 bg-[var(--ap-border)] rounded w-40 animate-pulse"/>}
+        {[1,2,3].map(i => <div key={i} className="h-12 bg-[var(--ap-border)] rounded-xl animate-pulse"/>)}
       </div>
     )
   }
@@ -92,10 +92,10 @@ export default function NotificationFeed({ limit = 5, showHeader = true, onViewA
                   className={`group flex items-start gap-2.5 px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
                     isUnread
                       ? 'bg-blue-50/60 dark:bg-blue-900/10 hover:bg-blue-50 dark:hover:bg-blue-900/15 border border-blue-100 dark:border-blue-800/20'
-                      : 'hover:bg-slate-50 dark:hover:bg-navy-800/40'
+                      : 'hover:bg-[var(--ap-surface-2)]/40'
                   }`}>
                   {/* Icon */}
-                  <div className="w-7 h-7 rounded-lg bg-white dark:bg-navy-800 border border-slate-100 dark:border-navy-700 flex items-center justify-center flex-shrink-0 mt-0.5 text-sm shadow-sm">
+                  <div className="w-7 h-7 rounded-lg bg-[var(--ap-surface-2)] border border-[var(--ap-border)] flex items-center justify-center flex-shrink-0 mt-0.5 text-sm shadow-sm">
                     {n.icon || '🔔'}
                   </div>
 

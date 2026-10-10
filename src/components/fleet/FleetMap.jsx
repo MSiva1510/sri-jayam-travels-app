@@ -211,7 +211,7 @@ export default function FleetMap({ snapshots = [], onSelect, layer = 'map', loca
   }
 
   return (
-    <div className="glass-card rounded-2xl overflow-hidden relative" style={{ height }}>
+    <div className="ap-surface rounded-2xl overflow-hidden relative" style={{ height }}>
       <div ref={containerRef} className="w-full h-full" />
       <button
         onClick={fitAll}
@@ -220,7 +220,7 @@ export default function FleetMap({ snapshots = [], onSelect, layer = 'map', loca
       >
         <Maximize2 size={12} /> Show all ({snapshots.filter(s => Number.isFinite(s.latitude) && Number.isFinite(s.longitude)).length})
       </button>
-      <div className="absolute bottom-3 left-3 z-10 flex gap-3 rounded-xl bg-white/90 dark:bg-navy-900/90 backdrop-blur px-3 py-2 text-[11px] font-semibold text-slate-600 dark:text-slate-300 shadow">
+      <div className="absolute bottom-3 left-3 z-10 flex gap-3 rounded-xl bg-white/90 dark:bg-[var(--ap-surface)]/90 backdrop-blur px-3 py-2 text-[11px] font-semibold text-slate-600 dark:text-slate-300 shadow">
         {Object.entries(CAR_STATUS_COLORS).map(([k, c]) => (
           <span key={k} className="flex items-center gap-1.5">
             <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: c.body }} />

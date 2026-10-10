@@ -63,17 +63,17 @@ const VehicleTimeline = memo(function VehicleTimeline({ segments = [], stops = [
   const events = buildEvents(segments, stops, points)
 
   if (!events.length) return (
-    <div className="glass-card rounded-2xl p-6 text-center">
+    <div className="ap-surface rounded-2xl p-6 text-center">
       <p className="text-sm text-slate-400">No timeline data. Load a trip to see events.</p>
     </div>
   )
 
   return (
-    <div className="glass-card rounded-2xl p-4">
+    <div className="ap-surface rounded-2xl p-4">
       <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-4">Vehicle Timeline</h3>
       <div className="relative">
         {/* Vertical line */}
-        <div className="absolute left-4 top-3 bottom-3 w-0.5 bg-slate-200 dark:bg-navy-700 rounded-full" />
+        <div className="absolute left-4 top-3 bottom-3 w-0.5 bg-[var(--ap-border)] rounded-full" />
 
         <div className="space-y-1 max-h-[380px] overflow-y-auto pr-1">
           {events.map((ev, i) => {
@@ -87,7 +87,7 @@ const VehicleTimeline = memo(function VehicleTimeline({ segments = [], stops = [
                 key={i}
                 onClick={() => onSeek?.(ev.pointIndex)}
                 className={`w-full flex items-start gap-3 pl-2 pr-3 py-2.5 rounded-xl text-left transition-colors ${
-                  isCurrent ? 'bg-blue-50/60 dark:bg-blue-900/20' : 'hover:bg-slate-50/60 dark:hover:bg-navy-800/40'
+                  isCurrent ? 'bg-blue-50/60 dark:bg-blue-900/20' : 'hover:bg-slate-50/60 hover:bg-[var(--ap-surface-2)]'
                 }`}
               >
                 {/* Dot */}

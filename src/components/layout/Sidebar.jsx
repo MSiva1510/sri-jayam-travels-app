@@ -104,11 +104,11 @@ function SidebarInner({ collapsed }) {
       <div className={`flex items-center gap-3 px-4 py-5 border-b border-white/10 flex-shrink-0 ${collapsed ? 'justify-center' : ''}`}>
         <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0 overflow-hidden border border-white/20">
           <img src={BIZ.logo} alt="SJT" className="w-full h-full object-contain p-0.5"
-            onError={e => { e.target.style.display='none'; e.target.parentNode.innerHTML='<span class="text-white font-black text-xs">SJT</span>' }} />
+            onError={e => { e.target.style.display='none'; e.target.parentNode.innerHTML='<span class="text-white font-semibold text-xs">SJT</span>' }} />
         </div>
         {!collapsed && (
           <div className="min-w-0">
-            <p className="text-white font-display font-black text-sm leading-tight tracking-wide truncate">SRI JAYAM</p>
+            <p className="text-white font-sf font-semibold text-sm leading-tight tracking-wide truncate">SRI JAYAM</p>
             <p className="text-white/40 text-xs truncate tracking-widest">TRAVELS</p>
           </div>
         )}

@@ -1,6 +1,6 @@
 // ─── Surface — Apple-style neutral card ────────────────────────
 // Hairline border, soft diffuse shadow, translucent neutral fill.
-// Additive primitive: does not alter existing glass-card/ios-card.
+// Additive primitive: does not alter existing ap-surface/ap-surface.
 export default function Surface({
   children, className = '', as: Tag = 'div',
   padded = true, elevated = false, hairline = true, ...rest

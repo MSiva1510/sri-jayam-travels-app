@@ -65,8 +65,8 @@ function NotifRow({ n, onRead, onArchive, onDismiss, archived = false }) {
   const icon        = n.icon || NOTIFICATION_TYPES[n.type]?.icon || '🔔'
 
   return (
-    <div className={`group flex items-start gap-3 px-4 py-3 transition-colors hover:bg-slate-50 dark:hover:bg-navy-800/40 ${isUnread ? 'bg-blue-50/30 dark:bg-blue-900/5' : ''} ${borderClass}`}>
-      <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-navy-800 flex items-center justify-center flex-shrink-0 mt-0.5 text-sm">
+    <div className={`group flex items-start gap-3 px-4 py-3 transition-colors hover:bg-[var(--ap-surface-2)]/40 ${isUnread ? 'bg-blue-50/30 dark:bg-blue-900/5' : ''} ${borderClass}`}>
+      <div className="w-8 h-8 rounded-lg bg-[var(--ap-surface-2)] flex items-center justify-center flex-shrink-0 mt-0.5 text-sm">
         {icon}
       </div>
 
@@ -98,7 +98,7 @@ function NotifRow({ n, onRead, onArchive, onDismiss, archived = false }) {
         )}
         {!archived && onArchive && (
           <button onClick={e => { e.stopPropagation(); onArchive() }}
-            className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors"
+            className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-[var(--ap-surface-2)] transition-colors"
             title="Archive">
             <Archive size={11} />
           </button>
@@ -187,11 +187,11 @@ export default function NotificationCenter() {
         aria-label={badgeNum > 0 ? `Notifications, ${badgeNum} unread` : 'Notifications'}
         aria-expanded={open}
         aria-haspopup="dialog"
-        className="relative w-9 h-9 rounded-xl border border-slate-200 dark:border-navy-600 bg-white/60 dark:bg-navy-800/60 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-navy-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-navy-700 transition-all"
+        className="relative w-9 h-9 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-navy-900 dark:hover:text-white hover:bg-[var(--ap-surface-2)] transition-all"
         title="Notifications">
         <Bell size={16} />
         {badgeNum > 0 && (
-          <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center border-2 border-white dark:border-navy-900 leading-none">
+          <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-semibold flex items-center justify-center border-2 border-white dark:border-[var(--ap-surface)] leading-none">
             {badgeNum > 9 ? '9+' : badgeNum}
           </span>
         )}
@@ -199,10 +199,10 @@ export default function NotificationCenter() {
 
       {/* Panel */}
       {open && (
-        <div className="absolute right-0 top-11 w-[calc(100vw-2rem)] sm:w-96 max-w-96 bg-white dark:bg-navy-900 rounded-2xl shadow-2xl border border-slate-100 dark:border-navy-700 overflow-hidden z-50 animate-fade-up">
+        <div className="absolute right-0 top-11 w-[calc(100vw-2rem)] sm:w-96 max-w-96 ap-surface rounded-2xl shadow-2xl border border-[var(--ap-border)] overflow-hidden z-50 animate-fade-up">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-navy-700">
-            <h3 className="font-display font-black text-slate-800 dark:text-white text-sm">Notifications</h3>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--ap-border)]">
+            <h3 className="font-sf font-semibold text-slate-800 dark:text-white text-sm">Notifications</h3>
             <div className="flex items-center gap-1.5">
               {unread.length > 0 && (
                 <button onClick={doMarkAll}
@@ -212,14 +212,14 @@ export default function NotificationCenter() {
               )}
               <button onClick={() => setOpen(false)}
                 aria-label="Close notifications"
-                className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
+                className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-[var(--ap-surface-2)] transition-colors">
                 <X size={13} />
               </button>
             </div>
           </div>
 
           {/* Tabs */}
-          <div className="flex border-b border-slate-100 dark:border-navy-700 overflow-x-auto no-scrollbar">
+          <div className="flex border-b border-[var(--ap-border)] overflow-x-auto no-scrollbar">
             {TABS.map(t => (
               <button key={t.key} onClick={() => setTab(t.key)}
                 className={`flex-shrink-0 py-2.5 px-3 text-[11px] font-bold transition-colors relative ${
@@ -232,7 +232,7 @@ export default function NotificationCenter() {
                       ? 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400'
                       : tab === t.key
                       ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400'
-                      : 'bg-slate-100 dark:bg-navy-700 text-slate-400'
+                      : 'bg-[var(--ap-border)] text-slate-400'
                   }`}>
                     {t.badge > 0 ? t.badge : t.count}
                   </span>
@@ -253,7 +253,7 @@ export default function NotificationCenter() {
                 {tab === 'inbox' && (
                   inbox.length === 0
                     ? <EmptyState icon={<BellOff size={24} className="text-slate-300 dark:text-slate-600" />} text="No notifications" />
-                    : <div className="divide-y divide-slate-50 dark:divide-navy-800">
+                    : <div className="divide-y divide-slate-50 divide-[var(--ap-border)]">
                         {inbox.map(n => (
                           <NotifRow key={n.id} n={n}
                             onRead={n.status==='unread' ? () => doMarkRead(n.id) : null}
@@ -266,7 +266,7 @@ export default function NotificationCenter() {
                 {tab === 'alerts' && (
                   alerts.length === 0
                     ? <EmptyState icon={<CheckCircle size={24} className="text-emerald-400" />} text="All documents up to date" />
-                    : <div className="divide-y divide-slate-50 dark:divide-navy-800">
+                    : <div className="divide-y divide-slate-50 divide-[var(--ap-border)]">
                         {alerts.map((a, i) => <AlertRow key={i} alert={a} />)}
                       </div>
                 )}
@@ -274,7 +274,7 @@ export default function NotificationCenter() {
                 {tab === 'activity' && (
                   activity.length === 0
                     ? <EmptyState icon={<Clock size={24} className="text-slate-300 dark:text-slate-600" />} text="No recent activity" />
-                    : <div className="divide-y divide-slate-50 dark:divide-navy-800">
+                    : <div className="divide-y divide-slate-50 divide-[var(--ap-border)]">
                         {activity.map(ev => (
                           <div key={ev.id} className="flex items-center gap-3 px-4 py-2.5">
                             <span className="text-base flex-shrink-0">{ev.icon}</span>
@@ -291,7 +291,7 @@ export default function NotificationCenter() {
                 {tab === 'archived' && (
                   archived.length === 0
                     ? <EmptyState icon={<Archive size={24} className="text-slate-300 dark:text-slate-600" />} text="Nothing archived" />
-                    : <div className="divide-y divide-slate-50 dark:divide-navy-800">
+                    : <div className="divide-y divide-slate-50 divide-[var(--ap-border)]">
                         {archived.map(n => (
                           <NotifRow key={n.id} n={n} archived onDismiss={() => doDismiss(n.id)} />
                         ))}
@@ -302,7 +302,7 @@ export default function NotificationCenter() {
           </div>
 
           {/* Footer */}
-          <div className="px-4 py-2 border-t border-slate-100 dark:border-navy-700 bg-slate-50/50 dark:bg-navy-800/30 flex items-center justify-between">
+          <div className="px-4 py-2 border-t border-[var(--ap-border)] bg-slate-50/50 dark:bg-[var(--ap-surface-2)]/30 flex items-center justify-between">
             <p className="text-[10px] text-slate-400 dark:text-slate-500">
               {unread.length > 0 ? `${unread.length} unread` : 'All caught up'}
             </p>

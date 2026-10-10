@@ -25,12 +25,12 @@ export default class ErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-navy-950 p-6">
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[var(--ap-bg)] p-6">
           <div className="text-center max-w-sm">
             <div className="w-14 h-14 rounded-2xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-4">
               <AlertTriangle size={28} className="text-red-600 dark:text-red-400" />
             </div>
-            <h2 className="font-display font-black text-slate-800 dark:text-white text-xl mb-2">
+            <h2 className="font-sf font-semibold text-slate-800 dark:text-white text-xl mb-2">
               Something went wrong
             </h2>
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">

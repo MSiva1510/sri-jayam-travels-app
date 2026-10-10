@@ -1,7 +1,7 @@
 import { RefreshCw, Navigation, WifiOff, AlertTriangle, Signal } from 'lucide-react'
 
 const STATUS_CFG = {
-  idle:        { icon: Navigation,   label: 'GPS Ready',        sub: 'Tap Refresh to capture location',    color: 'text-slate-500 dark:text-slate-400',      bg: 'bg-slate-50 dark:bg-navy-800/50',          dot: 'bg-slate-400',                    ring: '' },
+  idle:        { icon: Navigation,   label: 'GPS Ready',        sub: 'Tap Refresh to capture location',    color: 'text-slate-500 dark:text-slate-400',      bg: 'bg-[var(--ap-surface-2)]',          dot: 'bg-slate-400',                    ring: '' },
   requesting:  { icon: RefreshCw,    label: 'Getting GPS…',     sub: 'Waiting for satellite signal',       color: 'text-blue-600 dark:text-blue-400',         bg: 'bg-blue-50 dark:bg-blue-900/20',           dot: 'bg-blue-500 animate-pulse',       ring: 'ring-1 ring-blue-300/40' },
   granted:     { icon: Signal,       label: 'GPS Active',       sub: 'Location successfully captured',     color: 'text-emerald-600 dark:text-emerald-400',   bg: 'bg-emerald-50 dark:bg-emerald-900/20',     dot: 'bg-emerald-500',                  ring: 'ring-1 ring-emerald-300/40' },
   denied:      { icon: WifiOff,      label: 'Permission Denied',sub: 'Enable location in device settings', color: 'text-red-600 dark:text-red-400',           bg: 'bg-red-50 dark:bg-red-900/20',             dot: 'bg-red-500',                      ring: 'ring-1 ring-red-300/40' },
@@ -13,7 +13,7 @@ const STATUS_CFG = {
 export function GPSChip({ status, coord, onRefresh, loading }) {
   const cfg = STATUS_CFG[status] || STATUS_CFG.idle
   return (
-    <div className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-slate-100 dark:border-navy-700 ${cfg.bg}`}>
+    <div className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-[var(--ap-border)] ${cfg.bg}`}>
       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${cfg.dot}`} />
       <span className={`text-[10px] font-bold ${cfg.color}`}>{cfg.label}</span>
       {coord && <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 truncate max-w-[100px]">{coord.area}</span>}
@@ -30,7 +30,7 @@ export function GPSChip({ status, coord, onRefresh, loading }) {
 // ── Coordinate display box ────────────────────────────────────
 function CoordBox({ label, value }) {
   return (
-    <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl px-3 py-2 border border-slate-100 dark:border-navy-700">
+    <div className="bg-[var(--ap-surface-2)] rounded-xl px-3 py-2 border border-[var(--ap-border)]">
       <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5">{label}</p>
       <p className="text-xs font-bold text-slate-700 dark:text-slate-200 font-mono truncate">{value ?? '—'}</p>
     </div>
@@ -43,11 +43,11 @@ export default function GPSStatusCard({ status, coord, error, loading, onRefresh
   const Icon = cfg.icon
 
   return (
-    <div className={`glass-card rounded-2xl p-4 ${cfg.ring} transition-all duration-300`}>
+    <div className={`ap-surface rounded-2xl p-4 ${cfg.ring} transition-all duration-300`}>
       {/* Header row */}
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-2.5">
-          <div className={`w-9 h-9 rounded-xl ${cfg.bg} flex items-center justify-center flex-shrink-0 border border-slate-100 dark:border-navy-700`}>
+          <div className={`w-9 h-9 rounded-xl ${cfg.bg} flex items-center justify-center flex-shrink-0 border border-[var(--ap-border)]`}>
             <Icon size={17} className={`${cfg.color} ${status === 'requesting' ? 'animate-spin' : ''}`} />
           </div>
           <div>
@@ -61,7 +61,7 @@ export default function GPSStatusCard({ status, coord, error, loading, onRefresh
             <button
               onClick={onRefresh}
               disabled={loading}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 text-xs font-bold transition-all active:scale-95 text-slate-600 dark:text-slate-300 ${loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-100 dark:hover:bg-navy-700 cursor-pointer'}`}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-xs font-bold transition-all active:scale-95 text-slate-600 dark:text-slate-300 ${loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[var(--ap-surface-2)] cursor-pointer'}`}
             >
               <RefreshCw size={11} className={loading ? 'animate-spin' : ''} />
               {loading ? 'Getting…' : 'Refresh'}

@@ -28,7 +28,7 @@ export default function GpsHealthCard() {
   const { health, running, syncNow, settings } = useGpsHistory()
 
   return (
-    <div className="glass-card rounded-2xl p-5">
+    <div className="ap-surface rounded-2xl p-5">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5">
           <div className="p-2 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600">
@@ -75,7 +75,7 @@ export default function GpsHealthCard() {
 
 function Stat({ icon: Icon, label, value }) {
   return (
-    <div className="p-3 rounded-xl bg-slate-50 dark:bg-navy-800/60 border border-slate-100 dark:border-navy-700">
+    <div className="p-3 rounded-xl bg-[var(--ap-surface-2)] border border-[var(--ap-border)]">
       <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 mb-1">
         <Icon size={10} />
         {label}

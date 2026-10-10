@@ -13,7 +13,7 @@ export default function GpsDebugPanel() {
   if (!isAdmin) return null
 
   return (
-    <details className="glass-card rounded-2xl p-4">
+    <details className="ap-surface rounded-2xl p-4">
       <summary className="flex items-center gap-2 cursor-pointer list-none">
         <Bug size={14} className="text-rose-500" />
         <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
@@ -67,7 +67,7 @@ export default function GpsDebugPanel() {
 
 function Section({ title, children }) {
   return (
-    <div className="p-3 rounded-xl bg-slate-50 dark:bg-navy-800/60 border border-slate-100 dark:border-navy-700">
+    <div className="p-3 rounded-xl bg-[var(--ap-surface-2)] border border-[var(--ap-border)]">
       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">{title}</p>
       {children}
     </div>

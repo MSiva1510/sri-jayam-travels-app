@@ -159,16 +159,16 @@ export default function InvoiceModal({ booking, onClose, docType }) {
   return (
     <ModalOverlay onClose={onClose} center>
       <div
-        className="w-full max-w-2xl bg-white dark:bg-navy-900 rounded-3xl shadow-2xl overflow-hidden animate-fade-up"
+        className="w-full max-w-2xl ap-surface rounded-3xl shadow-2xl overflow-hidden animate-fade-up"
         onClick={e => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label={`${isQuote ? 'Quotation' : 'Invoice'} ${invNo}`}
       >
         {/* Toolbar (screen only — outside the print area) */}
-        <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3 bg-slate-50 dark:bg-navy-800 border-b border-slate-200 dark:border-navy-700 flex-wrap">
+        <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3 bg-[var(--ap-surface-2)] border-b border-[var(--ap-border)] flex-wrap">
           <div>
-            <p className="font-display font-black text-slate-800 dark:text-white text-sm">{isQuote ? 'Quotation' : 'Invoice'}</p>
+            <p className="font-sf font-semibold text-slate-800 dark:text-white text-sm">{isQuote ? 'Quotation' : 'Invoice'}</p>
             <p className="text-[10px] text-slate-400 font-mono">{invNo}</p>
           </div>
           <div className="flex items-center gap-1.5">
@@ -182,7 +182,7 @@ export default function InvoiceModal({ booking, onClose, docType }) {
             </button>
             <button onClick={onClose}
               aria-label="Close invoice"
-              className="min-w-[36px] min-h-[36px] w-9 h-9 rounded-[12px] border border-slate-200 dark:border-navy-600 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-navy-700 active:scale-95 transition-all">
+              className="min-w-[36px] min-h-[36px] w-9 h-9 rounded-[12px] border border-[var(--ap-border)] flex items-center justify-center text-slate-500 hover:bg-[var(--ap-surface-2)] active:scale-95 transition-all">
               <X size={16} />
             </button>
           </div>
@@ -201,17 +201,17 @@ export default function InvoiceModal({ booking, onClose, docType }) {
                     onError={e => { e.target.style.display = 'none' }} />
                 ) : (
                   <div className="h-11 w-11 rounded-lg bg-white flex items-center justify-center flex-shrink-0">
-                    <span className="font-black text-[10px]" style={{ color: '#0d1b4b' }}>SJT</span>
+                    <span className="font-semibold text-[10px]" style={{ color: '#0d1b4b' }}>SJT</span>
                   </div>
                 )}
                 <div className="min-w-0">
-                  <p className="font-display font-black text-white text-base sm:text-lg leading-tight tracking-wide">{biz.name}</p>
+                  <p className="font-sf font-semibold text-white text-base sm:text-lg leading-tight tracking-wide">{biz.name}</p>
                   <p className="text-[10px] text-white/70 leading-snug">{biz.address}</p>
                   <p className="text-[10px] text-white/70">Tel: {biz.phone} | {biz.email}</p>
                 </div>
               </div>
               <div className="text-right flex-shrink-0">
-                <p className="font-display font-black text-lg sm:text-xl tracking-[0.2em]" style={{ color: '#38bdf8' }}>{isQuote ? 'QUOTATION' : 'INVOICE'}</p>
+                <p className="font-sf font-semibold text-lg sm:text-xl tracking-[0.2em]" style={{ color: '#38bdf8' }}>{isQuote ? 'QUOTATION' : 'INVOICE'}</p>
                 <p className="text-[10px] font-mono text-white/85 mt-0.5"># {invNo}</p>
                 <span className="inline-block mt-1.5 text-[10px] font-bold text-white px-2.5 py-0.5 rounded-full" style={{ background: '#2563eb' }}>
                   {monthPill}
@@ -244,7 +244,7 @@ export default function InvoiceModal({ booking, onClose, docType }) {
             {/* ── Trip route band ── */}
             <div className="rounded-2xl px-4 py-3.5 text-white" style={{ background: 'linear-gradient(135deg, #16205c 0%, #24368f 100%)' }}>
               <p className="text-[10px] font-bold text-white/60 uppercase tracking-[0.15em]">Trip Route</p>
-              <p className="font-display font-black text-base sm:text-lg mt-1 leading-snug">
+              <p className="font-sf font-semibold text-base sm:text-lg mt-1 leading-snug">
                 {booking.pickup || '—'}
                 <span className="mx-2 font-normal text-white/60">to</span>
                 {booking.drop || '—'}
@@ -272,7 +272,7 @@ export default function InvoiceModal({ booking, onClose, docType }) {
               ].map(([l, v, sub]) => (
                 <div key={l} className="rounded-2xl border border-slate-200 px-2 py-2.5">
                   <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{l}</p>
-                  <p className="font-display font-black text-slate-800 text-lg sm:text-xl tabular-nums leading-tight">{v}</p>
+                  <p className="font-sf font-semibold text-slate-800 text-lg sm:text-xl tabular-nums leading-tight">{v}</p>
                   <p className="text-[9px] text-slate-400">{sub}</p>
                 </div>
               ))}
@@ -290,7 +290,7 @@ export default function InvoiceModal({ booking, onClose, docType }) {
               <div className="mx-3 mb-3 mt-1 rounded-xl px-4 py-2.5 flex items-center justify-between gap-3"
                 style={{ background: '#16205c' }}>
                 <p className="text-[11px] font-bold text-white/85 uppercase tracking-wider">{isQuote ? 'Estimated Total' : 'Total Amount Due'}</p>
-                <p className="font-display font-black text-white text-base tabular-nums">{fmtMoney(booking.fare, cur)}</p>
+                <p className="font-sf font-semibold text-white text-base tabular-nums">{fmtMoney(booking.fare, cur)}</p>
               </div>
               <p className="px-4 pb-3 text-[11px] italic text-slate-500">In words: {amountInWords(booking.fare)}</p>
             </div>
@@ -312,7 +312,7 @@ export default function InvoiceModal({ booking, onClose, docType }) {
             {/* ── Footer ── */}
             <div className="flex items-end justify-between gap-3 pt-1 flex-wrap">
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-black text-slate-800">{biz.name}</p>
+                <p className="text-xs font-semibold text-slate-800">{biz.name}</p>
                 <p className="text-[10px] text-slate-500 leading-snug mt-0.5">{biz.address}<br />Tel: {biz.phone} | {biz.email}</p>
                 <p className="text-[10px] text-slate-400 italic mt-1">Thank you for choosing {biz.name}!</p>
                 {biz.gstin && invSettings.showGSTIN && (
@@ -336,7 +336,7 @@ export default function InvoiceModal({ booking, onClose, docType }) {
                       ? 'border-emerald-500 text-emerald-600'
                       : 'border-amber-500 text-amber-600'
                   }`}>
-                    <span className="text-[11px] font-black leading-none">{isQuote ? 'QUOTE' : isDone ? 'PAID' : (booking.status || 'PENDING').toUpperCase().slice(0, 9)}</span>
+                    <span className="text-[11px] font-semibold leading-none">{isQuote ? 'QUOTE' : isDone ? 'PAID' : (booking.status || 'PENDING').toUpperCase().slice(0, 9)}</span>
                     <span className="text-[8px] font-semibold mt-0.5">{tripDate}</span>
                   </div>
                 </div>

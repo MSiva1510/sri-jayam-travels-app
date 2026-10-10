@@ -28,14 +28,14 @@ const STATUS_BADGE = {
 
 export default function FleetVehicleList({ snapshots = [], onSelect, selectedId }) {
   if (!snapshots.length) return (
-    <div className="glass-card rounded-2xl p-8 text-center">
+    <div className="ap-surface rounded-2xl p-8 text-center">
       <p className="text-sm text-slate-500 dark:text-slate-400">No vehicles match the current filters.</p>
     </div>
   )
 
   return (
-    <div className="glass-card rounded-2xl overflow-hidden">
-      <div className="grid grid-cols-12 gap-2 px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 bg-slate-50/80 dark:bg-navy-800/60 border-b border-slate-100 dark:border-navy-700">
+    <div className="ap-surface rounded-2xl overflow-hidden">
+      <div className="grid grid-cols-12 gap-2 px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 bg-[var(--ap-surface-2)] border-b border-[var(--ap-border)]">
         <div className="col-span-4">Vehicle</div>
         <div className="col-span-2 text-right">Speed</div>
         <div className="col-span-2 text-center">Status</div>
@@ -50,8 +50,8 @@ export default function FleetVehicleList({ snapshots = [], onSelect, selectedId 
           const ignOn     = s.ignition   === true
           return (
             <button key={s.id} onClick={() => onSelect?.(s)}
-              className={`w-full grid grid-cols-12 gap-2 px-4 py-3 text-left items-center border-b border-slate-100 dark:border-navy-700 last:border-0 transition-colors ${
-                isSelected ? 'bg-blue-50/60 dark:bg-blue-900/20' : 'hover:bg-slate-50/60 dark:hover:bg-navy-800/40'}`}>
+              className={`w-full grid grid-cols-12 gap-2 px-4 py-3 text-left items-center border-b border-[var(--ap-border)] last:border-0 transition-colors ${
+                isSelected ? 'bg-blue-50/60 dark:bg-blue-900/20' : 'hover:bg-slate-50/60 hover:bg-[var(--ap-surface-2)]'}`}>
               <div className="col-span-4 min-w-0">
                 <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">
                   {s.registration || s.vehicle_id?.slice(0, 8) || '—'}

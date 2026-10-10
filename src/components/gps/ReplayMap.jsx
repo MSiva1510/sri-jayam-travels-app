@@ -89,7 +89,7 @@ function FitAllButton({ points }) {
   }
   return (
     <button onClick={fit}
-      className="absolute right-3 bottom-3 z-[400] px-3 py-2 text-xs font-semibold rounded-xl bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-navy-700 shadow hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors flex items-center gap-1.5">
+      className="absolute right-3 bottom-3 z-[400] px-3 py-2 text-xs font-semibold rounded-xl bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 border border-[var(--ap-border)] shadow hover:bg-[var(--ap-surface-2)] transition-colors flex items-center gap-1.5">
       <Maximize2 size={12} /> Fit route
     </button>
   )
@@ -148,7 +148,7 @@ const ReplayMap = memo(function ReplayMap({ points = [], currentIndex = 0, color
   const hasTrack = points.length > 1
 
   return (
-    <div className={`glass-card rounded-2xl overflow-hidden relative ${darkMode ? 'fleet-map-dark' : ''}`} style={{ height }}>
+    <div className={`ap-surface rounded-2xl overflow-hidden relative ${darkMode ? 'fleet-map-dark' : ''}`} style={{ height }}>
       <MapContainer center={centre} zoom={12} scrollWheelZoom style={{ height: '100%', width: '100%' }}>
         <TileLayer
           url={TILES}
@@ -232,7 +232,7 @@ const ReplayMap = memo(function ReplayMap({ points = [], currentIndex = 0, color
       </MapContainer>
 
       {/* Legend */}
-      <div className="absolute top-3 left-3 z-[400] flex flex-col gap-1 bg-white/90 dark:bg-navy-900/90 rounded-xl px-3 py-2 shadow text-[10px] font-bold border border-slate-100 dark:border-navy-700">
+      <div className="absolute top-3 left-3 z-[400] flex flex-col gap-1 bg-white/90 dark:bg-[var(--ap-surface)]/90 rounded-xl px-3 py-2 shadow text-[10px] font-bold border border-[var(--ap-border)]">
         {[['#10b981','Moving'],['#f59e0b','Idle'],['#94a3b8','Stopped']].map(([c, l]) => (
           <span key={l} className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
             <span style={{ background: c }} className="w-3 h-2 rounded-sm inline-block" />{l}

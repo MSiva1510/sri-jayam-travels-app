@@ -132,17 +132,17 @@ export default function GlobalSearch() {
       <button
         onClick={() => { setOpen(true); setTimeout(() => inputRef.current?.focus(), 50) }}
         aria-label="Search records"
-        className="flex items-center gap-2 p-2 sm:px-3 sm:py-2 rounded-xl border border-slate-200 dark:border-navy-600 bg-white/60 dark:bg-navy-800/60 text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-navy-700 transition-all text-xs sm:min-w-[200px]">
+        className="flex items-center gap-2 p-2 sm:px-3 sm:py-2 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-400 dark:text-slate-500 hover:bg-[var(--ap-surface-2)] transition-all text-xs sm:min-w-[200px]">
         <Search size={13} />
         <span className="flex-1 text-left hidden sm:block">Search…</span>
-        <kbd className="hidden sm:inline text-[9px] font-bold bg-slate-100 dark:bg-navy-700 text-slate-400 px-1.5 py-0.5 rounded border border-slate-200 dark:border-navy-600">⌘K</kbd>
+        <kbd className="hidden sm:inline text-[9px] font-bold bg-[var(--ap-border)] text-slate-400 px-1.5 py-0.5 rounded border border-[var(--ap-border)]">⌘K</kbd>
       </button>
 
       {open && (
         <div className="fixed inset-0 bg-black/30 dark:bg-black/50 z-50 flex items-start justify-center pt-[10vh] px-4">
-          <div className="w-full max-w-lg bg-white dark:bg-navy-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-navy-700 overflow-hidden animate-fade-up">
+          <div className="w-full max-w-lg ap-surface rounded-2xl shadow-2xl border border-[var(--ap-border)] overflow-hidden animate-fade-up">
             {/* Input */}
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100 dark:border-navy-700">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--ap-border)]">
               <Search size={16} className="text-slate-400 flex-shrink-0" />
               <input
                 ref={inputRef}
@@ -161,7 +161,7 @@ export default function GlobalSearch() {
               )}
               <button onClick={() => setOpen(false)}
                 aria-label="Close search"
-                className="text-[10px] bg-slate-100 dark:bg-navy-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-200 dark:border-navy-700 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+                className="text-[10px] bg-[var(--ap-surface-2)] text-slate-400 px-1.5 py-0.5 rounded border border-[var(--ap-border)] hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
                 Esc
               </button>
             </div>
@@ -196,7 +196,7 @@ export default function GlobalSearch() {
                 const { Icon } = cfg || { Icon: FileText }
                 return (
                   <div key={type}>
-                    <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-navy-800/40 border-b border-slate-100 dark:border-navy-700">
+                    <div className="flex items-center gap-2 px-4 py-2 bg-[var(--ap-surface-2)] border-b border-[var(--ap-border)]">
                       <Icon size={11} className={cfg?.color} />
                       <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{cfg?.label}s</span>
                       <span className="text-[10px] text-slate-400 ml-auto">{items.length}</span>
@@ -207,7 +207,7 @@ export default function GlobalSearch() {
                       return (
                         <button key={item.id} onClick={() => handleSelect(item)} onMouseEnter={() => setSelIdx(gi)}
                           className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                            isSel ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-slate-50 dark:hover:bg-navy-800/40'
+                            isSel ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-[var(--ap-surface-2)]/40'
                           }`}>
                           <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${cfg?.bg}`}>
                             <Icon size={13} className={cfg?.color} />
@@ -232,7 +232,7 @@ export default function GlobalSearch() {
             </div>
 
             {results.length > 0 && (
-              <div className="px-4 py-2 border-t border-slate-100 dark:border-navy-700 bg-slate-50/50 dark:bg-navy-800/30 flex items-center gap-3 text-[10px] text-slate-400 dark:text-slate-500">
+              <div className="px-4 py-2 border-t border-[var(--ap-border)] bg-slate-50/50 dark:bg-[var(--ap-surface-2)]/30 flex items-center gap-3 text-[10px] text-slate-400 dark:text-slate-500">
                 <span>↑↓ Navigate</span><span>↵ Open</span><span>Esc Close</span>
                 <span className="ml-auto">{results.length} results</span>
               </div>

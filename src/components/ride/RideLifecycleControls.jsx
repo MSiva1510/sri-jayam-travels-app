@@ -21,7 +21,7 @@ function Btn({ label, icon: Icon, onClick, variant, size = 'md', fullWidth }) {
     resume: 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-md',
     end:    'bg-emerald-600 text-white hover:bg-emerald-500 shadow-md',
     cancel: 'bg-transparent border border-white/25 text-white/70 hover:bg-white/10 hover:text-white',
-    cancelDark: 'bg-transparent border border-slate-200 dark:border-navy-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700',
+    cancelDark: 'bg-transparent border border-[var(--ap-border)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)]',
   }
   return (
     <button
@@ -71,7 +71,7 @@ export default function RideLifecycleControls({
           className={`${BTN_BASE} ${SIZE[size].px} ${SIZE[size].text} flex items-center gap-1.5
             ${dark
               ? 'bg-transparent border border-white/20 text-white/60 hover:text-white hover:bg-white/10'
-              : 'bg-transparent border border-slate-200 dark:border-navy-600 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-navy-700'
+              : 'bg-transparent border border-[var(--ap-border)] text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)]'
             }`}
           title="Cancel ride"
         >

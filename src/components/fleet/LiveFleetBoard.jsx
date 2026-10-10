@@ -106,22 +106,22 @@ export default function LiveFleetBoard() {
   const drivingCount = rows.filter(r => r.status === 'driving' || r.status === 'passenger_onboard').length
 
   return (
-    <div className="glass-card rounded-2xl overflow-hidden">
+    <div className="ap-surface rounded-2xl overflow-hidden">
 
       {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-slate-100 dark:border-navy-700">
+      <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-[var(--ap-border)]">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center">
             <Activity size={15} className="text-white" />
           </div>
           <div>
-            <h3 className="font-display font-black text-slate-800 dark:text-white text-sm">Live Fleet Board</h3>
+            <h3 className="font-sf font-semibold text-slate-800 dark:text-white text-sm">Live Fleet Board</h3>
             <p className="text-[10px] text-slate-400 dark:text-slate-500">{onlineCount} online · {drivingCount} driving</p>
           </div>
         </div>
         <button
           onClick={() => { setTick(t => t + 1); fetchData() }}
-          className="w-7 h-7 rounded-lg border border-slate-200 dark:border-navy-600 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-navy-700 transition-all"
+          className="w-7 h-7 rounded-lg border border-[var(--ap-border)] flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-[var(--ap-surface-2)] transition-all"
           title="Refresh now"
         >
           <RefreshCw size={12} />
@@ -129,7 +129,7 @@ export default function LiveFleetBoard() {
       </div>
 
       {/* Table header — desktop only */}
-      <div className="hidden sm:grid grid-cols-6 gap-2 px-4 py-2 bg-slate-50 dark:bg-navy-800/50 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+      <div className="hidden sm:grid grid-cols-6 gap-2 px-4 py-2 bg-[var(--ap-surface-2)] text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
         <span>Vehicle</span>
         <span>Driver</span>
         <span>Current Area</span>
@@ -139,7 +139,7 @@ export default function LiveFleetBoard() {
       </div>
 
       {/* Rows */}
-      <div className="divide-y divide-slate-100 dark:divide-navy-700/60">
+      <div className="divide-y divide-[var(--ap-border)]/60">
         {rows.map(({ driver, driverName, driverVehicle, vehicle, status, activeBooking, currentArea }) => {
           const isActive  = status === 'driving' || status === 'passenger_onboard'
           const startedAt = activeBooking?.updatedAt || null
@@ -152,7 +152,7 @@ export default function LiveFleetBoard() {
               {/* Mobile */}
               <div className="flex items-start justify-between gap-2 sm:hidden">
                 <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isActive ? 'bg-blue-600' : 'bg-slate-100 dark:bg-navy-800'}`}>
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isActive ? 'bg-blue-600' : 'bg-[var(--ap-surface-2)]'}`}>
                     <Car size={15} className={isActive ? 'text-white' : 'text-slate-400'} />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -181,7 +181,7 @@ export default function LiveFleetBoard() {
               {/* Desktop */}
               <div className="hidden sm:grid grid-cols-6 gap-2 items-center">
                 <div className="flex items-center gap-2">
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${isActive ? 'bg-blue-600' : 'bg-slate-100 dark:bg-navy-700'}`}>
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${isActive ? 'bg-blue-600' : 'bg-[var(--ap-border)]'}`}>
                     <Car size={12} className={isActive ? 'text-white' : 'text-slate-400'} />
                   </div>
                   <div>
@@ -226,7 +226,7 @@ export default function LiveFleetBoard() {
         })}
       </div>
 
-      <div className="px-4 py-2 border-t border-slate-100 dark:border-navy-700 bg-slate-50/50 dark:bg-navy-800/30">
+      <div className="px-4 py-2 border-t border-[var(--ap-border)] bg-slate-50/50 dark:bg-[var(--ap-surface-2)]/30">
         <p className="text-[9px] text-slate-400 dark:text-slate-500">
           Auto-refreshes every 30s · Drivers go offline after 10 min with no GPS update
         </p>

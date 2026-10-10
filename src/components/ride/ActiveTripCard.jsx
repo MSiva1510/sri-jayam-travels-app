@@ -5,7 +5,7 @@ import RideLifecycleControls from './RideLifecycleControls'
 
 function InfoRow({ label, value, icon: Icon, mono }) {
   return (
-    <div className="flex items-center gap-2.5 py-2 border-b border-slate-100 dark:border-navy-700 last:border-0">
+    <div className="flex items-center gap-2.5 py-2 border-b border-[var(--ap-border)] last:border-0">
       {Icon && <Icon size={13} className="text-slate-400 dark:text-slate-500 flex-shrink-0" />}
       <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide w-16 flex-shrink-0">{label}</span>
       <span className={`text-xs font-semibold text-slate-700 dark:text-slate-200 truncate ${mono ? 'font-mono' : ''}`}>{value || '—'}</span>
@@ -32,7 +32,7 @@ export default function ActiveTripCard({
 
   if (compact) {
     return (
-      <div className={`glass-card rounded-2xl overflow-hidden border ${cfg.border}`}>
+      <div className={`ap-surface rounded-2xl overflow-hidden border ${cfg.border}`}>
         {/* Accent top bar */}
         <div className={`h-1 ${isStarted ? 'bg-gradient-to-r from-blue-500 to-cyan-400' : isPaused ? 'bg-gradient-to-r from-amber-400 to-orange-400' : 'bg-gradient-to-r from-slate-300 to-slate-400'}`} />
         <div className="p-3.5">
@@ -45,7 +45,7 @@ export default function ActiveTripCard({
               </div>
             </div>
             {/* Timer */}
-            <div className={`flex-shrink-0 px-2.5 py-1.5 rounded-xl font-mono font-black text-sm tracking-wider ${isStarted ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : isPaused ? 'bg-amber-500 text-white' : 'bg-slate-100 dark:bg-navy-800 text-slate-600 dark:text-slate-300'}`}>
+            <div className={`flex-shrink-0 px-2.5 py-1.5 rounded-xl font-mono font-semibold text-sm tracking-wider ${isStarted ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : isPaused ? 'bg-amber-500 text-white' : 'bg-[var(--ap-surface-2)] text-slate-600 dark:text-slate-300'}`}>
               {elFmt}
             </div>
           </div>
@@ -89,7 +89,7 @@ export default function ActiveTripCard({
               </span>
               <span className="text-white/40 text-[10px] font-mono">{ride.tripId}</span>
             </div>
-            <h3 className="font-display font-black text-white text-xl leading-tight truncate">{ride.customer}</h3>
+            <h3 className="font-sf font-semibold text-white text-xl leading-tight truncate">{ride.customer}</h3>
             <a href={`tel:${ride.contact}`} className="text-blue-300 text-xs mt-0.5 flex items-center gap-1 hover:text-blue-200 transition-colors w-fit">
               <Phone size={10} /> {ride.contact}
             </a>
@@ -97,7 +97,7 @@ export default function ActiveTripCard({
 
           {/* Running timer — the hero element */}
           <div className="flex-shrink-0 text-right">
-            <div className={`px-3 py-2 rounded-2xl font-mono font-black text-2xl tracking-wider leading-none ${
+            <div className={`px-3 py-2 rounded-2xl font-mono font-semibold text-2xl tracking-wider leading-none ${
               isStarted
                 ? 'bg-blue-500/25 text-white shadow-inner border border-blue-400/30'
                 : isPaused
@@ -131,7 +131,7 @@ export default function ActiveTripCard({
               </div>
             </div>
             <div className="text-right flex-shrink-0">
-              <p className="text-xl font-display font-black text-white">Rs. {(ride.fare || 0).toLocaleString('en-IN')}</p>
+              <p className="text-xl font-sf font-semibold text-white">Rs. {(ride.fare || 0).toLocaleString('en-IN')}</p>
               <p className="text-blue-300 text-[10px]">{ride.km} km</p>
             </div>
           </div>

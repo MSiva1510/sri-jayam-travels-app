@@ -7,8 +7,8 @@ import { formatDuration, formatTs } from '../../services/gpsReplayService'
 
 function Stat({ icon: Icon, label, value, color = 'text-slate-600 dark:text-slate-300' }) {
   return (
-    <div className="flex items-center gap-2.5 py-2 border-b border-slate-100 dark:border-navy-700 last:border-0">
-      <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-navy-800 flex-shrink-0">
+    <div className="flex items-center gap-2.5 py-2 border-b border-[var(--ap-border)] last:border-0">
+      <div className="p-1.5 rounded-lg bg-[var(--ap-surface-2)] flex-shrink-0">
         <Icon size={13} className={color} />
       </div>
       <div className="flex-1 min-w-0">
@@ -23,7 +23,7 @@ const TripStats = memo(function TripStats({ stats }) {
   if (!stats) return null
 
   return (
-    <div className="glass-card rounded-2xl p-4 space-y-1">
+    <div className="ap-surface rounded-2xl p-4 space-y-1">
       <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-3">Trip Statistics</h3>
 
       <Stat icon={Clock}         label="Trip Start"       value={formatTs(stats.startTs)} color="text-emerald-500" />

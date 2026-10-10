@@ -4,7 +4,7 @@
 
 export default function StatCard({ label, value, sub, icon: Icon, gradient, trend, trendUp }) {
   return (
-    <div className="ios-card ios-press p-4 animate-fade-up">
+    <div className="ap-surface ios-press p-4 animate-fade-up">
       <div className="flex items-start justify-between mb-3">
         <div className={`w-10 h-10 rounded-[14px] flex items-center justify-center ${gradient || 'bg-slate-400'} shadow-md`} aria-hidden="true">
           {Icon ? <Icon size={19} className="text-white" strokeWidth={2.25} /> : null}
@@ -23,7 +23,7 @@ export default function StatCard({ label, value, sub, icon: Icon, gradient, tren
       <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
         {label}
       </p>
-      <p className="text-[22px] font-display font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight tabular-nums">
+      <p className="text-[22px] font-sf font-semibold font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight tabular-nums">
         {value}
       </p>
       {sub && (

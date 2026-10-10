@@ -60,7 +60,7 @@ export default function TripDocumentUpload({ tripId, uploadedBy }) {
         <select
           value={docType}
           onChange={e => setDocType(e.target.value)}
-          className="px-2.5 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-700 dark:text-slate-200 focus:outline-none font-body flex-1 min-w-[140px]"
+          className="px-2.5 py-2 text-xs rounded-lg border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none font-body flex-1 min-w-[140px]"
         >
           {Object.values(DOC_TYPES).map(d => (
             <option key={d.key} value={d.key}>{d.icon} {d.label}</option>
@@ -90,7 +90,7 @@ export default function TripDocumentUpload({ tripId, uploadedBy }) {
 
       {/* Uploaded docs grid */}
       {docs.length === 0 ? (
-        <div className="flex items-center gap-2 text-[10px] text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-navy-800/40 rounded-lg px-3 py-2.5">
+        <div className="flex items-center gap-2 text-[10px] text-slate-400 dark:text-slate-500 bg-[var(--ap-surface-2)] rounded-lg px-3 py-2.5">
           <ImageIcon size={12} />
           No documents uploaded yet
         </div>
@@ -102,7 +102,7 @@ export default function TripDocumentUpload({ tripId, uploadedBy }) {
               <div key={d.id} className="relative group">
                 <button
                   onClick={() => setPreview(d)}
-                  className="w-full aspect-square rounded-lg overflow-hidden border border-slate-200 dark:border-navy-700 bg-slate-100 dark:bg-navy-800"
+                  className="w-full aspect-square rounded-lg overflow-hidden border border-[var(--ap-border)] bg-[var(--ap-surface-2)]"
                 >
                   <img src={d.dataUrl} alt={cfg.label} className="w-full h-full object-cover" />
                 </button>

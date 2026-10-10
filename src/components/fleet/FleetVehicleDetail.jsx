@@ -4,7 +4,7 @@ import { buildMapsUrl } from '../../utils/locationUtils'
 
 function Row({ label, value }) {
   return (
-    <div className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-navy-700 last:border-0">
+    <div className="flex items-center justify-between py-2 border-b border-[var(--ap-border)] last:border-0">
       <span className="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0">{label}</span>
       <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 text-right ml-2 min-w-0 break-all">{value ?? '—'}</span>
     </div>
@@ -31,8 +31,8 @@ export default function FleetVehicleDetail({ snapshot, onClose }) {
   return (
     <>
       <div className="fixed inset-0 bg-black/30 z-40 animate-fade-up" onClick={onClose} />
-      <aside className="fixed right-0 top-0 h-full w-full sm:w-96 bg-white dark:bg-navy-900 z-50 shadow-xl flex flex-col animate-fade-up">
-        <header className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-navy-700">
+      <aside className="fixed right-0 top-0 h-full w-full sm:w-96 ap-surface z-50 shadow-xl flex flex-col animate-fade-up">
+        <header className="flex items-center justify-between px-5 py-4 border-b border-[var(--ap-border)]">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600"><Truck size={16} /></div>
             <div>
@@ -40,7 +40,7 @@ export default function FleetVehicleDetail({ snapshot, onClose }) {
               <p className="text-[11px] text-slate-400">{snapshot.vehicle_model || 'Vehicle Details'}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-navy-800"><X size={16} /></button>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[var(--ap-surface-2)]"><X size={16} /></button>
         </header>
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           <section>

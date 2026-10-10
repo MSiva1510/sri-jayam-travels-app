@@ -71,7 +71,7 @@ export default function Topbar() {
       <button
         onClick={() => setSidebarOpen(true)}
         aria-label="Open navigation menu"
-        className="app-menu-btn lg:hidden w-9 h-9 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors flex-shrink-0"
+        className="app-menu-btn lg:hidden w-9 h-9 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-colors flex-shrink-0"
       >
         <Menu size={18} />
       </button>
@@ -82,7 +82,7 @@ export default function Topbar() {
           <span>SJT</span><ChevronRight size={12} />
         </div>
         <div className="min-w-0">
-          <h2 className="font-display font-black text-slate-800 dark:text-white text-base leading-tight truncate">{info.label}</h2>
+          <h2 className="font-sf font-semibold text-slate-800 dark:text-white text-base leading-tight truncate">{info.label}</h2>
           {/* subtitle intentionally not repeated here — the page header carries it */}
         </div>
       </div>
@@ -97,7 +97,7 @@ export default function Topbar() {
         <button onClick={() => setDarkMode(!darkMode)}
           aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
           aria-pressed={darkMode}
-          className="w-9 h-9 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-navy-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-navy-700 transition-all"
+          className="w-9 h-9 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-navy-900 dark:hover:text-white hover:bg-[var(--ap-surface-2)] transition-all"
           title={darkMode ? 'Light mode' : 'Dark mode'}>
           {darkMode ? <Sun size={16} /> : <Moon size={16} />}
         </button>
@@ -112,7 +112,7 @@ export default function Topbar() {
               aria-label="Account menu"
               aria-expanded={dropOpen}
               aria-haspopup="menu"
-              className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl hover:bg-slate-100 dark:hover:bg-navy-800 transition-colors">
+              className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl hover:bg-[var(--ap-surface-2)] transition-colors">
               <Avatar name={user.name} size={30} />
               <div className="hidden sm:block text-left">
                 <p className="text-xs font-bold text-slate-700 dark:text-slate-200 leading-tight">{user.name}</p>
@@ -127,7 +127,7 @@ export default function Topbar() {
                   <div className="flex items-center gap-3">
                     <Avatar name={user.name} size={40} />
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-black text-white truncate">{user.name}</p>
+                      <p className="text-sm font-semibold text-white truncate">{user.name}</p>
                       <p className="text-[11px] text-slate-400 truncate">{user.email}</p>
                     </div>
                   </div>

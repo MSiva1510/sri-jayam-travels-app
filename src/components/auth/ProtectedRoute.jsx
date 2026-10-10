@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 // ── Full-screen loading spinner shown while session is being restored ──
 function AuthSpinner() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-100 dark:bg-navy-950 gap-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-100 dark:bg-[var(--ap-bg)] gap-4">
       <div className="w-12 h-12 rounded-2xl overflow-hidden border border-white/20 shadow-lg">
         <img
           src="https://travelsjayam.in/wp-content/uploads/2025/05/Untitled-design-1.png"
