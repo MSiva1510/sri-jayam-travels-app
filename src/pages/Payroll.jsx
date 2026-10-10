@@ -9,6 +9,14 @@ import {
 } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
 import Avatar     from '../components/ui/Avatar'
+import Button     from '../components/ui/Button'
+import MetricCard from '../components/ui/MetricCard'
+import StatusPill from '../components/ui/StatusPill'
+import IconButton from '../components/ui/IconButton'
+import Callout    from '../components/ui/Callout'
+import EmptyState from '../components/ui/EmptyState'
+import { fieldCls, Select as FieldSelect } from '../components/ui/Field'
+import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../context/AuthContext'
 import {
   loadSettlements, saveSettlement, deleteSettlement, generateSettlementId,
@@ -23,7 +31,7 @@ import {
 } from '../data/settlementData'
 import { loadBookings } from '../data/tripTypes'
 import { loadExpenses } from '../data/expenseData'
-import { driverRepository } from '../repositories'
+import { loadDrivers } from '../data/driverData'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import { addAuditEvent } from '../data/auditLogData'
 
@@ -34,19 +42,15 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 const CUR_YEAR  = new Date().getFullYear()
 const CUR_MONTH = new Date().getMonth() + 1
 
+const STATUS_TONE = { draft:'gray', pending:'blue', approved:'violet', paid:'green' }
 function StatusBadge({ status }) {
   const cfg = getSettlementStatusCfg(status)
-  return (
-    <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${cfg.badge}`}>
-      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${cfg.dot}`} />
-      {cfg.label}
-    </span>
-  )
+  return <StatusPill tone={STATUS_TONE[status] || 'gray'}>{cfg.label}</StatusPill>
 }
 
 function AmtRow({ label, value, hi, deduct, sub }) {
   return (
-    <div className={`flex justify-between items-center py-2 ${sub ? 'pl-3 border-l-2 border-slate-200 dark:border-navy-700' : 'border-b border-slate-100 dark:border-navy-800 last:border-0'}`}>
+    <div className={`flex justify-between items-center py-2 ${sub ? 'pl-3 border-l-2 border-[var(--ap-border)]' : 'border-b border-[var(--ap-border)] last:border-0'}`}>
       <span className={`text-xs ${sub ? 'text-slate-500 dark:text-slate-400' : 'text-slate-600 dark:text-slate-300'} font-medium`}>{label}</span>
       <span className={`text-xs font-bold ${deduct ? 'text-red-600 dark:text-red-400' : hi ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-200'}`}>
         {deduct ? '− ' : ''}Rs. {Number(value||0).toLocaleString('en-IN')}
@@ -56,33 +60,30 @@ function AmtRow({ label, value, hi, deduct, sub }) {
 }
 
 function SectionHead({ title }) {
-  return <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-3 mb-1.5 border-t border-slate-100 dark:border-navy-700 pt-3">{title}</p>
+  return <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-3 mb-1.5 border-t border-[var(--ap-border)] pt-3">{title}</p>
 }
 
 function FInput({ label, field, value, onChange, type = 'text', required, placeholder, readOnly }) {
   return (
-    <div>
-      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-        {label}{required && <span className="text-red-500 ml-1">*</span>}
+    <div className="space-y-1.5">
+      <label className="block text-[13px] font-semibold text-slate-700 dark:text-slate-200">
+        {label}{required && <span className="text-red-600 dark:text-red-400 ml-0.5" aria-hidden="true">*</span>}
       </label>
       <input type={type} value={value ?? ''} onChange={e => onChange(field, e.target.value)}
         placeholder={placeholder} readOnly={readOnly} required={required}
-        className={`w-full px-3 py-2 text-sm rounded-lg border bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100
-          focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition-all
-          ${readOnly ? 'opacity-60 cursor-default' : ''}
-          border-slate-200 dark:border-navy-700`} />
+        className={`${fieldCls} ${readOnly ? 'opacity-60 cursor-default' : ''}`} />
     </div>
   )
 }
 
 function FSelect({ label, field, value, onChange, children, required }) {
   return (
-    <div>
-      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-        {label}{required && <span className="text-red-500 ml-1">*</span>}
+    <div className="space-y-1.5">
+      <label className="block text-[13px] font-semibold text-slate-700 dark:text-slate-200">
+        {label}{required && <span className="text-red-600 dark:text-red-400 ml-0.5" aria-hidden="true">*</span>}
       </label>
       <select value={value ?? ''} onChange={e => onChange(field, e.target.value)}
-        className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none appearance-none">
+        className={`${fieldCls} appearance-none`}>
         {children}
       </select>
     </div>
@@ -184,23 +185,18 @@ function SettlementModal({ settlement, drivers, onClose, onSave, currentUser }) 
 
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="relative w-full sm:w-[520px] max-h-[94vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
-        <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-navy-700 flex-shrink-0">
+      <div className="relative w-full sm:w-[520px] max-h-[94vh] ap-surface rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
+        <div className="w-10 h-1 bg-[var(--ap-border)] rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--ap-border)] flex-shrink-0">
           <div>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{isEdit ? 'Edit Settlement' : 'New Settlement'}</p>
-            <h3 className="font-display font-black text-slate-800 dark:text-white text-base">{isEdit ? settlement.id : 'Create Settlement'}</h3>
+            <h3 className="font-sf font-semibold text-slate-800 dark:text-white text-base">{isEdit ? settlement.id : 'Create Settlement'}</h3>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700"><X size={15} /></button>
+          <IconButton icon={X} label="Close settlement form" size={16} onClick={onClose} />
         </div>
 
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
-          {error && (
-            <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/30 rounded-lg px-3 py-2.5">
-              <AlertTriangle size={13} className="text-red-500 flex-shrink-0" />
-              <p className="text-xs text-red-700 dark:text-red-400 font-medium">{error}</p>
-            </div>
-          )}
+          {error && <Callout tone="red" icon={AlertTriangle} title={error} />}
 
           {/* Basic */}
           <div className="grid grid-cols-2 gap-3">
@@ -215,10 +211,10 @@ function SettlementModal({ settlement, drivers, onClose, onSave, currentUser }) 
             <FInput label="Completed Trips" field="completedTrips" value={form.completedTrips} onChange={upd} type="number" />
             <FInput label="Total Trips" field="totalTrips" value={form.totalTrips} onChange={upd} type="number" />
           </div>
-          <p className="text-[10px] text-slate-400 dark:text-slate-500">Days, completed & total trips auto-fill from completed bookings — editable.</p>
+          <p className="text-[10px] text-slate-500 dark:text-slate-400">Days, completed & total trips auto-fill from completed bookings — editable.</p>
 
           {/* Salary preview — live (daily wage × days driven; bata goes to driver) */}
-          <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-4 border border-slate-200 dark:border-navy-700">
+          <div className="bg-[var(--ap-surface-2)] rounded-xl p-4 border border-[var(--ap-border)]">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Live Calculation</p>
             <AmtRow label={`Daily Wage × ${calc.daysWorked} day${calc.daysWorked !== 1 ? 's' : ''} (Rs. ${calc.dailyWage.toLocaleString('en-IN')}/day)`} value={calc.wagePay} />
             {calc.bataDirect > 0 && <AmtRow label="Bata — direct to driver (not in payout)" value={calc.bataDirect} sub />}
@@ -227,9 +223,9 @@ function SettlementModal({ settlement, drivers, onClose, onSave, currentUser }) 
             <AmtRow label={`Incentive (${form.completedTrips} trips)`} value={calc.incentive} sub />
             <AmtRow label="Bonus"               value={calc.bonus}        sub />
             {calc.totalDeductions > 0 && <AmtRow label="Total Deductions" value={calc.totalDeductions} deduct />}
-            <div className="mt-2 pt-2 border-t border-slate-200 dark:border-navy-700 flex justify-between">
+            <div className="mt-2 pt-2 border-t border-[var(--ap-border)] flex justify-between">
               <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Net Amount</span>
-              <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">Rs. {calc.netAmount.toLocaleString('en-IN')}</span>
+              <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Rs. {calc.netAmount.toLocaleString('en-IN')}</span>
             </div>
           </div>
 
@@ -245,37 +241,35 @@ function SettlementModal({ settlement, drivers, onClose, onSave, currentUser }) 
           <SectionHead title="Deductions" />
           <div className="space-y-2">
             {(form.deductions || []).map((d, i) => (
-              <div key={i} className="flex items-center gap-2 bg-slate-50 dark:bg-navy-800/50 rounded-xl p-2.5">
+              <div key={i} className="flex items-center gap-2 bg-[var(--ap-surface-2)] rounded-xl p-2.5">
                 <select value={d.type} onChange={e => updDeduction(i,'type',e.target.value)}
-                  className="flex-1 px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-800 dark:text-slate-100 focus:outline-none appearance-none">
+                  className="ap-field ap-focus flex-1 h-10 px-2.5 text-xs rounded-[10px] outline-none appearance-none">
                   {DEDUCTION_TYPES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
                 </select>
                 <input type="number" value={d.amount} onChange={e => updDeduction(i,'amount',e.target.value)}
-                  placeholder="Amount" className="w-24 px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-800 dark:text-slate-100 focus:outline-none" />
-                <button onClick={() => removeDeduction(i)} className="w-7 h-7 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-500 flex items-center justify-center hover:bg-red-100 transition-colors flex-shrink-0">
-                  <X size={12} />
-                </button>
+                  placeholder="Amount" className="ap-field ap-focus w-24 h-10 px-2.5 text-xs rounded-[10px] outline-none" />
+                <IconButton icon={X} label="Remove deduction" tone="danger" size={13} onClick={() => removeDeduction(i)} className="flex-shrink-0" />
               </div>
             ))}
             <button onClick={addDeduction}
-              className="w-full py-2 rounded-xl border border-dashed border-slate-300 dark:border-navy-600 text-slate-500 dark:text-slate-400 text-xs font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">
+              className="ap-focus w-full py-2 rounded-xl border border-dashed border-[var(--ap-border)] text-slate-500 dark:text-slate-400 text-xs font-semibold hover:bg-slate-500/5 transition-colors">
               + Add Deduction
             </button>
           </div>
 
           {/* Notes */}
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Notes</label>
+          <div className="space-y-1.5">
+            <label className="block text-[13px] font-semibold text-slate-700 dark:text-slate-200">Notes</label>
             <textarea value={form.notes||''} onChange={e => upd('notes', e.target.value)} rows={2}
-              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800/60 text-slate-800 dark:text-slate-100 focus:outline-none resize-none" />
+              className="ap-field ap-focus w-full px-3.5 py-3 text-sm rounded-[12px] outline-none resize-none" />
           </div>
         </div>
 
-        <div className="px-5 py-4 border-t border-slate-100 dark:border-navy-700 flex gap-2 flex-shrink-0">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">Cancel</button>
-          <button onClick={handleSave} className="flex-1 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-sm font-bold hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-md active:scale-95">
+        <div className="px-5 py-4 border-t border-[var(--ap-border)] flex gap-2 flex-shrink-0">
+          <Button variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" className="flex-1" onClick={handleSave}>
             {isEdit ? 'Save Changes' : 'Create Settlement'}
-          </button>
+          </Button>
         </div>
       </div>
     </ModalOverlay>
@@ -322,13 +316,13 @@ function TripPayrollPayslipView({ payroll: P, onClose }) {
   }
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="relative w-full sm:w-[560px] max-h-[92vh] sm:max-h-[88vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
-        <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
+      <div className="relative w-full sm:w-[560px] max-h-[92vh] sm:max-h-[88vh] ap-surface rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
+        <div className="w-10 h-1 bg-[var(--ap-border)] rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
         <div className="bg-gradient-to-r from-navy-900 to-navy-800 rounded-t-3xl p-5 flex-shrink-0">
           <div className="flex items-start justify-between gap-3 mb-3">
             <div>
               <p className="text-white/50 text-[10px] font-bold uppercase tracking-widest">Sri Jayam Travels</p>
-              <h3 className="font-display font-black text-white text-lg">Driver Payslip</h3>
+              <h3 className="font-sf font-semibold text-white text-lg">Driver Payslip</h3>
               <p className="text-white/60 text-xs">{monthLabel(Number(P.monthKey.slice(5)), Number(P.monthKey.slice(0, 4)))} · {P.driver}</p>
             </div>
             <div className="flex items-center gap-1.5">
@@ -346,12 +340,12 @@ function TripPayrollPayslipView({ payroll: P, onClose }) {
           </div>
         </div>
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
-          <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700">
+          <div className="bg-[var(--ap-surface-2)] rounded-xl p-3 border border-[var(--ap-border)]">
             <AmtRow label="Salary (trip allowances)" value={P.salaryTotal} />
             <AmtRow label="Bata Extra (customer)" value={P.bataExtra} sub />
-            <div className="flex justify-between pt-2 mt-1 border-t border-slate-200 dark:border-navy-700">
+            <div className="flex justify-between pt-2 mt-1 border-t border-[var(--ap-border)]">
               <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Total Payable</span>
-              <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">Rs. {P.gross.toLocaleString('en-IN')}</span>
+              <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Rs. {P.gross.toLocaleString('en-IN')}</span>
             </div>
             <div className="flex justify-between text-xs mt-1">
               <span className="text-slate-500 dark:text-slate-400">Paid Rs. {P.paidAmount.toLocaleString('en-IN')}</span>
@@ -359,10 +353,10 @@ function TripPayrollPayslipView({ payroll: P, onClose }) {
             </div>
           </div>
           <div>
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Trip Details ({P.tripCount})</p>
+            <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Trip Details ({P.tripCount})</p>
             <div className="space-y-1.5">
               {tripRows.map(r => (
-                <div key={r.key} className="flex items-center gap-2 text-xs bg-white dark:bg-navy-800/60 rounded-lg px-3 py-2 border border-slate-100 dark:border-navy-700">
+                <div key={r.key} className="flex items-center gap-2 text-xs bg-[var(--ap-surface-2)] rounded-lg px-3 py-2 border border-[var(--ap-border)]">
                   <span className="text-slate-400 tabular-nums flex-shrink-0">{String(r.date).slice(5)}</span>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-slate-700 dark:text-slate-200 truncate">{r.customer}</p>
@@ -431,13 +425,13 @@ function PayslipView({ settlement, onClose }) {
 
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="relative w-full sm:w-[420px] max-h-[92vh] sm:max-h-[88vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
-        <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
+      <div className="relative w-full sm:w-[420px] max-h-[92vh] sm:max-h-[88vh] ap-surface rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
+        <div className="w-10 h-1 bg-[var(--ap-border)] rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
         <div className="bg-gradient-to-r from-navy-900 to-navy-800 rounded-t-3xl p-5 flex-shrink-0">
           <div className="flex items-start justify-between gap-3 mb-3">
             <div>
               <p className="text-white/50 text-[10px] font-bold uppercase tracking-widest">Sri Jayam Travels</p>
-              <h3 className="font-display font-black text-white text-lg">Monthly Payslip</h3>
+              <h3 className="font-sf font-semibold text-white text-lg">Monthly Payslip</h3>
               <p className="text-white/60 text-xs">{monthLabel(settlement.month, settlement.year)}</p>
             </div>
             <div className="flex items-center gap-1.5">
@@ -459,19 +453,19 @@ function PayslipView({ settlement, onClose }) {
           {/* Attendance */}
           <div className="grid grid-cols-3 gap-2">
             {[{label:'Days Driven',value:daysWorked},{label:'Trips',value:settlement.totalTrips||0},{label:'Completed',value:settlement.completedTrips||0}].map(s=>(
-              <div key={s.label} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-2.5 text-center border border-slate-100 dark:border-navy-700">
-                <p className="text-base font-black text-slate-700 dark:text-slate-200">{s.value}</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500">{s.label}</p>
+              <div key={s.label} className="bg-[var(--ap-surface-2)] rounded-xl p-2.5 text-center border border-[var(--ap-border)]">
+                <p className="text-base font-semibold text-slate-700 dark:text-slate-200">{s.value}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">{s.label}</p>
               </div>
             ))}
           </div>
 
           {/* Earnings */}
-          <div className="bg-slate-50 dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700">
+          <div className="bg-[var(--ap-surface-2)] rounded-xl p-3 border border-[var(--ap-border)]">
             <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-2">Earnings</p>
             <AmtRow label={`Daily Wage × ${daysWorked} day${daysWorked !== 1 ? 's' : ''}`} value={wagePay} />
             {bataDirect > 0 && (
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
                 Bata Rs. {bataDirect.toLocaleString('en-IN')} went straight to the driver — not in payout.
               </p>
             )}
@@ -480,7 +474,7 @@ function PayslipView({ settlement, onClose }) {
             {parking        > 0 && <AmtRow label="Parking Reimb."    value={parking}        sub />}
             {incentive      > 0 && <AmtRow label="Trip Incentive"    value={incentive}      sub />}
             {perfBonus      > 0 && <AmtRow label="Performance Bonus" value={perfBonus}      sub />}
-            <div className="flex justify-between pt-2 mt-1 border-t border-slate-200 dark:border-navy-700">
+            <div className="flex justify-between pt-2 mt-1 border-t border-[var(--ap-border)]">
               <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Gross Earnings</span>
               <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Rs. {totalEarnings.toLocaleString('en-IN')}</span>
             </div>
@@ -510,7 +504,7 @@ function PayslipView({ settlement, onClose }) {
           {/* Net hero */}
           <div className="bg-gradient-to-r from-emerald-600 to-teal-500 rounded-2xl p-4 text-center shadow-lg">
             <p className="text-white/70 text-xs font-bold uppercase tracking-wider mb-1">Net Salary</p>
-            <p className="font-display font-black text-white text-3xl">Rs. {netSalary.toLocaleString('en-IN')}</p>
+            <p className="font-sf font-semibold text-white text-3xl">Rs. {netSalary.toLocaleString('en-IN')}</p>
             <p className="text-white/60 text-[10px] mt-1">{monthLabel(settlement.month, settlement.year)}</p>
           </div>
 
@@ -553,11 +547,11 @@ function SalaryHistoryPanel({ settlements, onViewPayslip }) {
     <div className="space-y-4">
       {driverTotals.length > 0 && (
         <div className="space-y-2">
-          <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Driver Summary</p>
+          <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Driver Summary</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {driverTotals.map(d => (
               <div key={d.driver} onClick={() => setDriverFilter(driverFilter===d.driver?'all':d.driver)}
-                className={`glass-card rounded-xl p-3 cursor-pointer hover:shadow-md transition-all ${driverFilter===d.driver?'ring-2 ring-navy-500/30':''}`}>
+                className={`ap-surface rounded-xl p-3 cursor-pointer hover:shadow-md transition-all ${driverFilter===d.driver?'ring-2 ring-navy-500/30':''}`}>
                 <div className="flex items-center gap-2.5">
                   <Avatar name={d.driver} size={32} />
                   <div className="flex-1 min-w-0">
@@ -565,7 +559,7 @@ function SalaryHistoryPanel({ settlements, onViewPayslip }) {
                     <p className="text-[10px] text-slate-400">{d.count} settlements</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-black text-emerald-600 dark:text-emerald-400">Rs. {d.total.toLocaleString('en-IN')}</p>
+                    <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Rs. {d.total.toLocaleString('en-IN')}</p>
                     <p className="text-[10px] text-slate-400">Rs. {d.paid.toLocaleString('en-IN')} paid</p>
                   </div>
                 </div>
@@ -575,39 +569,35 @@ function SalaryHistoryPanel({ settlements, onViewPayslip }) {
         </div>
       )}
       <div className="flex items-center gap-2">
-        <select value={driverFilter} onChange={e=>setDriverFilter(e.target.value)}
-          className="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none">
+        <FieldSelect value={driverFilter} onChange={e=>setDriverFilter(e.target.value)} className="w-44">
           <option value="all">All Drivers</option>
           {drivers.map(d => <option key={d} value={d}>{d}</option>)}
-        </select>
+        </FieldSelect>
         <p className="text-xs text-slate-400">{filtered.length} records</p>
       </div>
       {filtered.length === 0 ? (
-        <div className="glass-card rounded-2xl p-10 text-center">
-          <IndianRupee size={32} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-          <p className="text-slate-400 text-sm">No salary history yet.</p>
+        <div className="ap-surface rounded-2xl">
+          <EmptyState icon={IndianRupee} title="No salary history yet" />
         </div>
       ) : (
         <div className="space-y-2">
           {filtered.map(s => (
-            <div key={s.id} className="glass-card rounded-xl overflow-hidden">
+            <div key={s.id} className="ap-surface rounded-xl overflow-hidden">
               <div className="flex items-center gap-3 p-3.5">
                 <div className="w-10 h-10 rounded-xl bg-navy-900 dark:bg-navy-800 flex flex-col items-center justify-center flex-shrink-0">
                   <span className="text-[9px] font-bold text-blue-400 uppercase leading-none">{MN[s.month]}</span>
-                  <span className="text-xs font-black text-white leading-tight">{s.year}</span>
+                  <span className="text-xs font-semibold text-white leading-tight">{s.year}</span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-slate-800 dark:text-white">{s.driver}</p>
                   <p className="text-[10px] text-slate-400">{s.completedTrips||0} trips · {s.workingDays||0} days</p>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="text-base font-black text-slate-800 dark:text-white">Rs. {Number(s.netAmount||0).toLocaleString('en-IN')}</p>
+                  <p className="text-base font-semibold text-slate-800 dark:text-white">Rs. {Number(s.netAmount||0).toLocaleString('en-IN')}</p>
                   <StatusBadge status={s.status} />
                 </div>
-                <button onClick={() => onViewPayslip(s)}
-                  className="w-8 h-8 rounded-lg border border-slate-200 dark:border-navy-700 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-navy-700 flex-shrink-0 transition-colors">
-                  <FileText size={13} />
-                </button>
+                <IconButton icon={FileText} label="View payslip" size={14} onClick={() => onViewPayslip(s)}
+                  className="border border-[var(--ap-border)] flex-shrink-0" />
               </div>
             </div>
           ))}
@@ -625,9 +615,9 @@ function MarkPaidModal({ settlement, onClose, onSave }) {
   const upd = (f,v) => setForm(p => ({ ...p, [f]: v }))
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="relative w-full sm:w-80 bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl p-5 shadow-2xl animate-fade-up">
-        <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mb-4 sm:hidden" />
-        <h3 className="font-display font-black text-slate-800 dark:text-white text-base mb-1">Mark as Paid</h3>
+      <div className="relative w-full sm:w-80 ap-surface rounded-t-3xl sm:rounded-2xl p-5 shadow-2xl animate-fade-up">
+        <div className="w-10 h-1 bg-[var(--ap-border)] rounded-full mx-auto mb-4 sm:hidden" />
+        <h3 className="font-sf font-semibold text-slate-800 dark:text-white text-base mb-1">Mark as Paid</h3>
         <p className="text-xs text-slate-500 mb-4">{settlement.driver} · {monthLabel(settlement.month, settlement.year)} · Rs. {settlement.netAmount.toLocaleString('en-IN')}</p>
         <div className="space-y-3 mb-4">
           <FInput    label="Payment Date"    field="paymentDate"    value={form.paymentDate}    onChange={upd} type="date" required />
@@ -637,11 +627,10 @@ function MarkPaidModal({ settlement, onClose, onSave }) {
           <FInput    label="Remarks"         field="paymentRemarks" value={form.paymentRemarks} onChange={upd} placeholder="Optional" />
         </div>
         <div className="flex gap-2">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-navy-800 transition-colors">Cancel</button>
-          <button onClick={() => onSave({ ...settlement, status:'paid', ...form, updatedAt: new Date().toISOString() })}
-            className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold transition-all shadow-md active:scale-95">
+          <Button variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
+          <Button variant="teal" className="flex-1" onClick={() => onSave({ ...settlement, status:'paid', ...form, updatedAt: new Date().toISOString() })}>
             Confirm Payment
-          </button>
+          </Button>
         </div>
       </div>
     </ModalOverlay>
@@ -658,12 +647,12 @@ function SettlementDetail({ s, onEdit, onDelete, onApprove, onSubmit, onMarkPaid
   const isApproved = s.status === 'approved' || s.status === 'paid'
 
   return (
-    <div className="border-t border-slate-100 dark:border-navy-700 p-4 bg-slate-50/50 dark:bg-navy-800/20 space-y-3">
+    <div className="border-t border-[var(--ap-border)] p-4 bg-[var(--ap-surface-2)] space-y-3">
       {/* Breakdown */}
-      <div className="bg-white dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700">
+      <div className="bg-[var(--ap-surface-2)] rounded-xl p-3 border border-[var(--ap-border)]">
         <AmtRow label={`Daily Wage × ${Number(s.daysWorked ?? s.workingDays ?? 0)} days`} value={s.wagePay ?? s.baseSalary} />
         {Number(s.bataDirect ?? s.bataAmt ?? 0) > 0 && (
-          <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
             Bata Rs. {Number(s.bataDirect ?? s.bataAmt ?? 0).toLocaleString('en-IN')} direct to driver — not in payout.
           </p>
         )}
@@ -673,9 +662,9 @@ function SettlementDetail({ s, onEdit, onDelete, onApprove, onSubmit, onMarkPaid
         {s.bonus > 0 && <AmtRow label="Bonus" value={s.bonus}         sub />}
         <AmtRow label="Gross"               value={s.grossAmount}      />
         {s.totalDeductions > 0 && <AmtRow label="Deductions" value={s.totalDeductions} deduct />}
-        <div className="flex justify-between pt-2 mt-1 border-t border-slate-200 dark:border-navy-700">
+        <div className="flex justify-between pt-2 mt-1 border-t border-[var(--ap-border)]">
           <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Net Amount</span>
-          <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">Rs. {s.netAmount.toLocaleString('en-IN')}</span>
+          <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Rs. {s.netAmount.toLocaleString('en-IN')}</span>
         </div>
       </div>
 
@@ -707,40 +696,12 @@ function SettlementDetail({ s, onEdit, onDelete, onApprove, onSubmit, onMarkPaid
 
       {/* Actions */}
       <div className="flex gap-2 flex-wrap pt-1">
-        <button onClick={() => onViewPayslip(s)}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
-          <FileText size={13} /> Payslip
-        </button>
-        {canSubmit && (
-          <button onClick={() => onSubmit(s)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-500 transition-all active:scale-95 shadow-md">
-            <Send size={13} /> Submit
-          </button>
-        )}
-        {canApprov && (
-          <button onClick={() => onApprove(s)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold hover:bg-violet-500 transition-all active:scale-95 shadow-md">
-            <CheckCircle size={13} /> Approve
-          </button>
-        )}
-        {canPay && (
-          <button onClick={() => onMarkPaid(s)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500 transition-all active:scale-95 shadow-md">
-            <Wallet size={13} /> Mark Paid
-          </button>
-        )}
-        {canEdit && !isApproved && (
-          <button onClick={() => onEdit(s)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-navy-700 transition-colors">
-            <Edit2 size={13} /> Edit
-          </button>
-        )}
-        {canDelete && !isApproved && (
-          <button onClick={() => onDelete(s.id)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/15 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/25 transition-colors">
-            <Trash2 size={13} /> Delete
-          </button>
-        )}
+        <Button variant="outline" size="sm" icon={FileText} onClick={() => onViewPayslip(s)}>Payslip</Button>
+        {canSubmit && <Button variant="primary" size="sm" icon={Send} onClick={() => onSubmit(s)}>Submit</Button>}
+        {canApprov && <Button variant="primary" size="sm" icon={CheckCircle} onClick={() => onApprove(s)}>Approve</Button>}
+        {canPay && <Button variant="teal" size="sm" icon={Wallet} onClick={() => onMarkPaid(s)}>Mark Paid</Button>}
+        {canEdit && !isApproved && <Button variant="outline" size="sm" icon={Edit2} onClick={() => onEdit(s)}>Edit</Button>}
+        {canDelete && !isApproved && <Button variant="danger" size="sm" icon={Trash2} onClick={() => onDelete(s.id)}>Delete</Button>}
       </div>
     </div>
   )
@@ -754,39 +715,37 @@ function TripPayslipCard({ p }) {
   const isPaid = p.status === 'paid'
   const driverGets = tripDriverAmount(p)
   return (
-    <div className="glass-card rounded-2xl overflow-hidden">
+    <div className="ap-surface rounded-2xl overflow-hidden">
       <div className="flex items-center gap-3 p-4 cursor-pointer" onClick={() => setOpen(v => !v)}>
         {/* Date badge */}
         <div className="w-11 h-11 rounded-xl bg-navy-900 dark:bg-navy-800 flex flex-col items-center justify-center flex-shrink-0">
           <span className="text-[8px] font-bold text-blue-400 uppercase leading-none">
             {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date(p.date).getMonth()]}
           </span>
-          <span className="text-sm font-black text-white leading-tight">{new Date(p.date).getDate()}</span>
+          <span className="text-sm font-semibold text-white leading-tight">{new Date(p.date).getDate()}</span>
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{p.customer}</p>
           <p className="text-[10px] text-slate-400 truncate">{p.pickup} → {p.drop || '—'}</p>
-          <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500">{p.bookingNo}</p>
+          <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400">{p.bookingNo}</p>
         </div>
         <div className="text-right flex-shrink-0">
-          <p className="text-base font-black text-emerald-600 dark:text-emerald-400">Rs. {driverGets.toLocaleString('en-IN')}</p>
-          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${isPaid ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'}`}>
-            {isPaid ? '✓ Paid' : 'Pending'}
-          </span>
+          <p className="text-base font-semibold text-emerald-600 dark:text-emerald-400">Rs. {driverGets.toLocaleString('en-IN')}</p>
+          <StatusPill tone={isPaid ? 'green' : 'amber'}>{isPaid ? 'Paid' : 'Pending'}</StatusPill>
         </div>
         {open ? <ChevronUp size={13} className="text-slate-400 flex-shrink-0" /> : <ChevronDown size={13} className="text-slate-400 flex-shrink-0" />}
       </div>
 
       {open && (
-        <div className="border-t border-slate-100 dark:border-navy-700 px-4 pb-4 pt-3 space-y-2 bg-slate-50/50 dark:bg-navy-800/20">
-          <div className="bg-white dark:bg-navy-800/60 rounded-xl p-3 border border-slate-100 dark:border-navy-700 space-y-1.5">
+        <div className="border-t border-[var(--ap-border)] px-4 pb-4 pt-3 space-y-2 bg-[var(--ap-surface-2)]">
+          <div className="ap-surface rounded-xl p-3 space-y-1.5">
             <div className="flex justify-between text-xs"><span className="text-slate-500 dark:text-slate-400">Trip Fare (company)</span><span className="font-bold text-slate-700 dark:text-slate-200">Rs. {p.fare.toLocaleString('en-IN')}</span></div>
             {p.bata > 0 && <div className="flex justify-between text-xs"><span className="text-slate-500 dark:text-slate-400 pl-2">+ Bata (straight to driver)</span><span className="font-bold text-emerald-600 dark:text-emerald-400">Rs. {p.bata.toLocaleString('en-IN')}</span></div>}
             {p.fuel > 0 && <div className="flex justify-between text-xs"><span className="text-slate-500 dark:text-slate-400 pl-2">+ Fuel</span><span className="font-bold text-emerald-600 dark:text-emerald-400">Rs. {p.fuel.toLocaleString('en-IN')}</span></div>}
             {p.parking > 0 && <div className="flex justify-between text-xs"><span className="text-slate-500 dark:text-slate-400 pl-2">+ Parking</span><span className="font-bold text-emerald-600 dark:text-emerald-400">Rs. {p.parking.toLocaleString('en-IN')}</span></div>}
-            <div className="flex justify-between pt-1.5 border-t border-slate-100 dark:border-navy-700">
+            <div className="flex justify-between pt-1.5 border-t border-[var(--ap-border)]">
               <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Driver Gets</span>
-              <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">Rs. {driverGets.toLocaleString('en-IN')}</span>
+              <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Rs. {driverGets.toLocaleString('en-IN')}</span>
             </div>
           </div>
           {isPaid && p.paidAt && (
@@ -794,7 +753,7 @@ function TripPayslipCard({ p }) {
               <CheckCircle size={10} /> Paid on {p.paidAt.slice(0,10)}{p.paidBy ? ` by ${p.paidBy}` : ''}
             </p>
           )}
-          <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500">{p.id} · {p.vehicle || '—'}</p>
+          <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400">{p.id} · {p.vehicle || '—'}</p>
         </div>
       )}
     </div>
@@ -819,7 +778,7 @@ function DriverPayslipPortal({ user }) {
       <div className="rounded-2xl overflow-hidden shadow-xl" style={{ background:'linear-gradient(135deg,#0d1b4b 0%,#1e3a8a 60%,#1d4ed8 100%)' }}>
         <div className="p-5">
           <p className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-1">Sri Jayam Travels</p>
-          <h2 className="font-display font-black text-white text-xl mb-4">My Trip Earnings</h2>
+          <h2 className="font-sf font-semibold text-white text-xl mb-4">My Trip Earnings</h2>
           <div className="grid grid-cols-3 gap-2 mb-4">
             {[
               { label:'Total Trips',  value: mine.length },
@@ -835,11 +794,11 @@ function DriverPayslipPortal({ user }) {
           <div className="grid grid-cols-2 gap-2">
             <div className="bg-white/10 rounded-xl p-3 text-center">
               <p className="text-white/60 text-[10px] font-bold uppercase">Total Earned</p>
-              <p className="font-display font-black text-white text-lg">Rs. {totalEarned.toLocaleString('en-IN')}</p>
+              <p className="font-sf font-semibold text-white text-lg">Rs. {totalEarned.toLocaleString('en-IN')}</p>
             </div>
             <div className="bg-emerald-500/30 rounded-xl p-3 text-center">
               <p className="text-white/60 text-[10px] font-bold uppercase">Pending Pay</p>
-              <p className="font-display font-black text-amber-300 text-lg">Rs. {pending.toLocaleString('en-IN')}</p>
+              <p className="font-sf font-semibold text-amber-300 text-lg">Rs. {pending.toLocaleString('en-IN')}</p>
             </div>
           </div>
         </div>
@@ -847,12 +806,10 @@ function DriverPayslipPortal({ user }) {
 
       {/* Trip payslip list */}
       <div>
-        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Trip Payslips</p>
+        <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Trip Payslips</p>
         {mine.length === 0 ? (
-          <div className="glass-card rounded-2xl p-10 text-center">
-            <IndianRupee size={32} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-            <p className="text-slate-500 text-sm font-medium">No trip payslips yet</p>
-            <p className="text-slate-400 text-xs mt-1">Payslips are generated automatically when you complete a trip</p>
+          <div className="ap-surface rounded-2xl">
+            <EmptyState icon={IndianRupee} title="No trip payslips yet" description="Payslips are generated automatically when you complete a trip" />
           </div>
         ) : (
           <div className="space-y-2.5">
@@ -892,16 +849,17 @@ export default function Payroll() {
   const [page,         setPage]         = useState(1)
   const [drawerDriver, setDrawerDriver] = useState(null)
   const [payslipDriver, setPayslipDriver] = useState(null)
-  const [toast,        setToast]        = useState('')
   const [drivers,      setDrivers]      = useState([])
   const [loadError,    setLoadError]    = useState(null)
 
   const navigate = useNavigate()
+  const { toast } = useToast()
   const monthKey = `${year}-${String(month).padStart(2, '0')}`
   const hideMoney = !can('revenueDashboard')
   const money = (v) => hideMoney ? '—' : `Rs. ${Number(v || 0).toLocaleString('en-IN')}`
 
-  const showToast = msg => { setToast(msg); setTimeout(() => setToast(''), 3000) }
+  const showToast = title => toast?.({ type: 'success', title })
+  const showError = title => toast?.({ type: 'error', title })
   const reload = useCallback(async () => {
     setLoading(true)
     try {
@@ -986,7 +944,7 @@ export default function Payroll() {
   // Actions
   const handleSave = async s => {
     const result = await saveSettlement(s)
-    if (!result) { showToast('Could not save settlement. Please try again.'); return }
+    if (!result) { showError('Could not save settlement. Please try again.'); return }
     await reload()
     setShowCreate(false)
     setEditItem(null)
@@ -995,26 +953,26 @@ export default function Payroll() {
   const handleDelete = async id => {
     if (!window.confirm('Delete this settlement?')) return
     const ok = await deleteSettlement(id)
-    if (!ok) { showToast('Could not delete settlement. Please try again.'); return }
+    if (!ok) { showError('Could not delete settlement. Please try again.'); return }
     await reload()
     setExpanded(null)
     showToast('Deleted')
   }
   const handleSubmit = async s => {
     const result = await saveSettlement({ ...s, status:'pending', updatedAt: new Date().toISOString() })
-    if (!result) { showToast('Could not submit settlement. Please try again.'); return }
+    if (!result) { showError('Could not submit settlement. Please try again.'); return }
     await reload()
     showToast(`${s.id} submitted for approval`)
   }
   const handleApprove = async s => {
     const result = await saveSettlement({ ...s, status:'approved', approvedBy: user?.name, updatedAt: new Date().toISOString() })
-    if (!result) { showToast('Could not approve settlement. Please try again.'); return }
+    if (!result) { showError('Could not approve settlement. Please try again.'); return }
     await reload()
     showToast(`${s.id} approved`)
   }
   const handleMarkPaid = async s => {
     const result = await saveSettlement(s)
-    if (!result) { showToast('Could not mark settlement as paid. Please try again.'); return }
+    if (!result) { showError('Could not mark settlement as paid. Please try again.'); return }
     await reload()
     setMarkPaidItem(null)
     showToast(`${s.id} marked as paid`)
@@ -1048,7 +1006,7 @@ export default function Payroll() {
       createdBy: user?.name || '', createdAt: now, updatedAt: now,
     }
     const result = await saveSettlement(rec)
-    if (!result) { showToast('Could not generate payslip. Please try again.'); return }
+    if (!result) { showError('Could not generate payslip. Please try again.'); return }
     await reload()
     setDrawerDriver(payroll.driver)
     setPayslipDriver(payroll.driver)
@@ -1109,46 +1067,26 @@ export default function Payroll() {
         title="Payroll & Settlements"
         subtitle={`${monthLabel(month, year)} · ${kpiDrivers} driver${kpiDrivers !== 1 ? 's' : ''} · ${kpiTrips} trips`}
         action={
-          <div className="flex items-center gap-2">
-            {canCreate && (
-              <button onClick={handleGenerateAll}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white font-bold text-sm hover:bg-navy-800 dark:hover:bg-blue-600 transition-all shadow-lg active:scale-95">
-                <Plus size={15} /> Generate Payroll
-              </button>
-            )}
-          </div>
+          canCreate ? (
+            <Button variant="primary" icon={Plus} onClick={handleGenerateAll}>Generate Payroll</Button>
+          ) : null
         }
       />
 
       {loadError && (
-        <div className="bg-red-50 dark:bg-red-900/15 border border-red-200 dark:border-red-800/30 rounded-2xl p-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <AlertTriangle size={15} className="text-red-600 dark:text-red-400 flex-shrink-0" />
-            <p className="text-sm font-bold text-red-700 dark:text-red-400">{loadError}</p>
-          </div>
-          <button onClick={reload}
-            className="px-3 py-1.5 rounded-xl bg-red-500 hover:bg-red-400 text-white text-xs font-bold transition-all active:scale-95 shadow-md flex-shrink-0">
-            Retry
-          </button>
-        </div>
+        <Callout tone="red" icon={AlertTriangle} title={loadError} actionLabel="Retry" onAction={reload} />
       )}
 
       {/* ── Period selector + period status ── */}
-      <div className="glass-card rounded-2xl px-4 py-3 flex items-center gap-3 flex-wrap">
+      <div className="ap-surface rounded-2xl px-4 py-3 flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-1">
-          <button onClick={() => setMonthDelta(-1)} aria-label="Previous month"
-            className="w-8 h-8 rounded-lg hover:bg-slate-100 dark:hover:bg-navy-700 flex items-center justify-center text-slate-500 transition-colors">
-            <ChevronLeft size={16} />
-          </button>
-          <p className="font-display font-black text-slate-800 dark:text-white text-sm min-w-[132px] text-center tabular-nums">
+          <IconButton icon={ChevronLeft} label="Previous month" size={16} onClick={() => setMonthDelta(-1)} />
+          <p className="font-sf font-semibold text-slate-800 dark:text-white text-sm min-w-[132px] text-center tabular-nums">
             {monthLabel(month, year)}
           </p>
-          <button onClick={() => setMonthDelta(1)} aria-label="Next month"
-            className="w-8 h-8 rounded-lg hover:bg-slate-100 dark:hover:bg-navy-700 flex items-center justify-center text-slate-500 transition-colors">
-            <ChevronRight size={16} />
-          </button>
+          <IconButton icon={ChevronRight} label="Next month" size={16} onClick={() => setMonthDelta(1)} />
         </div>
-        <div className="h-6 w-px bg-slate-200 dark:bg-navy-700 hidden sm:block" />
+        <div className="h-6 w-px bg-[var(--ap-border)] hidden sm:block" />
         {periodStatus ? (
           <div className="flex items-center gap-2">
             <StatusBadge status={periodStatus} />
@@ -1157,85 +1095,62 @@ export default function Payroll() {
             </span>
           </div>
         ) : (
-          <span className="text-xs text-slate-400 dark:text-slate-500">No trips completed this month yet</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">No trips completed this month yet</span>
         )}
       </div>
 
       {/* ── KPIs ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
-          { label:'Total Drivers',    value: kpiDrivers,                        color:'text-navy-800 dark:text-blue-300',        filter:null },
-          { label:'Total Trips',      value: kpiTrips,                          color:'text-navy-800 dark:text-blue-300',        filter:null },
-          { label:'Salary Payable',   value: hideMoney ? '—' : `Rs.${(kpiSalary/1000).toFixed(1)}k`, color:'text-emerald-600 dark:text-emerald-400', filter:null },
-          { label:'Bata Extra',       value: hideMoney ? '—' : `Rs.${(kpiBata/1000).toFixed(1)}k`,   color:'text-teal-600 dark:text-teal-400',       filter:null },
-          { label:'Pending Approval', value: kpiPending,                        color:'text-blue-600 dark:text-blue-400',        filter:'pending' },
-          { label:'Paid',             value: kpiPaid,                           color:'text-emerald-600 dark:text-emerald-400',   filter:'paid' },
+          { label:'Total Drivers',    value: kpiDrivers, icon:User,        tone:'blue'   },
+          { label:'Total Trips',      value: kpiTrips,   icon:Calendar,    tone:'blue'   },
+          { label:'Salary Payable',   value: hideMoney ? '—' : `Rs.${(kpiSalary/1000).toFixed(1)}k`, icon:IndianRupee, tone:'green'  },
+          { label:'Bata Extra',       value: hideMoney ? '—' : `Rs.${(kpiBata/1000).toFixed(1)}k`,   icon:Wallet,      tone:'teal'   },
+          { label:'Pending Approval', value: kpiPending, icon:Clock,       tone:'amber', filter:'pending' },
+          { label:'Paid',             value: kpiPaid,    icon:CheckCircle, tone:'green', filter:'paid'    },
         ].map(s => (
-          <div key={s.label} onClick={() => s.filter && setStatFilter(s.filter)}
-            className={`glass-card rounded-xl px-3 py-3 text-center ${s.filter ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all' : ''}`}>
-            <p className={`text-xl font-display font-black tabular-nums ${s.color}`}>{s.value}</p>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">{s.label}</p>
-          </div>
+          <MetricCard key={s.label} icon={s.icon} tone={s.tone} label={s.label} value={s.value}
+            className="p-3.5"
+            onClick={s.filter ? () => setStatFilter(s.filter) : undefined} />
         ))}
       </div>
 
       {/* ── Toolbar ── */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[160px] max-w-xs">
-          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search driver…"
-            className="w-full pl-8 pr-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/40 font-body" />
+          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" aria-hidden="true" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search driver…" aria-label="Search driver"
+            className={`${fieldCls} pl-9`} />
         </div>
-        <select value={driverFilter} onChange={e => setDriverFilter(e.target.value)}
-          className="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
+        <FieldSelect value={driverFilter} onChange={e => setDriverFilter(e.target.value)} className="w-40 h-12">
           <option value="all">All Drivers</option>
           {payrolls.map(p => <option key={p.driver} value={p.driver}>{p.driver}</option>)}
-        </select>
-        <select value={statFilter} onChange={e => setStatFilter(e.target.value)}
-          className="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 text-slate-700 dark:text-slate-200 focus:outline-none font-body">
+        </FieldSelect>
+        <FieldSelect value={statFilter} onChange={e => setStatFilter(e.target.value)} className="w-40 h-12">
           <option value="all">All Status</option>
           {SETTLEMENT_STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-        </select>
+        </FieldSelect>
         {(search || driverFilter !== 'all' || statFilter !== 'all') && (
-          <button onClick={() => { setSearch(''); setDriverFilter('all'); setStatFilter('all') }}
-            className="px-3 py-2 text-xs font-bold rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
-            Clear
-          </button>
+          <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setDriverFilter('all'); setStatFilter('all') }}>Clear</Button>
         )}
-        <button onClick={exportCsv} title="Export filtered rows as CSV"
-          className="ml-auto flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg border border-slate-200 dark:border-navy-700 bg-white/60 dark:bg-navy-800/60 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
-          <Download size={13} /> Export
-        </button>
+        <Button variant="outline" size="sm" icon={Download} className="ml-auto" onClick={exportCsv}>Export</Button>
       </div>
 
       {/* Completed trips with no driver — accuracy warning, not payroll */}
       {orphanTrips.length > 0 && (
-        <div className="bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-800/30 rounded-2xl px-4 py-3 flex items-center gap-2.5 flex-wrap">
-          <AlertTriangle size={15} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
-          <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 flex-1 min-w-[200px]">
-            {orphanTrips.length} completed trip{orphanTrips.length !== 1 ? 's' : ''} in {monthLabel(month, year)} {orphanTrips.length !== 1 ? 'have' : 'has'} no driver assigned — payroll below excludes {orphanTrips.length !== 1 ? 'them' : 'it'}.
-          </p>
-          <button onClick={() => navigate('/trips')}
-            className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-white text-xs font-bold transition-colors flex-shrink-0">
-            Fix in Trips
-          </button>
-        </div>
-      )}
-
-      {toast && (
-        <div className="flex items-center gap-2.5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 rounded-xl px-4 py-2.5">
-          <CheckCircle size={15} className="text-emerald-600 flex-shrink-0" />
-          <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">{toast}</p>
-        </div>
+        <Callout tone="amber" icon={AlertTriangle}
+          title={`${orphanTrips.length} completed trip${orphanTrips.length !== 1 ? 's' : ''} in ${monthLabel(month, year)} ${orphanTrips.length !== 1 ? 'have' : 'has'} no driver assigned`}
+          sub={`Payroll below excludes ${orphanTrips.length !== 1 ? 'them' : 'it'}.`}
+          actionLabel="Fix in Trips" onAction={() => navigate('/trips')} />
       )}
 
       <>
 
       {/* Driver payroll table — one row per driver, trip-based */}
       {loading ? (
-        <div className="glass-card rounded-2xl overflow-hidden">
+        <div className="ap-surface rounded-2xl overflow-hidden">
           {[0, 1, 2, 3, 4].map(i => (
-            <div key={i} className="flex items-center gap-3 px-4 py-3.5 border-b border-slate-50 dark:border-navy-800 last:border-0">
+            <div key={i} className="flex items-center gap-3 px-4 py-3.5 border-b border-[var(--ap-border)] last:border-0">
               <div className="w-9 h-9 rounded-full skeleton flex-shrink-0" />
               <div className="flex-1 space-y-1.5"><div className="h-3 w-28 rounded skeleton" /><div className="h-2 w-20 rounded skeleton" /></div>
               <div className="h-4 w-16 rounded skeleton" />
@@ -1243,32 +1158,19 @@ export default function Payroll() {
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="glass-card rounded-2xl p-12 text-center">
-          <Wallet size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-          <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">
-            {payrolls.length === 0
-              ? `No trips completed in ${monthLabel(month, year)}`
-              : 'No drivers match these filters'}
-          </p>
-          <p className="text-slate-400 text-xs mt-1">
-            {payrolls.length === 0
-              ? 'Payroll appears here once drivers complete trips this month'
-              : 'Try clearing search or choosing a different status'}
-          </p>
-          {payrolls.length === 0 && (
-            <button onClick={() => navigate('/trips')}
-              className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 transition-all">
-              View Trips
-            </button>
-          )}
+        <div className="ap-surface rounded-2xl">
+          <EmptyState icon={Wallet}
+            title={payrolls.length === 0 ? `No trips completed in ${monthLabel(month, year)}` : 'No drivers match these filters'}
+            description={payrolls.length === 0 ? 'Payroll appears here once drivers complete trips this month' : 'Try clearing search or choosing a different status'}
+            action={payrolls.length === 0 ? <Button variant="primary" size="sm" onClick={() => navigate('/trips')}>View Trips</Button> : null} />
         </div>
       ) : (<>
         {/* Desktop table */}
-        <div className="glass-card rounded-2xl overflow-hidden hidden md:block">
+        <div className="ap-surface rounded-2xl overflow-hidden hidden md:block">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-slate-50/80 dark:bg-navy-800/50 border-b border-slate-100 dark:border-navy-700">
+                <tr className="bg-[var(--ap-surface-2)] border-b border-[var(--ap-border)]">
                   {['Driver','Trips','Salary','Bata Extra','Total','Paid','Balance','Status',''].map(h => (
                     <th key={h} className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
@@ -1277,7 +1179,7 @@ export default function Payroll() {
               <tbody>
                 {pageRows.map(p => (
                   <tr key={p.driver} onClick={() => setDrawerDriver(p.driver)}
-                    className="border-b border-slate-50 dark:border-navy-800 hover:bg-slate-50/50 dark:hover:bg-navy-800/30 transition-colors cursor-pointer">
+                    className="border-b border-[var(--ap-border)] hover:bg-slate-50/50 dark:hover:bg-navy-800/30 transition-colors cursor-pointer">
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-2">
                         <Avatar name={p.driver} size={28} />
@@ -1287,7 +1189,7 @@ export default function Payroll() {
                     <td className="px-3 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 tabular-nums">{p.tripCount}</td>
                     <td className="px-3 py-2.5 text-xs text-slate-600 dark:text-slate-300 tabular-nums whitespace-nowrap">{money(p.salaryTotal)}</td>
                     <td className="px-3 py-2.5 text-xs text-teal-600 dark:text-teal-400 tabular-nums whitespace-nowrap">{money(p.bataExtra)}</td>
-                    <td className="px-3 py-2.5 text-xs font-black text-emerald-600 dark:text-emerald-400 tabular-nums whitespace-nowrap">{money(p.gross)}</td>
+                    <td className="px-3 py-2.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums whitespace-nowrap">{money(p.gross)}</td>
                     <td className="px-3 py-2.5 text-xs text-slate-600 dark:text-slate-300 tabular-nums whitespace-nowrap">{money(p.paidAmount)}</td>
                     <td className="px-3 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 tabular-nums whitespace-nowrap">{money(p.balance)}</td>
                     <td className="px-3 py-2.5"><StatusBadge status={p.status} /></td>
@@ -1306,23 +1208,23 @@ export default function Payroll() {
         <div className="space-y-2.5 md:hidden">
           {pageRows.map(p => (
             <div key={p.driver} onClick={() => setDrawerDriver(p.driver)}
-              className="glass-card rounded-2xl p-4 cursor-pointer active:scale-[0.99] transition-transform">
+              className="ap-surface rounded-2xl p-4 cursor-pointer active:scale-[0.99] transition-transform">
               <div className="flex items-center gap-2.5 mb-2.5">
                 <Avatar name={p.driver} size={32} />
                 <p className="font-bold text-slate-800 dark:text-white text-sm flex-1 truncate">{p.driver}</p>
                 <StatusBadge status={p.status} />
               </div>
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="bg-slate-50 dark:bg-navy-800/60 rounded-lg py-1.5">
-                  <p className="text-sm font-black text-slate-700 dark:text-slate-200 tabular-nums">{p.tripCount}</p>
+                <div className="bg-[var(--ap-surface-2)] rounded-lg py-1.5">
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 tabular-nums">{p.tripCount}</p>
                   <p className="text-[9px] text-slate-400">Trips</p>
                 </div>
-                <div className="bg-slate-50 dark:bg-navy-800/60 rounded-lg py-1.5">
-                  <p className="text-sm font-black text-emerald-600 dark:text-emerald-400 tabular-nums">{hideMoney ? '—' : `Rs.${(p.gross / 1000).toFixed(1)}k`}</p>
+                <div className="bg-[var(--ap-surface-2)] rounded-lg py-1.5">
+                  <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">{hideMoney ? '—' : `Rs.${(p.gross / 1000).toFixed(1)}k`}</p>
                   <p className="text-[9px] text-slate-400">Total</p>
                 </div>
-                <div className="bg-slate-50 dark:bg-navy-800/60 rounded-lg py-1.5">
-                  <p className="text-sm font-black text-slate-700 dark:text-slate-200 tabular-nums">{hideMoney ? '—' : `Rs.${(p.balance / 1000).toFixed(1)}k`}</p>
+                <div className="bg-[var(--ap-surface-2)] rounded-lg py-1.5">
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 tabular-nums">{hideMoney ? '—' : `Rs.${(p.balance / 1000).toFixed(1)}k`}</p>
                   <p className="text-[9px] text-slate-400">Balance</p>
                 </div>
               </div>
@@ -1332,15 +1234,9 @@ export default function Payroll() {
         {/* Pagination */}
         {totalPages > 1 && (
           <div className="flex items-center justify-center gap-2 pt-1">
-            <button disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}
-              className="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
-              Prev
-            </button>
+            <Button variant="outline" size="sm" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}>Prev</Button>
             <span className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">Page {safePage} of {totalPages}</span>
-            <button disabled={safePage >= totalPages} onClick={() => setPage(safePage + 1)}
-              className="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 dark:border-navy-700 text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
-              Next
-            </button>
+            <Button variant="outline" size="sm" disabled={safePage >= totalPages} onClick={() => setPage(safePage + 1)}>Next</Button>
           </div>
         )}
       </>)}
@@ -1352,19 +1248,16 @@ export default function Payroll() {
         const s = p.settlement
         return (
           <ModalOverlay onClose={() => setDrawerDriver(null)}>
-            <div className="relative w-full sm:w-[520px] max-h-[92vh] sm:max-h-[88vh] bg-white dark:bg-navy-900 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
-              <div className="w-10 h-1 bg-slate-200 dark:bg-navy-700 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
+            <div className="relative w-full sm:w-[520px] max-h-[92vh] sm:max-h-[88vh] ap-surface rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
+              <div className="w-10 h-1 bg-[var(--ap-border)] rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
               <div className="flex items-center gap-3 px-5 pt-4 sm:pt-5 pb-3 flex-shrink-0">
                 <Avatar name={p.driver} size={40} />
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-display font-black text-slate-800 dark:text-white truncate">{p.driver}</h3>
+                  <h3 className="font-sf font-semibold text-slate-800 dark:text-white truncate">{p.driver}</h3>
                   <p className="text-xs text-slate-400">{monthLabel(month, year)} · {p.tripCount} trips · {p.daysWorked} days</p>
                 </div>
                 <StatusBadge status={p.status} />
-                <button onClick={() => setDrawerDriver(null)} aria-label="Close details"
-                  className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-navy-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-navy-700 transition-colors flex-shrink-0">
-                  <X size={15} />
-                </button>
+                <IconButton icon={X} label="Close details" size={16} onClick={() => setDrawerDriver(null)} className="flex-shrink-0" />
               </div>
               <div className="overflow-y-auto flex-1 px-5 pb-5 space-y-3">
                 {/* Summary — salary collected + customer bata extra */}
@@ -1374,30 +1267,25 @@ export default function Payroll() {
                     { l:'Bata Extra',  v: money(p.bataExtra),   c:'text-teal-600 dark:text-teal-400' },
                     { l:'Total',       v: money(p.gross),       c:'text-emerald-600 dark:text-emerald-400' },
                   ].map(r => (
-                    <div key={r.l} className="bg-slate-50 dark:bg-navy-800/60 rounded-xl px-3 py-2 border border-slate-100 dark:border-navy-700">
+                    <div key={r.l} className="bg-[var(--ap-surface-2)] rounded-xl px-3 py-2 border border-[var(--ap-border)]">
                       <p className="text-[10px] text-slate-400 uppercase tracking-wide font-bold">{r.l}</p>
-                      <p className={`text-sm font-black tabular-nums ${r.c}`}>{r.v}</p>
+                      <p className={`text-sm font-semibold tabular-nums ${r.c}`}>{r.v}</p>
                     </div>
                   ))}
                 </div>
                 {/* Trips */}
                 <div>
-                  <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">Trips ({p.tripCount})</p>
+                  <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Trips ({p.tripCount})</p>
                   {p.trips.some(t => !(Number(t.driverAllowance ?? t.driver_allowance) > 0)) && (
-                    <div className="flex items-center gap-2 bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-800/30 rounded-xl px-3 py-2 mb-1.5">
-                      <AlertTriangle size={12} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
-                      <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400">
-                        Some trips have no driver allowance set.{' '}
-                        <button onClick={() => navigate('/trips')} className="font-bold underline">Fix in Trips</button>
-                      </p>
-                    </div>
+                    <Callout tone="amber" icon={AlertTriangle} title="Some trips have no driver allowance set"
+                      actionLabel="Fix in Trips" onAction={() => navigate('/trips')} className="rounded-xl px-3 py-2 mb-1.5" />
                   )}
                   <div className="space-y-1.5">
                     {p.trips.map(t => {
                       const allow = Number(t.driverAllowance ?? t.driver_allowance) || 0
                       const extra = Number(t.bata) || 0
                       return (
-                        <div key={t.id ?? t.bookingNo ?? t.booking_id} className="flex items-center gap-2 text-xs bg-white dark:bg-navy-800/60 rounded-lg px-3 py-2 border border-slate-100 dark:border-navy-700">
+                        <div key={t.id ?? t.bookingNo ?? t.booking_id} className="flex items-center gap-2 text-xs bg-[var(--ap-surface-2)] rounded-lg px-3 py-2 border border-[var(--ap-border)]">
                           <span className="text-slate-400 tabular-nums flex-shrink-0">{String(t.startDate || '').slice(5, 10)}</span>
                           <div className="flex-1 min-w-0">
                             <p className="font-bold text-slate-700 dark:text-slate-200 truncate">{t.customer || '—'}</p>
@@ -1419,7 +1307,7 @@ export default function Payroll() {
                   <div className="flex justify-between text-xs text-white/70"><span>Paid</span><span className="font-bold tabular-nums">{money(p.paidAmount)}</span></div>
                   <div className="flex justify-between mt-1">
                     <span className="text-xs text-white/70 font-bold">Balance</span>
-                    <span className="text-base font-black text-white tabular-nums">{money(p.balance)}</span>
+                    <span className="text-base font-semibold text-white tabular-nums">{money(p.balance)}</span>
                   </div>
                   {s?.status === 'paid' && (
                     <p className="text-[10px] text-white/50 mt-1">
@@ -1429,40 +1317,22 @@ export default function Payroll() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {!s && canCreate && (
-                    <button onClick={() => handleGenerate(p)}
-                      className="flex-1 min-w-[140px] flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-navy-900 dark:bg-blue-700 text-white text-xs font-bold hover:bg-navy-800 transition-all active:scale-95">
-                      <FileText size={13} /> Generate Payslip
-                    </button>
+                    <Button variant="primary" icon={FileText} className="flex-1 min-w-[140px]" onClick={() => handleGenerate(p)}>Generate Payslip</Button>
                   )}
                   {s?.status === 'draft' && canEdit && (
-                    <button onClick={() => handleSubmit(s)}
-                      className="flex-1 min-w-[140px] flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-500 transition-all active:scale-95">
-                      <Send size={13} /> Submit for Approval
-                    </button>
+                    <Button variant="primary" icon={Send} className="flex-1 min-w-[140px]" onClick={() => handleSubmit(s)}>Submit for Approval</Button>
                   )}
                   {s?.status === 'pending' && canApprove && (
-                    <button onClick={() => handleApprove(s)}
-                      className="flex-1 min-w-[140px] flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500 transition-all active:scale-95">
-                      <CheckCircle size={13} /> Approve & Verify
-                    </button>
+                    <Button variant="primary" icon={CheckCircle} className="flex-1 min-w-[140px]" onClick={() => handleApprove(s)}>Approve &amp; Verify</Button>
                   )}
                   {s?.status === 'approved' && isAdmin && (
-                    <button onClick={() => setMarkPaidItem(s)}
-                      className="flex-1 min-w-[140px] flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500 transition-all active:scale-95">
-                      <Wallet size={13} /> Mark Paid
-                    </button>
+                    <Button variant="teal" icon={Wallet} className="flex-1 min-w-[140px]" onClick={() => setMarkPaidItem(s)}>Mark Paid</Button>
                   )}
                   {(s || p.tripCount > 0) && (
-                    <button onClick={() => setPayslipDriver(p.driver)}
-                      className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors">
-                      <Printer size={13} /> Payslip
-                    </button>
+                    <Button variant="outline" icon={Printer} onClick={() => setPayslipDriver(p.driver)}>Payslip</Button>
                   )}
                   {s?.status === 'draft' && canDelete && (
-                    <button onClick={() => { handleDelete(s); setDrawerDriver(null) }} title="Delete draft"
-                      className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                      <Trash2 size={13} />
-                    </button>
+                    <Button variant="danger" icon={Trash2} onClick={() => { handleDelete(s); setDrawerDriver(null) }}>Delete</Button>
                   )}
                 </div>
               </div>
