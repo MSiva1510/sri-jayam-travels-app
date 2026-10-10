@@ -34,6 +34,23 @@ export function normalizeRegistration(reg) {
   return String(reg ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
 }
 
+/** Surface the vendor/proxy error body instead of a bare "HTTP 401". */
+async function readErrorResponse(res) {
+  const fallback = `HTTP ${res?.status ?? 'error'}`
+  try {
+    const text = await res.text()
+    if (!text) return fallback
+    try {
+      const json = JSON.parse(text)
+      return json.error || json.message || json.status || fallback
+    } catch {
+      return text.length > 160 ? `${text.slice(0, 157)}...` : text
+    }
+  } catch {
+    return fallback
+  }
+}
+
 async function proxyAuthHeader() {
   if (!supabase) return {}
   const { data } = await supabase.auth.getSession()
@@ -113,7 +130,7 @@ export function createGpsTrackInProvider(settings = {}) {
     try {
       const res = await request(timeout)
       if (!res) return { ok: false, error: 'timeout', snapshots: [] }
-      if (!res.ok) return { ok: false, error: `HTTP ${res.status}`, snapshots: [] }
+      if (!res.ok) return { ok: false, error: await readErrorResponse(res), snapshots: [] }
       const raw = await res.json().catch(() => null)
       if (!raw) return { ok: false, error: 'Invalid JSON', snapshots: [] }
       if (!Array.isArray(raw)) return { ok: false, error: raw?.message || raw?.error || 'Unexpected response', snapshots: [] }
@@ -130,7 +147,7 @@ export function createGpsTrackInProvider(settings = {}) {
       const res = await request(Math.min(timeout, 8000))
       const latencyMs = Math.round(performance.now() - t0)
       if (!res) return { ok: false, latencyMs, error: 'timeout' }
-      if (!res.ok) return { ok: false, latencyMs, error: `HTTP ${res.status}` }
+      if (!res.ok) return { ok: false, latencyMs, error: await readErrorResponse(res) }
       const raw = await res.json().catch(() => null)
       if (!Array.isArray(raw)) return { ok: false, latencyMs, error: raw?.message || 'Unexpected response (check token/email)' }
       return { ok: true, latencyMs, devices: raw.length }
