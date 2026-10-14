@@ -14,8 +14,10 @@ import { useFleetAnalytics }       from '../context/FleetAnalyticsContext'
 import PageHeader                  from '../components/ui/PageHeader'
 import StatCard                    from '../components/ui/StatCard'
 import {
-  BarChart, DonutChart, LineChart, MiniBarList, StatPill,
+  MiniBarList, StatPill,
 } from '../components/analytics/AnalyticsChart'
+import StatusBar from '../components/ui/StatusBar'
+import SparkChart from '../components/ui/SparkChart'
 import { exportToCSV, exportToExcel, exportToPDF } from '../data/reportData'
 
 // ── Tab config ────────────────────────────────────────────────
@@ -114,7 +116,8 @@ function KpiTab() {
       {/* Distance chart */}
       {distanceSummary?.byDay?.length > 1 && (
         <Card title="Daily Distance (km)">
-          <LineChart data={distanceSummary.byDay} valueKey="km" labelKey="date" color="#3b82f6" height={90} />
+          <SparkChart data={distanceSummary.byDay.map(d => ({ ...d, date: String(d.date).slice(5) }))} valueKey="km" labelKey="date" height={110}
+            format={(v) => `${Number(v || 0).toFixed(1)} km`} />
         </Card>
       )}
     </div>
@@ -313,9 +316,7 @@ function TripsTab() {
         {/* Status donut */}
         {statusSegments.length > 0 && (
           <Card title="Trip Status Breakdown">
-            <div className="flex justify-center py-2">
-              <DonutChart segments={statusSegments} size={120} thickness={10} />
-            </div>
+            <StatusBar segments={statusSegments} />
           </Card>
         )}
 
@@ -339,14 +340,16 @@ function TripsTab() {
       {/* Trip trend chart */}
       {t.byDay?.length > 1 && (
         <Card title="Daily Trip Volume">
-          <BarChart data={t.byDay} valueKey="total" labelKey="date" color="from-violet-500 to-purple-500" height={90} />
+          <SparkChart data={t.byDay.map(d => ({ ...d, date: String(d.date).slice(5) }))} valueKey="total" labelKey="date" height={110} accent="#8b5cf6"
+            format={(v) => `${v} trip${v !== 1 ? 's' : ''}`} />
         </Card>
       )}
 
       {/* Distance by day */}
       {d?.byDay?.length > 1 && (
         <Card title="Daily Distance (km)">
-          <LineChart data={d.byDay} valueKey="km" labelKey="date" color="#10b981" height={80} />
+          <SparkChart data={d.byDay.map(x => ({ ...x, date: String(x.date).slice(5) }))} valueKey="km" labelKey="date" height={110} accent="#10b981"
+            format={(v) => `${Number(v || 0).toFixed(1)} km`} />
         </Card>
       )}
     </div>
@@ -380,9 +383,7 @@ function AlertsTab() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {severitySegs.length > 0 ? (
           <Card title="By Severity">
-            <div className="flex justify-center py-2">
-              <DonutChart segments={severitySegs} size={120} thickness={10} />
-            </div>
+            <StatusBar segments={severitySegs} />
           </Card>
         ) : (
           <Card title="By Severity"><NoData message="No alerts recorded." /></Card>

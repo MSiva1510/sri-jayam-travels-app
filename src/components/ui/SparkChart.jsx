@@ -1,7 +1,8 @@
 // ─── SparkChart — Apple-style area sparkline ───────────────────
 // Smooth gradient area + line, emphasized last point, hover tooltip.
+// THE house chart type: every time-series graph uses this.
 // Accessible: one img role with a spoken summary; points are aria-hidden.
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 
 const W = 600
 
@@ -29,15 +30,18 @@ export default function SparkChart({
   summary,
 }) {
   const [hover, setHover] = useState(null)
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '')
   const pad = 8
 
   const { pts, line, area } = useMemo(() => {
     const vals = data.map(d => Number(d[valueKey]) || 0)
     const max = Math.max(1, ...vals)
+    const min = Math.min(0, ...vals)
+    const span = Math.max(1e-9, max - min)
     const n = data.length
     const pts = vals.map((v, i) => ({
       x: n === 1 ? W / 2 : pad + (i * (W - pad * 2)) / (n - 1),
-      y: height - pad - (v / max) * (height - pad * 2),
+      y: height - pad - ((v - min) / span) * (height - pad * 2),
       v,
     }))
     const line = smoothPath(pts)
@@ -51,7 +55,9 @@ export default function SparkChart({
   const total = data.reduce((s, d) => s + (Number(d[valueKey]) || 0), 0)
   const last = data[data.length - 1]
   const lastPt = pts[pts.length - 1]
-  const gradId = `apspark-${valueKey}`
+  const gradId = `apspark-${uid}`
+  // Thin x labels on long series so they never crowd/overflow.
+  const labelEvery = Math.max(1, Math.ceil(data.length / 12))
 
   return (
     <div
@@ -94,7 +100,7 @@ export default function SparkChart({
       </svg>
       {hover !== null && pts[hover] && (
         <div
-          className="pointer-events-none absolute -top-1 z-10 -translate-x-1/2 rounded-lg bg-navy-950/95 px-2 py-1 text-[10px] font-semibold text-white shadow-lg ring-1 ring-white/10 whitespace-nowrap"
+          className="pointer-events-none absolute -top-1 z-10 -translate-x-1/2 rounded-lg bg-slate-950/95 dark:bg-black/85 px-2 py-1 text-[10px] font-semibold text-white shadow-lg ring-1 ring-white/10 whitespace-nowrap"
           style={{ left: `${(pts[hover].x / W) * 100}%` }}
         >
           <span className="text-white/60 mr-1">{data[hover]?.[labelKey]}</span>
@@ -103,7 +109,9 @@ export default function SparkChart({
       )}
       <div className="mt-1.5 flex justify-between text-[10px] font-medium text-slate-400 dark:text-slate-500" aria-hidden="true">
         {data.map((d, i) => (
-          <span key={i} className="tabular-nums">{d?.[labelKey]}</span>
+          (i % labelEvery === 0 || i === data.length - 1)
+            ? <span key={i} className="tabular-nums truncate">{d?.[labelKey]}</span>
+            : <span key={i} />
         ))}
       </div>
       <span className="sr-only">

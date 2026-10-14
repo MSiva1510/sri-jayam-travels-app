@@ -8,6 +8,8 @@ import {
 } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
 import Avatar     from '../components/ui/Avatar'
+import StatusBar  from '../components/ui/StatusBar'
+import SparkChart from '../components/ui/SparkChart'
 import { useAuth } from '../context/AuthContext'
 import { loadDrivers } from '../data/driverData'
 import { loadVehicles } from '../data/vehicleData'
@@ -91,76 +93,6 @@ function GranToggle({ value, onChange, options = [['daily', 'Daily'], ['weekly',
             value === k ? 'bg-[var(--ap-accent)] text-white shadow' : 'text-slate-500 dark:text-slate-400'
           }`}>{l}</button>
       ))}
-    </div>
-  )
-}
-
-// SVG trend: bars (a) + line (b)
-function TrendChart({ points, aLabel, bLabel, aColor = '#3b82f6', bColor = '#10b981', height = 180 }) {
-  const W = 600, H = 200, PAD = 28
-  const maxA = Math.max(...points.map(p => p.a), 1)
-  const maxB = Math.max(...points.map(p => p.b), 1)
-  const X = (i) => points.length < 2 ? W / 2 : PAD + (i * (W - PAD * 2)) / (points.length - 1)
-  const bw = points.length ? Math.min(22, (W - PAD * 2) / points.length * 0.55) : 0
-  const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${X(i).toFixed(1)},${(H - PAD - (p.b / maxB) * (H - PAD * 2)).toFixed(1)}`).join(' ')
-  const ticks = points.length > 12 ? [points[0], points[Math.floor(points.length / 2)], points[points.length - 1]] : points
-  return (
-    <div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }}>
-        {[0.25, 0.5, 0.75].map(f => (
-          <line key={f} x1={PAD} x2={W - 8} y1={H * f} y2={H * f} stroke="currentColor" strokeOpacity="0.08" strokeDasharray="3 3" />
-        ))}
-        {points.map((p, i) => {
-          const h = Math.max(2, (p.a / maxA) * (H - PAD * 2))
-          return <rect key={i} x={X(i) - bw / 2} y={H - PAD - h} width={bw} height={h} rx={2} fill={aColor} fillOpacity="0.85"><title>{`${p.x}: ${aLabel} ${p.a}, ${bLabel} ${p.b}`}</title></rect>
-        })}
-        <path d={line} fill="none" stroke={bColor} strokeWidth="2.5" strokeLinejoin="round" />
-        {points.map((p, i) => (
-          <circle key={i} cx={X(i)} cy={H - PAD - (p.b / maxB) * (H - PAD * 2)} r="3" fill={bColor} stroke="white" strokeWidth="1"><title>{`${p.x}: ${bLabel} ${p.b}`}</title></circle>
-        ))}
-        {ticks.map((p, i) => <text key={i} x={X(points.indexOf(p))} y={H - 8} textAnchor="middle" fontSize="9" fill="currentColor" opacity="0.5">{p.x}</text>)}
-      </svg>
-      <div className="flex items-center justify-center gap-4 mt-1">
-        <span className="flex items-center gap-1.5 text-[10px] text-slate-400"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: aColor }} />{aLabel}</span>
-        <span className="flex items-center gap-1.5 text-[10px] text-slate-400"><span className="w-2.5 h-2.5 rounded-full" style={{ background: bColor }} />{bLabel}</span>
-      </div>
-    </div>
-  )
-}
-
-// SVG donut with center total
-function Donut({ segments, total, totalLabel }) {
-  const R = 52, C = 2 * Math.PI * R
-  const sum = segments.reduce((s, g) => s + g.value, 0) || 1
-  let acc = 0
-  return (
-    <div className="flex items-center gap-4">
-      <div className="relative flex-shrink-0" style={{ width: 132, height: 132 }}>
-        <svg viewBox="0 0 132 132" className="w-full h-full -rotate-90">
-          <circle cx="66" cy="66" r={R} fill="none" stroke="currentColor" strokeOpacity="0.1" strokeWidth="16" />
-          {segments.map((g, i) => {
-            const frac = g.value / sum
-            const el = <circle key={i} cx="66" cy="66" r={R} fill="none" stroke={g.color} strokeWidth="16"
-              strokeDasharray={`${(frac * C).toFixed(1)} ${C.toFixed(1)}`} strokeDashoffset={(-acc * C).toFixed(1)} strokeLinecap="butt" />
-            acc += frac
-            return el
-          })}
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <p className="text-2xl font-sf font-semibold tabular-nums leading-none">{total}</p>
-          <p className="text-[9px] text-slate-400 mt-0.5">{totalLabel}</p>
-        </div>
-      </div>
-      <div className="flex-1 space-y-1.5 min-w-0">
-        {segments.map(g => (
-          <div key={g.label} className="flex items-center gap-2 text-xs">
-            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: g.color }} />
-            <span className="text-slate-500 dark:text-slate-400 flex-1 truncate">{g.label}</span>
-            <span className="font-semibold tabular-nums">{g.value}</span>
-            <span className="font-bold tabular-nums w-11 text-right" style={{ color: g.color }}>{sum ? Math.round(g.value / sum * 100) : 0}%</span>
-          </div>
-        ))}
-      </div>
     </div>
   )
 }
@@ -360,16 +292,25 @@ function ExecutiveOverview({ summary }) {
             icon={<BarChart2 size={15} className="text-blue-500" />} right={<GranToggle value={gran} onChange={setGran} />}>
             {points.length === 0 || points.every(p => p.b === 0 && p.e === 0)
               ? <EmptyBlock text="No revenue data for this view." />
-              : <TrendChart points={points.map(p => ({ x: p.x, a: Math.max(0, p.b - p.e), b: p.b }))} aLabel="Net Profit" bLabel="Revenue" />}
-            <div className="flex items-center justify-center gap-4 mt-1">
-              <span className="flex items-center gap-1.5 text-[10px] text-slate-400"><span className="w-2.5 h-2.5 rounded-sm bg-blue-500" />Net Profit</span>
-              <span className="flex items-center gap-1.5 text-[10px] text-slate-400"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />Revenue</span>
-            </div>
+              : (
+                <div className="space-y-5">
+                  <div>
+                    <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Net Profit</p>
+                    <SparkChart data={points.map(p => ({ label: p.x, net: p.b - p.e }))} valueKey="net" labelKey="label" height={130} accent="#10b981"
+                      format={(v) => rs(v)} />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Revenue</p>
+                    <SparkChart data={points.map(p => ({ label: p.x, revenue: p.b }))} valueKey="revenue" labelKey="label" height={130}
+                      format={(v) => rs(v)} />
+                  </div>
+                </div>
+              )}
           </Panel>
         </div>
         <Panel title="Trip Status" sub="Distribution of trips by status" icon={<Car size={15} className="text-slate-400" />}>
           {trips.total === 0 ? <EmptyBlock text="No trips yet." /> : (
-            <Donut total={trips.total} totalLabel="Total Trips" segments={[
+            <StatusBar total={trips.total} totalLabel="Total Trips" segments={[
               { label: 'Completed', value: buckets.completed, color: '#10b981' },
               { label: 'Ongoing', value: buckets.ongoing, color: '#f59e0b' },
               { label: 'Cancelled', value: buckets.cancelled, color: '#ef4444' },
@@ -575,12 +516,25 @@ function TripReports() {
             right={<GranToggle value={gran} onChange={setGran} options={[['daily', 'Daily'], ['weekly', 'Weekly']]} />}>
             {trend.length === 0 || trend.every(p => p.a === 0 && p.b === 0)
               ? <EmptyBlock text="No trips in this range." />
-              : <TrendChart points={trend} aLabel="Trips" bLabel="Revenue" />}
+              : (
+                <div className="space-y-5">
+                  <div>
+                    <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Trips</p>
+                    <SparkChart data={trend.map(p => ({ label: p.x, trips: p.a }))} valueKey="trips" labelKey="label" height={130}
+                      format={(v) => `${v} trip${v !== 1 ? 's' : ''}`} />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Revenue</p>
+                    <SparkChart data={trend.map(p => ({ label: p.x, revenue: p.b }))} valueKey="revenue" labelKey="label" height={130} accent="#10b981"
+                      format={(v) => rs(v)} />
+                  </div>
+                </div>
+              )}
           </Panel>
         </div>
         <Panel title="Trip Status Distribution" sub="Share of trips by status" icon={<Users size={15} className="text-violet-500" />}>
           {rows.length === 0 ? <EmptyBlock text="No trips in this range." /> : (
-            <Donut total={rows.length} totalLabel="Total Trips" segments={[
+            <StatusBar total={rows.length} totalLabel="Total Trips" segments={[
               { label: 'Completed', value: completed, color: '#10b981' },
               { label: 'Ongoing', value: ongoing, color: '#f59e0b' },
               { label: 'Cancelled', value: cancelled, color: '#ef4444' },
@@ -928,7 +882,6 @@ function CustomerReports() {
 function ExpenseAnalytics() {
   const [data, setData] = useState({ months: [], byCategory: [], monthTotal: 0, allTimeTotal: 0 })
   useEffect(() => { getExpenseAnalytics().then(d => setData(d ?? { months: [], byCategory: [], monthTotal: 0, allTimeTotal: 0 })) }, [])
-  const maxMonth = Math.max(...data.months.map(m => m.tot), 1)
   const catTotal = data.byCategory.reduce((s, t) => s + t.total, 0) || 1
   const topCat = data.byCategory[0]
   const handleExport = () => exportToCSV(
@@ -947,15 +900,8 @@ function ExpenseAnalytics() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Panel title="Expense Trend" sub="Last 6 months" icon={<TrendingDown size={15} className="text-red-400" />} right={<ExportBtn onClick={handleExport} />}>
           {data.months.every(m => m.tot === 0) ? <EmptyBlock text="No expense data." /> : (
-            <div className="flex items-end gap-2 h-32">
-              {data.months.map(m => (
-                <div key={m.key} title={`${m.lbl}: ${rs(m.tot)}`} className="flex-1 flex flex-col items-center justify-end gap-1 h-full">
-                  <span className="text-[9px] font-bold tabular-nums text-slate-500">{m.tot >= 1000 ? `${(m.tot / 1000).toFixed(0)}k` : m.tot}</span>
-                  <div className="w-full max-w-[36px] rounded-t-md bg-red-400/85" style={{ height: `${Math.max(4, Math.round(m.tot / maxMonth * 100))}%` }} />
-                  <span className="text-[9px] font-bold text-slate-400">{m.lbl}</span>
-                </div>
-              ))}
-            </div>
+            <SparkChart data={data.months} valueKey="tot" labelKey="lbl" height={128} accent="#f87171"
+              format={(v) => rs(v)} />
           )}
           <div className="flex justify-between text-xs border-t border-[var(--ap-border)] pt-2 mt-2">
             <span className="text-slate-500">This Month</span>

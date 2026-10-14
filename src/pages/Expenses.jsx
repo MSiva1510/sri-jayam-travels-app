@@ -14,6 +14,7 @@ import StatusPill from '../components/ui/StatusPill'
 import Callout    from '../components/ui/Callout'
 import EmptyState from '../components/ui/EmptyState'
 import SegmentedControl from '../components/ui/SegmentedControl'
+import SparkChart from '../components/ui/SparkChart'
 import { fieldCls, Select as FieldSelect } from '../components/ui/Field'
 import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../context/AuthContext'
@@ -277,7 +278,7 @@ function CategoryBar({ expenses }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Monthly trend sparkline — Module 9
+//  Monthly trend area — Module 9 (house area-chart style)
 // ─────────────────────────────────────────────────────────────
 function TrendBars({ expenses }) {
   // Last 6 months (local YYYY-MM keys — toISOString drifts for IST)
@@ -290,26 +291,12 @@ function TrendBars({ expenses }) {
     const tot = expenses.filter(e => (getExpenseDate(e) || '').startsWith(key)).reduce((s,e) => s+(e.amount||0), 0)
     months.push({ key, lbl, tot })
   }
-  const max = Math.max(...months.map(m => m.tot), 1)
+  if (months.every(m => m.tot === 0)) {
+    return <p className="text-xs text-slate-400 text-center py-4">No expenses in this period</p>
+  }
   return (
-    <div className="flex items-end gap-1.5 h-16">
-      {months.map((m, i) => {
-        const isLast = i === months.length - 1
-        const pct    = Math.max(6, Math.round((m.tot / max) * 100))
-        return (
-          <div key={m.key} className="flex-1 flex flex-col items-center gap-1">
-            <div className="w-full relative group">
-              <div className={`w-full rounded-t-md ${isLast ? 'bg-gradient-to-t from-amber-500 to-amber-400' : 'bg-[var(--ap-border)]'}`}
-                style={{ height: `${pct * 0.6}px` }} />
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 opacity-0 group-hover:opacity-100 transition-opacity bg-navy-900 text-white text-[10px] font-bold px-2 py-1 rounded-lg whitespace-nowrap pointer-events-none z-10">
-                Rs. {m.tot.toLocaleString('en-IN')}
-              </div>
-            </div>
-            <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400">{m.lbl}</span>
-          </div>
-        )
-      })}
-    </div>
+    <SparkChart data={months} valueKey="tot" labelKey="lbl" height={110} accent="#f59e0b"
+      format={(v) => `Rs. ${Number(v || 0).toLocaleString('en-IN')}`} />
   )
 }
 
@@ -407,12 +394,12 @@ export default function Expenses() {
   const [showAnalytics, setShowAnalytics] = useState(false)
 
   // ── Pagination: zoom-adaptive rows per page ─────────────────
-  // 90% → 6 · 100% → 5 · 110%+ → 4 (phones stay at 5).
-  const [pageSize, setPageSize] = useState(() => pageSizeFor(5, 5))
+  // 90% → 5 · 100% → 4 · 110%+ → 3 (phones stay at 5).
+  const [pageSize, setPageSize] = useState(() => pageSizeFor(4, 5))
   useEffect(() => {
     const onResize = () => {
       setPageSize(prev => {
-        const next = pageSizeFor(5, 5)
+        const next = pageSizeFor(4, 5)
         if (next !== prev) setPage(1)
         return next
       })
