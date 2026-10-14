@@ -1,25 +1,41 @@
 // ─── Live Fleet Board ─────────────────────────────────────────
-// Real-time overview of all vehicles, drivers, and active trips.
-// Reads from bookings, driverStatusData, and gpsHistoryData.
-// Auto-refreshes every 30 seconds.
-
+// Vehicle-first board driven by live GPS snapshots (same auto-synced
+// feed as the Live Fleet page), joined with the vehicle registry for
+// model/driver names and with today's bookings for the trip column.
+// No manual refresh — snapshots arrive via GpsHistoryContext.
 import { useState, useEffect, useCallback } from 'react'
-import { Car, MapPin, Clock, RefreshCw, Activity, User, Navigation } from 'lucide-react'
+import { Car, MapPin, Clock, Activity, User, Navigation } from 'lucide-react'
+import StatusPill from '../ui/StatusPill'
+import { useGpsHistory } from '../../context/GpsHistoryContext'
 import { loadDrivers } from '../../data/driverData'
 import { loadVehicles } from '../../data/vehicleData'
 import { loadBookings } from '../../data/tripTypes'
-import { loadDriverStatuses, getStatusCfg, DRIVER_STATUS_OFFLINE_MS } from '../../data/driverStatusData'
-import { getLatestRoutePoint } from '../../data/gpsHistoryData'
 
-function StatusPill({ statusKey }) {
-  const cfg   = getStatusCfg(statusKey)
-  const pulse = statusKey === 'driving' || statusKey === 'passenger_onboard'
-  return (
-    <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.badge}`}>
-      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot} ${pulse ? 'animate-pulse' : ''}`} />
-      {cfg.label}
-    </span>
-  )
+const norm = (r) => String(r ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+
+// Same 10-minute freshness rule as the Live Fleet page.
+function gpsStatusOf(s) {
+  const ts = s?.timestamp ? new Date(s.timestamp).getTime() : 0
+  if (!ts || Date.now() - ts > 10 * 60_000) return 'offline'
+  if (Number(s.speed_kmh ?? 0) > 0) return 'moving'
+  return s.ignition === true ? 'idle' : 'stopped'
+}
+
+const GPS_PILL = {
+  moving:  { tone: 'green', label: 'Moving'  },
+  stopped: { tone: 'blue',  label: 'Stopped' },
+  idle:    { tone: 'amber', label: 'Idle'    },
+  offline: { tone: 'red',   label: 'Offline' },
+}
+
+function ago(iso) {
+  if (!iso) return '—'
+  const s = Math.round((Date.now() - new Date(iso).getTime()) / 1000)
+  if (s < 0) return 'just now'
+  if (s < 60) return `${s}s ago`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m ago`
+  return new Date(iso).toLocaleTimeString()
 }
 
 function formatDuration(isoStart) {
@@ -33,19 +49,19 @@ function formatDuration(isoStart) {
 }
 
 export default function LiveFleetBoard() {
+  const { snapshots } = useGpsHistory()
   const [bookings, setBookings] = useState([])
   const [drivers,  setDrivers]  = useState([])
   const [vehicles, setVehicles] = useState([])
-  const [statuses, setStatuses] = useState({})
   const [tick,     setTick]     = useState(0)
 
-  // ── Async data fetch — runs on mount and every 30 s ──────
-  const fetchData = useCallback(async () => {
-    const [bk, dr, ve, st] = await Promise.allSettled([
+  // Registry info (names, models, trips) refreshes on its own cadence;
+  // GPS positions stream in continuously via context.
+  const fetchRegistry = useCallback(async () => {
+    const [bk, dr, ve] = await Promise.allSettled([
       loadBookings(),
       loadDrivers(),
       loadVehicles(),
-      loadDriverStatuses(),
     ])
     if (bk.status === 'fulfilled') setBookings(Array.isArray(bk.value) ? bk.value : [])
     else console.error('[LiveFleetBoard] loadBookings failed:', bk.reason)
@@ -53,57 +69,61 @@ export default function LiveFleetBoard() {
     else console.error('[LiveFleetBoard] load drivers failed:', dr.reason)
     if (ve.status === 'fulfilled') setVehicles(Array.isArray(ve.value) ? ve.value : [])
     else console.error('[LiveFleetBoard] load vehicles failed:', ve.reason)
-    if (st.status === 'fulfilled') setStatuses(st.value || {})
-    else console.error('[LiveFleetBoard] load driver statuses failed:', st.reason)
   }, [])
 
   useEffect(() => {
-    fetchData()
+    fetchRegistry()
     const id = setInterval(() => {
       setTick(t => t + 1)
-      fetchData()
+      fetchRegistry()
     }, 30_000)
     return () => clearInterval(id)
-  }, [fetchData])
+  }, [fetchRegistry])
 
   const todayISO = new Date().toISOString().slice(0, 10)
 
-  const rows = drivers.map(driver => {
-    const driverName = driver?.name || driver?.full_name || 'Unknown driver'
-    const driverVehicle = driver?.vehicle || driver?.vehicleReg || driver?.vehicle_reg || 'Unassigned'
-    const vehicle = vehicles.find(v => v.reg === driverVehicle)
+  // One row per fleet vehicle: registry rows joined with their live fix,
+  // plus any GPS-reporting reg not in the registry.
+  const rows = (() => {
+    const byReg = new Map()
+    vehicles.forEach(v => {
+      const key = norm(v?.reg)
+      if (key && !byReg.has(key)) byReg.set(key, { vehicle: v, snapshot: null })
+    })
+    snapshots.forEach(s => {
+      const key = norm(s?.registration || s?.vehicle_id)
+      if (!key) return
+      const row = byReg.get(key) || { vehicle: null }
+      const prev = row.snapshot
+      if (!prev || new Date(s.timestamp).getTime() > new Date(prev.timestamp).getTime()) {
+        row.snapshot = s
+      }
+      byReg.set(key, row)
+    })
 
-    // Active booking for this driver today
-    const activeBooking = bookings.find(b =>
-      (b.driver || b.driver_name || '').toLowerCase() === driverName.toLowerCase() &&
-      b.startDate === todayISO &&
-      ['started', 'assigned', 'confirmed'].includes(b.status)
-    )
+    return [...byReg.entries()].map(([key, { vehicle, snapshot }]) => {
+      const reg = vehicle?.reg || snapshot?.registration || key
+      const driver = drivers.find(d =>
+        norm(d?.vehicle || d?.vehicleReg || d?.vehicle_reg) === key
+      )
+      const driverName = driver?.name || driver?.full_name || 'Unassigned'
+      const activeBooking = driverName !== 'Unassigned' ? bookings.find(b =>
+        (b.driver || b.driver_name || '').toLowerCase() === driverName.toLowerCase() &&
+        b.startDate === todayISO &&
+        ['started', 'assigned', 'confirmed'].includes(b.status)
+      ) : null
+      const status = gpsStatusOf(snapshot)
+      const area = snapshot?.address
+        || ([snapshot?.latitude, snapshot?.longitude].every(Number.isFinite)
+          ? `${Number(snapshot.latitude).toFixed(3)}, ${Number(snapshot.longitude).toFixed(3)}`
+          : '—')
+      return { key, reg, model: vehicle?.model || '', vtype: vehicle?.type || '', driverName, activeBooking, status, snapshot, area }
+    })
+  })()
 
-    // Resolve live status — keyed by driver UUID, matching driver_status.driver_id
-    const stored = statuses[driver.id]
-    let   status = 'offline'
-    if (stored?.status) {
-      const elapsed = stored.updated_at
-        ? Date.now() - new Date(stored.updated_at).getTime()
-        : Infinity
-      status = elapsed > DRIVER_STATUS_OFFLINE_MS ? 'offline' : stored.status
-    } else if (activeBooking?.status === 'started') {
-      status = 'driving'
-    } else if (['assigned', 'confirmed'].includes(activeBooking?.status)) {
-      status = 'available'
-    }
-
-    // Current area — latest GPS point → stored area → fallback
-    const latestGPS   = activeBooking ? getLatestRoutePoint(activeBooking.id) : null
-    const currentArea = latestGPS?.area
-      || (driver.status === 'active' ? 'Puducherry' : '—')
-
-    return { driver, driverName, driverVehicle, vehicle, status, activeBooking, currentArea }
-  })
-
+  void tick
   const onlineCount  = rows.filter(r => r.status !== 'offline').length
-  const drivingCount = rows.filter(r => r.status === 'driving' || r.status === 'passenger_onboard').length
+  const movingCount  = rows.filter(r => r.status === 'moving').length
 
   return (
     <div className="ap-surface rounded-2xl overflow-hidden">
@@ -116,16 +136,10 @@ export default function LiveFleetBoard() {
           </div>
           <div>
             <h3 className="font-sf font-semibold text-slate-800 dark:text-white text-sm">Live Fleet Board</h3>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500">{onlineCount} online · {drivingCount} driving</p>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums">{onlineCount} online · {movingCount} moving</p>
           </div>
         </div>
-        <button
-          onClick={() => { setTick(t => t + 1); fetchData() }}
-          className="w-7 h-7 rounded-lg border border-[var(--ap-border)] flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-[var(--ap-surface-2)] transition-all"
-          title="Refresh now"
-        >
-          <RefreshCw size={12} />
-        </button>
+        <StatusPill tone={onlineCount > 0 ? 'green' : 'amber'} pulse={onlineCount > 0}>Live GPS</StatusPill>
       </div>
 
       {/* Table header — desktop only */}
@@ -140,13 +154,18 @@ export default function LiveFleetBoard() {
 
       {/* Rows */}
       <div className="divide-y divide-[var(--ap-border)]/60">
-        {rows.map(({ driver, driverName, driverVehicle, vehicle, status, activeBooking, currentArea }) => {
-          const isActive  = status === 'driving' || status === 'passenger_onboard'
-          const startedAt = activeBooking?.updatedAt || null
+        {rows.length === 0 && (
+          <p className="px-4 py-6 text-center text-xs text-slate-400 dark:text-slate-500">No vehicles in the fleet yet.</p>
+        )}
+        {rows.map(({ key, reg, model, vtype, driverName, activeBooking, status, snapshot, area }) => {
+          const pill = GPS_PILL[status]
+          const isActive  = status === 'moving'
+          const startedAt = activeBooking?.status === 'started' ? (activeBooking?.updatedAt || null) : null
           const tripId    = activeBooking?.id || null
+          const speedTxt  = snapshot ? `${Number(snapshot.speed_kmh ?? 0).toFixed(0)} km/h` : '—'
 
           return (
-            <div key={driver.id}
+            <div key={key}
               className={`px-4 py-3 transition-colors ${isActive ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''}`}
             >
               {/* Mobile */}
@@ -157,23 +176,15 @@ export default function LiveFleetBoard() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-slate-800 dark:text-white text-xs font-mono">{driverVehicle}</span>
-                      <StatusPill statusKey={status} />
+                      <span className="font-bold text-slate-800 dark:text-white text-xs font-mono">{reg}</span>
+                      <StatusPill tone={pill.tone}>{pill.label}</StatusPill>
                     </div>
                     <div className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
                       <User size={9} /><span>{driverName}</span>
                       <span className="mx-1">·</span>
-                      <MapPin size={9} /><span>{currentArea}</span>
+                      <MapPin size={9} /><span className="truncate">{area}</span>
                     </div>
-                    {tripId && (
-                      <div className="flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400 mt-0.5">
-                        <Navigation size={9} />
-                        <span className="font-mono truncate">{tripId.slice(-10)}</span>
-                        {isActive && startedAt && (
-                          <span className="ml-1 text-slate-400 font-sans">{formatDuration(startedAt)}</span>
-                        )}
-                      </div>
-                    )}
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 tabular-nums">{speedTxt} · {ago(snapshot?.timestamp)}</p>
                   </div>
                 </div>
               </div>
@@ -185,17 +196,20 @@ export default function LiveFleetBoard() {
                     <Car size={12} className={isActive ? 'text-white' : 'text-slate-400'} />
                   </div>
                   <div>
-                    <p className="font-bold text-slate-800 dark:text-white text-xs font-mono leading-tight">{driverVehicle}</p>
-                    <p className="text-[9px] text-slate-400">{vehicle?.model || ''}</p>
+                    <p className="font-bold text-slate-800 dark:text-white text-xs font-mono leading-tight">{reg}</p>
+                    <p className="text-[9px] text-slate-400">{model}</p>
                   </div>
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{driverName}</p>
-                  <p className="text-[9px] text-slate-400">{vehicle?.type || ''}</p>
+                  <p className="text-[9px] text-slate-400">{vtype}</p>
                 </div>
-                <div className="flex items-center gap-1">
-                  <MapPin size={10} className="text-slate-400 flex-shrink-0" />
-                  <span className="text-xs text-slate-600 dark:text-slate-300 truncate">{currentArea}</span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1">
+                    <MapPin size={10} className="text-slate-400 flex-shrink-0" />
+                    <span className="text-xs text-slate-600 dark:text-slate-300 truncate">{area}</span>
+                  </div>
+                  <p className="text-[9px] text-slate-400 tabular-nums mt-0.5">{speedTxt} · {ago(snapshot?.timestamp)}</p>
                 </div>
                 <div>
                   {tripId ? (
@@ -209,9 +223,9 @@ export default function LiveFleetBoard() {
                     <span className="text-[10px] text-slate-300 dark:text-slate-600">—</span>
                   )}
                 </div>
-                <StatusPill statusKey={status} />
+                <StatusPill tone={pill.tone}>{pill.label}</StatusPill>
                 <div>
-                  {isActive && startedAt ? (
+                  {startedAt ? (
                     <div className="flex items-center gap-1">
                       <Clock size={10} className="text-blue-500" />
                       <span className="text-xs font-bold text-blue-600 dark:text-blue-400 font-mono">{formatDuration(startedAt)}</span>
@@ -228,7 +242,7 @@ export default function LiveFleetBoard() {
 
       <div className="px-4 py-2 border-t border-[var(--ap-border)] bg-slate-50/50 dark:bg-[var(--ap-surface-2)]/30">
         <p className="text-[9px] text-slate-400 dark:text-slate-500">
-          Auto-refreshes every 30s · Drivers go offline after 10 min with no GPS update
+          Auto-syncs with live GPS · fixes older than 10 min show as Offline
         </p>
       </div>
     </div>

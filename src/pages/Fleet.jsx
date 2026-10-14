@@ -1,10 +1,9 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import {
-  Car, Truck, Pause, Clock, WifiOff, Route, RefreshCw, Search, Eye,
+  Car, Truck, Pause, Clock, WifiOff, Route, Search, Eye,
   LocateFixed, Expand, Bell, Map as MapIcon, List, Navigation,
   ShieldCheck, History, BarChart2, ChevronLeft, ChevronRight,
 } from 'lucide-react'
-import Button            from '../components/ui/Button'
 import Surface           from '../components/ui/Surface'
 import SectionHeader     from '../components/ui/SectionHeader'
 import SegmentedControl  from '../components/ui/SegmentedControl'
@@ -13,7 +12,8 @@ import StatusPill        from '../components/ui/StatusPill'
 import EmptyState        from '../components/ui/EmptyState'
 import Callout           from '../components/ui/Callout'
 import IconButton        from '../components/ui/IconButton'
-import DonutChart        from '../components/ui/DonutChart'
+import StatusBar         from '../components/ui/StatusBar'
+import SparkChart        from '../components/ui/SparkChart'
 import FleetMap          from '../components/fleet/FleetMap'
 import FleetVehicleDetail from '../components/fleet/FleetVehicleDetail'
 import { useGpsHistory }  from '../context/GpsHistoryContext'
@@ -170,15 +170,15 @@ function VehicleCard({ s, selected, onView, onLocate }) {
 }
 
 export default function Fleet() {
-  const { snapshots, fleet, syncNow, loading, running, settings, health } = useGpsHistory()
+  const { snapshots, fleet, loading, running, settings, health } = useGpsHistory()
   const [subtab, setSubtab] = useState('map')
   const [search, setSearch] = useState('')
   const [statusSel, setStatusSel] = useState('all')
   const [selected, setSelected] = useState(null)
   const [locateTarget, setLocateTarget] = useState(null)
   const [layer, setLayer] = useState('map')
+  const [snapToRoad, setSnapToRoad] = useState(false)
   const [mapFocus, setMapFocus] = useState(false)
-  const [diagCopied, setDiagCopied] = useState(false)
   const [tick, setTick] = useState(0)
   const [histPts, setHistPts] = useState([])
   const [yestKm, setYestKm] = useState(null)
@@ -221,8 +221,6 @@ export default function Fleet() {
     } catch { setHistPts([]); setYestKm(null) }
   }, [dayStart])
   useEffect(() => { loadHistory() }, [loadHistory])
-
-  const handleSync = async () => { await syncNow(); loadHistory() }
 
   const counts = useMemo(() => {
     const c = { moving: 0, idle: 0, stopped: 0, offline: 0 }
@@ -281,7 +279,6 @@ export default function Fleet() {
     })
     return buckets
   }, [histPts])
-  const maxHour = Math.max(...hourly.map(b => b.km), 0.01)
 
   const ctl = 'ap-field ap-focus py-2 px-3 text-xs font-medium rounded-[10px] outline-none tabular-nums'
 
@@ -295,6 +292,7 @@ export default function Fleet() {
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Real-time vehicle location, status and fleet operations</p>
         </div>
         <div className="flex items-center gap-3">
+          {/* Fully automatic sync — status only, no manual buttons */}
           <div className="text-right">
             <div className="flex justify-end">
               <StatusPill tone={running === false ? 'amber' : 'green'} pulse={running !== false}>
@@ -306,34 +304,6 @@ export default function Fleet() {
               <SyncCountdown intervalSec={intervalSec} lastSuccess={health?.lastSuccess} nextRetryAt={health?.nextRetryAt} running={running} />
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={async () => {
-              const diag = {
-                at: new Date().toISOString(),
-                running,
-                health,
-                gpsSettings: settings ? {
-                  provider: settings.provider, enabled: settings.enabled,
-                  refresh_interval: settings.refresh_interval,
-                  api_url: settings.api_url,
-                  company_id: settings.company_id, user_id: settings.user_id,
-                  api_token: settings.api_token, api_email: settings.api_email,
-                  kingstrack_api_url: settings.kingstrack_api_url,
-                  gpstrack_api_url: settings.gpstrack_api_url,
-                } : null,
-                snapshots: snapshots.map(s => ({
-                  registration: s.registration, speed: s.speed_kmh,
-                  ignition: s.ignition, gps_online: s.gps_online, timestamp: s.timestamp,
-                })),
-              }
-              try {
-                await navigator.clipboard.writeText(JSON.stringify(diag, null, 1))
-                setDiagCopied(true)
-                setTimeout(() => setDiagCopied(false), 2000)
-              } catch {}
-            }}>
-            {diagCopied ? 'Copied!' : 'Diagnostics'}
-          </Button>
-          <Button icon={RefreshCw} size="sm" onClick={handleSync}>Sync Now</Button>
         </div>
       </div>
 
@@ -382,11 +352,7 @@ export default function Fleet() {
         return (
           <Callout tone="red" icon={WifiOff}
             title={`GPS sync failing: ${health.lastError}. Positions below are stale.`}
-            sub={limited ? 'Vendor rate limit — auto-retry in ~' + waitS + 's. Tapping retry early extends the ban.' : undefined}
-            actionLabel={limited ? `Retry in ${waitS}s` : 'Retry Sync'}
-            actionDisabled={limited}
-            onAction={handleSync}
-          />
+            sub={limited ? 'Vendor rate limit — retrying automatically in ~' + waitS + 's.' : 'Retrying automatically — no action needed.'} />
         )
       })()}
       {/* GPS write failure — provider OK but rows not persisting across
@@ -419,7 +385,8 @@ export default function Fleet() {
           selected={selected} setSelected={setSelected}
           locateTarget={locateTarget} setLocateTarget={setLocateTarget}
           layer={layer} setLayer={setLayer} mapFocus={mapFocus}
-          movement={movement} hourly={hourly} maxHour={maxHour} todayKm={todayKm} distDelta={distDelta}
+          snapToRoad={snapToRoad} setSnapToRoad={setSnapToRoad}
+          movement={movement} hourly={hourly} todayKm={todayKm} distDelta={distDelta}
         />
       )}
       {subtab === 'list' && <ListView snapshots={filtered} onSelect={setSelected} />}
@@ -436,14 +403,26 @@ export default function Fleet() {
 }
 
 // ── Live Map view ─────────────────────────────────────────────
-function MapView({ snapshots, total, counts, selected, setSelected, locateTarget, setLocateTarget, layer, setLayer, mapFocus, movement, hourly, maxHour, todayKm, distDelta }) {
+function MapView({ snapshots, total, counts, selected, setSelected, locateTarget, setLocateTarget, layer, setLayer, mapFocus, movement, hourly, todayKm, distDelta, snapToRoad, setSnapToRoad }) {
   return (
     <div className="space-y-4">
       <div className={`grid grid-cols-1 gap-4 ${mapFocus ? '' : 'lg:grid-cols-3'}`}>
         <div className={mapFocus ? '' : 'lg:col-span-2'}>
           <div className="relative">
-            <FleetMap snapshots={snapshots} onSelect={setSelected} layer={layer} locateTarget={locateTarget} height={mapFocus ? 560 : 460} />
-            <div className="absolute right-3 bottom-3 z-[400]">
+            <FleetMap snapshots={snapshots} onSelect={setSelected} layer={layer} locateTarget={locateTarget} height={mapFocus ? 560 : 460} snapToRoad={snapToRoad} />
+            <div className="absolute right-3 bottom-3 z-[400] flex items-center gap-2">
+              <button
+                onClick={() => setSnapToRoad(v => !v)}
+                title="Snap car markers to the nearest road (display only — GPS data unchanged)"
+                aria-pressed={snapToRoad}
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-[5px] shadow-lg ring-1 ring-black/5 backdrop-blur transition-colors active:scale-95 ${
+                  snapToRoad
+                    ? 'bg-[var(--ap-accent)] text-white'
+                    : 'bg-[var(--ap-surface)]/90 text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-elevated)]'
+                }`}
+              >
+                <Route size={12} /> Snap to road
+              </button>
               <SegmentedControl
                 ariaLabel="Map layer"
                 value={layer}
@@ -512,21 +491,15 @@ function MapView({ snapshots, total, counts, selected, setSelected, locateTarget
               <span className="ml-1.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">vs yesterday</span>
             </p>
             {hourly.every(b => b.km === 0) ? <EmptyState title="No GPS distance recorded today yet." /> : (
-              <div className="flex items-end gap-1 h-28 mt-2">
-                {hourly.map(b => (
-                  <div key={b.x} title={`${b.x}: ${b.km.toFixed(1)} km`} className="flex-1 flex flex-col items-center justify-end gap-1 h-full">
-                    <div className="w-full max-w-[22px] rounded-t bg-blue-500/80" style={{ height: `${Math.max(3, maxHour ? b.km / maxHour * 100 : 0)}%` }} />
-                    <span className="text-[8px] text-slate-500 dark:text-slate-400 tabular-nums">{b.x}</span>
-                  </div>
-                ))}
-              </div>
+              <SparkChart data={hourly} valueKey="km" labelKey="x" height={112}
+                format={(v) => `${Number(v || 0).toFixed(1)} km`} />
             )}
             <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Distance (km) · from GPS samples</p>
           </Surface>
           <Surface>
             <p className="text-sm font-sf font-semibold text-slate-900 dark:text-white mb-2">Vehicle Status</p>
             {total === 0 ? <EmptyState title="No vehicles tracked." /> : (
-              <DonutChart total={total} totalLabel="Vehicles" segments={[
+              <StatusBar total={total} totalLabel="Vehicles" segments={[
                 { label: 'Moving', value: counts.moving, color: '#10b981' },
                 { label: 'Stopped', value: counts.stopped, color: '#3b82f6' },
                 { label: 'Idle', value: counts.idle, color: '#f59e0b' },
@@ -608,10 +581,10 @@ function TripsView({ snapshots, counts, total, onSelect }) {
       <Surface>
         <SectionHeader className="mb-2" title="Fleet Status Split" />
         {total === 0 ? <EmptyState title="No vehicles tracked." /> : (
-          <DonutChart total={total} totalLabel="Vehicles" segments={[
+          <StatusBar total={total} totalLabel="Vehicles" segments={[
             { label: 'Moving', value: counts.moving, color: '#10b981' },
-            { label: 'Idle', value: counts.idle, color: '#f59e0b' },
             { label: 'Stopped', value: counts.stopped, color: '#3b82f6' },
+            { label: 'Idle', value: counts.idle, color: '#f59e0b' },
             { label: 'Offline', value: counts.offline, color: '#ef4444' },
           ]} />
         )}
@@ -828,10 +801,10 @@ function AnalyticsView({ snapshots, counts, total, todayKm, fleet }) {
       <Surface>
         <SectionHeader className="mb-2" title="Fleet Status Split" />
         {total === 0 ? <p className="text-xs text-slate-500 dark:text-slate-400 text-center py-8">No vehicles tracked.</p> : (
-          <DonutChart total={total} totalLabel="Vehicles" segments={[
+          <StatusBar total={total} totalLabel="Vehicles" segments={[
             { label: 'Moving', value: counts.moving, color: '#10b981' },
-            { label: 'Idle', value: counts.idle, color: '#f59e0b' },
             { label: 'Stopped', value: counts.stopped, color: '#3b82f6' },
+            { label: 'Idle', value: counts.idle, color: '#f59e0b' },
             { label: 'Offline', value: counts.offline, color: '#ef4444' },
           ]} />
         )}

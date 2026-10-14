@@ -1,7 +1,7 @@
 // ─── Fleet Map (MapLibre) ───────────────────────────────────────
-// Open-source tiles with real light + dark themes (no API key):
-//   light → OpenFreeMap "liberty"  ·  dark → OpenFreeMap "dark"
-//   satellite → keyless Esri World Imagery.
+// Plain OSM raster tiles (no API key, no vector style that can fail as
+// a unit): street → OSM standard · satellite → keyless Esri imagery.
+// If OSM never finishes loading, fall back to Esri street map.
 // One small car marker per vehicle (rotated to bearing, white reg
 // label), click → detail panel. Markers ease toward live fixes via
 // rAF so motion looks continuous instead of jumpy.
@@ -11,21 +11,34 @@ import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Maximize2 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
+import { snapPoint } from '../../utils/snapToRoad'
 import { carSvg, carStatusOf, CAR_STATUS_COLORS } from './carIcon'
 
-const STYLE_LIGHT = 'https://tiles.openfreemap.org/styles/liberty'
-const STYLE_DARK = 'https://tiles.openfreemap.org/styles/dark'
-const OSM_FALLBACK = {
+const OSM_STYLE = {
   version: 8,
   sources: {
     osm: {
       type: 'raster',
       tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
       tileSize: 256,
+      maxzoom: 19,
       attribution: '© OpenStreetMap contributors',
     },
   },
   layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+}
+const ESRI_STREET_FALLBACK = {
+  version: 8,
+  sources: {
+    esri: {
+      type: 'raster',
+      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: '© Esri · © OpenStreetMap contributors',
+    },
+  },
+  layers: [{ id: 'esri', type: 'raster', source: 'esri' }],
 }
 const SAT_STYLE = {
   version: 8,
@@ -55,17 +68,19 @@ function popupHtml(s, status) {
   </div>`
 }
 
-export default function FleetMap({ snapshots = [], onSelect, layer = 'map', locateTarget, height = 500 }) {
+export default function FleetMap({ snapshots = [], onSelect, layer = 'map', locateTarget, height = 500, snapToRoad = false }) {
   const { darkMode } = useApp()
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const markersRef = useRef(new Map()) // id -> { marker, el, carEl, spdEl, status, cur, target }
+  const snapCacheRef = useRef(new Map()) // "lat,lng" @5dp -> { lat, lng } snapped road point
   const latestRef = useRef(new Map())
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
   const [styleFailed, setStyleFailed] = useState(false)
+  const loadedRef = useRef(false) // true once a style has fully loaded
 
-  const styleUrl = layer === 'satellite' ? SAT_STYLE : darkMode ? STYLE_DARK : STYLE_LIGHT
+  const styleSpec = layer === 'satellite' ? SAT_STYLE : OSM_STYLE
 
   const centre = useMemo(() => {
     const pts = snapshots
@@ -82,13 +97,17 @@ export default function FleetMap({ snapshots = [], onSelect, layer = 'map', loca
     if (!containerRef.current || mapRef.current) return
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: styleUrl,
+      style: styleSpec,
       center: centre,
       zoom: 11,
       attributionControl: { compact: true },
     })
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left')
-    map.on('error', () => setStyleFailed(true))
+    map.on('load', () => { loadedRef.current = true })
+    map.on('styledata', () => { try { if (map.isStyleLoaded()) loadedRef.current = true } catch {} })
+    // A style that never finishes loading (blocked tile host, offline)
+    // falls back to Esri street — but one bad tile must NOT flip the style.
+    map.on('error', () => { if (!loadedRef.current) setStyleFailed(true) })
     mapRef.current = map
     return () => {
       markersRef.current.forEach(m => m.marker.remove())
@@ -99,19 +118,20 @@ export default function FleetMap({ snapshots = [], onSelect, layer = 'map', loca
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Fallback to OSM raster if the vector style fails to load
+  // Fallback to Esri street if the OSM style never finishes loading
   const fellBack = useRef(false)
   useEffect(() => {
     if (styleFailed && !fellBack.current && mapRef.current) {
       fellBack.current = true
-      try { mapRef.current.setStyle(OSM_FALLBACK) } catch {}
+      try { mapRef.current.setStyle(ESRI_STREET_FALLBACK) } catch {}
     }
   }, [styleFailed])
 
-  // Switch light / dark / satellite styles (markers persist)
+  // Switch street / satellite styles (markers persist)
   useEffect(() => {
     if (mapRef.current && !fellBack.current) {
-      try { mapRef.current.setStyle(styleUrl) } catch {}
+      loadedRef.current = false
+      try { mapRef.current.setStyle(styleSpec) } catch {}
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layer, darkMode])
@@ -128,6 +148,29 @@ export default function FleetMap({ snapshots = [], onSelect, layer = 'map', loca
       const status = statusOf(s)
       const speed = Number(s.speed_kmh ?? 0)
       const bearing = Number.isFinite(Number(s.bearing)) ? Number(s.bearing) : 0
+      // Snap-to-road (optional, display-side only): ease toward the nearest
+      // road point instead of the raw GPS fix. Failures keep the raw fix.
+      let target = { lng: s.longitude, lat: s.latitude }
+      if (snapToRoad) {
+        const key = `${s.latitude.toFixed(5)},${s.longitude.toFixed(5)}`
+        const hit = snapCacheRef.current.get(key)
+        if (hit) {
+          target = { lng: hit.lng, lat: hit.lat }
+        } else {
+          snapPoint(s.latitude, s.longitude).then(snapped => {
+            if (!snapped) return
+            snapCacheRef.current.set(key, snapped)
+            if (snapCacheRef.current.size > 500) {
+              snapCacheRef.current.delete(snapCacheRef.current.keys().next().value)
+            }
+            const rec = markersRef.current.get(s.id)
+            const cur = latestRef.current.get(s.id)
+            if (rec && cur && `${cur.latitude.toFixed(5)},${cur.longitude.toFixed(5)}` === key) {
+              rec.target = { lng: snapped.lng, lat: snapped.lat }
+            }
+          }).catch(() => {})
+        }
+      }
       let rec = markersRef.current.get(s.id)
       if (!rec) {
         const el = document.createElement('div')
@@ -138,17 +181,17 @@ export default function FleetMap({ snapshots = [], onSelect, layer = 'map', loca
           `<div class="fleet-ml-car" style="width:${MARKER_SIZE}px;height:${MARKER_SIZE * 2}px">${carSvg(status, MARKER_SIZE)}</div>`
         const carEl = el.querySelector('.fleet-ml-car')
         const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
-          .setLngLat([s.longitude, s.latitude])
+          .setLngLat([target.lng, target.lat])
           .addTo(map)
         el.addEventListener('click', (e) => {
           e.stopPropagation()
           popup.setLngLat([s.longitude, s.latitude]).setHTML(popupHtml(latestRef.current.get(s.id) || s, statusOf(latestRef.current.get(s.id) || s))).addTo(map)
           onSelectRef.current?.(s)
         })
-        rec = { marker, el, carEl, spdEl: el.querySelector('.fleet-ml-spd'), status, cur: { lng: s.longitude, lat: s.latitude }, target: { lng: s.longitude, lat: s.latitude } }
+        rec = { marker, el, carEl, spdEl: el.querySelector('.fleet-ml-spd'), status, cur: { lng: target.lng, lat: target.lat }, target }
         markersRef.current.set(s.id, rec)
       } else {
-        rec.target = { lng: s.longitude, lat: s.latitude }
+        rec.target = target
         if (rec.status !== status) {
           rec.status = status
           rec.carEl.innerHTML = carSvg(status, MARKER_SIZE)
@@ -165,7 +208,7 @@ export default function FleetMap({ snapshots = [], onSelect, layer = 'map', loca
     markersRef.current.forEach((rec, id) => {
       if (!seen.has(id)) { rec.marker.remove(); markersRef.current.delete(id) }
     })
-  }, [snapshots])
+  }, [snapshots, snapToRoad])
 
   // Ease markers toward live fixes (continuous motion, no overshoot)
   useEffect(() => {

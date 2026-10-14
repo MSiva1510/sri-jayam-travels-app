@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   TrendingUp, TrendingDown, IndianRupee, Car, Receipt,
   CheckCircle, Clock, Users, Fuel, Plus, FileText,
@@ -18,6 +18,7 @@ import SparkChart from '../components/ui/SparkChart'
 import EmptyState from '../components/ui/EmptyState'
 import Callout    from '../components/ui/Callout'
 import { useAuth } from '../context/AuthContext'
+import { useGpsHistory } from '../context/GpsHistoryContext'
 import { loadDrivers } from '../data/driverData'
 import { loadVehicles } from '../data/vehicleData'
 import { fleetAlertRepository } from '../repositories'
@@ -73,23 +74,11 @@ function MiniStat({ icon: Icon, value, label, tone = 'blue', onClick }) {
   )
 }
 
-// ── Profit margin donut ────────────────────────────────────────
-function DonutRing({ pct, color, size = 128 }) {
-  const safePct = Math.min(100, Math.max(0, Number(pct) || 0))
-  const r = 24, cx = 32, cy = 32, circ = 2 * Math.PI * r, dash = (safePct / 100) * circ
-  return (
-    <svg width={size} height={size} viewBox="0 0 64 64" className="-rotate-90" role="img" aria-label={`Profit margin ${safePct}%`}>
-      <title>{safePct}% margin</title>
-      <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth="6" className="stroke-slate-200 dark:stroke-[var(--ap-border)]" />
-      <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth="6" stroke={color}
-        strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" style={{ transition: 'stroke-dasharray 0.6s ease' }} />
-    </svg>
-  )
-}
-
 export default function Dashboard() {
   const { can, isAdmin, isManager } = useAuth()
   const navigate = useNavigate()
+  // Live GPS — same auto-synced snapshots as the Live Fleet page
+  const { snapshots: liveSnapshots, running: gpsRunning, settings: gpsSettings } = useGpsHistory()
 
   // ── Async state ───────────────────────────────────────────
   const [bookings,    setBookings]    = useState([])
@@ -176,6 +165,33 @@ export default function Dashboard() {
      .map(d => ({ ...d, st: docStatus(d.expiry) }))
   )
 
+  // ── Live GPS status (auto-synced snapshots shared with Live Fleet) ──
+  const gpsCounts = useMemo(() => {
+    const c = { moving: 0, stopped: 0, idle: 0, offline: 0 }
+    const now = Date.now()
+    liveSnapshots.forEach(s => {
+      const ts = s.timestamp ? new Date(s.timestamp).getTime() : 0
+      if (!ts || now - ts > 10 * 60_000) { c.offline++; return }
+      if (Number(s.speed_kmh ?? 0) > 0) c.moving++
+      else if (s.ignition === true) c.idle++
+      else c.stopped++
+    })
+    return c
+  }, [liveSnapshots])
+  const gpsLastTs = liveSnapshots.reduce((m, s) => {
+    const t = s.timestamp ? new Date(s.timestamp).getTime() : 0
+    return t > m ? t : m
+  }, 0)
+  const gpsAgo = (() => {
+    if (!gpsLastTs) return 'never'
+    const s = Math.round((Date.now() - gpsLastTs) / 1000)
+    if (s < 0) return 'just now'
+    if (s < 60) return `${s}s ago`
+    const m = Math.floor(s / 60)
+    return m < 60 ? `${m}m ago` : new Date(gpsLastTs).toLocaleString()
+  })()
+  const gpsInterval = Math.max(5, Number(gpsSettings?.refresh_interval ?? 60))
+
   // ── Customer derived ──────────────────────────────────────
   const thisMonthStr       = toLocalMonthStr()
   const newCustomersMonth  = customers.filter(c => c.createdAt?.startsWith(thisMonthStr)).length
@@ -253,6 +269,29 @@ export default function Dashboard() {
   })()
   const trendData  = period === 'year' ? yearlyFare : monthlyFare
   const trendTitle = period === 'year' ? '12-month trend' : '6-month trend'
+
+  // ── Monthly expenses + net income (same buckets as the fare trend) ──
+  const monthlyExp = (() => {
+    const expFor = (key) => allExpenses
+      .filter(e => (getExpenseDate(e) || '').startsWith(key))
+      .reduce((s, e) => s + (e.amount || 0), 0)
+    if (period === 'year') {
+      const y = new Date().getFullYear()
+      const out = []
+      for (let m = 0; m < 12; m++) out.push(expFor(toLocalMonthStr(new Date(y, m, 1))))
+      return out
+    }
+    const now = new Date()
+    const out = []
+    for (let i = 5; i >= 0; i--) {
+      out.push(expFor(toLocalMonthStr(new Date(now.getFullYear(), now.getMonth() - i, 1))))
+    }
+    return out
+  })()
+  const monthlyNet = trendData.map((m, i) => ({
+    month: m.month,
+    net: (Number(m.fare) || 0) - (monthlyExp[i] || 0),
+  }))
 
   // ── Trip-volume trend (no money figures — safe for manager roles) ──
   const monthlyTrips = (() => {
@@ -516,6 +555,37 @@ export default function Dashboard() {
         </section>
       )}
 
+      {/* ── Live GPS status — current fixes from the auto-synced live fleet ── */}
+      {(isAdmin || isManager) && (
+        <section>
+          <SectionHeader
+            className="mb-3"
+            eyebrow="Fleet Management"
+            title="Live GPS Status"
+            action={
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <StatusPill tone={gpsRunning === false ? 'amber' : 'green'} pulse={gpsRunning !== false}>
+                  {gpsRunning === false ? 'Paused' : 'Live'}
+                </StatusPill>
+                <button onClick={() => navigate('/fleet')}
+                  className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors">
+                  View all →
+                </button>
+              </div>
+            }
+          />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <MiniStat icon={Zap}      tone="green" value={gpsCounts.moving}  label="Moving"  onClick={() => navigate('/fleet')} />
+            <MiniStat icon={Car}      tone="blue"  value={gpsCounts.stopped} label="Stopped" onClick={() => navigate('/fleet')} />
+            <MiniStat icon={Clock}    tone="amber" value={gpsCounts.idle}    label="Idle"    onClick={() => navigate('/fleet')} />
+            <MiniStat icon={XCircle}  tone="red"   value={gpsCounts.offline} label="Offline" onClick={() => navigate('/fleet')} />
+          </div>
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-2 tabular-nums">
+            Updated {gpsAgo} · auto-sync every {gpsInterval}s
+          </p>
+        </section>
+      )}
+
       {/* ── Vehicle doc expiry alert ── */}
       {vehicleDocAlerts.length > 0 && can('vehicles') && (
         <Surface className="border-amber-500/20 bg-amber-500/[0.06]">
@@ -754,15 +824,8 @@ export default function Dashboard() {
                 <span className="badge badge-active align-middle text-[10px]">{periodTagCap}</span>
               </p>
             </div>
-            <div className="flex-1 flex items-center justify-center py-2">
-              <div className="relative">
-                <DonutRing pct={periodFare > 0 ? Math.round((periodNet / periodFare) * 100) : 0} color={periodNet >= 0 ? '#10b981' : '#f43f5e'} />
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <p className="font-sf text-2xl font-semibold text-slate-900 dark:text-white tabular-nums">{periodFare > 0 ? Math.min(100, Math.max(0, Math.round((periodNet / periodFare) * 100))) : 0}%</p>
-                  <p className="text-[10px] text-slate-400">margin {periodTag}</p>
-                </div>
-              </div>
-            </div>
+            <SparkChart data={monthlyNet} valueKey="net" labelKey="month" height={120}
+              accent={periodNet >= 0 ? '#10b981' : '#f43f5e'} />
             <div className="mt-3 space-y-2">
               {[
                 { label:'Trip Revenue', amt:periodFare,     color:'bg-emerald-500' },
@@ -774,6 +837,12 @@ export default function Dashboard() {
                   <span className="font-semibold text-slate-700 dark:text-slate-200 tabular-nums">Rs. {r.amt.toLocaleString('en-IN')}</span>
                 </div>
               ))}
+            </div>
+            <div className="mt-3 pt-3 border-t ap-hairline flex justify-between text-xs text-slate-500 dark:text-slate-400">
+              <span>Margin ({periodTagCap})</span>
+              <span className="font-semibold text-slate-700 dark:text-slate-200 tabular-nums">
+                {periodFare > 0 ? Math.min(100, Math.max(0, Math.round((periodNet / periodFare) * 100))) : 0}%
+              </span>
             </div>
           </Surface>
         ) : attentionItems.length > 0 ? (
