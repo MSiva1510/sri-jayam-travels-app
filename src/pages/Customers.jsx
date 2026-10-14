@@ -725,14 +725,14 @@ export default function Customers() {
   const [loadError,    setLoadError]    = useState(null)
 
   // ── Pagination: zoom-adaptive rows per page + go-to-page ───
-  // 90% → 7 · 100% → 6 · 110%+ → 5 (phones stay at 5).
-  const [pageSize, setPageSize] = useState(() => pageSizeFor(6, 5))
+  // 90% → 6 · 100% → 5 · 110%+ → 4 (phones stay at 5).
+  const [pageSize, setPageSize] = useState(() => pageSizeFor(5, 5))
   const [page, setPage] = useState(1)
   const [goPage, setGoPage] = useState('')
   useEffect(() => {
     const onResize = () => {
       setPageSize(prev => {
-        const next = pageSizeFor(6, 5)
+        const next = pageSizeFor(5, 5)
         if (next !== prev) setPage(1)
         return next
       })
@@ -867,7 +867,7 @@ export default function Customers() {
   }
 
   // Compact density fits one screen at 100% zoom; the page flows
-  // naturally (sticky pagination included) so 90–110% zoom never clips.
+  // naturally (in-flow pagination) so 90–110% zoom never clips.
   return (
     <div className="space-y-3 md:space-y-2 animate-fade-up">
       <PageHeader compact
@@ -1010,13 +1010,14 @@ export default function Customers() {
         </div>
       )}
 
-      {/* Pagination — 5 per page (hidden while a profile is open) */}
+      {/* Pagination — 5 per page (hidden while a profile is open).
+          In normal flow (not sticky) so it never floats over rows. */}
       {!loading && filtered.length > 0 && !expanded && (
-      <div className="ap-surface rounded-2xl px-3 py-2 flex items-center justify-between gap-3 flex-wrap sticky bottom-3 z-10">
-        <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
+      <div className="ap-surface rounded-2xl px-3 py-2 mt-2 flex items-center justify-between gap-3">
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums whitespace-nowrap flex-shrink-0">
           Page {safePage} of {totalPages} · {filtered.length} customer{filtered.length !== 1 ? 's' : ''}
         </p>
-        <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-shrink-0">
           <button onClick={() => setPage(safePage - 1)} disabled={safePage <= 1}
             aria-label="Previous page"
             className="ap-focus min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
@@ -1041,7 +1042,7 @@ export default function Customers() {
             className="ap-focus min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
             →
           </button>
-          <span className="text-[11px] text-slate-500 dark:text-slate-400 ml-1">Go to</span>
+          <span className="text-[11px] text-slate-500 dark:text-slate-400 ml-1 flex-shrink-0">Go to</span>
           <input
             value={goPage}
             onChange={e => setGoPage(e.target.value.replace(/[^0-9]/g, ''))}
@@ -1050,7 +1051,7 @@ export default function Customers() {
             placeholder={String(totalPages)}
             inputMode="numeric"
             aria-label={`Go to page, 1 to ${totalPages}`}
-            className={`${fieldCls} w-14 text-center tabular-nums`}
+            className="ap-field ap-focus w-14 h-9 flex-shrink-0 rounded-[12px] px-2 text-center text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500 tabular-nums"
           />
         </div>
       </div>

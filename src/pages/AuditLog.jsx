@@ -192,8 +192,8 @@ export default function AuditLog() {
   const [page, setPage]           = useState(1)
   // Base rows at 100% zoom — browser zoom adjusts ±1 row per 10% step
   // (+1 per 10% zoomed out, −1 per 10% zoomed in) via resize listener.
-  const [baseSize, setBaseSize]   = useState(8)
-  const [pageSize, setPageSize]   = useState(() => pageSizeForZoom(8))
+  const [baseSize, setBaseSize]   = useState(7)
+  const [pageSize, setPageSize]   = useState(() => pageSizeForZoom(7))
   const [goTo, setGoTo]           = useState('')
 
   useEffect(() => {
@@ -234,6 +234,19 @@ export default function AuditLog() {
         .filter(Boolean).some(v => String(v).toLowerCase().includes(q))
     })
   }, [events, search, moduleFilter])
+
+  // Top modules by audit volume — one-click presets next to the dropdown.
+  const topModules = useMemo(() => {
+    const counts = new Map()
+    events.forEach(e => {
+      if (!e.module) return
+      counts.set(e.module, (counts.get(e.module) || 0) + 1)
+    })
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([module, count]) => ({ module, count }))
+  }, [events])
 
   // Reset to first page whenever the result set or page size changes
   useEffect(() => { setPage(1); setGoTo('') }, [search, moduleFilter, pageSize, baseSize, events.length])
@@ -291,6 +304,25 @@ export default function AuditLog() {
         >
           {modules.map(m => <option key={m} value={m}>{m === 'all' ? 'All modules' : m}</option>)}
         </select>
+        {/* Most-active modules — one click filters, clicking again clears */}
+        {topModules.map(({ module, count }) => {
+          const active = moduleFilter === module
+          return (
+            <button
+              key={module}
+              onClick={() => setModuleFilter(active ? 'all' : module)}
+              title={`${count} events — filter to ${module}`}
+              aria-pressed={active}
+              className={`px-2.5 py-2 rounded-xl border text-xs font-bold tabular-nums transition-colors whitespace-nowrap ${
+                active
+                  ? 'bg-[var(--ap-accent)] border-[var(--ap-accent)] text-white shadow'
+                  : 'border-[var(--ap-border)] ap-surface text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)]'
+              }`}
+            >
+              {module} · {count}
+            </button>
+          )
+        })}
       </div>
 
       <div className="rounded-2xl border border-[var(--ap-border)] ap-surface overflow-hidden">
@@ -334,7 +366,7 @@ export default function AuditLog() {
             title="Base rows at 100% zoom — auto ±1 row per 10% browser zoom"
             className="px-2.5 py-2 rounded-xl border border-[var(--ap-border)] ap-surface text-xs font-bold text-slate-600 dark:text-slate-300 focus:outline-none"
           >
-            {[8, 12, 20].map(n => <option key={n} value={n}>{n} / page</option>)}
+            {[7, 12, 20].map(n => <option key={n} value={n}>{n} / page</option>)}
           </select>
           <p className="text-xs text-slate-400 tabular-nums mr-auto">
             Showing {from} to {to} of {filtered.length} events

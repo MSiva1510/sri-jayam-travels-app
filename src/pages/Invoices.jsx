@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, Printer, Eye, AlertTriangle, FileText, X, Columns3, Check } from 'lucide-react'
+import { Plus, Printer, Eye, AlertTriangle, FileText, X, Columns3, Check, CalendarDays, IndianRupee } from 'lucide-react'
 import Avatar        from '../components/ui/Avatar'
 import Button        from '../components/ui/Button'
 import PageHeader    from '../components/ui/PageHeader'
@@ -216,15 +216,15 @@ export default function Invoices() {
   const filtered = completedList
 
   // ── Pagination: rows per browser zoom level ─────────────────
-  // 90% zoom → 9 rows · 100% → 8 rows · 110%+ → 7 rows.
+  // 90% zoom → 7 rows · 100% → 6 rows · 110%+ → 5 rows.
   // Phones keep 5 tall cards per page.
-  const [pageSize, setPageSize] = useState(() => pageSizeFor(8, 5))
+  const [pageSize, setPageSize] = useState(() => pageSizeFor(6, 5))
   const [page, setPage] = useState(1)
   const [goPage, setGoPage] = useState('')
   useEffect(() => {
     const onResize = () => {
       setPageSize(prev => {
-        const next = pageSizeFor(8, 5)
+        const next = pageSizeFor(6, 5)
         if (next !== prev) setPage(1)
         return next
       })
@@ -261,6 +261,15 @@ export default function Invoices() {
 
   const totalFare      = completedList.reduce((s, b) => s + (b.fare || 0), 0)
   const completedCount = completedList.length
+  // This-month fare + average bill (local YYYY-MM key — toISOString drifts for IST)
+  const thisMonthKey = (() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  })()
+  const thisMonthFare = completedList
+    .filter(b => (b.startDate || '').startsWith(thisMonthKey))
+    .reduce((s, b) => s + (b.fare || 0), 0)
+  const avgBill = completedCount ? Math.round(totalFare / completedCount) : 0
 
   return (
     <div className="space-y-4 md:space-y-3 animate-fade-up">
@@ -475,9 +484,11 @@ export default function Invoices() {
       <>
       {/* Summary chips + column picker in one row (completed invoices only) */}
       <div className="flex items-end justify-between gap-2 flex-wrap md:shrink-0">
-      <div className="grid grid-cols-2 gap-3 flex-1 min-w-[260px] max-w-md">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 flex-1 min-w-[260px]">
         <MetricCard label="Total Fare"    value={`Rs. ${totalFare.toLocaleString('en-IN')}`} icon={FileText} tone="blue" />
         <MetricCard label="Invoices Done" value={completedCount} icon={Check} tone="green" />
+        <MetricCard label="This Month"    value={`Rs. ${thisMonthFare.toLocaleString('en-IN')}`} icon={CalendarDays} tone="violet" />
+        <MetricCard label="Avg Bill"      value={`Rs. ${avgBill.toLocaleString('en-IN')}`} icon={IndianRupee} tone="amber" />
       </div>
 
       {/* Column picker */}

@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   FileText, Plus, Search, AlertTriangle,
   CheckCircle, Clock, Download, Trash2, X,
-  Car, User, Route, FolderOpen, Eye, Columns3,
+  Car, User, FolderOpen, Eye, Columns3,
 } from 'lucide-react'
 import PageHeader   from '../components/ui/PageHeader'
 import ModalOverlay from '../components/ui/ModalOverlay'
@@ -23,6 +23,7 @@ import supabase     from '../lib/supabase'
 import { loadDrivers } from '../data/driverData'
 import { loadVehicles } from '../data/vehicleData'
 import { loadCustomers } from '../data/customerData'
+import { pageSizeFor } from '../utils/zoomPageSize'
 
 // ── Document type catalogue per category ─────────────────────
 const DOC_TYPES = {
@@ -57,8 +58,7 @@ const DOC_TYPES = {
 const CATEGORIES = [
   { key:'all',      label:'All Docs',  Icon:FolderOpen, color:'text-slate-500'  },
   { key:'driver',   label:'Drivers',   Icon:User,       color:'text-blue-500'   },
-  { key:'vehicle',  label:'Vehicles',  Icon:Car,        color:'text-amber-500'  },
-  { key:'trip',     label:'Trips',     Icon:Route,      color:'text-emerald-500'},
+  { key:'vehicle',  label:'Vehicles',  Icon:Car,        color:'text-amber-500'   },
 ]
 
 const STATUS_CFG = {
@@ -91,10 +91,11 @@ function loadDocCols() {
 }
 
 // Flattened type catalogue for the Type filter: key → "Category — Label".
+// ('Trips' keeps its label even though it has no category tab.)
 const TYPE_OPTIONS = Object.entries(DOC_TYPES).flatMap(([cat, list]) =>
   list.map(t => ({
     key: t.key,
-    label: `${CATEGORIES.find(c => c.key === cat)?.label || cat} — ${t.label}`,
+    label: `${CATEGORIES.find(c => c.key === cat)?.label || (cat === 'trip' ? 'Trips' : cat)} — ${t.label}`,
   }))
 )
 function typeLabel(key) {
@@ -536,7 +537,21 @@ export default function Documents() {
     })
   , [enriched, category, statusFilter, typeFilter, ownerFilter, search])
 
-  const PAGE_SIZE = 10
+  // ── Pagination: zoom-adaptive rows per page ─────────────────
+  // 90% → 6 · 100% → 5 · 110%+ → 4 (phones stay at 5).
+  const [pageSize, setPageSize] = useState(() => pageSizeFor(5, 5))
+  useEffect(() => {
+    const onResize = () => {
+      setPageSize(prev => {
+        const next = pageSizeFor(5, 5)
+        if (next !== prev) setPage(1)
+        return next
+      })
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  const PAGE_SIZE = pageSize
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage = Math.min(Math.max(1, page), totalPages)
   const pageRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
@@ -554,6 +569,38 @@ export default function Documents() {
     })
     return out
   })()
+
+  // Shared pager body — rendered inside the desktop table footer and
+  // below the mobile cards (same state, two placements).
+  const pagerBody = () => (
+    <>
+      <p className="text-xs text-slate-500 dark:text-slate-400 tabular-nums whitespace-nowrap flex-shrink-0">
+        Showing {(safePage - 1) * PAGE_SIZE + 1} to {Math.min(safePage * PAGE_SIZE, filtered.length)} of {filtered.length} documents
+      </p>
+      <div className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-shrink-0">
+        <button onClick={() => setPage(safePage - 1)} disabled={safePage <= 1} aria-label="Previous page"
+          className="min-w-[32px] min-h-[32px] px-2 rounded-lg border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+          ‹
+        </button>
+        {pageItems.map((n, i) => n === '…'
+          ? <span key={`e${i}`} className="text-xs text-slate-400 px-1">…</span>
+          : (
+            <button key={n} onClick={() => setPage(n)} aria-label={`Go to page ${n}`} aria-current={n === safePage ? 'page' : undefined}
+              className={`min-w-[32px] min-h-[32px] px-2 rounded-lg text-xs font-bold tabular-nums active:scale-95 transition-all ${
+                n === safePage
+                  ? 'bg-[var(--ap-accent)] text-white shadow'
+                  : 'border border-[var(--ap-border)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)]'
+              }`}>
+              {n}
+            </button>
+          ))}
+        <button onClick={() => setPage(safePage + 1)} disabled={safePage >= totalPages} aria-label="Next page"
+          className="min-w-[32px] min-h-[32px] px-2 rounded-lg border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+          ›
+        </button>
+      </div>
+    </>
+  )
 
   const colLabel = (key) => ALL_DOC_COLS.find(c => c.key === key)?.label || key
   const toggleCol = (key) => {
@@ -859,6 +906,12 @@ export default function Documents() {
               })}
             </tbody>
           </table>
+          {/* 5. Pagination — footer inside the table card (desktop) */}
+          {totalPages > 1 && (
+            <div className="hidden md:flex items-center justify-between gap-3 px-3 py-2 border-t border-[var(--ap-border)] bg-[var(--ap-surface-2)]/50">
+              {pagerBody()}
+            </div>
+          )}
         </div>
 
         {/* Mobile cards */}
@@ -918,34 +971,10 @@ export default function Documents() {
           })}
         </div>
 
-        {/* 5. Pagination */}
+        {/* 5. Pagination — below the cards (mobile) */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <p className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-              Showing {(safePage - 1) * PAGE_SIZE + 1} to {Math.min(safePage * PAGE_SIZE, filtered.length)} of {filtered.length} documents
-            </p>
-            <div className="flex items-center gap-1">
-              <button onClick={() => setPage(safePage - 1)} disabled={safePage <= 1} aria-label="Previous page"
-                className="min-w-[32px] min-h-[32px] px-2 rounded-lg border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-                ‹
-              </button>
-              {pageItems.map((n, i) => n === '…'
-                ? <span key={`e${i}`} className="text-xs text-slate-400 px-1">…</span>
-                : (
-                  <button key={n} onClick={() => setPage(n)} aria-label={`Go to page ${n}`} aria-current={n === safePage ? 'page' : undefined}
-                    className={`min-w-[32px] min-h-[32px] px-2 rounded-lg text-xs font-bold tabular-nums active:scale-95 transition-all ${
-                      n === safePage
-                        ? 'bg-[var(--ap-accent)] text-white shadow'
-                        : 'border border-[var(--ap-border)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)]'
-                    }`}>
-                    {n}
-                  </button>
-                ))}
-              <button onClick={() => setPage(safePage + 1)} disabled={safePage >= totalPages} aria-label="Next page"
-                className="min-w-[32px] min-h-[32px] px-2 rounded-lg border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-                ›
-              </button>
-            </div>
+          <div className="md:hidden ap-surface rounded-2xl px-3 py-2 mt-2 flex items-center justify-between gap-3">
+            {pagerBody()}
           </div>
         )}
         </>

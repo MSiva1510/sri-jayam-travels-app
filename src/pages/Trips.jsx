@@ -529,6 +529,13 @@ function BookingDetail({ booking, onEdit, onDelete, onAssign, onWhatsApp, canEdi
               ))}
             </div>
 
+            {!booking.vehicle && (booking.type_data?.vehicleName || booking.vehicleName) ? (
+              <div className="flex items-start gap-2 bg-slate-100 dark:bg-slate-800/40 rounded-lg px-3 py-2.5 border border-slate-200 dark:border-slate-700/50">
+                <Car size={12} className="text-slate-500 dark:text-slate-400 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-slate-600 dark:text-slate-300 font-medium leading-tight">Requested: {booking.type_data?.vehicleName || booking.vehicleName} — not assigned yet</p>
+              </div>
+            ) : null}
+
             {booking.notes && (
               <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-900/15 rounded-lg px-3 py-2.5 border border-amber-100 dark:border-amber-800/30">
                 <AlertTriangle size={12} className="text-amber-500 flex-shrink-0 mt-0.5" />
@@ -608,7 +615,7 @@ function CalendarView({ bookings }) {
   const selCancelled = selTrips.filter(t => t.status === 'cancelled')
   const selLabel = selDay ? new Date(yr, mon, selDay).toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short', year:'numeric' }) : ''
   return (
-    <div className="ap-surface rounded-2xl overflow-hidden md:flex-1 md:min-h-0 md:flex md:flex-col">
+    <div className="ap-surface rounded-2xl overflow-hidden md:min-h-[540px] md:flex md:flex-col">
       <div className="flex items-center justify-between px-4 py-2 bg-[var(--ap-surface-2)] border-b border-[var(--ap-border)] md:shrink-0">
         <button onClick={prev} aria-label="Previous month" className="w-8 h-8 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-colors"><ChevronLeft size={15} /></button>
         <p className="font-sf font-semibold text-slate-900 dark:text-white text-sm tabular-nums">{MONTH_NAMES[mon]} {yr}</p>
@@ -619,7 +626,7 @@ function CalendarView({ bookings }) {
           {DOW.map(d => <div key={d} className={`text-center text-[10px] font-bold py-1 ${d==='Sun'?'text-red-500':d==='Sat'?'text-blue-500':'text-slate-400 dark:text-slate-500'}`}>{d}</div>)}
         </div>
         <div className="grid grid-cols-7 gap-1 md:flex-1 md:min-h-0 md:auto-rows-fr">
-          {Array.from({length:firstDow}).map((_,i) => <div key={`e${i}`} className="min-h-[44px] sm:min-h-[54px] md:min-h-0" />)}
+          {Array.from({length:firstDow}).map((_,i) => <div key={`e${i}`} className="min-h-[60px] sm:min-h-[72px] md:min-h-0" />)}
           {Array.from({length:daysInMon}).map((_,idx) => {
             const day=idx+1; const dateStr=`${yr}-${String(mon+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
             const trips=bookingMap[day]||[]; const isToday=dateStr===todayStr; const hasCal=trips.length>0
@@ -629,11 +636,11 @@ function CalendarView({ bookings }) {
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelDay(day) } }}
                 aria-label={`${dateStr}${hasCal ? `, ${trips.length} trips` : ', no trips'}`}
                 title={hasCal ? `${trips.length} trip${trips.length!==1?'s':''} — tap for details` : 'No trips'}
-                className={`ap-focus min-h-[44px] sm:min-h-[54px] md:min-h-0 md:overflow-hidden rounded-xl flex flex-col items-center justify-start pt-1 px-0.5 border transition-all cursor-pointer hover:shadow-md active:scale-[0.98] ${isToday?'bg-blue-600 border-blue-500 shadow-lg':hasCal?'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/40':'border-[var(--ap-border)] bg-transparent'}`}>
-                <span className={`text-[11px] font-bold leading-none tabular-nums ${isToday?'text-white':hasCal?'text-emerald-700 dark:text-emerald-400':'text-slate-500 dark:text-slate-500'}`}>{day}</span>
-                {hasCal && !isToday && <div className="flex flex-wrap gap-0.5 mt-1 justify-center">{trips.slice(0,4).map((t,ti)=><span key={ti} className={`w-1.5 h-1.5 rounded-full ${getStatusCfg(t.status).dot.replace(' animate-pulse','')}`}/>)}</div>}
-                {hasCal && !isToday && trips.length > 1 && <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold tabular-nums">{trips.length}</span>}
-                {hasCal && isToday && <span className="text-[9px] text-blue-200 mt-0.5 font-bold tabular-nums">{trips.length}</span>}
+                className={`ap-focus min-h-[44px] sm:min-h-[54px] md:min-h-0 md:overflow-hidden rounded-xl flex flex-col items-center justify-start pt-1 px-0.5 border transition-all cursor-pointer hover:shadow-md active:scale-[0.98] ${isToday?'bg-blue-600 border-blue-500 shadow-lg':hasCal?'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/40':'border-transparent bg-slate-500/[0.07] dark:bg-white/[0.05]'}`}>
+                <span className={`text-[15px] font-extrabold leading-none tabular-nums ${isToday?'text-white':hasCal?'text-emerald-700 dark:text-emerald-400':'text-slate-600 dark:text-slate-300'}`}>{day}</span>
+                {hasCal && !isToday && <div className="flex flex-wrap gap-1 mt-1.5 justify-center">{trips.slice(0,4).map((t,ti)=><span key={ti} className={`w-2 h-2 rounded-full ${getStatusCfg(t.status).dot.replace(' animate-pulse','')}`}/>)}</div>}
+                {hasCal && !isToday && trips.length > 1 && <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold tabular-nums mt-0.5">{trips.length}</span>}
+                {hasCal && isToday && <span className="text-[10px] text-blue-200 mt-1 font-bold tabular-nums">{trips.length}</span>}
               </div>
             )
           })}
@@ -720,14 +727,14 @@ export default function Trips() {
   const [assignBooking, setAssignBooking] = useState(null)
 
   // ── Pagination: zoom-adaptive cards per page + go-to-page ─
-  // 90% → 7 · 100% → 6 · 110%+ → 5 (phones stay at 5).
-  const [pageSize, setPageSize] = useState(() => pageSizeFor(6, 5))
+  // 90% → 6 · 100% → 5 · 110%+ → 4 (phones stay at 5).
+  const [pageSize, setPageSize] = useState(() => pageSizeFor(5, 5))
   const [page, setPage] = useState(1)
   const [goPage, setGoPage] = useState('')
   useEffect(() => {
     const onResize = () => {
       setPageSize(prev => {
-        const next = pageSizeFor(6, 5)
+        const next = pageSizeFor(5, 5)
         if (next !== prev) setPage(1)
         return next
       })
@@ -858,7 +865,7 @@ export default function Trips() {
   }), [bookings])
 
   // Compact density fits one screen at 100% zoom; the page flows
-  // naturally (sticky pagination included) so 90–110% zoom never clips.
+  // naturally (in-flow pagination) so 90–110% zoom never clips.
   return (
     <div className="space-y-3 md:space-y-2 animate-fade-up">
       <PageHeader compact
@@ -948,7 +955,6 @@ export default function Trips() {
                 const typeCfg = TRIP_TYPE_CONFIG[booking.type]
                 return (
                   <div key={booking.id} className="ap-surface rounded-2xl overflow-hidden hover:shadow-md transition-all duration-200">
-                    <div className={`h-0.5 bg-gradient-to-r ${typeCfg?.gradient||'from-slate-400 to-slate-500'}`} />
                     <div className="flex items-center gap-2.5 px-3 py-2 cursor-pointer select-none" onClick={() => setExpanded(isOpen ? null : booking.id)}>
                       <div className={`w-8 h-8 rounded-[10px] bg-gradient-to-br ${typeCfg?.gradient||'from-slate-400 to-slate-500'} flex items-center justify-center text-sm flex-shrink-0 shadow-sm`}>
                         {typeCfg?.icon}
@@ -988,13 +994,14 @@ export default function Trips() {
             </div>
           )}
 
-          {/* Pagination — 5 cards per page (hidden while a row is open) */}
+          {/* Pagination — 5 cards per page (hidden while a row is open).
+              In normal flow (not sticky) so it never floats over rows. */}
           {!loading && filtered.length > 0 && !expanded && (
-          <div className="ap-surface rounded-2xl px-3 py-2 flex items-center justify-between gap-3 flex-wrap sticky bottom-3 z-10 shadow-lg">
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
+          <div className="ap-surface rounded-2xl px-3 py-2 mt-2 flex items-center justify-between gap-3 shadow-lg">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums whitespace-nowrap flex-shrink-0">
               Page {safePage} of {totalPages} · {filtered.length} booking{filtered.length !== 1 ? 's' : ''}
             </p>
-            <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-shrink-0">
               <button onClick={() => setPage(safePage - 1)} disabled={safePage <= 1}
                 aria-label="Previous page"
                 className="ap-focus min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] border border-[var(--ap-border)] text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
@@ -1019,7 +1026,7 @@ export default function Trips() {
                 className="ap-focus min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] border border-[var(--ap-border)] text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
                 →
               </button>
-              <span className="text-[11px] text-slate-500 dark:text-slate-400 ml-1">Go to</span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 ml-1 flex-shrink-0">Go to</span>
               <input
                 value={goPage}
                 onChange={e => setGoPage(e.target.value.replace(/[^0-9]/g, ''))}
@@ -1028,7 +1035,7 @@ export default function Trips() {
                 placeholder={String(totalPages)}
                 inputMode="numeric"
                 aria-label={`Go to page, 1 to ${totalPages}`}
-                className="w-14 min-h-[36px] rounded-[12px] border border-[var(--ap-border)] bg-[var(--ap-surface)] px-2 text-center text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500 tabular-nums"
+                className="ap-field ap-focus w-14 h-9 flex-shrink-0 rounded-[12px] px-2 text-center text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500 tabular-nums"
               />
             </div>
           </div>
