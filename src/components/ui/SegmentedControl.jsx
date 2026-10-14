@@ -37,7 +37,7 @@ export default function SegmentedControl({
             onClick={() => onChange?.(o.key)}
             className={`ap-seg-btn inline-flex items-center gap-1.5 ${active ? 'ap-seg-active' : ''}`}
           >
-            {OptionIcon && <OptionIcon size={13} />}
+            {OptionIcon && <OptionIcon size={15} />}
             {o.label}
           </button>
         )

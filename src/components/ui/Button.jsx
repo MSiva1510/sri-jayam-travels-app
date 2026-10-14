@@ -1,8 +1,10 @@
+import { buttonSkin } from './skins'
+
 export default function Button({
-  children, onClick, variant = 'primary', size = 'md',
+  children, onClick, variant = 'primary', size = 'md', skin = 'flat',
   icon: Icon, iconRight, disabled, className = '', ...rest
 }) {
-  const base = 'inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-200 cursor-pointer select-none focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed'
+  const base = 'inline-flex items-center justify-center gap-2 font-semibold rounded-[5px] transition-all duration-200 cursor-pointer select-none focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed'
 
   const variants = {
     primary:  'bg-[var(--ap-accent)] text-white hover:opacity-90 focus:ring-[var(--ap-accent)] shadow-lg hover:shadow-xl active:scale-95',
@@ -15,21 +17,21 @@ export default function Button({
   }
 
   const sizes = {
-    sm:  'text-xs px-3 py-1.5',
-    md:  'text-sm px-4 py-2.5',
-    lg:  'text-base px-6 py-3',
+    sm:  'text-[13px] px-4 py-2 min-h-[34px]',
+    md:  'text-[15px] px-6 py-3 min-h-[44px]',
+    lg:  'text-base px-7 py-3.5 min-h-[50px]',
   }
 
   return (
     <button
-      className={`${base} ${variants[variant]} ${sizes[size]} ${className}`}
+      className={`${base} ${skin === 'flat' ? variants[variant] : buttonSkin(skin, variant)} ${sizes[size]} ${className}`}
       onClick={onClick}
       disabled={disabled}
       {...rest}
     >
-      {Icon && !iconRight && <Icon size={size === 'sm' ? 13 : size === 'lg' ? 18 : 15} />}
+      {Icon && !iconRight && <Icon size={size === 'sm' ? 14 : size === 'lg' ? 19 : 17} />}
       {children}
-      {Icon && iconRight && <Icon size={size === 'sm' ? 13 : size === 'lg' ? 18 : 15} />}
+      {Icon && iconRight && <Icon size={size === 'sm' ? 14 : size === 'lg' ? 19 : 17} />}
     </button>
   )
 }

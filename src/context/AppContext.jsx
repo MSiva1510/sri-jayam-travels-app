@@ -22,13 +22,15 @@ export function AppProvider({ children }) {
   const setDarkMode = (v) => setThemeMode(v ? 'dark' : 'light')
 
   // ── Font size: root px 12–24 (migrates legacy sm/md/lg) ──────
+  // NOTE: Number(null) === 0 — a missing key must fall through to 16,
+  // not clamp to the 12px floor and shrink the whole UI.
   const [fontSize, setFontSize] = useState(() => {
     try {
       const raw = localStorage.getItem('sjt-font-size')
-      const n = Number(raw)
-      if (Number.isFinite(n)) return Math.min(24, Math.max(12, Math.round(n)))
       if (raw === 'sm') return 14
       if (raw === 'lg') return 18
+      const n = raw == null || raw === '' ? NaN : Number(raw)
+      if (Number.isFinite(n)) return Math.min(24, Math.max(12, Math.round(n)))
       return 16
     } catch { return 16 }
   })
@@ -87,7 +89,7 @@ export function AppProvider({ children }) {
           try { localStorage.setItem('sjt_sb_color', pair.sb) } catch {}
         }
         const raw = localStorage.getItem('sjt-font-size')
-        const n = Number(raw)
+        const n = raw == null || raw === '' ? NaN : Number(raw)
         setFontSize(Number.isFinite(n) ? Math.min(24, Math.max(12, Math.round(n))) : raw === 'sm' ? 14 : raw === 'lg' ? 18 : 16)
         const compact = localStorage.getItem('sjt_compact') === '1'
         document.body.classList.toggle('compact', compact)

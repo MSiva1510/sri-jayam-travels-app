@@ -12,7 +12,7 @@ export default function IconButton({ icon: Icon, label, onClick, size = 14, tone
       onClick={onClick}
       title={label}
       aria-label={label}
-      className={`ap-focus w-8 h-8 rounded-lg inline-flex items-center justify-center transition-colors disabled:opacity-40 disabled:pointer-events-none ${TONES[tone] || TONES.default} ${className}`}
+      className={`ap-focus w-9 h-9 rounded-[5px] inline-flex items-center justify-center transition-colors disabled:opacity-40 disabled:pointer-events-none ${TONES[tone] || TONES.default} ${className}`}
       {...rest}
     >
       <Icon size={size} />
