@@ -3,7 +3,7 @@ import {
   LayoutDashboard, FileText, Users, Receipt,
   User, Car, Settings, ChevronLeft, ChevronRight,
   MapPin, Phone, Globe, LogOut, Navigation,
-  History, List, Route, Signal, CalendarCheck, IndianRupee, BarChart2, UserCog,
+  History, Route, CalendarCheck, IndianRupee, BarChart2, UserCog,
   FolderOpen, ClipboardList, MessageSquare,
   Shield, HardDrive,
 } from 'lucide-react'
@@ -32,13 +32,6 @@ const NAV_ITEMS = [
   { to: '/fleet',          label: 'Live Fleet',     icon: Navigation,      roles: ['admin','manager'], perm: 'view_fleet' },
   // Day 33: GPS History + Route Replay
   { to: '/gps-history',      label: 'GPS History',    icon: History,      roles: ['admin','manager'], perm: 'view_fleet' },
-  // Driver
-  { to: '/driver',         label: 'Home',          icon: LayoutDashboard, roles: ['driver'] },
-  { to: '/assigned-trips', label: 'Trips Today',   icon: List,            roles: ['driver'] },
-  { to: '/live-location',  label: 'Live Location', icon: Signal,          roles: ['driver'] },
-  { to: '/ride-history',   label: 'Ride History',  icon: History,         roles: ['driver'] },
-  { to: '/payslips',       label: 'My Payslips',   icon: IndianRupee,     roles: ['driver'] },
-  { to: '/driver-profile', label: 'My Profile',    icon: User,            roles: ['driver'] },
 ]
 
 const BOTTOM_ITEMS = [

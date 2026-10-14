@@ -3,7 +3,6 @@
 // Day 31: integrated with PermissionEngine + SessionManager
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import { autoCheckIn, autoCheckOut } from '../data/attendanceData'
 import { authRepository }            from '../repositories/authRepository'
 import { permissionEngine, bootPermissions } from '../security/PermissionEngine'
 import { sessionManager }            from '../security/SessionManager'
@@ -44,8 +43,7 @@ export const ROLE_ROUTES = {
              '/payroll', '/reports', '/admin/database-status', '/admin/users'],
   manager: ['/', '/customers', '/expenses', '/drivers', '/vehicles', '/trips',
              '/create-trip', '/attendance', '/profile', '/payroll'],
-  driver:  ['/driver', '/assigned-trips', '/ride-history', '/driver-profile',
-             '/live-location', '/payslips'],
+  driver:  [], // drivers are mobile-app only — no web pages
 }
 
 export const ROLE_LABELS = { admin:'Administrator', manager:'Manager', driver:'Driver' }
@@ -195,9 +193,7 @@ export function AuthProvider({ children }) {
         setAuthLoading(false)
         return false
       }
-      if (profile.role === 'driver') {
-        autoCheckIn(profile.full_name, '').catch(() => {})
-      }
+      // Drivers are mobile-app only — no web attendance hooks.
       const sessionUser = profileToUser(authUser, profile)
       setUser(sessionUser)
       // Start session tracking
@@ -224,9 +220,6 @@ export function AuthProvider({ children }) {
   }, [])
 
   const logout = useCallback(async () => {
-    if (user?.role === 'driver') {
-      autoCheckOut(user.name).catch(() => {})
-    }
     addAuditEvent('USER_LOGOUT', {
       description: `${user?.name || 'Unknown'} logged out`,
       module: 'security', severity: 'info',

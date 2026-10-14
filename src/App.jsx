@@ -1,9 +1,8 @@
 import React, { lazy, Suspense, useEffect } from 'react'
 import ErrorBoundary from './components/ErrorBoundary'
-import { Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { AppProvider }           from './context/AppContext'
 import { AuthProvider }          from './context/AuthContext'
-import { RideLifecycleProvider } from './context/RideLifecycleContext'
 import { CommunicationProvider } from './context/CommunicationContext'
 import { AdminProvider }         from './context/AdminContext'
 import { GpsHistoryProvider }    from './context/GpsHistoryContext'
@@ -41,28 +40,10 @@ const Communications    = lazy(() => import('./pages/Communications'))
 const CommunicationSettings = lazy(() => import('./pages/CommunicationSettings'))
 const Fleet             = lazy(() => import('./pages/Fleet'))
 const FleetSettings     = lazy(() => import('./pages/FleetSettings'))
+const UiLab             = lazy(() => import('./pages/UiLab'))
 const GpsHistory        = lazy(() => import('./pages/GpsHistory'))
 const RouteReplay       = lazy(() => import('./pages/RouteReplay'))
 
-
-// Driver pages
-const DriverDashboard   = lazy(() => import('./pages/driver/DriverDashboard'))
-const AssignedTrips     = lazy(() => import('./pages/driver/AssignedTrips'))
-const RideHistory       = lazy(() => import('./pages/driver/RideHistory'))
-const DriverProfile     = lazy(() => import('./pages/driver/DriverProfile'))
-const LiveLocation      = lazy(() => import('./pages/driver/LiveLocation'))
-
-// Layout route: one RideLifecycleProvider shared across ALL driver pages.
-// Previously each route mounted its own provider, resetting the timer on navigation.
-function DriverLayout() {
-  return (
-    <ProtectedRoute allowedRoles={['driver']}>
-      <RideLifecycleProvider>
-        <Outlet />
-      </RideLifecycleProvider>
-    </ProtectedRoute>
-  )
-}
 
 export default function App() {
   // Load vehicle statuses on app startup to populate the cache
@@ -115,19 +96,10 @@ export default function App() {
               <Route path="/admin/users"           element={<ProtectedRoute allowedRoles={['admin','manager']}><UserManagement /></ProtectedRoute>} />
               <Route path="/admin/roles"           element={<ProtectedRoute allowedRoles={['admin']}><RoleManager /></ProtectedRoute>} />
               <Route path="/admin/backup"          element={<ProtectedRoute allowedRoles={['admin']}><BackupManager /></ProtectedRoute>} />
-
-              {/* Driver — single RideLifecycleProvider via DriverLayout */}
-              <Route element={<DriverLayout />}>
-                <Route path="/driver"         element={<DriverDashboard />} />
-                <Route path="/assigned-trips" element={<AssignedTrips />}   />
-                <Route path="/ride-history"   element={<RideHistory />}     />
-                <Route path="/driver-profile" element={<DriverProfile />}   />
-                <Route path="/live-location"  element={<LiveLocation />}    />
-                <Route path="/payslips"       element={<Payroll />}         />
-              </Route>
+              {/* UI Lab: tactile kit preview (no sidebar entry — open by URL) */}
+              <Route path="/ui-lab"                element={<ProtectedRoute allowedRoles={['admin']}><UiLab /></ProtectedRoute>} />
 
               {/* Legacy */}
-              <Route path="/my-trips" element={<Navigate to="/driver" replace />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />

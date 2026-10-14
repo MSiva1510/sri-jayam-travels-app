@@ -45,7 +45,8 @@ export default function Login() {
   // Redirect already-logged-in users
   useEffect(() => {
     if (user) {
-      const dest = user.role === 'driver' ? '/driver' : (from === '/login' ? '/' : from)
+      // Drivers are mobile-app only — the website has no driver pages.
+      const dest = user.role === 'driver' ? '/unauthorized' : (from === '/login' ? '/' : from)
       navigate(dest, { replace: true })
     }
   }, [user, navigate, from])
@@ -58,7 +59,7 @@ export default function Login() {
     if (loggedInUser) {
       setFocused(null)
       setMood('success')
-      const dest = loggedInUser.role === 'driver' ? '/driver' : (from === '/login' ? '/' : from)
+      const dest = loggedInUser.role === 'driver' ? '/unauthorized' : (from === '/login' ? '/' : from)
       setTimeout(() => navigate(dest, { replace: true }), 650)
     }
   }

@@ -21,11 +21,6 @@ const PAGE_TITLES = {
   '/drivers':         { label: 'Drivers',          sub: 'Fleet driver management'        },
   '/vehicles':        { label: 'Vehicles',         sub: 'Fleet vehicle records'          },
   '/settings':        { label: 'Settings',         sub: 'App & business config'          },
-  '/driver':          { label: 'Driver Home',      sub: 'Your dashboard & schedule'      },
-  '/assigned-trips':  { label: 'Assigned Trips',   sub: "Today's scheduled rides"        },
-  '/ride-history':    { label: 'Ride History',     sub: 'Your past trips & earnings'     },
-  '/driver-profile':  { label: 'My Profile',       sub: 'Account & performance'          },
-  '/live-location':   { label: 'Live Location',    sub: 'Real-time GPS tracking'          },
   '/fleet':           { label: 'Live Fleet',        sub: 'Real-time vehicle tracking'       },
   '/fleet/settings':  { label: 'GPS Settings',      sub: 'Configure GPS provider'           },
   '/gps-history':     { label: 'GPS History',       sub: 'Past vehicle tracks'              },
@@ -37,7 +32,6 @@ const PAGE_TITLES = {
   '/communications':  { label: 'Communications',    sub: 'Customer messages'                },
   '/communications-settings': { label: 'Communication Settings', sub: 'Templates & providers' },
   '/payroll':         { label: 'Payroll',           sub: 'Driver settlements & salary'      },
-  '/payslips':        { label: 'My Payslips',       sub: 'Your settlement history'          },
   '/audit-log':       { label: 'Audit Log',         sub: 'Recent system activity'           },
   '/admin/users':     { label: 'User Accounts',     sub: 'Manage staff access'              },
   '/admin/roles':     { label: 'Roles & Perms',     sub: 'Role permissions'                 },
@@ -62,7 +56,7 @@ export default function Topbar() {
   }, [])
 
   const handleLogout = () => { setDropOpen(false); logout(); navigate('/login', { replace: true }) }
-  const homeRoute    = user?.role === 'driver' ? '/driver' : '/'
+  const homeRoute    = '/'
 
   return (
     <header className="glass-topbar h-[60px] flex items-center px-4 gap-3 flex-shrink-0 sticky top-0 z-30">
@@ -139,12 +133,6 @@ export default function Topbar() {
                   </div>
                 </div>
                 <div className="px-2.5 pb-2 space-y-1">
-                  {user.role === 'driver' && (
-                    <button onClick={() => { setDropOpen(false); navigate('/driver-profile') }} role="menuitem"
-                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-200 hover:bg-white/10 transition-colors text-left">
-                      <User size={15} className="text-slate-400" /> My Profile
-                    </button>
-                  )}
                   {user.role !== 'driver' && (
                     <button onClick={() => { setDropOpen(false); navigate('/settings') }} role="menuitem"
                       className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold transition-colors text-left ${location.pathname === '/settings' ? 'bg-blue-600 text-white shadow' : 'text-slate-200 hover:bg-white/10'}`}>
@@ -154,7 +142,7 @@ export default function Topbar() {
                   <button onClick={() => { setDropOpen(false); navigate(homeRoute) }} role="menuitem"
                     className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-200 hover:bg-white/10 transition-colors text-left">
                     <User size={15} className="text-slate-400" />
-                    {user.role === 'driver' ? 'Driver Home' : 'Dashboard'}
+                    Dashboard
                   </button>
                 </div>
                 <div className="px-2.5 pb-2.5">
