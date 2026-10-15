@@ -155,7 +155,10 @@ class DriverHomeScreen extends ConsumerWidget {
                     child: _AttendanceMini(
                         state: attendance, ref: ref)),
                 const SizedBox(width: 12),
-                Expanded(child: _GpsMini(live: gpsLive)),
+                Expanded(child: _GpsMini(
+                  live: gpsLive,
+                  accuracyM: track.lastPosition?.accuracy,
+                )),
               ],
             ),
             const SizedBox(height: 12),
@@ -476,9 +479,10 @@ class _AttendanceMini extends StatelessWidget {
 }
 
 class _GpsMini extends StatelessWidget {
-  const _GpsMini({required this.live});
+  const _GpsMini({required this.live, this.accuracyM});
 
   final bool live;
+  final double? accuracyM;
 
   @override
   Widget build(BuildContext context) {
@@ -507,7 +511,12 @@ class _GpsMini extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 6),
-                Text(live ? 'Sharing with dispatch' : 'Starts on duty',
+                Text(
+                    live
+                        ? (accuracyM != null
+                            ? 'Accuracy ${accuracyM!.toStringAsFixed(0)} m'
+                            : 'Sharing with dispatch')
+                        : 'Starts on duty',
                     style: theme.textTheme.bodySmall),
               ],
             ),

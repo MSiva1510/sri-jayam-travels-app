@@ -12,6 +12,7 @@ import 'package:intl/intl.dart';
 import '../../models/driver_profile.dart';
 import '../../navigation/app_router.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/trip_provider.dart';
 
 class DriverProfileScreen extends ConsumerWidget {
   const DriverProfileScreen({super.key});
@@ -51,16 +52,39 @@ class DriverProfileScreen extends ConsumerWidget {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // ── Avatar + name ────────────────────────────────────────────────
-          _AvatarHeader(driver: d),
-          const SizedBox(height: 24),
+          // ── Wireframe header: avatar, name, online pill, stats ───
+          _ProfileHero(driver: d, ref: ref),
+          const SizedBox(height: 12),
 
-          // ── Status chip ──────────────────────────────────────────────────
-          if (d.status != null)
-            Center(child: _StatusChip(status: d.status!)),
-          const SizedBox(height: 24),
+          // ── Wireframe menu ───────────────────────────────────────
+          _MenuCard(
+            icon: Icons.savings_outlined,
+            label: 'My earnings',
+            onTap: () => context.push(AppRoutes.driverEarnings),
+          ),
+          _MenuCard(
+            icon: Icons.event_available_outlined,
+            label: 'Attendance & leave',
+            onTap: () => context.push(AppRoutes.attendance),
+          ),
+          _MenuCard(
+            icon: Icons.folder_outlined,
+            label: 'Documents',
+            onTap: () => context.push(AppRoutes.driverDocuments),
+          ),
+          _MenuCard(
+            icon: Icons.chat_outlined,
+            label: 'Dispatch chat',
+            onTap: () => context.push(AppRoutes.driverCommunication),
+          ),
+          _MenuCard(
+            icon: Icons.settings_outlined,
+            label: 'Settings',
+            onTap: () => context.push(AppRoutes.driverSettings),
+          ),
+          const SizedBox(height: 20),
 
-          // ── Personal info ────────────────────────────────────────────────
+          // ── Personal info ────────────────────────────────────────
           _Section(
             title: 'Personal Information',
             icon:  Icons.person_outline,
@@ -116,37 +140,6 @@ class DriverProfileScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
 
-          // ── Documents shortcut (Day 48) ──────────────────────────────────
-          Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            child: ListTile(
-              leading: Icon(
-                Icons.badge_outlined,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              title: const Text('My Documents'),
-              subtitle:
-                  const Text('Licence, badge & other documents'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push(AppRoutes.driverDocuments),
-            ),
-          ),
-
-          // ── Settings ─────────────────────────────────────────────────────
-          Card(
-            margin: const EdgeInsets.only(bottom: 16),
-            child: ListTile(
-              leading: Icon(
-                Icons.settings_outlined,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              title: const Text('Settings'),
-              subtitle: const Text('Appearance, messages & app info'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push(AppRoutes.driverSettings),
-            ),
-          ),
-
           // ── Notes ─────────────────────────────────────────────────────────
           if (d.notes != null && d.notes!.isNotEmpty)
             _Section(
@@ -199,71 +192,152 @@ class DriverProfileScreen extends ConsumerWidget {
 
 // ── Sub-widgets ───────────────────────────────────────────────────────────────
 
-class _AvatarHeader extends StatelessWidget {
-  const _AvatarHeader({required this.driver});
+// ── Sub-widgets ───────────────────────────────────────────────────────────────
+
+// ── Wireframe hero: avatar, name, online pill, live stats ─────────────
+class _ProfileHero extends ConsumerWidget {
+  const _ProfileHero({required this.driver, required this.ref});
   final DriverProfile driver;
+  final WidgetRef ref;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final tripsAsync = ref.watch(allDriverTripsProvider);
+    final tripCount = switch (tripsAsync) {
+      TripListLoaded(:final trips) => '${trips.length}',
+      _ => '–',
+    };
+    var years = '–';
+    if (driver.joinedDate != null) {
+      final y = DateTime.now().difference(driver.joinedDate!).inDays ~/ 365;
+      years = y <= 0 ? '<1 yr' : '$y yr${y == 1 ? '' : 's'}';
+    }
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+        child: Column(
+          children: [
+            CircleAvatar(
+              radius: 36,
+              backgroundColor: theme.colorScheme.primary,
+              backgroundImage: driver.displayPhotoUrl != null
+                  ? NetworkImage(driver.displayPhotoUrl!)
+                  : null,
+              child: driver.displayPhotoUrl == null
+                  ? Text(
+                      driver.initials,
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    )
+                  : null,
+            ),
+            const SizedBox(height: 10),
+            Text(driver.name,
+                style: theme.textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 2),
+            Text(
+              driver.driverId != null
+                  ? 'Driver · ID ${driver.driverId}'
+                  : 'Driver',
+              style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                      width: 7,
+                      height: 7,
+                      decoration: const BoxDecoration(
+                          color: Colors.green, shape: BoxShape.circle)),
+                  const SizedBox(width: 6),
+                  Text(
+                    driver.status == 'active' ? 'Online' : (driver.status ?? 'Online'),
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.green.shade800),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _HeroStat(
+                    value: (driver.status ?? 'Active')[0].toUpperCase() +
+                        (driver.status ?? 'Active').substring(1),
+                    label: 'Status'),
+                _HeroStat(value: tripCount, label: 'Trips'),
+                _HeroStat(value: years, label: 'With us'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HeroStat extends StatelessWidget {
+  const _HeroStat({required this.value, required this.label});
+  final String value, label;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        CircleAvatar(
-          radius: 48,
-          backgroundColor: theme.colorScheme.primaryContainer,
-          backgroundImage: driver.displayPhotoUrl != null
-              ? NetworkImage(driver.displayPhotoUrl!)
-              : null,
-          child: driver.displayPhotoUrl == null
-              ? Text(
-                  driver.initials,
-                  style: TextStyle(
-                    fontSize:   32,
-                    fontWeight: FontWeight.bold,
-                    color:      theme.colorScheme.onPrimaryContainer,
-                  ),
-                )
-              : null,
-        ),
-        const SizedBox(height: 12),
-        Text(
-          driver.name,
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        if (driver.email != null) ...[
-          const SizedBox(height: 4),
-          Text(
-            driver.email!,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
+        Text(value,
+            style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.primary)),
+        const SizedBox(height: 2),
+        Text(label, style: theme.textTheme.bodySmall),
       ],
     );
   }
 }
 
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status});
-  final String status;
+// ── Wireframe menu card ───────────────────────────────────────────────
+class _MenuCard extends StatelessWidget {
+  const _MenuCard(
+      {required this.icon, required this.label, required this.onTap});
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final (color, label) = switch (status) {
-      'active'   => (theme.colorScheme.primaryContainer, 'Active'),
-      'inactive' => (theme.colorScheme.errorContainer,   'Inactive'),
-      'on_leave' => (theme.colorScheme.tertiaryContainer,'On Leave'),
-      _          => (theme.colorScheme.surfaceContainerHighest,   status),
-    };
-    return Chip(
-      backgroundColor: color,
-      label: Text(
-        label,
-        style: const TextStyle(fontWeight: FontWeight.w600),
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ListTile(
+        leading: Icon(icon, color: theme.colorScheme.primary),
+        title: Center(
+          child: Text(label,
+              style: const TextStyle(fontWeight: FontWeight.w600)),
+        ),
+        trailing: Icon(Icons.chevron_right,
+            color: theme.colorScheme.onSurfaceVariant),
+        onTap: onTap,
       ),
     );
   }

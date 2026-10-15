@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
 import 'core/config/supabase_config.dart';
 import 'core/auth/auth_state.dart';
+import 'core/theme/wireframe_theme.dart';
 import 'navigation/app_router.dart';
 import 'providers/auth_provider.dart';
 import 'providers/gps_provider.dart';
@@ -39,7 +40,7 @@ class SriJayamApp extends ConsumerWidget {
     return MaterialApp.router(
       title:                      'Sri Jayam Travels',
       debugShowCheckedModeBanner: false,
-      theme:                      _buildTheme(Brightness.light),
+      theme:                      buildWireframeLightTheme(),
       darkTheme:                  _buildTheme(Brightness.dark),
       themeMode:                  themeMode.materialThemeMode,
       routerConfig:               router,

@@ -34,20 +34,36 @@ class SosButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final red = theme.colorScheme.error;
+    if (compact) {
+      return SizedBox(
+        width: double.infinity,
+        child: FilledButton(
+          onPressed: () => showSosSheet(context),
+          style: FilledButton.styleFrom(
+            backgroundColor: red,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+          child: const Text('SOS',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+        ),
+      );
+    }
+    // Wireframe: filled card-style button, red label, no outline.
     return SizedBox(
       width: double.infinity,
       child: FilledButton(
         onPressed: () => showSosSheet(context),
         style: FilledButton.styleFrom(
-          backgroundColor: compact
-              ? Theme.of(context).colorScheme.error
-              : Colors.transparent,
-          foregroundColor:
-              compact ? Colors.white : Theme.of(context).colorScheme.error,
-          side: compact
-              ? BorderSide.none
-              : BorderSide(color: Theme.of(context).colorScheme.error),
-          padding: EdgeInsets.symmetric(vertical: compact ? 14 : 18),
+          backgroundColor: theme.colorScheme.surfaceContainerHighest,
+          foregroundColor: red,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(vertical: 18),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),

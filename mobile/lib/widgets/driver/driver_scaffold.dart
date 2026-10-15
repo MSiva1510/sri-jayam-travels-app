@@ -43,22 +43,65 @@ class DriverTabScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final current = _indexFor(location);
+    final active = theme.colorScheme.primary;
+    final idle = theme.colorScheme.onSurfaceVariant;
     return Scaffold(
       body: child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: current,
-        onDestinationSelected: (i) {
-          if (i != current) context.go(_tabs[i].route);
-        },
-        destinations: [
-          for (final t in _tabs)
-            NavigationDestination(
-              icon: Icon(t.icon),
-              selectedIcon: Icon(t.activeIcon),
-              label: t.label,
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerLowest.withValues(alpha: 0.94),
+          border: Border(
+            top: BorderSide(
+              color: theme.colorScheme.outlineVariant,
+              width: 0.5,
             ),
-        ],
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(6, 8, 6, 8),
+            child: Row(
+              children: [
+                for (var i = 0; i < _tabs.length; i++)
+                  Expanded(
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () {
+                        if (i != current) context.go(_tabs[i].route);
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              i == current
+                                  ? _tabs[i].activeIcon
+                                  : _tabs[i].icon,
+                              color: i == current ? active : idle,
+                              size: 24,
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              _tabs[i].label,
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w500,
+                                color: i == current ? active : idle,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
