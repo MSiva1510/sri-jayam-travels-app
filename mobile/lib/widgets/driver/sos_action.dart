@@ -190,9 +190,7 @@ class _SosSheetState extends ConsumerState<_SosSheet> {
                           ),
                         ),
                         Text(
-                          _sending
-                              ? 'SENDING…'
-                              : 'HOLD TO SEND (${(_hold * 3).toStringAsFixed(1)}s)',
+                          _sending ? 'SENDING…' : 'HOLD TO SEND',
                           style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold),

@@ -28,6 +28,7 @@ import '../screens/driver/communication_screen.dart';
 import '../screens/driver/settings_screen.dart';
 import '../screens/driver/driver_earnings_screen.dart';
 import '../screens/driver/driver_expense_screen.dart';
+import '../widgets/driver/driver_scaffold.dart';
 
 class AppRoutes {
   AppRoutes._();
@@ -117,34 +118,38 @@ final routerProvider = Provider<GoRouter>((ref) {
             const NoTransitionPage(child: NoConnectionScreen()),
       ),
 
-      // ── Driver — Home & Profile ──────────────────────────────────────
-      GoRoute(
-        path: AppRoutes.driverHome,
-        name: 'driverHome',
-        pageBuilder: (_, __) =>
-            const NoTransitionPage(child: DriverHomeScreen()),
-      ),
-      GoRoute(
-        path: AppRoutes.driverProfile,
-        name: 'driverProfile',
-        pageBuilder: (_, __) =>
-            const MaterialPage(child: DriverProfileScreen()),
-      ),
-
-      // ── Driver — Documents (Day 48) ─────────────────────────────────
-      GoRoute(
-        path: AppRoutes.driverDocuments,
-        name: 'driverDocuments',
-        pageBuilder: (_, __) =>
-            const MaterialPage(child: DriverDocumentsScreen()),
-      ),
-
-      // ── Driver — Trips ─────────────────────────────────────────────
-      GoRoute(
-        path: AppRoutes.driverTrips,
-        name: 'driverTrips',
-        pageBuilder: (_, __) =>
-            const MaterialPage(child: DriverTripsScreen()),
+      // ── Driver tabs (bottom nav shell: Home · Trips · Docs · Profile) ──
+      ShellRoute(
+        builder: (context, state, child) => DriverTabScaffold(
+          location: state.matchedLocation,
+          child: child,
+        ),
+        routes: [
+          GoRoute(
+            path: AppRoutes.driverHome,
+            name: 'driverHome',
+            pageBuilder: (_, __) =>
+                const NoTransitionPage(child: DriverHomeScreen()),
+          ),
+          GoRoute(
+            path: AppRoutes.driverTrips,
+            name: 'driverTrips',
+            pageBuilder: (_, __) =>
+                const MaterialPage(child: DriverTripsScreen()),
+          ),
+          GoRoute(
+            path: AppRoutes.driverDocuments,
+            name: 'driverDocuments',
+            pageBuilder: (_, __) =>
+                const MaterialPage(child: DriverDocumentsScreen()),
+          ),
+          GoRoute(
+            path: AppRoutes.driverProfile,
+            name: 'driverProfile',
+            pageBuilder: (_, __) =>
+                const MaterialPage(child: DriverProfileScreen()),
+          ),
+        ],
       ),
       GoRoute(
         path: '/driver/trips/:id',
