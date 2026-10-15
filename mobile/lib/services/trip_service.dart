@@ -140,6 +140,28 @@ class TripService {
     }
   }
 
+  /// assigned → pending (+ reason in notes) so dispatch can reassign.
+  Future<TripModel> declineTrip({
+    required String tripId,
+    required DriverProfile? driver,
+    required String reason,
+  }) async {
+    _requireDriver(driver);
+    final trip = await getTripById(tripId, driver);
+    if (!trip!.isAssigned) {
+      throw const TripServiceException(
+        message: 'Only an assigned trip can be declined.',
+        code: TripErrorCode.invalidTransition,
+      );
+    }
+    try {
+      return await _repo.declineTrip(tripId, reason);
+    } catch (e) {
+      if (e is TripServiceException) rethrow;
+      throw _mapError(e);
+    }
+  }
+
   // ── Error mapping ─────────────────────────────────────────────────────────
 
   TripServiceException _mapError(Object e) {

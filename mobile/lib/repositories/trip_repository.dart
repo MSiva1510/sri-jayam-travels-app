@@ -127,4 +127,28 @@ class TripRepository {
         .single();
     return TripModel.fromMap(data);
   }
+
+  /// Driver declines an assigned trip → back to pending with the reason
+  /// appended to notes, so dispatch can reassign. Returns the updated row.
+  Future<TripModel> declineTrip(String tripId, String reason) async {
+    final current = await _client
+        .from(SupabaseConfig.bookingsTable)
+        .select('notes')
+        .eq('id', tripId)
+        .maybeSingle();
+    final prev = (current?['notes'] as String?)?.trim() ?? '';
+    final stamped =
+        '[Declined ${DateTime.now().toUtc().toIso8601String()}: $reason]';
+    final data = await _client
+        .from(SupabaseConfig.bookingsTable)
+        .update({
+          'status': 'pending',
+          'notes': prev.isEmpty ? stamped : '$prev\n$stamped',
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', tripId)
+        .select(TripModel.selectColumns)
+        .single();
+    return TripModel.fromMap(data);
+  }
 }

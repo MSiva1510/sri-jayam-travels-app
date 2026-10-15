@@ -26,6 +26,8 @@ import '../screens/driver/attendance_history_screen.dart';
 import '../screens/driver/notifications_screen.dart';
 import '../screens/driver/communication_screen.dart';
 import '../screens/driver/settings_screen.dart';
+import '../screens/driver/driver_earnings_screen.dart';
+import '../screens/driver/driver_expense_screen.dart';
 
 class AppRoutes {
   AppRoutes._();
@@ -44,6 +46,8 @@ class AppRoutes {
   static const driverNotifications = '/driver/notifications';
   static const driverCommunication = '/driver/messages';
   static const driverSettings      = '/driver/settings';
+  static const driverEarnings      = '/driver/earnings';
+  static const driverExpenses      = '/driver/expenses';
 
   static String tripDetail(String id)    => '/driver/trips/$id';
   static String tripMap(String id)       => '/driver/trips/$id/map';
@@ -213,6 +217,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'driverSettings',
         pageBuilder: (_, __) =>
             const MaterialPage(child: SettingsScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.driverEarnings,
+        name: 'driverEarnings',
+        pageBuilder: (_, __) =>
+            const MaterialPage(child: DriverEarningsScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.driverExpenses,
+        name: 'driverExpenses',
+        pageBuilder: (_, __) =>
+            const MaterialPage(child: DriverExpenseScreen()),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

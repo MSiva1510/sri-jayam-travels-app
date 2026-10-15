@@ -76,6 +76,20 @@ class FakeTripRepository implements TripRepository {
     rows[tripId] = updated;
     return updated;
   }
+
+  @override
+  Future<TripModel> declineTrip(String tripId, String reason) async {
+    final t = rows[tripId]!;
+    final updated = _trip(
+      id: t.id,
+      status: 'pending',
+      driverId: t.driverId,
+      driverName: t.driverName,
+      vehicleId: t.vehicleId,
+    );
+    rows[tripId] = updated;
+    return updated;
+  }
 }
 
 const me = DriverProfile(id: 'driver-1', name: 'Kumar');
