@@ -39,13 +39,12 @@ class DriverPayslip {
   }
 
   factory DriverPayslip.fromMap(Map<String, dynamic> m) {
+    final fareRaw = m['company_amount'] ?? m['fare'];
     return DriverPayslip(
       id:        '${m['id'] ?? ''}',
       amount:    _num(m['driver_amount']),
       tripRef:   '${m['trip_id'] ?? m['booking_id'] ?? m['booking_number'] ?? ''}',
-      fare:      m['company_amount'] ?? m['fare'] != null
-          ? _num(m['company_amount'] ?? m['fare'])
-          : null,
+      fare:      fareRaw != null ? _num(fareRaw) : null,
       status:    '${m['status'] ?? ''}',
       paidAt:    _date(m['paid_at']),
       createdAt: _date(m['created_at']),
