@@ -174,6 +174,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ),
                             ),
                     ),
+                    const SizedBox(height: 12),
+
+                    // ── Demo mode: full-spec fake data, no network ──────
+                    OutlinedButton.icon(
+                      onPressed: isLoading
+                          ? null
+                          : () => ref
+                              .read(authProvider.notifier)
+                              .loginDemo(),
+                      icon: const Icon(
+                          Icons.science_outlined,
+                          size: 18),
+                      label: const Text(
+                        'Explore demo (fake data)',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Center(
+                      child: Text(
+                        'Demo runs fully offline with sample trips.',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
                   ],
                 ),
               ),

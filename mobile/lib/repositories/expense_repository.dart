@@ -8,6 +8,7 @@ import 'dart:io';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/demo/demo_session.dart';
 import '../models/driver_expense.dart';
 
 class ExpenseException implements Exception {
@@ -25,6 +26,9 @@ class ExpenseRepository {
   /// Recent expenses for one driver, newest first.
   Future<List<DriverExpense>> getMyExpenses(String driverId,
       {int limit = 50}) async {
+    if (DemoSession.active) {
+      return DemoSession.expenses.take(limit).toList();
+    }
     final data = await _client
         .from('expenses')
         .select(
@@ -45,6 +49,20 @@ class ExpenseRepository {
     required String driverName,
     required DriverExpense expense,
   }) async {
+    if (DemoSession.active) {
+      final saved = DriverExpense(
+        id: 'demo-exp-${DateTime.now().millisecondsSinceEpoch}',
+        tripId: expense.tripId,
+        category: expense.category,
+        amount: expense.amount,
+        paidBy: expense.paidBy,
+        receiptNote: expense.receiptNote,
+        status: 'pending',
+        expenseDate: expense.expenseDate ?? DateTime.now(),
+      );
+      DemoSession.addExpense(saved);
+      return saved;
+    }
     try {
       final Map<String, dynamic> data = await _client
           .from('expenses')
@@ -64,6 +82,7 @@ class ExpenseRepository {
   /// `expense-receipts` bucket is unavailable — callers must proceed
   /// without a photo rather than fail the whole expense.
   Future<String?> uploadReceipt(String localPath) async {
+    if (DemoSession.active) return null;
     try {
       final name = 'drv_${DateTime.now().millisecondsSinceEpoch}.jpg';
       await _client.storage

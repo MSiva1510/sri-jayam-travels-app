@@ -13,6 +13,7 @@
 
 import 'dart:typed_data';
 
+import '../core/demo/demo_session.dart';
 import '../models/driver_document.dart';
 import '../models/driver_profile.dart';
 import '../repositories/document_repository.dart';
@@ -47,6 +48,7 @@ class DocumentService {
 
   Future<List<DriverDocument>> getDocuments(DriverProfile? driver) async {
     _requireDriver(driver);
+    if (DemoSession.active) return DemoSession.documents;
     try {
       return await _repo.getDriverDocuments(driver!.id);
     } catch (e) {
@@ -79,6 +81,22 @@ class DocumentService {
         'Unknown document type.',
         code: DocumentErrorCode.invalidFile,
       );
+    }
+
+    if (DemoSession.active) {
+      final doc = DriverDocument(
+        id: 'demo-doc-${DateTime.now().millisecondsSinceEpoch}',
+        title: title.trim(),
+        docType: docTypeKey,
+        status: 'pending',
+        expiryDate: expiryDate,
+        notes: notes?.trim().isEmpty == true ? null : notes?.trim(),
+        driverId: driver!.id,
+        fileName: fileName,
+        createdAt: DateTime.now(),
+      );
+      DemoSession.addDocument(doc);
+      return doc;
     }
 
     final type = _validateFile(fileName, bytes, mimeType);

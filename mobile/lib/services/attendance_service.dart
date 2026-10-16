@@ -4,6 +4,7 @@
 // No UI code. No Supabase imports.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import '../core/demo/demo_session.dart';
 import '../repositories/attendance_repository.dart';
 import '../models/attendance.dart';
 import '../models/driver_profile.dart';
@@ -27,6 +28,7 @@ class AttendanceService {
 
   Future<AttendanceModel?> getTodayAttendance(DriverProfile? driver) async {
     _requireDriver(driver);
+    if (DemoSession.active) return DemoSession.attendance;
     try {
       return await _repo.getTodayAttendance();
     } catch (e) {
@@ -37,6 +39,9 @@ class AttendanceService {
   Future<List<AttendanceModel>> getHistory(DriverProfile? driver,
       {int limit = 30}) async {
     _requireDriver(driver);
+    if (DemoSession.active) {
+      return DemoSession.attendanceHistory.take(limit).toList();
+    }
     try {
       return await _repo.getAttendanceHistory(limit: limit);
     } catch (e) {
@@ -65,6 +70,21 @@ class AttendanceService {
         message: 'You are already checked in for today.',
         code:    AttendanceErrorCode.alreadyCheckedIn,
       );
+    }
+
+    if (DemoSession.active) {
+      final now = DateTime.now();
+      final rec = AttendanceModel(
+        id: 'demo-att-today',
+        driverId: driver!.id,
+        attendanceDate: DateTime(now.year, now.month, now.day),
+        status: 'working',
+        checkIn:
+            '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+        createdAt: now,
+      );
+      DemoSession.setAttendance(rec);
+      return rec;
     }
 
     try {
@@ -104,6 +124,33 @@ class AttendanceService {
         message: 'You have already checked out for today.',
         code:    AttendanceErrorCode.alreadyCheckedOut,
       );
+    }
+
+    if (DemoSession.active) {
+      final now = DateTime.now();
+      final h = now.difference(DateTime(
+        now.year,
+        now.month,
+        now.day,
+        int.tryParse(todayRecord.checkIn?.split(':').first ?? '') ?? 8,
+        int.tryParse(todayRecord.checkIn?.split(':').last ?? '') ?? 0,
+      ));
+      final hrs =
+          '${h.inHours}h ${h.inMinutes.remainder(60).toString().padLeft(2, '0')}m';
+      final rec = AttendanceModel(
+        id: todayRecord.id,
+        driverId: todayRecord.driverId,
+        attendanceDate: todayRecord.attendanceDate,
+        status: 'complete',
+        checkIn: todayRecord.checkIn,
+        checkOut:
+            '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+        workingHours: hrs,
+        vehicleAssigned: todayRecord.vehicleAssigned,
+        createdAt: todayRecord.createdAt,
+      );
+      DemoSession.setAttendance(rec);
+      return rec;
     }
 
     try {

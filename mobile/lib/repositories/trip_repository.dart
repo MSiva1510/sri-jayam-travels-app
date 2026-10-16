@@ -15,6 +15,7 @@
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config/supabase_config.dart';
+import '../core/demo/demo_session.dart';
 import '../models/trip.dart';
 
 class TripRepository {
@@ -27,6 +28,10 @@ class TripRepository {
   /// All trips for the authenticated driver, newest first.
   /// RLS enforces driver-only access — no need to pass driver ID as a filter.
   Future<List<TripModel>> getDriverTrips({int limit = 50}) async {
+    if (DemoSession.active) {
+      final all = List<TripModel>.from(DemoSession.trips);
+      return all.take(limit).toList();
+    }
     final data = await _client
         .from(SupabaseConfig.bookingsTable)
         .select(TripModel.selectColumns)
@@ -40,6 +45,16 @@ class TripRepository {
 
   /// Only today's trips for the authenticated driver.
   Future<List<TripModel>> getTodayTrips() async {
+    if (DemoSession.active) {
+      final now = DateTime.now();
+      return DemoSession.trips.where((t) {
+        final d = t.startDate;
+        return d != null &&
+            d.year == now.year &&
+            d.month == now.month &&
+            d.day == now.day;
+      }).toList();
+    }
     final today = DateTime.now();
     final dateStr =
         '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
@@ -56,6 +71,19 @@ class TripRepository {
 
   /// Upcoming trips (today + future), for the authenticated driver.
   Future<List<TripModel>> getUpcomingTrips({int limit = 10}) async {
+    if (DemoSession.active) {
+      final now = DateTime.now();
+      final today =
+          DateTime(now.year, now.month, now.day);
+      final list = DemoSession.trips.where((t) {
+        if (t.status != 'assigned' && t.status != 'started') {
+          return false;
+        }
+        final d = t.startDate;
+        return d == null || !d.isBefore(today);
+      }).toList();
+      return list.take(limit).toList();
+    }
     final today = DateTime.now();
     final dateStr =
         '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
@@ -75,6 +103,7 @@ class TripRepository {
   /// Single trip by ID — RLS ensures driver can only fetch their own trip.
   /// Returns null if not found or access denied.
   Future<TripModel?> getTripById(String tripId) async {
+    if (DemoSession.active) return DemoSession.tripById(tripId);
     final data = await _client
         .from(SupabaseConfig.bookingsTable)
         .select(TripModel.selectColumns)
@@ -87,6 +116,16 @@ class TripRepository {
 
   /// Count of today's trips — cheap aggregate query.
   Future<int> getTodayTripCount() async {
+    if (DemoSession.active) {
+      final now = DateTime.now();
+      return DemoSession.trips.where((t) {
+        final d = t.startDate;
+        return d != null &&
+            d.year == now.year &&
+            d.month == now.month &&
+            d.day == now.day;
+      }).length;
+    }
     final today = DateTime.now();
     final dateStr =
         '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
@@ -108,6 +147,13 @@ class TripRepository {
 
   /// assigned → started. Returns the updated row (RLS-filtered).
   Future<TripModel> markStarted(String tripId) async {
+    if (DemoSession.active) {
+      final t = DemoSession.tripById(tripId);
+      if (t == null) throw Exception('Trip not found');
+      final updated = DemoSession.copyTrip(t, status: 'started');
+      DemoSession.updateTrip(updated);
+      return updated;
+    }
     final data = await _client
         .from(SupabaseConfig.bookingsTable)
         .update({'status': 'started', 'updated_at': DateTime.now().toUtc().toIso8601String()})
@@ -119,6 +165,13 @@ class TripRepository {
 
   /// started → completed. Returns the updated row (RLS-filtered).
   Future<TripModel> markCompleted(String tripId) async {
+    if (DemoSession.active) {
+      final t = DemoSession.tripById(tripId);
+      if (t == null) throw Exception('Trip not found');
+      final updated = DemoSession.copyTrip(t, status: 'completed');
+      DemoSession.updateTrip(updated);
+      return updated;
+    }
     final data = await _client
         .from(SupabaseConfig.bookingsTable)
         .update({'status': 'completed', 'updated_at': DateTime.now().toUtc().toIso8601String()})
@@ -131,6 +184,17 @@ class TripRepository {
   /// Driver declines an assigned trip → back to pending with the reason
   /// appended to notes, so dispatch can reassign. Returns the updated row.
   Future<TripModel> declineTrip(String tripId, String reason) async {
+    if (DemoSession.active) {
+      final t = DemoSession.tripById(tripId);
+      if (t == null) throw Exception('Trip not found');
+      final prev = (t.notes ?? '').trim();
+      final stamped = '[Declined ${DateTime.now().toUtc().toIso8601String()}: $reason]';
+      final updated = DemoSession.copyTrip(t,
+          status: 'pending',
+          notes: prev.isEmpty ? stamped : '$prev\n$stamped');
+      DemoSession.updateTrip(updated);
+      return updated;
+    }
     final current = await _client
         .from(SupabaseConfig.bookingsTable)
         .select('notes')

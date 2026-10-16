@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
 import '../core/auth/auth_state.dart';
+import '../core/demo/demo_session.dart';
 import '../repositories/auth_repository.dart';
 import '../services/auth_service.dart';
 
@@ -93,7 +94,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = next;
   }
 
+  /// Full-spec demo mode: fake session + in-memory fixtures, no network.
+  /// Used by the "Explore demo" button on login.
+  Future<void> loginDemo() async {
+    state = const AuthAuthenticating();
+    await Future.delayed(const Duration(milliseconds: 500));
+    DemoSession.enter();
+    state = AuthAuthenticated(
+      profile: DemoSession.profile,
+      driverProfile: DemoSession.driver,
+    );
+  }
+
   Future<void> logout() async {
+    DemoSession.exit();
     try {
       await _service.logout();
     } catch (_) {

@@ -5,6 +5,7 @@
 // query and maps low-level errors to friendly messages.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import '../core/demo/demo_session.dart';
 import '../models/app_notification.dart';
 import '../repositories/notification_repository.dart';
 
@@ -17,6 +18,7 @@ class NotificationService {
 
   Future<List<AppNotification>> getNotifications(String? userId) async {
     _requireUser(userId);
+    if (DemoSession.active) return DemoSession.notifications;
     try {
       return await _repo.getNotifications(userId: userId!);
     } catch (e) {
@@ -26,6 +28,9 @@ class NotificationService {
 
   Future<int> getUnreadCount(String? userId) async {
     _requireUser(userId);
+    if (DemoSession.active) {
+      return DemoSession.notifications.where((n) => n.isUnread).length;
+    }
     try {
       return await _repo.getUnreadCount(userId: userId!);
     } catch (e) {
@@ -36,6 +41,13 @@ class NotificationService {
   // ── Actions ────────────────────────────────────────────────────────────────
 
   Future<AppNotification> markRead(String id) async {
+    if (DemoSession.active) {
+      DemoSession.markNotificationRead(id);
+      final updated = DemoSession.notifications
+          .where((n) => n.id == id)
+          .single;
+      return updated;
+    }
     try {
       return await _repo.markRead(id);
     } catch (e) {
@@ -45,6 +57,10 @@ class NotificationService {
 
   Future<void> markAllRead(String? userId) async {
     _requireUser(userId);
+    if (DemoSession.active) {
+      DemoSession.markAllNotificationsRead();
+      return;
+    }
     try {
       await _repo.markAllRead(userId: userId!);
     } catch (e) {

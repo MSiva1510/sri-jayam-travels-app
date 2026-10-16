@@ -5,6 +5,7 @@
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/demo/demo_session.dart';
 import '../models/driver_payslip.dart';
 
 class EarningsRepository {
@@ -15,6 +16,9 @@ class EarningsRepository {
   /// Payslips for one driver, newest first. RLS scopes to the driver.
   Future<List<DriverPayslip>> getPayslips(String driverId,
       {int limit = 100}) async {
+    if (DemoSession.active) {
+      return DemoSession.payslips.take(limit).toList();
+    }
     final data = await _client
         .from('trip_payslips')
         .select('*')
