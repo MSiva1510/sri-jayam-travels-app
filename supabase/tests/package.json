@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node driver_alerts.test.mjs"
+    "test": "node driver_alerts.test.mjs && node whatsapp_webhook.test.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.2.17"

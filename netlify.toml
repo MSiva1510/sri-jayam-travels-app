@@ -20,6 +20,12 @@
   to     = "/.netlify/functions/gps-proxy"
   status = 200
 
+# Meta WhatsApp Cloud API callback URL (GET verify + POST events).
+[[redirects]]
+  from   = "/api/whatsapp/webhook"
+  to     = "/.netlify/functions/whatsapp-webhook"
+  status = 200
+
 # SPA fallback: every path serves index.html so React Router handles routing.
 [[redirects]]
   from   = "/*"
