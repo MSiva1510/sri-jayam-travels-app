@@ -22,6 +22,7 @@ import { useGpsHistory } from '../context/GpsHistoryContext'
 import { loadDrivers } from '../data/driverData'
 import { loadVehicles } from '../data/vehicleData'
 import { fleetAlertRepository } from '../repositories'
+import supabase from '../lib/supabase'
 import { loadAttendanceToday }                         from '../data/attendanceData'
 import { loadCustomers }                               from '../data/customerData'
 import { loadExpenses, summariseByType, isThisMonth, getExpenseDate }  from '../data/expenseData'
@@ -133,6 +134,32 @@ export default function Dashboard() {
   }, [])
 
   useEffect(() => { reload() }, [reload])
+
+  // Fleet alerts stay live: a driver's SOS from the mobile app, or another
+  // admin resolving an alert, updates this panel without a page reload.
+  // Realtime on fleet_alerts, with a slow poll as a fallback.
+  const reloadAlerts = useCallback(async () => {
+    try {
+      const alerts = await fleetAlertRepository.getActiveAlerts({ limit: 50 })
+      setFleetAlerts(Array.isArray(alerts) ? alerts : [])
+    } catch (error) {
+      console.error('[Dashboard] failed to refresh fleetAlerts:', error)
+    }
+  }, [])
+
+  useEffect(() => {
+    const channel = supabase
+      ?.channel('dashboard-fleet-alerts')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'fleet_alerts' },
+        () => reloadAlerts())
+      .subscribe()
+    const poll = setInterval(reloadAlerts, 60_000)
+    return () => {
+      clearInterval(poll)
+      if (channel) supabase.removeChannel(channel)
+    }
+  }, [reloadAlerts])
 
   // ── Attendance derived ────────────────────────────────────
   const presentCount = todayAttendance.filter(a => a.status === 'present' || a.status === 'half-day').length
