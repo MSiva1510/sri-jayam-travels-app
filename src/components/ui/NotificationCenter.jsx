@@ -45,6 +45,7 @@ const CAT_COLOR = {
   document:  'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
   vehicle:   'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
   attendance:'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
+  fleet:     'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
   general:   'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
 }
 

@@ -8,7 +8,15 @@ import { getDatabaseProvider, DATABASE_PROVIDERS } from '../config/database'
 import { dataService } from '../services/dataService'
 
 const ALERTS_STORAGE_KEY = 'sjt_fleet_alerts'
-const MISSING_TABLES_STORAGE_KEY = 'sjt_supabase_missing_tables'
+// v2: v1 also cached tables whose queries merely failed (e.g. "permission
+// denied for table fleet_alerts"), hiding real alerts for good. A new key
+// drops those stale flags.
+const MISSING_TABLES_STORAGE_KEY = 'sjt_supabase_missing_tables_v2'
+
+/** Only a genuinely absent table counts — not permission or network errors. */
+function isMissingTableError(error) {
+  return error?.code === 'PGRST205' || error?.code === '42P01'
+}
 
 function getMissingSupabaseTables() {
   return dataService.get(MISSING_TABLES_STORAGE_KEY, {}) || {}
@@ -304,7 +312,7 @@ export class FleetAlertRepository extends BaseRepository {
       if (error) throw error
       return data || []
     } catch (error) {
-      if (error?.code === 'PGRST205' || String(error?.message).includes('fleet_alerts')) {
+      if (isMissingTableError(error)) {
         this.tableMissing = cacheMissingSupabaseTable(this.tableName)
         console.warn('Fleet alerts table missing in Supabase; falling back to local alerts.')
         return this._getAllFromLocal(opts)
@@ -332,7 +340,7 @@ export class FleetAlertRepository extends BaseRepository {
       if (error) throw error
       return data || null
     } catch (error) {
-      if (error?.code === 'PGRST205' || String(error?.message).includes('fleet_alerts')) {
+      if (isMissingTableError(error)) {
         this.tableMissing = cacheMissingSupabaseTable(this.tableName)
         console.warn('Fleet alerts table missing in Supabase; falling back to local alert lookup.')
         return this._getByIdFromLocal(id)
@@ -363,7 +371,7 @@ export class FleetAlertRepository extends BaseRepository {
       if (error) throw error
       return created
     } catch (error) {
-      if (error?.code === 'PGRST205' || String(error?.message).includes('fleet_alerts')) {
+      if (isMissingTableError(error)) {
         this.tableMissing = cacheMissingSupabaseTable(this.tableName)
         console.warn('Fleet alerts table missing in Supabase; creating alert locally.')
         return this._createInLocal(data)
@@ -392,7 +400,7 @@ export class FleetAlertRepository extends BaseRepository {
       if (error) throw error
       return updated
     } catch (error) {
-      if (error?.code === 'PGRST205' || String(error?.message).includes('fleet_alerts')) {
+      if (isMissingTableError(error)) {
         this.tableMissing = cacheMissingSupabaseTable(this.tableName)
         console.warn('Fleet alerts table missing in Supabase; updating alert locally.')
         return this._updateInLocal(id, data)
@@ -414,7 +422,7 @@ export class FleetAlertRepository extends BaseRepository {
       if (error) throw error
       return true
     } catch (error) {
-      if (error?.code === 'PGRST205' || String(error?.message).includes('fleet_alerts')) {
+      if (isMissingTableError(error)) {
         this.tableMissing = cacheMissingSupabaseTable(this.tableName)
         console.warn('Fleet alerts table missing in Supabase; deleting alert locally.')
         return this._deleteFromLocal(id)

@@ -4,6 +4,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth }          from './AuthContext'
 import { eventBus }         from '../communication/EventBus'
+import supabase             from '../lib/supabase'
 import { communicationEngine } from '../communication/CommunicationEngine'
 import {
   getCommunicationLogs, getCommunicationStats,
@@ -118,9 +119,26 @@ export function CommunicationProvider({ children }) {
       loadNotifs()
     })
 
+    // Rows written by other clients (e.g. a driver's SOS from the mobile app)
+    // never pass through this tab's EventBus — listen to the table directly,
+    // with a slow poll as a fallback when Realtime is unavailable.
+    if (supabase) {
+      realtimeSub.current = supabase
+        .channel(`web-notifications-${user.id}`)
+        .on('postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+          () => loadNotifs())
+        .subscribe()
+    }
+    const poll = setInterval(loadNotifs, 60_000)
+
     return () => {
       unsub()
-      if (realtimeSub.current?.unsubscribe) realtimeSub.current.unsubscribe()
+      clearInterval(poll)
+      if (realtimeSub.current) {
+        supabase?.removeChannel(realtimeSub.current)
+        realtimeSub.current = null
+      }
     }
   }, [user?.id, loadNotifs, loadPreferences, loadAnalytics, loadProviders])
 
