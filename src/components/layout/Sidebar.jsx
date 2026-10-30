@@ -4,7 +4,7 @@ import {
   User, Car, Settings, ChevronLeft, ChevronRight,
   MapPin, Phone, Globe, LogOut, Navigation,
   History, Route, CalendarCheck, IndianRupee, BarChart2, UserCog,
-  FolderOpen, ClipboardList, MessageSquare,
+  FolderOpen, ClipboardList, MessageSquare, MessageCircle,
   Shield, HardDrive,
 } from 'lucide-react'
 import { useApp }  from '../../context/AppContext'
@@ -26,6 +26,7 @@ const NAV_ITEMS = [
   { to: '/documents',      label: 'Documents',     icon: FolderOpen,      roles: ['admin','manager'], perm: 'manage_documents'   },
   { to: '/payroll',        label: 'Payroll',       icon: IndianRupee,     roles: ['admin','manager'], perm: 'manage_payroll'   },
   { to: '/communications', label: 'Communications', icon: MessageSquare,  roles: ['admin','manager'], perm: 'manage_communications'   },
+  { to: '/whatsapp',       label: 'WhatsApp',       icon: MessageCircle,  roles: ['admin','manager'], perm: 'manage_whatsapp' },
   { to: '/reports',        label: 'Reports',        icon: BarChart2,       roles: ['admin'], perm: 'reports'   },
   { to: '/audit-log',      label: 'Audit Log',      icon: ClipboardList,   roles: ['admin'], perm: 'reports'   },
   // Day 32: Live Fleet Dashboard

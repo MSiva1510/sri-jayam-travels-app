@@ -38,6 +38,7 @@ const Documents         = lazy(() => import('./pages/Documents'))
 const AuditLog          = lazy(() => import('./pages/AuditLog'))
 const Communications    = lazy(() => import('./pages/Communications'))
 const CommunicationSettings = lazy(() => import('./pages/CommunicationSettings'))
+const WhatsApp          = lazy(() => import('./pages/WhatsApp'))
 const Fleet             = lazy(() => import('./pages/Fleet'))
 const FleetSettings     = lazy(() => import('./pages/FleetSettings'))
 const UiLab             = lazy(() => import('./pages/UiLab'))
@@ -84,6 +85,7 @@ export default function App() {
               <Route path="/documents"              element={<ProtectedRoute allowedRoles={['admin','manager']}><Documents /></ProtectedRoute>} />
               <Route path="/communications"          element={<ProtectedRoute allowedRoles={['admin','manager']}><Communications /></ProtectedRoute>} />
               <Route path="/communications-settings" element={<ProtectedRoute allowedRoles={['admin','manager']}><CommunicationSettings /></ProtectedRoute>} />
+              <Route path="/whatsapp"                element={<ProtectedRoute allowedRoles={['admin','manager']}><WhatsApp /></ProtectedRoute>} />
               <Route path="/payroll"                 element={<ProtectedRoute allowedRoles={['admin','manager']}><Payroll /></ProtectedRoute>} />
               <Route path="/reports"                 element={<ProtectedRoute allowedRoles={['admin']}><Reports /></ProtectedRoute>} />
               <Route path="/audit-log"               element={<ProtectedRoute allowedRoles={['admin']}><AuditLog /></ProtectedRoute>} />

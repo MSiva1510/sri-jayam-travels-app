@@ -26,6 +26,18 @@
   to     = "/.netlify/functions/whatsapp-webhook"
   status = 200
 
+# Trip messages: called by the bookings trigger (pg_net) or staff.
+[[redirects]]
+  from   = "/api/whatsapp/notify"
+  to     = "/.netlify/functions/whatsapp-notify"
+  status = 200
+
+# Inbox replies from the web and the manager app (staff session).
+[[redirects]]
+  from   = "/api/whatsapp/send"
+  to     = "/.netlify/functions/whatsapp-send"
+  status = 200
+
 # SPA fallback: every path serves index.html so React Router handles routing.
 [[redirects]]
   from   = "/*"

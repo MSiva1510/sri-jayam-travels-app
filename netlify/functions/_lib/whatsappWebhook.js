@@ -72,7 +72,7 @@ function textOf(message) {
  * Flattens a `whatsapp_business_account` webhook payload.
  * Unknown objects/fields are ignored rather than rejected.
  * @returns {{ statuses: Array<{wamid, status, at, recipient, error}>,
- *             messages: Array<{wamid, from, contactName, phoneNumberId, type, text, at, raw}> }}
+ *             messages: Array<{wamid, from, contactName, phoneNumberId, type, text, replyId, at, raw}> }}
  */
 export function parseWebhook(payload) {
   const statuses = []
@@ -107,6 +107,9 @@ export function parseWebhook(payload) {
           phoneNumberId,
           type: m.type ?? 'unknown',
           text: textOf(m),
+          // Id of a tapped reply button / list row / template quick reply.
+          replyId: m.interactive?.button_reply?.id ?? m.interactive?.list_reply?.id
+            ?? m.button?.payload ?? null,
           at: toIso(m.timestamp),
           raw: m,
         })

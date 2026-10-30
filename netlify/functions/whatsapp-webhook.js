@@ -6,15 +6,23 @@
 //   POST — delivery receipts (sent / delivered / read / failed) and incoming
 //          customer messages. Rejected with 401 unless X-Hub-Signature-256
 //          matches WHATSAPP_APP_SECRET. Receipts update communication_logs
-//          (matched on provider_message_id) through the whatsapp_apply_status
-//          RPC; messages land in whatsapp_inbound_messages. Both writes are
-//          idempotent, so Meta's retries are safe.
+//          and whatsapp_outbound_messages (matched on the wamid) through the
+//          whatsapp_apply_status RPC; messages land in
+//          whatsapp_inbound_messages. Both writes are idempotent, so Meta's
+//          retries are safe. Each NEW message then goes to the auto-reply
+//          bot (whatsappService.handleInbound); a bot failure is logged but
+//          still answers 200, so Meta does not resend and double-reply.
 //
 // Server-only env (Netlify → Site configuration → Environment variables):
 //   WHATSAPP_VERIFY_TOKEN, WHATSAPP_APP_SECRET,
-//   SUPABASE_URL (or VITE_SUPABASE_URL), SUPABASE_SERVICE_ROLE_KEY
+//   SUPABASE_URL (or VITE_SUPABASE_URL), SUPABASE_SERVICE_ROLE_KEY,
+//   WHATSAPP_TOKEN + WHATSAPP_PHONE_NUMBER_ID (bot replies; without them
+//   messages are stored but not answered)
 
 import { verifyChallenge, verifySignature, parseWebhook } from './_lib/whatsappWebhook.js'
+import { supabaseAdmin } from './_lib/supabaseAdmin.js'
+import { whatsappConfig } from './_lib/whatsappApi.js'
+import { handleInbound } from './_lib/whatsappService.js'
 
 const MAX_BODY_BYTES = 1024 * 1024
 
@@ -34,54 +42,32 @@ function header(headers = {}, name) {
   return undefined
 }
 
-function supabaseAdmin(env) {
-  const url = (env.SUPABASE_URL || env.VITE_SUPABASE_URL || '').replace(/\/+$/, '')
-  const key = env.SUPABASE_SERVICE_ROLE_KEY
-  return url && key ? { url, key } : null
-}
-
-async function rest(db, path, init) {
-  const res = await fetch(`${db.url}/rest/v1/${path}`, {
-    ...init,
-    headers: {
-      apikey: db.key,
-      Authorization: `Bearer ${db.key}`,
-      'Content-Type': 'application/json',
-      ...init.headers,
-    },
-  })
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '')
-    throw new Error(`${init.method} ${path} → ${res.status} ${detail.slice(0, 200)}`)
-  }
-}
-
+/** Stores receipts + messages; returns the messages that were not stored before. */
 async function store(db, { statuses, messages }) {
   for (const s of statuses) {
-    await rest(db, 'rpc/whatsapp_apply_status', {
-      method: 'POST',
-      body: JSON.stringify({ p_wamid: s.wamid, p_status: s.status, p_at: s.at, p_error: s.error }),
-    })
+    await db.rpc('whatsapp_apply_status', { p_wamid: s.wamid, p_status: s.status, p_at: s.at, p_error: s.error })
+    await db.rpc('whatsapp_apply_outbound_status', { p_wamid: s.wamid, p_status: s.status, p_error: s.error })
   }
-  if (messages.length) {
-    await rest(db, 'whatsapp_inbound_messages?on_conflict=wamid', {
-      method: 'POST',
-      headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
-      body: JSON.stringify(messages.map(m => ({
-        wamid: m.wamid,
-        from_phone: m.from,
-        contact_name: m.contactName,
-        phone_number_id: m.phoneNumberId,
-        message_type: m.type,
-        text_body: m.text,
-        received_at: m.at,
-        payload: m.raw,
-      }))),
-    })
-  }
+  if (!messages.length) return []
+  const inserted = await db.insert(
+    'whatsapp_inbound_messages',
+    messages.map(m => ({
+      wamid: m.wamid,
+      from_phone: m.from,
+      contact_name: m.contactName,
+      phone_number_id: m.phoneNumberId,
+      message_type: m.type,
+      text_body: m.text,
+      received_at: m.at,
+      payload: m.raw,
+    })),
+    { prefer: 'resolution=ignore-duplicates,return=representation', onConflict: 'wamid' },
+  )
+  const fresh = new Set((inserted ?? []).map(r => r.wamid))
+  return messages.filter(m => fresh.has(m.wamid))
 }
 
-export async function handler(event, _context, env = process.env) {
+export async function handler(event, _context, env = process.env, fetchImpl = fetch) {
   const method = event.httpMethod
 
   if (method === 'GET') {
@@ -117,19 +103,30 @@ export async function handler(event, _context, env = process.env) {
   const parsed = parseWebhook(payload)
   if (!parsed.statuses.length && !parsed.messages.length) return reply(200, { ok: true, stored: 0 })
 
-  const db = supabaseAdmin(env)
+  const db = supabaseAdmin(env, fetchImpl)
   if (!db) {
     console.error('[whatsapp-webhook] SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set')
     return reply(500, { error: 'Webhook is not configured' })
   }
 
+  let fresh
   try {
-    await store(db, parsed)
+    fresh = await store(db, parsed)
   } catch (error) {
     // Non-200 makes Meta retry; both writes are idempotent.
     console.error('[whatsapp-webhook] store failed:', error.message)
     return reply(500, { error: 'Could not store event' })
   }
 
-  return reply(200, { ok: true, stored: parsed.statuses.length + parsed.messages.length })
+  const config = whatsappConfig(env)
+  let replied = 0
+  for (const m of fresh) {
+    try {
+      replied += (await handleInbound(db, config, m)).replied
+    } catch (error) {
+      console.error('[whatsapp-webhook] bot failed:', error.message)
+    }
+  }
+
+  return reply(200, { ok: true, stored: parsed.statuses.length + parsed.messages.length, replied })
 }

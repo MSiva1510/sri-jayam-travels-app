@@ -12,7 +12,7 @@ import {
   Shield, ShieldCheck, User, Users, Car, Check, X, RefreshCw,
   ChevronDown, Copy, Eye, Search, Crown,
   LayoutDashboard, FileText, Navigation, Receipt, FolderOpen,
-  CalendarCheck, IndianRupee, MessageSquare, BarChart2,
+  CalendarCheck, IndianRupee, MessageSquare, MessageCircle, BarChart2,
   Lock, Bell,
 } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
@@ -41,6 +41,7 @@ const MODULES = [
   { key: 'documents', label: 'Documents', desc: 'Manage documents and files', icon: FolderOpen, perms: ['manage_documents'] },
   { key: 'payroll', label: 'Payroll', desc: 'Manage payroll and salaries', icon: IndianRupee, perms: ['manage_payroll', 'view_finance'] },
   { key: 'communications', label: 'Communications', desc: 'Send notifications and messages', icon: MessageSquare, perms: ['manage_communications', 'notification_management'] },
+  { key: 'whatsapp', label: 'WhatsApp', desc: 'Read and answer customer WhatsApp chats', icon: MessageCircle, perms: ['manage_whatsapp'] },
   { key: 'reports', label: 'Reports', desc: 'View reports and analytics', icon: BarChart2, perms: ['view_reports', 'export_reports'] },
 ]
 const ADMIN_MODULES = [

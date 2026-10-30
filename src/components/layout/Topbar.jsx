@@ -31,6 +31,7 @@ const PAGE_TITLES = {
   '/documents':       { label: 'Documents',         sub: 'Vehicle & trip documents'         },
   '/communications':  { label: 'Communications',    sub: 'Customer messages'                },
   '/communications-settings': { label: 'Communication Settings', sub: 'Templates & providers' },
+  '/whatsapp':        { label: 'WhatsApp',          sub: 'Customer chats'                   },
   '/payroll':         { label: 'Payroll',           sub: 'Driver settlements & salary'      },
   '/audit-log':       { label: 'Audit Log',         sub: 'Recent system activity'           },
   '/admin/users':     { label: 'User Accounts',     sub: 'Manage staff access'              },

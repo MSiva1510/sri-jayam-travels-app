@@ -128,7 +128,8 @@ test('signed POST applies each receipt via RPC and upserts inbound messages', as
   const body = JSON.stringify(PAYLOAD)
   const res = await handler(post(body), {}, ENV)
   assert.equal(res.statusCode, 200)
-  assert.deepEqual(JSON.parse(res.body), { ok: true, stored: 3 })
+  // Empty insert reply = nothing new, so the bot has nothing to answer.
+  assert.deepEqual(JSON.parse(res.body), { ok: true, stored: 3, replied: 0 })
 
   const rpc = calls.filter(c => c.url.endsWith('/rest/v1/rpc/whatsapp_apply_status'))
   assert.deepEqual(rpc.map(c => [c.body.p_wamid, c.body.p_status]), [['wamid.OUT1', 'delivered'], ['wamid.OUT2', 'failed']])
