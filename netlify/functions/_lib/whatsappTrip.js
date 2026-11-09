@@ -22,7 +22,7 @@ export const TEMPLATES = {
   },
   sjt_trip_completed: {
     params: ['customer', 'booking no.', 'pickup', 'drop', 'km', 'amount'],
-    body: 'Thank you {{1}} for travelling with Sri Jayam Travels. Trip {{2}} from {{3}} to {{4}} ({{5}} km) is complete. Amount: {{6}}.',
+    body: 'Thank you {{1}} for travelling with Sri Jayam Travels. Your trip {{2}} from {{3}} to {{4}} covering {{5}} km is now complete. The total amount payable is {{6}} rupees. We hope to serve you again.',
     example: ['Mani', 'FY26-OCT-0052', 'Ariyakuppam', 'Chennai', '320', 'Rs. 5,400'],
   },
   sjt_trip_bill: {
@@ -32,7 +32,7 @@ export const TEMPLATES = {
   },
   sjt_driver_new_trip: {
     params: ['booking no.', 'date', 'time', 'pickup', 'drop', 'customer', 'customer phone'],
-    body: 'New trip {{1}} on {{2}} at {{3}}: {{4}} to {{5}}. Customer: {{6}} ({{7}}). Open the Sri Jayam driver app for details.',
+    body: 'Hello, a new trip {{1}} has been assigned to you on {{2}} at {{3}}. The pickup location is {{4}} and the drop location is {{5}}. Customer name is {{6}} and the contact number is {{7}}. Please open the Sri Jayam Travels driver app for the full trip details and to start the trip.',
     example: ['FY26-OCT-0052', '31 Oct 2026', '06:00', 'Ariyakuppam', 'Chennai', 'Mani', '7305581235'],
   },
 }
