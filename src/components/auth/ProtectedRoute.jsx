@@ -7,7 +7,7 @@ function AuthSpinner() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-100 dark:bg-[var(--ap-bg)] gap-4">
       <div className="w-12 h-12 rounded-2xl overflow-hidden border border-white/20 shadow-lg">
         <img
-          src="https://travelsjayam.in/wp-content/uploads/2025/05/Untitled-design-1.png"
+          src="https://app.travelsjayam.in/wp-content/uploads/2025/05/Untitled-design-1.png"
           alt="SJT"
           className="w-full h-full object-contain p-1"
           onError={e => { e.target.style.display = 'none' }}

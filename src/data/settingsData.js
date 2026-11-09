@@ -12,10 +12,10 @@ export const DEFAULT_SETTINGS = {
     name:    'Sri Jayam Travels',
     phone:   '+91 94423 37470',
     email:   'srijayamtravels1255@gmail.com',
-    website: 'www.srijayamtravels.in',
+    website: 'www.travelsjayam.in',
     address: 'No.4 Subburaya Pillai Street, Ariyakuppam, Puducherry – 605007',
     gstin:   '',
-    logo:    'https://travelsjayam.in/wp-content/uploads/2025/05/Untitled-design-1.png',
+    logo:    'https://app.travelsjayam.in/wp-content/uploads/2025/05/Untitled-design-1.png',
   },
   invoice: {
     prefix:      'SJT',
