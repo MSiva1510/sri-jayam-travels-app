@@ -10,7 +10,7 @@ import { test, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 
-import { botStep, parseTripDate, parseTripTime, nextBookingNumber, statusReply } from '../netlify/functions/_lib/whatsappBot.js'
+import { botStep, parseTripDate, parseTripTime, nextBookingNumber, statusReply, parseLocation, locationText } from '../netlify/functions/_lib/whatsappBot.js'
 import { dueMessages, TEMPLATES } from '../netlify/functions/_lib/whatsappTrip.js'
 import { waPhone, templateText, waMessage, messagePreview } from '../netlify/functions/_lib/whatsappApi.js'
 import { todayIST } from '../netlify/functions/_lib/whatsappService.js'
@@ -65,6 +65,60 @@ test('booking conversation: menu → pickup → drop → date → time → confi
     type: 'create_booking',
     booking: { pickup: 'Ariyakuppam', drop: 'Chennai airport', date: '2026-10-31', time: '05:30' },
   })
+})
+
+test('locations: WhatsApp shares, maps links and typed coordinates are understood', () => {
+  // WhatsApp's own share, flattened by textOf().
+  assert.deepEqual(
+    parseLocation('Ariyakuppam · Main Road, Ariyakuppam 632314 · 12.9716,79.1587'),
+    { label: 'Ariyakuppam · Main Road, Ariyakuppam 632314', lat: 12.9716, lng: 79.1587 },
+  )
+  // A share with no name/address is just coordinates.
+  assert.deepEqual(parseLocation('12.9716,79.1587'), { lat: 12.9716, lng: 79.1587, label: '' })
+  // Maps links (Google / Apple / Bing) that carry coordinates.
+  for (const url of [
+    'https://www.google.com/maps/@12.9716,79.1587,17z',
+    'https://maps.google.com/?q=12.9716,79.1587',
+    'https://www.google.com/maps/place/Ariyakuppam/data=!3d12.9716!4d79.1587',
+    'https://maps.apple.com/?ll=12.9716,79.1587',
+    'https://www.bing.com/maps?cp=12.9716~79.1587',
+  ]) {
+    assert.deepEqual(parseLocation(url), { lat: 12.9716, lng: 79.1587, label: '' }, url)
+  }
+  // geo: URI and a short link (no coordinates visible) are kept as-is.
+  assert.deepEqual(parseLocation('geo:12.9716,79.1587'), { lat: 12.9716, lng: 79.1587, label: '' })
+  assert.deepEqual(parseLocation('https://maps.app.goo.gl/abc123'), { url: 'https://maps.app.goo.gl/abc123' })
+  // Plain text / impossible coordinates are not locations.
+  assert.equal(parseLocation('Chennai airport'), null)
+  assert.equal(parseLocation('95.0,200.0'), null)
+  assert.equal(parseLocation(''), null)
+
+  assert.equal(locationText('Ariyakuppam · Main Road · 12.9716,79.1587'), 'Ariyakuppam · Main Road (12.97160, 79.15870)')
+  assert.equal(locationText('12.9716,79.1587'), '12.97160, 79.15870')
+  assert.equal(locationText('Chennai airport'), 'Chennai airport')
+})
+
+test('booking conversation: location request button, location share and maps link', () => {
+  let s = botStep(null, { text: 'Book a trip', replyId: 'book' }, TODAY)
+  assert.equal(s.state, 'book_pickup')
+  assert.equal(s.replies[0].kind, 'location')
+  assert.match(s.replies[0].body, /Share your pickup location/)
+
+  // Live location / share (WhatsApp flattens name · address · lat,lng).
+  s = botStep(s, { text: 'Ariyakuppam · Main Road · 12.9716,79.1587' }, TODAY)
+  assert.equal(s.state, 'book_drop')
+  assert.equal(s.replies[0].kind, 'location')
+  assert.equal(s.data.pickup, 'Ariyakuppam · Main Road (12.97160, 79.15870)')
+
+  // A Google Maps link works for the drop.
+  s = botStep(s, { text: 'https://www.google.com/maps/@13.0827,80.2707,15z' }, TODAY)
+  assert.equal(s.state, 'book_date')
+  assert.equal(s.data.drop, '13.08270, 80.27070')
+
+  s = botStep(s, { text: 'tomorrow' }, TODAY)
+  s = botStep(s, { text: 'skip' }, TODAY)
+  assert.match(s.replies[0].body, /Pickup: Ariyakuppam · Main Road \(12\.97160, 79\.15870\)/)
+  assert.match(s.replies[0].body, /Drop: 13\.08270, 80\.27070/)
 })
 
 test('cancel, status, staff and unknown text', () => {
@@ -149,6 +203,7 @@ test('phones, template text and previews', () => {
   const b = waMessage.buttons(PHONE, 'Pick one', [{ id: 'a', title: 'A very long button title here' }])
   assert.equal(b.interactive.action.buttons[0].reply.title.length, 20)
   assert.equal(messagePreview(waMessage.template(PHONE, 'sjt_x', ['Mani', ''])), 'Template sjt_x: Mani · -')
+  assert.equal(messagePreview(waMessage.locationRequest(PHONE, 'Where to?')), 'Where to?\n[Send location]')
   assert.equal(todayIST(Date.parse('2026-10-30T20:00:00Z')), '2026-10-31')
 })
 
@@ -258,10 +313,7 @@ function fakeWorld({ staffRole = 'manager' } = {}) {
 }
 
 const sign = body => 'sha256=' + crypto.createHmac('sha256', ENV.WHATSAPP_APP_SECRET).update(body).digest('hex')
-function incoming(text, { id = crypto.randomUUID(), replyId } = {}) {
-  const message = replyId
-    ? { from: PHONE, id, timestamp: '1793100000', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: replyId, title: text } } }
-    : { from: PHONE, id, timestamp: '1793100000', type: 'text', text: { body: text } }
+function signed(message) {
   const body = JSON.stringify({
     object: 'whatsapp_business_account',
     entry: [{ changes: [{ field: 'messages', value: {
@@ -271,6 +323,14 @@ function incoming(text, { id = crypto.randomUUID(), replyId } = {}) {
     } }] }],
   })
   return { httpMethod: 'POST', headers: { 'x-hub-signature-256': sign(body) }, body }
+}
+function incoming(text, { id = crypto.randomUUID(), replyId } = {}) {
+  return signed(replyId
+    ? { from: PHONE, id, timestamp: '1793100000', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: replyId, title: text } } }
+    : { from: PHONE, id, timestamp: '1793100000', type: 'text', text: { body: text } })
+}
+function incomingLocation(location) {
+  return signed({ from: PHONE, id: crypto.randomUUID(), timestamp: '1793100000', type: 'location', location })
 }
 
 test('webhook: a customer books a trip end to end, and a retried message is not answered twice', async () => {
@@ -294,6 +354,31 @@ test('webhook: a customer books a trip end to end, and a retried message is not 
   assert.match(sent.at(-1).text.body, /Your request FY26-NOV-0053 is booked/)
   assert.equal(db.outbound.filter(m => m.kind === 'bot').length, sent.length)
   assert.equal(db.conversations.get(PHONE).state, null)
+})
+
+test('webhook: a customer books by sharing their live location and a maps link', async () => {
+  const { db, sent } = fakeWorld()
+  await webhook(incoming('Book a trip', { replyId: 'book' }), {}, ENV, fetch, NOW)
+  assert.equal(sent.at(-1).type, 'interactive')
+  assert.equal(sent.at(-1).interactive.type, 'location_request_message')
+  assert.deepEqual(sent.at(-1).interactive.action, { name: 'send_location' })
+
+  await webhook(incomingLocation({
+    latitude: 12.9716, longitude: 79.1587, name: 'Ariyakuppam', address: 'Main Road',
+  }), {}, ENV, fetch, NOW)
+  assert.equal(db.conversations.get(PHONE).state, 'book_drop')
+  assert.equal(sent.at(-1).interactive.type, 'location_request_message', 'asks for the drop the same way')
+
+  await webhook(incoming('https://maps.google.com/?q=13.0827,80.2707'), {}, ENV, fetch, NOW)
+  await webhook(incoming('5/11'), {}, ENV, fetch, NOW)
+  await webhook(incoming('skip'), {}, ENV, fetch, NOW)
+  await webhook(incoming('Confirm', { replyId: 'confirm' }), {}, ENV, fetch, NOW)
+
+  const booking = db.bookings.at(-1)
+  assert.equal(booking.pickup_location, 'Ariyakuppam · Main Road (12.97160, 79.15870)')
+  assert.equal(booking.drop_location, '13.08270, 80.27070')
+  assert.equal(booking.status, 'pending')
+  assert.match(sent.at(-1).text.body, /Your request FY26-NOV-0053 is booked/)
 })
 
 test('webhook: "Talk to staff" pauses the bot until staff hand it back', async () => {

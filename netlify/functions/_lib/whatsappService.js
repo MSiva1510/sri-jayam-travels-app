@@ -18,9 +18,9 @@ export function todayIST(now = Date.now()) {
 const enc = encodeURIComponent
 
 function toGraph(to, reply) {
-  return reply.kind === 'buttons'
-    ? waMessage.buttons(to, reply.body, reply.buttons)
-    : waMessage.text(to, reply.body)
+  if (reply.kind === 'buttons') return waMessage.buttons(to, reply.body, reply.buttons)
+  if (reply.kind === 'location') return waMessage.locationRequest(to, reply.body)
+  return waMessage.text(to, reply.body)
 }
 
 /**

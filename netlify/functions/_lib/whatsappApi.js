@@ -64,6 +64,17 @@ export const waMessage = {
       },
     },
   }),
+  // Interactive "Send location" message. The customer's reply arrives as a
+  // `location` webhook (latitude/longitude + optional name/address).
+  locationRequest: (to, body) => ({
+    messaging_product: 'whatsapp', recipient_type: 'individual', to,
+    type: 'interactive',
+    interactive: {
+      type: 'location_request_message',
+      body: { text: String(body).slice(0, 1024) },
+      action: { name: 'send_location' },
+    },
+  }),
   template: (to, name, params = [], language = 'en') => ({
     messaging_product: 'whatsapp', recipient_type: 'individual', to,
     type: 'template',
@@ -81,6 +92,9 @@ export const waMessage = {
 export function messagePreview(msg) {
   if (msg.type === 'text') return msg.text.body
   if (msg.type === 'interactive') {
+    if (msg.interactive.type === 'location_request_message') {
+      return `${msg.interactive.body.text}\n[Send location]`
+    }
     const titles = msg.interactive.action.buttons.map(b => `[${b.reply.title}]`).join(' ')
     return `${msg.interactive.body.text}\n${titles}`
   }
