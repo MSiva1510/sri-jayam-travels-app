@@ -154,9 +154,9 @@ export function locationText(raw) {
   return (loc.label ? `${loc.label} (${at})` : at).slice(0, 200)
 }
 
-function menu(contactName, lead = '') {
+function menu(contactName) {
   return buttons(
-    `${lead}Vanakkam${firstName(contactName)}! Welcome to Sri Jayam Travels 🚖\nHow can we help you?`,
+    `Vanakkam${firstName(contactName)}! Welcome to Sri Jayam Travels 🚖\nHow can we help you?`,
     MENU_BUTTONS,
   )
 }
@@ -185,7 +185,7 @@ export function botStep(conv, msg, today) {
     ({ replies, state: nextState, data: nextData, action })
 
   if (CANCEL_WORDS.includes(input) && state) {
-    return done([menu(msg.contactName, 'Cancelled. ')])
+    return done([buttons('Cancelled — no booking was made. What would you like to do?', MENU_BUTTONS)])
   }
   if (RESET_WORDS.includes(input)) return done([menu(msg.contactName)])
 

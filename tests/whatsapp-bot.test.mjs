@@ -125,7 +125,9 @@ test('cancel, status, staff and unknown text', () => {
   const mid = { state: 'book_drop', data: { pickup: 'X' } }
   const c = botStep(mid, { text: 'cancel' }, TODAY)
   assert.equal(c.state, null)
-  assert.match(c.replies[0].body, /^Cancelled\./)
+  assert.match(c.replies[0].body, /^Cancelled — no booking was made/)
+  assert.doesNotMatch(c.replies[0].body, /Vanakkam/)
+  assert.deepEqual(c.replies[0].buttons.map(b => b.id), ['book', 'status', 'staff'])
   assert.equal(botStep(null, { text: '2' }, TODAY).action.type, 'trip_status')
   const staff = botStep(null, { text: 'x', replyId: 'staff' }, TODAY)
   assert.equal(staff.action.type, 'handoff')
