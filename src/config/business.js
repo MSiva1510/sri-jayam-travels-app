@@ -4,5 +4,5 @@ export const BIZ = {
   phone: '+91 94423 37470',
   email: 'srijayamtravels1255@gmail.com',
   website: 'www.travelsjayam.in',
-  logo: 'https://app.travelsjayam.in/wp-content/uploads/2025/05/Untitled-design-1.png',
+  logo: 'https://www.travelsjayam.in/logo.png',
 }

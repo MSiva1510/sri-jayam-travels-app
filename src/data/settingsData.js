@@ -15,7 +15,7 @@ export const DEFAULT_SETTINGS = {
     website: 'www.travelsjayam.in',
     address: 'No.4 Subburaya Pillai Street, Ariyakuppam, Puducherry – 605007',
     gstin:   '',
-    logo:    'https://app.travelsjayam.in/wp-content/uploads/2025/05/Untitled-design-1.png',
+    logo:    'https://www.travelsjayam.in/logo.png',
   },
   invoice: {
     prefix:      'SJT',
