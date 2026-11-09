@@ -1,0 +1,529 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --sidebar-width: 260px;
+    --sidebar-collapsed: 72px;
+    --topbar-height: 60px;
+    --sjt-theme: #0a1230;
+    --sjt-brand: #2563eb;
+    --sjt-sb: var(--sjt-theme);
+
+    color-scheme: light;
+
+    /* ── Semantic appearance tokens (Apple-inspired) ─────────────
+       Single source of truth for the ap-* primitives. Runtime
+       overrides (Settings → Appearance) keep --sjt-brand / --sjt-theme
+       winning, so the brand feature stays intact. */
+    --ap-bg:            #f4f6fa;
+    --ap-surface:       #ffffff;
+    --ap-surface-2:     #edf1f6;
+    --ap-surface-elev:  #ffffff;
+    --ap-text-1:        #142238;
+    --ap-text-2:        #526176;
+    --ap-text-3:        #77869a;
+    --ap-border:        #dce3ec;
+    --ap-border-strong: #cfd8e4;
+    --ap-accent:        var(--sjt-brand);
+    --ap-accent-2:      #1258b4;
+    --ap-success:       #087f5b;
+    --ap-warning:       #a85d00;
+    --ap-danger:        #c62836;
+    --ap-info:          #1769d2;
+    --ap-link:          #1769d2;
+
+    /* Typography scale */
+    --ap-d-1: 32px;   --ap-d-2: 30px;
+    --ap-h-1: 24px;   --ap-h-2: 22px;
+    --ap-h-3: 20px;   --ap-t-1: 18px;
+    --ap-t-2: 17px;   --ap-b: 15px;
+    --ap-b-s: 14px;   --ap-table: 13px;
+    --ap-cap: 12px;   --ap-cap-s: 11px;
+
+    /* Radii */
+    --ap-radius-card:   16px;
+    --ap-radius-shell:  18px;
+    --ap-radius-dialog: 20px;
+    --ap-radius-btn:    12px;
+    --ap-radius-ctl:    10px;
+
+    /* Motion (ms) */
+    --ap-motion-press:    120ms;
+    --ap-motion-hover:    180ms;
+    --ap-motion-dropdown: 180ms;
+    --ap-motion-dialog:   200ms;
+    --ap-motion-sidebar:  220ms;
+    --ap-motion-toast:    200ms;
+  }
+  .dark {
+    color-scheme: dark;
+
+    --ap-bg:            #0b1018;
+    --ap-surface:       #121a26;
+    --ap-surface-2:     #202c3d;
+    --ap-surface-elev:  #1b2636;
+    --ap-text-1:        #f2f5fa;
+    --ap-text-2:        #b1bdce;
+    --ap-text-3:        #8997ab;
+    --ap-border:        #2b384a;
+    --ap-border-strong: #38465a;
+    --ap-accent:        var(--sjt-brand);
+    --ap-accent-2:      #5694fa;
+    --ap-success:       #55d6a5;
+    --ap-warning:       #ffc46b;
+    --ap-danger:        #ff858b;
+    --ap-info:          #83b9ff;
+    --ap-link:          #76adff;
+  }
+  /* Primary color (Settings → Appearance): themes the main-area
+     primary accents — tabs, tiles, buttons, selected states. */
+  .bg-blue-600 { background-color: var(--sjt-brand) !important; }
+  .border-blue-600 { border-color: var(--sjt-brand) !important; }
+  .text-blue-600 { color: var(--sjt-brand) !important; }
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+  body {
+  overflow-x: hidden;
+  background: var(--ap-bg);
+  }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'DM Sans', system-ui, sans-serif; }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  .dark ::-webkit-scrollbar-thumb { background: #334155; }
+  /* Global reduced-motion: collapse speculative transitions/animations. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  .glass-card {
+    background: rgba(255,255,255,0.72);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.55);
+    box-shadow: 0 4px 24px rgba(13,27,75,0.07);
+  }
+  .dark .glass-card {
+    background: rgba(13,27,75,0.55);
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+  }
+
+  .glass-sidebar {
+    background: linear-gradient(180deg, var(--sjt-sb, var(--sjt-theme)) 0%, rgba(8,15,42,0.97) 135%);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-right: 1px solid rgba(255,255,255,0.07);
+  }
+
+  .glass-topbar {
+    background: var(--ap-surface, #ffffff);
+    border-bottom: 1px solid var(--ap-border, rgba(15,23,42,0.08));
+  }
+  .dark .glass-topbar {
+    background: var(--ap-surface, #121a26);
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+  }
+
+  .stat-card {
+    background: rgba(255,255,255,0.72);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.55);
+    box-shadow: 0 4px 24px rgba(13,27,75,0.07);
+    border-radius: 1rem;
+    padding: 1.25rem;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s;
+  }
+  .stat-card:hover {
+    box-shadow: 0 10px 40px rgba(13,27,75,0.13);
+    transform: translateY(-2px);
+  }
+  .dark .stat-card {
+    background: rgba(13,27,75,0.55);
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+
+  /* ── iOS-style dashboard cards ───────────────────────────
+     iPhone widgets: 20pt continuous-look corners, soft diffuse
+     shadow, no hover lift — press feedback instead. */
+  .ios-card {
+    background: rgba(255,255,255,0.88);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.6);
+    box-shadow:
+      0 1px 2px rgba(13,27,75,0.05),
+      0 8px 24px rgba(13,27,75,0.08);
+  }
+  .dark .ios-card {
+    background: rgba(20,32,80,0.6);
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow:
+      0 1px 2px rgba(0,0,0,0.35),
+      0 8px 24px rgba(0,0,0,0.35);
+  }
+  /* Tap feedback (iOS press, not hover lift) */
+  .ios-press {
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.15s ease, box-shadow 0.2s ease;
+  }
+  .ios-press:active {
+    transform: scale(0.97);
+  }
+  @media (hover: hover) {
+    .ios-press:hover {
+      box-shadow:
+        0 1px 2px rgba(13,27,75,0.05),
+        0 12px 32px rgba(13,27,75,0.14);
+    }
+    .dark .ios-press:hover {
+      box-shadow:
+        0 1px 2px rgba(0,0,0,0.35),
+        0 12px 32px rgba(0,0,0,0.5);
+    }
+  }
+
+  /* ── iPhone shimmer skeleton ─────────────────────────────
+     Base block + sweeping highlight, like iOS placeholder cells. */
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background: #e4e9f2;
+  }
+  .dark .skeleton {
+    background: #22305e;
+  }
+  .skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.65), transparent);
+    animation: ios-shimmer 1.6s infinite;
+  }
+  .dark .skeleton::after {
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent);
+  }
+  @keyframes ios-shimmer {
+    100% { transform: translateX(100%); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton::after { animation: none; }
+    .ios-press:active { transform: none; }
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0.75rem;
+    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s;
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    text-decoration: none;
+  }
+  .nav-item-active {
+    background: color-mix(in srgb, var(--sjt-brand) 20%, rgba(255,255,255,0.10));
+    color: #ffffff;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.1);
+  }
+  /* Minimal sidebar: static rail hidden, hamburger reveals overlay drawer */
+  body.sb-minimal aside.static-rail { display: none !important; }
+  body.sb-minimal .app-menu-btn { display: flex !important; }
+  body.sb-minimal aside.mobile-drawer { display: flex !important; }
+  body.sb-minimal .mobile-backdrop { display: block !important; }
+  /* Compact density (Settings → Appearance) */
+  body.compact table th { padding-top: 0.4rem !important; padding-bottom: 0.4rem !important; }
+  body.compact table td { padding-top: 0.4rem !important; padding-bottom: 0.4rem !important; font-size: 0.72rem !important; }
+  body.compact .glass-card { border-radius: 14px !important; }
+  /* Text size is set inline on <html> by AppContext (12–24px). */
+  .nav-item-inactive {
+    color: rgba(255,255,255,0.48);
+  }
+  .nav-item-inactive:hover {
+    color: #ffffff;
+    background: rgba(255,255,255,0.07);
+  }
+
+  .table-row {
+    border-bottom: 1px solid rgba(241,245,249,1);
+    transition: background 0.15s;
+  }
+  .table-row:hover {
+    background: rgba(239,246,255,0.6);
+  }
+  .dark .table-row {
+    border-bottom: 1px solid rgba(15,30,80,0.8);
+  }
+  .dark .table-row:hover {
+    background: rgba(13,27,75,0.5);
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .badge-done        { background: #dcfce7; color: #166534; }
+  .badge-pending     { background: #fef9c3; color: #854d0e; }
+  .badge-active      { background: #dbeafe; color: #1e40af; }
+  .badge-maintenance { background: #fee2e2; color: #991b1b; }
+  .dark .badge-done        { background: rgba(22,163,74,0.18);  color: #4ade80; }
+  .dark .badge-pending     { background: rgba(234,179,8,0.18);  color: #fde047; }
+  .dark .badge-active      { background: rgba(59,130,246,0.18); color: #93c5fd; }
+  .dark .badge-maintenance { background: rgba(239,68,68,0.18);  color: #fca5a5; }
+
+  /* ── Apple-inspired primitives (additive; namespaced ap-* so no
+     existing page is affected). SF-style stack, neutral surfaces with
+     hairline borders, restrained single-hue accents, macOS controls. ── */
+  .font-sf {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
+                 'Segoe UI', 'Helvetica Neue', system-ui, sans-serif;
+  }
+  .ap-surface {
+    background: color-mix(in srgb, var(--ap-surface) 86%, transparent);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border: 1px solid color-mix(in srgb, var(--ap-border) 92%, transparent);
+    border-radius: var(--ap-radius-shell);
+    box-shadow:
+      0 1px 2px rgba(15,23,42,0.04),
+      0 10px 30px -14px rgba(15,23,42,0.14);
+  }
+  .dark .ap-surface {
+    background: color-mix(in srgb, var(--ap-surface) 62%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ap-border) 90%, transparent);
+    box-shadow:
+      0 1px 2px rgba(0,0,0,0.4),
+      0 12px 34px -16px rgba(0,0,0,0.6);
+  }
+  .ap-surface-elevated {
+    background: color-mix(in srgb, var(--ap-surface-elev) 92%, transparent);
+    box-shadow:
+      0 2px 4px rgba(15,23,42,0.06),
+      0 18px 48px -18px rgba(15,23,42,0.22);
+  }
+  .dark .ap-surface-elevated {
+    background: color-mix(in srgb, var(--ap-surface-elev) 85%, transparent);
+    box-shadow:
+      0 2px 4px rgba(0,0,0,0.5),
+      0 22px 56px -20px rgba(0,0,0,0.75);
+  }
+  .ap-hairline   { border-color: color-mix(in srgb, var(--ap-border) 90%, transparent); }
+  .dark .ap-hairline { border-color: color-mix(in srgb, var(--ap-border) 78%, transparent); }
+
+  /* macOS segmented control */
+  .ap-seg {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    border-radius: 10px;
+    background: rgba(120,120,128,0.14);
+  }
+  .dark .ap-seg { background: rgba(120,120,128,0.26); }
+  .ap-seg-btn {
+    padding: 0.55rem 1.1rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #3c3c43;
+    transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+    white-space: nowrap;
+  }
+  .dark .ap-seg-btn { color: rgba(255,255,255,0.62); }
+  .ap-seg-btn:hover:not(.ap-seg-active) { color: #0b1020; }
+  .dark .ap-seg-btn:hover:not(.ap-seg-active) { color: #fff; }
+  .ap-seg-active {
+    background: #ffffff;
+    color: #0b1020;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.14);
+  }
+  .dark .ap-seg-active {
+    background: rgba(255,255,255,0.18);
+    color: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+  }
+  .ap-seg-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--sjt-brand) 35%, transparent);
+  }
+  /* Consistent focus ring for interactive ap surfaces */
+  .ap-focus:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--sjt-brand) 35%, transparent);
+  }
+  /* macOS-style text field / select (Apple material gray, token text) */
+  .ap-field {
+    background: rgba(118,118,128,0.12);
+    border: 1px solid rgba(118,118,128,0.16);
+    border-radius: var(--ap-radius-ctl);
+    color: var(--ap-text-1);
+  }
+  .dark .ap-field {
+    background: rgba(118,118,128,0.18);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: var(--ap-text-1);
+  }
+  .ap-field::placeholder { color: rgba(60,60,67,0.55); }
+  .dark .ap-field::placeholder { color: rgba(255,255,255,0.42); }
+  .ap-field:focus {
+    outline: none;
+    border-color: color-mix(in srgb, var(--sjt-brand) 55%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--sjt-brand) 18%, transparent);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ap-seg-btn { transition: none; }
+  }
+}
+
+@layer utilities {
+  .bg-mesh {
+    background-image:
+      radial-gradient(at 30% 10%, rgba(59,130,246,0.1) 0px, transparent 55%),
+      radial-gradient(at 80% 5%,  rgba(13,27,75,0.12)  0px, transparent 50%),
+      radial-gradient(at 5%  60%, rgba(13,148,136,0.07) 0px, transparent 50%),
+      radial-gradient(at 90% 80%, rgba(139,92,246,0.06) 0px, transparent 50%);
+  }
+  .dark .bg-mesh {
+    background-image:
+      radial-gradient(at 20% 20%, rgba(30,58,138,0.4)  0px, transparent 55%),
+      radial-gradient(at 85% 10%, rgba(8,15,42,0.5)    0px, transparent 50%),
+      radial-gradient(at 5%  70%, rgba(13,148,136,0.12) 0px, transparent 50%);
+  }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  /* Fleet map: keyless OSM tiles restyled for dark mode (CARTO dark_all
+     now requires an API key). Markers/popups are unaffected. */
+  .fleet-map-dark .leaflet-tile-pane {
+    filter: invert(92%) hue-rotate(180deg) grayscale(18%) brightness(0.92) contrast(0.92);
+  }
+  .fleet-map-dark .leaflet-container { background: #0b1530; }
+  /* Fleet marker labels: dark pill + white text in both themes */
+  .leaflet-tooltip.fleet-car-tip {
+    background: rgba(2, 6, 23, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    padding: 4px 9px;
+    color: #fff;
+  }
+  .leaflet-tooltip.fleet-car-tip.leaflet-tooltip-top::before { display: none; }
+  .fleet-car-tip-reg { font-weight: 800; font-size: 11px; color: #fff; white-space: nowrap; }
+  /* MapLibre vehicle markers (label pill + small rotated car) */
+  .fleet-ml-marker { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+  .fleet-ml-label {
+    display: flex; flex-direction: column; align-items: center;
+    background: rgba(2, 6, 23, 0.92); border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 9px; padding: 2px 7px; margin-bottom: 2px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); pointer-events: none; line-height: 1.3;
+  }
+  .fleet-ml-reg { font-weight: 800; font-size: 10px; color: #fff; white-space: nowrap; }
+  .fleet-ml-spd { font-size: 9px; font-weight: 700; white-space: nowrap; }
+  .fleet-ml-car { transition: transform 0.5s ease; filter: drop-shadow(0 3px 3px rgba(0,0,0,.35)); }
+  .font-display { font-family: 'Sora', system-ui, sans-serif; }
+  .font-body    { font-family: 'DM Sans', system-ui, sans-serif; }
+
+  /* Native dropdowns: the OS-rendered option popup ignores the page
+     background, so without this the dark theme shows white text on a
+     light popup (unreadable). color-scheme themes the popup chrome;
+     explicit option colors cover the rest. */
+  select { color-scheme: light; }
+  .dark select { color-scheme: dark; }
+  select option {
+    background-color: var(--ap-surface, #ffffff);
+    color: var(--ap-text-1, #142238);
+  }
+
+  /* ── Tactile kit: Apple slider / wheel picker / timer ───────── */
+  .apple-slider-track {
+    position: relative; height: 28px; cursor: pointer; touch-action: none;
+  }
+  .apple-slider-track::before {
+    content: ''; position: absolute; left: 0; right: 0; top: 11px; height: 6px;
+    border-radius: 999px;
+    background: rgba(120,120,128,0.25);
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.25);
+  }
+  .dark .apple-slider-track::before { background: rgba(255,255,255,0.14); }
+  .apple-slider-fill {
+    position: absolute; left: 0; top: 11px; height: 6px; border-radius: 999px;
+    background: linear-gradient(180deg, #5b97f8, var(--ap-accent) 55%, #1d4ed8);
+    box-shadow: 0 1px 3px rgba(37,99,235,0.5);
+    pointer-events: none;
+  }
+  .apple-slider-thumb {
+    position: absolute; top: 0; width: 28px; height: 28px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #ffffff, #dfe3ea 70%, #c3c9d4);
+    border: 1px solid rgba(0,0,0,0.12);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.35), 0 1px 1px rgba(0,0,0,0.25), inset 0 1px 1px rgba(255,255,255,0.9);
+    cursor: grab;
+  }
+  .apple-slider-thumb:active { cursor: grabbing; }
+  .apple-slider-thumb:focus-visible { outline: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--sjt-brand) 35%, transparent), 0 3px 6px rgba(0,0,0,0.35); }
+
+  .apple-wheel-wrap { position: relative; }
+  .apple-wheel {
+    height: 180px; overflow-y: auto; overscroll-behavior: contain;
+    scroll-snap-type: y mandatory; scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(180deg, transparent, #000 30%, #000 70%, transparent);
+    mask-image: linear-gradient(180deg, transparent, #000 30%, #000 70%, transparent);
+    background: rgba(120,120,128,0.1);
+    border-radius: 12px;
+    border: 1px solid rgba(120,120,128,0.18);
+    box-shadow: inset 0 2px 8px rgba(0,0,0,0.12);
+  }
+  .apple-wheel::-webkit-scrollbar { display: none; }
+  .apple-wheel-band {
+    position: absolute; left: 0; right: 0; top: 50%; height: 36px; transform: translateY(-50%);
+    border-top: 1px solid rgba(120,120,128,0.4);
+    border-bottom: 1px solid rgba(120,120,128,0.4);
+    background: color-mix(in srgb, var(--ap-accent) 8%, transparent);
+    pointer-events: none;
+  }
+  .apple-wheel-item {
+    display: flex; align-items: center; justify-content: center;
+    scroll-snap-align: center;
+    font-size: 15px; font-weight: 500; color: #6b7280;
+    cursor: pointer; width: 100%;
+  }
+  .dark .apple-wheel-item { color: rgba(255,255,255,0.5); }
+  .apple-wheel-item-active { font-weight: 800; color: #0b1020; font-size: 17px; }
+  .dark .apple-wheel-item-active { color: #fff; }
+
+  .apple-timer-digits {
+    font-family: 'SF Mono', ui-monospace, 'Cascadia Mono', Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 22px; font-weight: 700; letter-spacing: 0.5px;
+    color: #0b1020;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.6);
+  }
+  .dark .apple-timer-digits { color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+}

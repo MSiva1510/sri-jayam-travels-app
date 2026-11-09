@@ -1,0 +1,404 @@
+// ─────────────────────────────────────────────────────────────────────
+// TRIP REPOSITORY
+// Handles trip data operations with Supabase and localStorage
+// ─────────────────────────────────────────────────────────────────────
+
+import { BaseRepository } from './baseRepository'
+import supabase from '../lib/supabase'
+import { getDatabaseProvider, DATABASE_PROVIDERS } from '../config/database'
+import { dataService } from '../services/dataService'
+
+const TRIPS_STORAGE_KEY = 'sjt_trips'
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+// Session verdict on charge/allowance columns (null = untested).
+// Set by _readBookings after the first read — avoids a failed 400
+// attempt on every subsequent query when migrations are unapplied.
+let chargesSupported = null
+
+function toDbBooking(data = {}) {
+  const typeData = data.type_data && typeof data.type_data === 'object' ? data.type_data : {}
+  const payload = {
+    booking_id: data.booking_id ?? data.bookingNo,
+    booking_number: data.booking_number ?? data.bookingNo,
+    type: data.type,
+    status: data.status,
+    customer_id: UUID_RE.test(String(data.customer_id || '')) ? data.customer_id : undefined,
+    customer_name: data.customer_name ?? data.customer,
+    customer_contact: data.customer_contact ?? data.contact,
+    driver_id: UUID_RE.test(String(data.driver_id || '')) ? data.driver_id : undefined,
+    vehicle_id: UUID_RE.test(String(data.vehicle_id || '')) ? data.vehicle_id : undefined,
+    pickup_location: data.pickup_location ?? data.pickup,
+    drop_location: data.drop_location ?? data.drop,
+    start_date: data.start_date ?? data.startDate,
+    start_time: data.start_time ?? data.startTime,
+    end_date: data.end_date ?? data.returnDate,
+    end_time: data.end_time ?? data.returnTime,
+    total_km: data.total_km ?? data.km,
+    base_fare: data.base_fare,
+    total_fare: data.total_fare ?? data.fare,
+    // Trip charges — per-trip driver allowance (salary, set by manager at
+    // approval) plus customer bata (extra). Columns come from migrations
+    // 20260925_booking_charges and 20260926_booking_driver_allowance; if
+    // the project hasn't applied them yet, the write path retries without.
+    bata: data.bata ?? data.driver_bata,
+    toll: data.toll ?? data.toll_charges,
+    petrol: data.petrol ?? data.fuel_amount ?? data.fuel,
+    parking: data.parking ?? data.parking_charges,
+    extras: data.extras ?? data.other_charges,
+    driver_allowance: data.driver_allowance ?? data.driverAllowance,
+    notes: data.notes,
+    type_data: { ...typeData, ...data.typeData },
+    approved_by: data.approved_by ?? data.approvedBy,
+    approved_at: data.approved_at ?? data.approvedAt,
+    remarks: data.remarks,
+    last_modified_by: data.last_modified_by ?? data.lastModifiedBy,
+    approval_history: data.approval_history,
+    driver_name: data.driver_name ?? data.driver,
+    vehicle_reg: data.vehicle_reg ?? data.vehicle_registration ?? data.vehicle,
+  }
+  if (!Object.keys(payload.type_data).length) delete payload.type_data
+  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined))
+}
+
+/**
+ * TripRepository - Manages trip data
+ */
+export class TripRepository extends BaseRepository {
+  constructor() {
+    super('bookings', 'id')
+  }
+
+  async getAll() {
+    const provider = getDatabaseProvider()
+    if (provider === DATABASE_PROVIDERS.SUPABASE) {
+      return this._getAllFromSupabase()
+    }
+    return this._getAllFromLocal()
+  }
+
+  async getById(id) {
+    const provider = getDatabaseProvider()
+    if (provider === DATABASE_PROVIDERS.SUPABASE) {
+      return this._getByIdFromSupabase(id)
+    }
+    return this._getByIdFromLocal(id)
+  }
+
+  // Charge/allowance columns may not exist until migrations
+  // 20260925_booking_charges / 20260926_booking_driver_allowance are
+  // applied — retry reads without them instead of failing the page.
+  // The verdict is remembered per session so only the first read pays
+  // for a failed attempt (no repeat 400s in the console).
+  _bookingColumns(withCharges = true) {
+    const base = 'id, booking_id, booking_number, type, status, customer_id, customer_name, customer_contact, driver_id, vehicle_id, pickup_location, drop_location, start_date, start_time, end_date, end_time, total_km, base_fare, total_fare, notes, type_data, approved_by, approved_at, remarks, last_modified_by, approval_history, driver_name, vehicle_reg, created_at, updated_at'
+    return withCharges ? base.replace(', notes,', ', bata, toll, petrol, parking, extras, driver_allowance, notes,') : base
+  }
+  _isMissingColumnRead(error) {
+    return /column .* does not exist|Could not find the '.*' column/i.test(String(error?.message || ''))
+  }
+
+  // Runs a bookings read with charge columns, falling back to the base
+  // column set once per session (module verdict — no repeat failed calls).
+  async _readBookings(build) {
+    if (chargesSupported === false) {
+      const r = await build(false)
+      if (r.error) throw r.error
+      return r.data || []
+    }
+    const first = await build(true)
+    if (!first.error) { chargesSupported = true; return first.data || [] }
+    if (this._isMissingColumnRead(first.error)) {
+      chargesSupported = false
+      const retry = await build(false)
+      if (retry.error) throw retry.error
+      return retry.data || []
+    }
+    throw first.error
+  }
+
+  async getByStatus(status) {
+    const provider = getDatabaseProvider()
+    if (provider === DATABASE_PROVIDERS.SUPABASE) {
+      try {
+        return await this._readBookings((full) => supabase
+          .from('bookings')
+          .select(this._bookingColumns(full))
+          .eq('status', status))
+      } catch (error) {
+        console.error('Get by status failed:', error)
+        throw error
+      }
+    }
+    return this._getByStatusLocal(status)
+  }
+
+  async getByDriver(driverId) {
+    const provider = getDatabaseProvider()
+    if (provider === DATABASE_PROVIDERS.SUPABASE) {
+      try {
+        const { data, error } = await supabase
+          .from('bookings')
+          .select('*')
+          .eq('driver_id', driverId)
+        if (error) throw error
+        return data || []
+      } catch (error) {
+        console.error('Get by driver failed:', error)
+        throw error
+      }
+    }
+    return this._getByDriverLocal(driverId)
+  }
+
+  async getByCustomer(customerId) {
+    const provider = getDatabaseProvider()
+    if (provider === DATABASE_PROVIDERS.SUPABASE) {
+      try {
+        const { data, error } = await supabase
+          .from('bookings')
+          .select('*')
+          .eq('customer_id', customerId)
+        if (error) throw error
+        return data || []
+      } catch (error) {
+        console.error('Get by customer failed:', error)
+        throw error
+      }
+    }
+    return this._getByCustomerLocal(customerId)
+  }
+
+  async create(data) {
+    const provider = getDatabaseProvider()
+    if (provider === DATABASE_PROVIDERS.SUPABASE) {
+      return this._createInSupabase(data)
+    }
+    return this._createInLocal(data)
+  }
+
+  async update(id, data) {
+    const provider = getDatabaseProvider()
+    if (provider === DATABASE_PROVIDERS.SUPABASE) {
+      return this._updateInSupabase(id, data)
+    }
+    return this._updateInLocal(id, data)
+  }
+
+  async delete(id) {
+    const provider = getDatabaseProvider()
+    if (provider === DATABASE_PROVIDERS.SUPABASE) {
+      return this._deleteFromSupabase(id)
+    }
+    return this._deleteFromLocal(id)
+  }
+
+  // ── LOCAL METHODS ──────────────────────────────────────────────
+
+  _getAllFromLocal() {
+    const items = dataService.get(TRIPS_STORAGE_KEY, [])
+    return Promise.resolve(items)
+  }
+
+  _getByIdFromLocal(id) {
+    const items = dataService.get(TRIPS_STORAGE_KEY, [])
+    const item = items.find(t => t.id === id)
+    return Promise.resolve(item || null)
+  }
+
+  _getByStatusLocal(status) {
+    const items = dataService.get(TRIPS_STORAGE_KEY, [])
+    return Promise.resolve(items.filter(t => t.status === status))
+  }
+
+  _getByDriverLocal(driverId) {
+    const items = dataService.get(TRIPS_STORAGE_KEY, [])
+    return Promise.resolve(items.filter(t => t.driver_id === driverId))
+  }
+
+  _getByCustomerLocal(customerId) {
+    const items = dataService.get(TRIPS_STORAGE_KEY, [])
+    return Promise.resolve(items.filter(t => t.customer_id === customerId))
+  }
+
+  _createInLocal(data) {
+    const items = dataService.get(TRIPS_STORAGE_KEY, [])
+    const trip = {
+      ...data,
+      id: data.id || `TRIP-${Date.now().toString().slice(-6)}`,
+      created_at: data.created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+    items.push(trip)
+    dataService.set(TRIPS_STORAGE_KEY, items)
+    return Promise.resolve(trip)
+  }
+
+  _updateInLocal(id, data) {
+    const items = dataService.get(TRIPS_STORAGE_KEY, [])
+    const index = items.findIndex(t => t.id === id)
+    if (index === -1) {
+      return Promise.reject(new Error(`Trip ${id} not found`))
+    }
+    const updated = {
+      ...items[index],
+      ...data,
+      updated_at: new Date().toISOString(),
+    }
+    items[index] = updated
+    dataService.set(TRIPS_STORAGE_KEY, items)
+    return Promise.resolve(updated)
+  }
+
+  _deleteFromLocal(id) {
+    const items = dataService.get(TRIPS_STORAGE_KEY, [])
+    const filtered = items.filter(t => t.id !== id)
+    dataService.set(TRIPS_STORAGE_KEY, filtered)
+    return Promise.resolve(true)
+  }
+
+  // ── SUPABASE METHODS ──────────────────────────────────────────
+
+  async _getAllFromSupabase() {
+    try {
+      return await this._readBookings((full) => supabase
+        .from('bookings')
+        .select(this._bookingColumns(full))
+        .order('created_at', { ascending: false }))
+    } catch (error) {
+      console.error('Error fetching trips from Supabase:', error)
+      throw error
+    }
+  }
+
+  async _getByIdFromSupabase(id) {
+    try {
+      const byKey = (full) => supabase
+        .from('bookings')
+        .select(this._bookingColumns(full))
+        .eq(UUID_RE.test(String(id)) ? 'id' : 'booking_id', id)
+        .single()
+      if (chargesSupported === false) {
+        const r = await byKey(false)
+        if (r.error && r.error.code !== 'PGRST116') throw r.error
+        return r.data || null
+      }
+      const first = await byKey(true)
+      if (!first.error) { chargesSupported = true; return first.data || null }
+      if (first.error.code === 'PGRST116') return null
+      if (this._isMissingColumnRead(first.error)) {
+        chargesSupported = false
+        const retry = await byKey(false)
+        if (retry.error && retry.error.code !== 'PGRST116') throw retry.error
+        return retry.data || null
+      }
+      throw first.error
+    } catch (error) {
+      console.error('Error fetching trip from Supabase:', error)
+      throw error
+    }
+  }
+
+  // Charge/allowance columns may not exist until migrations
+  // 20260925_booking_charges / 20260926_booking_driver_allowance are
+  // applied — retry the write without them instead of failing the save.
+  _withoutChargeColumns(obj = {}) {
+    const { bata, toll, petrol, parking, extras, driver_allowance, ...rest } = obj
+    return rest
+  }
+
+  _isMissingColumnError(error) {
+    const msg = String(error?.message || '')
+    return /column .* does not exist|Could not find the '.*' column/i.test(msg) &&
+      /(bata|toll|petrol|parking|extras|driver_allowance)/i.test(msg)
+  }
+
+  async _createInSupabase(data) {
+    try {
+      // Never pass a non-UUID 'id' — let Supabase auto-generate the PK.
+      // booking_number and booking_id carry the human-readable reference.
+      const { id, ...payload } = data
+      const trip = {
+        ...toDbBooking(payload),
+        ...(UUID_RE.test(String(id || '')) ? { id } : {}),
+        booking_id: payload.booking_id || payload.bookingNo || (!UUID_RE.test(String(id || '')) ? id : null) || `BK-${Date.now().toString().slice(-6)}`,
+        booking_number: payload.booking_number || payload.bookingNo || payload.booking_id || `BK-${Date.now().toString().slice(-6)}`,
+        created_at: payload.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+      try {
+        const { data: created, error } = await supabase
+          .from('bookings')
+          .insert([trip])
+          .select()
+          .single()
+        if (error) throw error
+        return created
+      } catch (error) {
+        if (!this._isMissingColumnError(error)) throw error
+        console.warn('[tripRepository] charge columns missing — saving trip without bata/toll/fuel/parking/allowance. Apply migrations 20260925_booking_charges + 20260926_booking_driver_allowance.')
+        const { data: created, error: retryError } = await supabase
+          .from('bookings')
+          .insert([this._withoutChargeColumns(trip)])
+          .select()
+          .single()
+        if (retryError) throw retryError
+        return created
+      }
+    } catch (error) {
+      console.error('Error creating trip in Supabase:', error)
+      throw error
+    }
+  }
+
+  async _updateInSupabase(id, data) {
+    try {
+      try {
+        const { data: updated, error } = await supabase
+          .from('bookings')
+          .update({
+            ...toDbBooking(data),
+            updated_at: new Date().toISOString(),
+          })
+          .eq(UUID_RE.test(String(id)) ? 'id' : 'booking_id', id)
+          .select()
+          .single()
+        if (error) throw error
+        return updated
+      } catch (error) {
+        if (!this._isMissingColumnError(error)) throw error
+        console.warn('[tripRepository] charge columns missing — updating trip without bata/toll/fuel/parking/allowance. Apply migrations 20260925_booking_charges + 20260926_booking_driver_allowance.')
+        const { data: updated, error: retryError } = await supabase
+          .from('bookings')
+          .update({
+            ...this._withoutChargeColumns(toDbBooking(data)),
+            updated_at: new Date().toISOString(),
+          })
+          .eq(UUID_RE.test(String(id)) ? 'id' : 'booking_id', id)
+          .select()
+          .single()
+        if (retryError) throw retryError
+        return updated
+      }
+    } catch (error) {
+      console.error('Error updating trip in Supabase:', error)
+      throw error
+    }
+  }
+
+  async _deleteFromSupabase(id) {
+    try {
+      const { error } = await supabase
+        .from('bookings')
+        .delete()
+        .eq(UUID_RE.test(String(id)) ? 'id' : 'booking_id', id)
+      if (error) throw error
+      return true
+    } catch (error) {
+      console.error('Error deleting trip from Supabase:', error)
+      throw error
+    }
+  }
+}
+
+export const tripRepository = new TripRepository()
+export default TripRepository
