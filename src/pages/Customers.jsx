@@ -301,6 +301,8 @@ function CustomerModal({ customer, onClose, onSave }) {
   }
 
   const handleSave = async () => {
+    // Clear all previous errors first so stale red boxes don't persist
+    setErrors({})
     const e = validate()
     if (Object.keys(e).length) { setErrors(e); return }
     const now = new Date().toISOString()
