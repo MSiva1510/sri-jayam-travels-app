@@ -5,6 +5,7 @@
 import { payrollRepository } from '../repositories/payrollRepository'
 import supabase               from '../lib/supabase'
 import { loadSettingValue, saveSettingValue } from './settingsStore'
+import { translateDbError } from './errorUtils'
 import { withCache, cacheClear } from '../utils/dataCache'
 
 // ── Settlement status config ──────────────────────────────────
@@ -124,8 +125,7 @@ export async function savePayrollSettings(cfg) {
   try {
     await saveSettingValue('payroll_settings', value)
   } catch (error) {
-    console.error('[settlementData] savePayrollSettings failed:', error)
-    throw error
+    throw translateDbError(error, 'savePayrollSettings')
   }
 }
 

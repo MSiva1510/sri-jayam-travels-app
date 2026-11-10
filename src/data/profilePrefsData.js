@@ -5,6 +5,7 @@
 // table.
 
 import supabase from '../lib/supabase'
+import { translateDbError } from './errorUtils'
 
 export const DEFAULT_PROFILE_PREFS = {
   notifRide:  true,
@@ -49,7 +50,7 @@ export async function loadProfilePrefs(userId) {
     .select('trip_notifications,email_enabled,sms_enabled')
     .eq('user_id', userId)
     .maybeSingle()
-  if (error) throw new Error(error.message || 'Could not load preferences')
+  if (error) throw translateDbError(error, 'loadProfilePrefs')
   return fromRow(data)
 }
 
@@ -65,12 +66,12 @@ export async function saveProfilePrefs(userId, prefs) {
     .update(row)
     .eq('user_id', userId)
     .select('user_id')
-  if (error) throw new Error(error.message || 'Could not save preferences')
+  if (error) throw translateDbError(error, 'saveProfilePrefs')
   if (!Array.isArray(data) || data.length === 0) {
     const { error: insertError } = await db
       .from('notification_preferences')
       .insert({ user_id: userId, ...row })
-    if (insertError) throw new Error(insertError.message || 'Could not save preferences')
+    if (insertError) throw translateDbError(insertError, 'saveProfilePrefs')
   }
 
   return { ...DEFAULT_PROFILE_PREFS, ...prefs }

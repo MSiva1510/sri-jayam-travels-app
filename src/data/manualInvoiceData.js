@@ -10,6 +10,7 @@
 // and parsed back on load. Old plain-text descriptions still load as notes.
 
 import supabase from '../lib/supabase'
+import { translateDbError } from './errorUtils'
 
 export const MANUAL_INVOICES_TABLE = 'manager_non_trip_invoices'
 
@@ -112,7 +113,7 @@ export async function loadManualInvoices() {
     .from(MANUAL_INVOICES_TABLE)
     .select('*')
     .order('created_at', { ascending: false })
-  if (error) throw new Error(error.message || 'Could not load manual invoices')
+  if (error) throw translateDbError(error, 'loadManualInvoices')
   return (data || []).map(fromRow)
 }
 
@@ -131,13 +132,13 @@ export async function saveManualInvoices(list) {
         .update(row)
         .eq('id', doc.id)
         .select('id')
-      if (error) throw new Error(error.message || 'Could not save this bill')
+      if (error) throw translateDbError(error, 'saveManualInvoices')
       if (Array.isArray(data) && data.length > 0) continue
       // The row disappeared (e.g. deleted in another tab) — insert it again.
     }
 
     const { error } = await db.from(MANUAL_INVOICES_TABLE).insert(row)
-    if (error) throw new Error(error.message || 'Could not save this bill')
+    if (error) throw translateDbError(error, 'saveManualInvoices')
   }
 
   return loadManualInvoices()
@@ -149,6 +150,6 @@ export async function deleteManualInvoice(id) {
     .from(MANUAL_INVOICES_TABLE)
     .delete()
     .eq('id', id)
-  if (error) throw new Error(error.message || 'Could not delete this bill')
+  if (error) throw translateDbError(error, 'deleteManualInvoice')
   return true
 }

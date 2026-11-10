@@ -5,6 +5,7 @@
 
 import supabase from '../lib/supabase'
 import { loadSettingValue, saveSettingValue } from '../data/settingsStore'
+import { translateDbError } from '../data/errorUtils'
 
 // ── Communication Logs ────────────────────────────────────────
 export const communicationLogRepository = {
@@ -245,7 +246,11 @@ export const mobilePushSettingsRepository = {
   async save(cfg) {
     const value = { ...this.defaults(), ...cfg, updated_at: new Date().toISOString() }
     if (supabase) {
-      await saveSettingValue('mobile_push_settings', value)
+      try {
+        await saveSettingValue('mobile_push_settings', value)
+      } catch (error) {
+        throw translateDbError(error, 'mobilePushSettings.save')
+      }
       return value
     }
     return value

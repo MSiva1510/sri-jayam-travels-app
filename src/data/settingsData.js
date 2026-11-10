@@ -4,6 +4,7 @@
 // defaults don't break old saves. Business data — never localStorage.
 
 import { loadSettingValue, saveSettingValue, deleteSettingValue } from './settingsStore'
+import { translateDbError } from './errorUtils'
 
 export const SETTINGS_KEY = 'company_settings'
 
@@ -63,8 +64,7 @@ export async function saveSettings(settings) {
     await saveSettingValue(SETTINGS_KEY, value)
     return true
   } catch (error) {
-    console.error('[settingsData] saveSettings failed:', error)
-    throw error
+    throw translateDbError(error, 'saveSettings')
   }
 }
 
@@ -73,8 +73,7 @@ export async function resetSettings() {
     await deleteSettingValue(SETTINGS_KEY)
     return true
   } catch (error) {
-    console.error('[settingsData] resetSettings failed:', error)
-    throw error
+    throw translateDbError(error, 'resetSettings')
   }
 }
 
