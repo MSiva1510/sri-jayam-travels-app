@@ -17,6 +17,7 @@ function toDbCustomer(data = {}) {
     name: data.name,
     type: data.type === 'agent' ? 'agency' : data.type,
     status: data.status,
+    phone: data.phone ?? data.mobile,
     primary_mobile: data.primary_mobile ?? data.mobile,
     alternate_mobile: data.alternate_mobile ?? data.altMobile,
     email: data.email,

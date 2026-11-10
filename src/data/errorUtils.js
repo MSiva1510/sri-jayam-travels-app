@@ -77,9 +77,26 @@ export function translateDbError(err, context = '') {
   }
 
   // Not null violation
+  // Postgres message: "null value in column "phone" of relation "customers" violates not-null constraint"
   if (code === '23502' || /not null|null value/i.test(msg)) {
+    // Extract column name from Postgres error: null value in column "X" of relation "Y" ...
+    const colMatch = msg.match(/null value in column "([^"]+)"/i)
+    const colName = colMatch ? colMatch[1] : null
+    // Map DB column names to form field names
+    const colToField = {
+      phone: 'mobile',
+      primary_mobile: 'mobile',
+      name: 'name',
+      type: 'Customer Type',
+      status: 'Status',
+      is_active: 'Status',
+    }
+    const field = colName ? colToField[colName] ?? colName : null
     return new AppError({
-      message: 'A required field is missing.',
+      message: colName
+        ? `The field "${colName}" is required but was not provided.`
+        : 'A required field is missing.',
+      field,
       code: '23502',
       suggestion: 'Fill in all required fields and try again.',
     })
