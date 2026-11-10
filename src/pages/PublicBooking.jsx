@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Car, ChevronRight, CheckCircle, Plus, X,
-  ArrowLeft, RotateCcw,
+  ArrowLeft, RotateCcw, Star, User,
 } from 'lucide-react'
 import supabase from '../lib/supabase'
 
@@ -92,6 +92,29 @@ export default function PublicBooking() {
   const [sdDelivery,  setSdDelivery]  = useState('')
   const [sdReturn,    setSdReturn]    = useState('')
   const [bookingRef,  setBookingRef]  = useState('')
+  const [registered,  setRegistered]  = useState(null)   // { name, is_vip, is_frequent_traveller }
+  const [lookupLoading, setLookupLoading] = useState(false)
+
+  // When a complete 10-digit mobile is entered, pre-fetch the registered
+  // customer profile (name + VIP / frequent flags) so the form can welcome
+  // them back and pre-fill their name. The RPC may not exist yet on older
+  // deployments — failures are silently ignored and the form still works.
+  useEffect(() => {
+    let m = mobile.replace(/\D/g, '')
+    if (m.length !== 10 || !supabase) return
+    setLookupLoading(true)
+    supabase.rpc('public_get_customer_profile', { p_mobile: m })
+      .then(({ data, error }) => {
+        if (!error && data?.found) {
+          setRegistered(data)
+          if (!name.trim() && data.name) setName(data.name)
+        } else {
+          setRegistered(null)
+        }
+      })
+      .catch(() => setRegistered(null))
+      .finally(() => setLookupLoading(false))
+  }, [mobile, supabase, name])
 
   const goToType = () => {
     const e = {}
@@ -220,6 +243,31 @@ export default function PublicBooking() {
                 <p className="text-teal-100 text-xs mt-1">We'll call you back to confirm the fare</p>
               </div>
               <div className="px-5 py-5 space-y-4">
+                {/* Registered customer banner */}
+                {registered && (
+                  <div className="flex items-start gap-3 rounded-xl border border-[1px] px-3 py-2.5
+                    {registered.is_vip ? 'bg-amber-50 border-amber-200/50' : 'bg-blue-50 border-blue-200/50'}">
+                    {registered.is_vip ? (
+                      <Star size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                    ) : (
+                      <User size={16} className="text-blue-500 flex-shrink-0 mt-0.5" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold {registered.is_vip ? 'text-amber-700' : 'text-blue-700'} uppercase tracking-wider mb-0.5">
+                        Welcome back, {registered.name}!
+                      </p>
+                      <p className="text-[10px] {registered.is_vip ? 'text-amber-600' : 'text-blue-600'}">
+                        {registered.is_vip ? '⭐ VIP customer — priority booking' : '🔁 Registered customer'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {lookupLoading && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full border-2 border-current border-teal-500/30 border-t-transparent animate-spin"></div>
+                    <p className="text-xs text-slate-500">Finding your profile…</p>
+                  </div>
+                )}
                 <div>
                   <Label required>Mobile Number</Label>
                   <Inp type="tel" value={mobile}
@@ -229,7 +277,7 @@ export default function PublicBooking() {
                 </div>
                 <div>
                   <Label required>Full Name</Label>
-                  <Inp value={name} onChange={e => setName(e.target.value)} placeholder="Your full name" />
+                  <Inp value={name} onChange={e => setName(e.target.value)} placeholder={registered ? 'Your full name' : 'Your full name'} />
                   {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
                 </div>
               </div>

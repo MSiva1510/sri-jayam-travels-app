@@ -56,11 +56,13 @@ export async function sendAndRecord(db, config, { to, msg, kind, bookingId = nul
 async function createBotBooking(db, phone, contactName, data) {
   const local = localPhone(phone)
   let customerId = null
+  let customer = null
   try {
     const found = await db.select(
-      `customers?select=id,name&or=(phone.eq.${local},mobile.eq.${local},primary_mobile.eq.${local})&limit=1`,
+      `customers?select=id,name,is_vip,is_frequent_traveller&or=(phone.eq.${local},mobile.eq.${local},primary_mobile.eq.${local})&limit=1`,
     )
     customerId = found?.[0]?.id ?? null
+    customer = found?.[0] ?? null
     if (found?.[0]?.name) contactName = found[0].name
   } catch {
     // Older customers table without these columns: book without the link.
@@ -87,7 +89,7 @@ async function createBotBooking(db, phone, contactName, data) {
         notes: 'Booked on WhatsApp',
         type_data: { lead_source: 'WhatsApp', source: 'whatsapp_bot' },
       }])
-      return row
+      return { booking: row, customer }
     } catch (e) {
       if (e.status === 409 || /duplicate key|23505/.test(e.body ?? '')) continue
       throw e
@@ -98,6 +100,16 @@ async function createBotBooking(db, phone, contactName, data) {
 
 async function tripStatus(db, phone) {
   const local = localPhone(phone)
+  // Look up the customer record so we can greet VIP / frequent travellers by name.
+  let customer = null
+  try {
+    const found = await db.select(
+      `customers?select=id,name,is_vip,is_frequent_traveller&or=(phone.eq.${local},mobile.eq.${local},primary_mobile.eq.${local})&limit=1`,
+    )
+    customer = found?.[0] ?? null
+  } catch {
+    // Older customers table without these columns: status without the link.
+  }
   const bookings = await db.select(
     `bookings?select=booking_number,status,start_date,start_time,pickup_location,drop_location,driver_id,vehicle_reg` +
     `&customer_contact=like.*${local}&status=neq.draft&order=start_date.desc&limit=3`,
@@ -106,7 +118,14 @@ async function tripStatus(db, phone) {
   const drivers = ids.length
     ? await db.select(`drivers?select=id,name,phone&id=in.(${ids.map(enc).join(',')})`) ?? []
     : []
-  return statusReply(bookings, Object.fromEntries(drivers.map(d => [d.id, d])))
+  const reply = statusReply(bookings, Object.fromEntries(drivers.map(d => [d.id, d])))
+  // Prepend a VIP / frequent recognition line when we know the customer.
+  if (customer && bookings.length > 0) {
+    const honor = customer.is_vip ? 'Valued VIP customer' : customer.is_frequent_traveller ? 'Frequent traveller' : null
+    const prefix = honor ? `${honor} ${customer.name},\n\n` : ''
+    return { kind: 'text', body: prefix + reply.body }
+  }
+  return reply
 }
 
 /**
@@ -135,8 +154,8 @@ export async function handleInbound(db, config, message, now = Date.now()) {
 
   if (step.action?.type === 'create_booking') {
     try {
-      const booking = await createBotBooking(db, message.from, conv?.contact_name ?? message.contactName, step.action.booking)
-      replies.push(bookedReply(booking.booking_number, step.action.booking))
+      const { booking, customer } = await createBotBooking(db, message.from, conv?.contact_name ?? message.contactName, step.action.booking)
+      replies.push(bookedReply(booking.booking_number, step.action.booking, customer))
     } catch (e) {
       console.error('[whatsapp-bot] booking failed:', e.message)
       replies.push({ kind: 'text', body: 'Sorry, we could not save the booking. Our team will contact you here shortly.' })

@@ -261,9 +261,13 @@ export function botStep(conv, msg, today) {
 }
 
 /** Reply after create_booking succeeded. */
-export function bookedReply(bookingNumber, data) {
+export function bookedReply(bookingNumber, data, customer = null) {
+  const vip = customer ? (customer.is_vip || customer.isVip) : false
+  const freq = customer ? (customer.is_frequent_traveller || customer.isFrequentTraveller) : false
+  const honor = vip ? 'Valued VIP customer' : freq ? 'Frequent traveller' : ''
+  const honorLine = honor ? `\n${honor} — thank you for traveling with us.` : ''
   return text(
-    `Thank you! Your request ${bookingNumber} is booked:\n${bookingSummary(data)}\n\n` +
+    `Thank you! Your request ${bookingNumber} is booked:${honorLine}\n${bookingSummary(data)}\n\n` +
     'Our office will confirm the fare and send the driver details here.',
   )
 }

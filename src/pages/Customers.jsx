@@ -19,6 +19,7 @@ import { useAuth } from '../context/AuthContext'
 import {
   loadCustomers, saveCustomer, deleteCustomer, generateCustomerId,
   CUSTOMER_TYPES, getCustomerTypeCfg, getCustomerStats,
+  computeAutoFlags, effectiveFlags, FLAG_THRESHOLDS,
 } from '../data/customerData'
 import { loadBookings, TRIP_TYPE_CONFIG, getStatusCfg } from '../data/tripTypes'
 import ModalOverlay from '../components/ui/ModalOverlay'
@@ -521,9 +522,10 @@ function CustomerModal({ customer, onClose, onSave }) {
 // ─────────────────────────────────────────────────────────────
 //  Customer Profile (expanded details)
 // ─────────────────────────────────────────────────────────────
-function CustomerProfile({ customer, bookings, onEdit, onDelete, onBooking, onFlag, canEdit, canDelete }) {
+function CustomerProfile({ customer, bookings, auto, onEdit, onDelete, onBooking, onFlag, canEdit, canDelete }) {
   const isCorp = customer.type === 'corporate' || customer.type === 'agent'
   const stats = getCustomerStats(customer.id, customer.name, bookings)
+  const eff = effectiveFlags(customer, auto || { autoIsVip: false, autoIsFrequentTraveller: false, reasons: [] })
 
   const renderField = (label, value, icon = null, href = null) => (
     value ? (
@@ -551,11 +553,25 @@ function CustomerProfile({ customer, bookings, onEdit, onDelete, onBooking, onFl
     <div className="border-t border-[var(--ap-border)] bg-[var(--ap-surface-2)] px-4 py-4 space-y-4">
 
       {/* VIP / Blacklist badges */}
-      {(customer.isVip || customer.isBlacklisted || customer.isFrequentTraveller) && (
+      {(eff.isVip || customer.isBlacklisted || eff.isFrequentTraveller) && (
         <div className="flex gap-2 flex-wrap">
-          {customer.isVip               && <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">⭐ VIP</span>}
-          {customer.isFrequentTraveller && <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">🔁 Frequent</span>}
-          {customer.isBlacklisted       && <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">🚫 Blacklisted</span>}
+          {eff.isVip && (
+            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full ${
+              auto?.autoIsVip && !customer.isVip ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+            }`}>
+              ⭐ VIP{customer.isVip && !auto?.autoIsVip ? ' (manual)' : auto?.autoIsVip && !customer.isVip ? ' (auto)' : ''}
+            </span>
+          )}
+          {eff.isFrequentTraveller && (
+            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full ${
+              auto?.autoIsFrequentTraveller && !customer.isFrequentTraveller ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+            }`}>
+              🔁 Frequent{customer.isFrequentTraveller && !auto?.autoIsFrequentTraveller ? ' (manual)' : auto?.autoIsFrequentTraveller && !customer.isFrequentTraveller ? ' (auto)' : ''}
+            </span>
+          )}
+          {customer.isBlacklisted && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">🚫 Blacklisted (manual)</span>
+          )}
         </div>
       )}
 
@@ -640,6 +656,20 @@ function CustomerProfile({ customer, bookings, onEdit, onDelete, onBooking, onFl
             <div className="rounded-lg bg-[var(--ap-surface)] p-2">
               <p className="font-bold text-slate-800 dark:text-white">₹{stats.totalRevenue?.toLocaleString('en-IN')}</p>
               <p className="text-slate-500 dark:text-slate-400 text-[9px]">Revenue</p>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Auto-flag reasons — explains why the system flagged this customer */}
+      {auto && auto.reasons.length > 0 && (
+        <>
+          <div className="border-t border-[var(--ap-border)] pt-3" />
+          <div className="flex items-start gap-2">
+            <Star size={12} className="text-amber-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">Auto-flagged</p>
+              <p className="text-slate-700 dark:text-slate-300 text-sm">{auto.reasons.join(' · ')}</p>
             </div>
           </div>
         </>
@@ -825,6 +855,15 @@ export default function Customers() {
       )
   }, [customers, typeFilter, flagFilter, sortBy])
 
+  // Auto-derived flags per customer (recomputed whenever bookings change).
+  const customerAuto = useMemo(() => {
+    const map = {}
+    for (const c of customers) {
+      map[c.id] = computeAutoFlags(c, bookings)
+    }
+    return map
+  }, [customers, bookings])
+
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const safePage = Math.min(Math.max(1, page), totalPages)
   const pageRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
@@ -888,6 +927,8 @@ export default function Customers() {
           { label:'Total',      value: customers.length,  icon: User,        tone:'gray',   filter:'all',        tap:true  },
           { label:'Individual', value: customers.filter(c=>c.type==='individual').length, icon: User, tone:'blue', filter:'individual', tap:true },
           { label:'Corporate',  value: corporateCount,    icon: Building2,   tone:'violet', filter:'corporate',  tap:true  },
+          { label:'VIP',        value: customers.filter(c=>effectiveFlags(c, customerAuto[c.id]||{}).isVip).length,         icon: Star,   tone:'amber', filter:'vip', tap:true },
+          { label:'Frequent',   value: customers.filter(c=>effectiveFlags(c, customerAuto[c.id]||{}).isFrequentTraveller).length, icon: Repeat, tone:'blue', filter:'frequent', tap:true },
           { label:'New This Month', value: newThisMonth,  icon: Calendar,    tone:'green',  filter:null,         tap:false },
         ].map(s => (
           <MetricCard key={s.label} icon={s.icon} tone={s.tone} label={s.label} value={s.value}
@@ -978,6 +1019,17 @@ export default function Customers() {
                           ? <span title="Blacklisted" className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
                           : <Star size={11} className="text-amber-500 flex-shrink-0" aria-label="VIP customer" />
                       )}
+                      {customerAuto[c.id] && (
+                        <span
+                          title={
+                            customerAuto[c.id].reasons.length
+                              ? 'Auto-flagged: ' + customerAuto[c.id].reasons.join(', ')
+                              : 'Auto-flagged customer'
+                          }
+                          className={`w-2 h-2 rounded-full flex-shrink-0 border border-current ${
+                            customerAuto[c.id].autoIsVip ? 'bg-amber-500 text-amber-500' : 'bg-blue-500 text-blue-500'
+                          } ${c.isVip || c.isFrequentTraveller ? 'opacity-50' : 'opacity-100'}`} />
+                      )}
                     </div>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate leading-tight mt-0.5 tabular-nums">
                       {subParts.length > 0 ? subParts.join(' · ') : 'No details yet'}
@@ -996,6 +1048,7 @@ export default function Customers() {
                   <CustomerProfile
                     customer={c}
                     bookings={bookings}
+                    auto={customerAuto[c.id] || null}
                     onEdit={setEditCustomer}
                     onDelete={handleDelete}
                     onBooking={bookTripFor}

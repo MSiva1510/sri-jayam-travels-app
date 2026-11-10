@@ -137,4 +137,52 @@ export function getCustomerStats(customerId, customerName, bookings) {
   }
 }
 
+// ── Auto-flag thresholds ──────────────────────────────────────
+// Derived flags are never written to the DB — they're computed on read so
+// they stay honest as trips are added. Manual flags (set in the Customers
+// page) always win over auto flags for VIP / Frequent; Blacklisted is
+// manual-only and never auto-set.
+export const FLAG_THRESHOLDS = {
+  frequentTrips:   5,   // completed trips to be "Frequent Traveller"
+  vipRevenue:      10000, // lifetime revenue to be "VIP" (₹)
+}
+
+// Compute which flags should be auto-set from a customer's booking history.
+// Returns { autoIsFrequentTraveller, autoIsVip, reasons: string[] }.
+export function computeAutoFlags(customer, bookings) {
+  const stats = getCustomerStats(customer.id, customer.name, bookings)
+  const reasons = []
+  let autoFrequent = false
+  let autoVip = false
+
+  if (stats.completedTrips >= FLAG_THRESHOLDS.frequentTrips) {
+    autoFrequent = true
+    reasons.push(`${stats.completedTrips} completed trips`)
+  }
+  if (stats.totalRevenue >= FLAG_THRESHOLDS.vipRevenue) {
+    autoVip = true
+    reasons.push(`₹${stats.totalRevenue.toLocaleString('en-IN')} lifetime spend`)
+  } else if (autoFrequent && (customer.type === 'corporate' || customer.type === 'agent')) {
+    autoVip = true
+    reasons.push('Frequent corporate/agent customer')
+  }
+
+  return {
+    autoIsFrequentTraveller: autoFrequent,
+    autoIsVip: autoVip,
+    reasons,
+    stats,
+  }
+}
+
+// Effective flag = manual override || auto-derived. Callers decide whether to
+// persist the manual value; auto values are always recomputed from bookings.
+export function effectiveFlags(customer, auto) {
+  return {
+    isVip:             customer.isVip  || auto.autoIsVip,
+    isFrequentTraveller: customer.isFrequentTraveller || auto.autoIsFrequentTraveller,
+    isBlacklisted:     customer.isBlacklisted,
+  }
+}
+
 // ── Seed / reference data ─────────────────────────────────────
