@@ -139,43 +139,48 @@ function FormField({ label, field, type = 'text', required, placeholder, value, 
   const currentLength = (value || '').length
 
   const handleChange = (e) => {
-    let inputValue = e.target.value
+    try {
+      let inputValue = e.target.value
 
-    // Clear the error for this field when user starts typing
-    if (error) {
-      onClearFieldError?.(field)
-    }
-
-    // Apply restrictions
-    if (restrictions) {
-      // Enforce max length
-      if (maxLength && inputValue.length > maxLength) {
-        inputValue = inputValue.slice(0, maxLength)
+      // Clear the error for this field when user starts typing
+      if (error) {
+        onClearFieldError?.(field)
       }
 
-      // Special handling for mobile fields - only numbers
-      if (field === 'mobile' || field === 'altMobile') {
-        inputValue = inputValue.replace(/\D/g, '')
-      }
+      // Apply restrictions
+      if (restrictions) {
+        // Enforce max length
+        if (maxLength && inputValue.length > maxLength) {
+          inputValue = inputValue.slice(0, maxLength)
+        }
 
-      // Special handling for GST - uppercase
-      if (field === 'gst') {
-        inputValue = inputValue.toUpperCase()
-      }
+        // Special handling for mobile fields - only numbers
+        if (field === 'mobile' || field === 'altMobile') {
+          inputValue = inputValue.replace(/\D/g, '')
+        }
 
-      // Apply pattern restriction (only for non-email fields)
-      // Email is validated on save only, not during typing
-      if (restrictions.pattern && inputValue.length > 0 && field !== 'email') {
-        // For pattern validation, check character by character
-        const lastChar = inputValue[inputValue.length - 1]
-        if (!restrictions.pattern.test(inputValue)) {
-          // Remove the last invalid character
-          inputValue = inputValue.slice(0, -1)
+        // Special handling for GST - uppercase
+        if (field === 'gst') {
+          inputValue = inputValue.toUpperCase()
+        }
+
+        // Apply pattern restriction (only for non-email fields)
+        // Email is validated on save only, not during typing
+        if (restrictions.pattern && inputValue.length > 0 && field !== 'email') {
+          // For pattern validation, check character by character
+          const lastChar = inputValue[inputValue.length - 1]
+          if (!restrictions.pattern.test(inputValue)) {
+            // Remove the last invalid character
+            inputValue = inputValue.slice(0, -1)
+          }
         }
       }
-    }
 
-    onChange({ target: { value: inputValue } })
+      onChange({ target: { value: inputValue } })
+    } catch (err) {
+      // Fallback: pass through original event if anything goes wrong
+      onChange(e)
+    }
   }
 
   return (
@@ -201,6 +206,11 @@ function FormField({ label, field, type = 'text', required, placeholder, value, 
         value={value || ''}
         placeholder={restrictions?.placeholder || placeholder}
         onChange={handleChange}
+        onFocus={() => {
+          if (error) {
+            onClearFieldError?.(field)
+          }
+        }}
         maxLength={maxLength || undefined}
         required={required}
         className={`${fieldCls} ${error ? 'border-red-400 dark:border-red-500' : ''}`}
