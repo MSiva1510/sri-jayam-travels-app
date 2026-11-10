@@ -750,6 +750,7 @@ export default function Customers() {
   const [editCustomer, setEditCustomer] = useState(null)
   const [typeFilter,   setTypeFilter]   = useState('all')
   const [flagFilter,   setFlagFilter]   = useState('all')
+  const [newThisMonthFilter, setNewThisMonthFilter] = useState(false)
   const [sortBy,       setSortBy]       = useState('name')
   const [expanded,     setExpanded]     = useState(null)
   const [loadError,    setLoadError]    = useState(null)
@@ -848,6 +849,7 @@ export default function Customers() {
   }, [customers, bookings])
 
   const filtered = useMemo(() => {
+    const now = new Date()
     return customers
       .filter(c => typeFilter === 'all' || c.type === typeFilter)
       .filter(c => {
@@ -857,13 +859,18 @@ export default function Customers() {
         if (flagFilter === 'blacklisted') return eff.isBlacklisted
         return true
       })
+      .filter(c => {
+        if (!newThisMonthFilter) return true
+        const created = new Date(c.createdAt || 0)
+        return created.getMonth() === now.getMonth() && created.getFullYear() === now.getFullYear()
+      })
       .sort((a, b) =>
         sortBy === 'name'   ? (a.name ?? '').localeCompare(b.name ?? '') :
         sortBy === 'city'   ? (a.city || '').localeCompare(b.city || '') :
         sortBy === 'recent' ? (b.updatedAt || '').localeCompare(a.updatedAt || '') :
         0
       )
-  }, [customers, typeFilter, flagFilter, sortBy, bookings])
+  }, [customers, typeFilter, flagFilter, sortBy, bookings, newThisMonthFilter])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const safePage = Math.min(Math.max(1, page), totalPages)
@@ -930,20 +937,26 @@ export default function Customers() {
           { label:'Corporate',  value: corporateCount,    icon: Building2,   tone:'violet', kind:'type', filter:'corporate',  tap:true  },
           { label:'VIP',        value: customers.filter(c=>effectiveFlags(c, customerAuto[c.id]||{}).isVip).length,         icon: Star,   tone:'amber', kind:'flag', filter:'vip', tap:true },
           { label:'Frequent',   value: customers.filter(c=>effectiveFlags(c, customerAuto[c.id]||{}).isFrequentTraveller).length, icon: Repeat, tone:'blue', kind:'flag', filter:'frequent', tap:true },
-          { label:'New This Month', value: newThisMonth,  icon: Calendar,    tone:'green',  kind:'type', filter:null,         tap:false },
+          { label:'New This Month', value: newThisMonth,  icon: Calendar,    tone:'green',  kind:'newthismonth', tap:true },
         ].map(s => (
           <MetricCard key={s.label} icon={s.icon} tone={s.tone} label={s.label} value={s.value}
             onClick={s.tap ? () => {
               if (s.kind === 'flag') {
                 setFlagFilter(s.filter)
                 setTypeFilter('all')
+                setNewThisMonthFilter(false)
+              } else if (s.kind === 'newthismonth') {
+                setNewThisMonthFilter(!newThisMonthFilter)
+                setTypeFilter('all')
+                setFlagFilter('all')
               } else {
                 setTypeFilter(s.filter)
                 setFlagFilter('all')
+                setNewThisMonthFilter(false)
               }
               setPage(1)
             } : undefined}
-            className={s.tap && (s.kind === 'flag' ? flagFilter === s.filter : typeFilter === s.filter) ? 'ring-2 ring-blue-500/40' : ''} />
+            className={s.tap && (s.kind === 'flag' ? flagFilter === s.filter : s.kind === 'newthismonth' ? newThisMonthFilter : typeFilter === s.filter) ? 'ring-2 ring-blue-500/40' : ''} />
         ))}
       </div>
 
