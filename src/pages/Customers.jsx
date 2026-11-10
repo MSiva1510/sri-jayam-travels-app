@@ -838,23 +838,6 @@ export default function Customers() {
     }
   }
 
-  const filtered = useMemo(() => {
-    return customers
-      .filter(c => typeFilter === 'all' || c.type === typeFilter)
-      .filter(c => {
-        if (flagFilter === 'vip')         return c.isVip
-        if (flagFilter === 'frequent')    return c.isFrequentTraveller
-        if (flagFilter === 'blacklisted') return c.isBlacklisted
-        return true
-      })
-      .sort((a, b) =>
-        sortBy === 'name'   ? (a.name ?? '').localeCompare(b.name ?? '') :
-        sortBy === 'city'   ? (a.city || '').localeCompare(b.city || '') :
-        sortBy === 'recent' ? (b.updatedAt || '').localeCompare(a.updatedAt || '') :
-        0
-      )
-  }, [customers, typeFilter, flagFilter, sortBy])
-
   // Auto-derived flags per customer (recomputed whenever bookings change).
   const customerAuto = useMemo(() => {
     const map = {}
@@ -863,6 +846,24 @@ export default function Customers() {
     }
     return map
   }, [customers, bookings])
+
+  const filtered = useMemo(() => {
+    return customers
+      .filter(c => typeFilter === 'all' || c.type === typeFilter)
+      .filter(c => {
+        const eff = effectiveFlags(c, customerAuto[c.id] || { autoIsVip: false, autoIsFrequentTraveller: false, reasons: [] })
+        if (flagFilter === 'vip')         return eff.isVip
+        if (flagFilter === 'frequent')    return eff.isFrequentTraveller
+        if (flagFilter === 'blacklisted') return eff.isBlacklisted
+        return true
+      })
+      .sort((a, b) =>
+        sortBy === 'name'   ? (a.name ?? '').localeCompare(b.name ?? '') :
+        sortBy === 'city'   ? (a.city || '').localeCompare(b.city || '') :
+        sortBy === 'recent' ? (b.updatedAt || '').localeCompare(a.updatedAt || '') :
+        0
+      )
+  }, [customers, typeFilter, flagFilter, sortBy, bookings])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const safePage = Math.min(Math.max(1, page), totalPages)
