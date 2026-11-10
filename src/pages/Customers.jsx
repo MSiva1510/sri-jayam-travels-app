@@ -307,11 +307,11 @@ function CustomerModal({ customer, onClose, onSave }) {
         updatedAt: now,
       })
     } catch (err) {
+      // AppError from translateDbError has { message, field, code, suggestion }
       const errorObj = typeof err === 'object' && err !== null ? err : { message: String(err), field: null }
       if (errorObj.field) {
         setErrors({ [errorObj.field]: errorObj.message })
       } else {
-        // Non-field error — show as a general error at the top of the mobile field
         setErrors({ _general: errorObj.message || 'Could not save customer. Please try again.' })
       }
     }

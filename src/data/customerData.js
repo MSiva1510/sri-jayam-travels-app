@@ -3,6 +3,7 @@
 
 import { customerRepository } from '../repositories/customerRepository'
 import { withCache, cacheClear } from '../utils/dataCache'
+import { translateDbError } from './errorUtils'
 
 export const CUSTOMER_TYPES = [
   { key:'individual', label:'Individual',   badge:'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',       dot:'bg-blue-500'   },
@@ -74,16 +75,7 @@ export async function saveCustomer(customer) {
     return result
   } catch (err) {
     cacheClear('customers')
-    // Surface specific, actionable error messages instead of generic failures.
-    const msg = String(err?.message || err || 'Unknown error')
-    if (err?.code === '23505' || /duplicate key|already exists|unique/i.test(msg)) {
-      if (/mobile/i.test(msg)) throw { message: 'Mobile number already exists. Use a different mobile number.', field: 'mobile' }
-      throw { message: 'A customer with these details already exists.', field: 'name' }
-    }
-    if (/settings/i.test(msg) || /42P10/.test(msg)) throw { message: 'Database settings error. Contact support.', field: null }
-    if (/row-level security|rls/i.test(msg) || err?.code === '42501') throw { message: 'Permission denied. You do not have access to save customers.', field: null }
-    if (/supabase/i.test(msg) || /network|fetch|failed to fetch/i.test(msg)) throw { message: 'Cannot connect to the database. Check your internet connection.', field: null }
-    throw { message: msg, field: null }
+    throw translateDbError(err, 'saveCustomer')
   }
 }
 
