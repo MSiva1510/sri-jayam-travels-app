@@ -1,12 +1,10 @@
 // ─── Scheduler ────────────────────────────────────────────────
 // Manages scheduled / recurring notifications.
-// No external cron — runs in-browser using setTimeout intervals.
-// Persists schedule to localStorage; Supabase sync optional.
+// Persists schedule to Supabase; runs in-browser using setTimeout/setInterval.
+// Replaces localStorage key 'sjt_comm_schedule'.
 
+import supabase from '../lib/supabase'
 import { eventBus, EVENTS } from './EventBus'
-import { queueManager }     from './QueueManager'
-
-const LS_SCHEDULE_KEY = 'sjt_comm_schedule'
 
 export const SCHEDULE_TYPES = {
   TRIP_REMINDER:        'TRIP_REMINDER',          // Day before trip
@@ -24,14 +22,50 @@ export const SCHEDULE_TYPES = {
 // ── Reminder intervals (days before expiry) ───────────────────
 export const EXPIRY_REMIND_DAYS = [30, 15, 7, 3, 1]
 
-function readSchedule()    { try { return JSON.parse(localStorage.getItem(LS_SCHEDULE_KEY)||'[]') } catch { return [] } }
-function writeSchedule(s)  { try { localStorage.setItem(LS_SCHEDULE_KEY, JSON.stringify(s)) } catch {} }
-
 class SchedulerImpl {
   constructor() {
     this._jobs    = new Map()   // id → { config, timer }
     this._history = []
     this._running = false
+  }
+
+  /** Load schedules from Supabase and recreate timers. */
+  async init() {
+    await this._hydrate()
+  }
+
+  async _hydrate() {
+    if (!supabase) return
+    try {
+      const { data, error } = await supabase
+        .from('communication_schedules')
+        .select('*')
+      if (error) throw error
+      const jobs = data || []
+      for (const job of jobs) {
+        const config = {
+          id: job.id,
+          type: job.type,
+          runAt: job.run_at,
+          intervalMs: job.interval_ms,
+          payload: job.payload || {},
+          recurring: job.recurring || false,
+        }
+        if (job.recurring) {
+          const timer = setInterval(() => this._fire(job.id, job.type, job.payload), job.interval_ms)
+          this._jobs.set(job.id, { ...config, timer })
+        } else {
+          const delay = Math.max(0, new Date(job.run_at) - Date.now())
+          if (delay > 0) {
+            const timer = setTimeout(() => this._fire(job.id, job.type, job.payload), delay)
+            this._jobs.set(job.id, { ...config, timer })
+          }
+          // If delay <= 0, the one-time job already fired — skip it
+        }
+      }
+    } catch (err) {
+      console.error('[Scheduler] hydrate failed:', err.message)
+    }
   }
 
   /**
@@ -82,6 +116,9 @@ class SchedulerImpl {
     if (job.recurring) clearInterval(job.timer)
     else               clearTimeout(job.timer)
     this._jobs.delete(jobId)
+    if (supabase) {
+      supabase.from('communication_schedules').delete().eq('id', jobId).catch(() => {})
+    }
     this._persist()
     return true
   }
@@ -103,27 +140,37 @@ class SchedulerImpl {
     // Publish to EventBus
     eventBus.emit(EVENTS.SCHEDULED_REMINDER, { scheduleType: type, ...payload })
 
-    // Remove one-time jobs from map
+    // Remove one-time jobs from map and Supabase
     const job = this._jobs.get(jobId)
     if (job && !job.recurring) {
       this._jobs.delete(jobId)
-      this._persist()
+      if (supabase) {
+        supabase.from('communication_schedules').delete().eq('id', jobId).catch(() => {})
+      }
     }
   }
 
-  _persist() {
-    const data = []
-    this._jobs.forEach(job => {
-      data.push({
-        id:          job.id,
-        type:        job.type,
-        runAt:       job.runAt,
-        intervalMs:  job.intervalMs,
-        payload:     job.payload,
-        recurring:   job.recurring,
+  async _persist() {
+    if (!supabase) return
+    try {
+      const jobs = []
+      this._jobs.forEach(job => {
+        jobs.push({
+          id: job.id,
+          type: job.type,
+          run_at: job.runAt,
+          interval_ms: job.intervalMs,
+          payload: job.payload || {},
+          recurring: job.recurring,
+          updated_at: new Date().toISOString(),
+        })
       })
-    })
-    writeSchedule(data)
+      for (const job of jobs) {
+        await supabase.from('communication_schedules').upsert(job, { onConflict: 'id' })
+      }
+    } catch (err) {
+      console.error('[Scheduler] persist failed:', err.message)
+    }
   }
 
   getJobs() {
@@ -144,8 +191,7 @@ class SchedulerImpl {
     const remindAt = new Date(tripDate.getTime() - 86400000)  // 24h before
     if (remindAt > new Date()) {
       this.scheduleOnce(SCHEDULE_TYPES.TRIP_REMINDER, remindAt,
-        { bookingId, ...payload },
-        `trip-reminder-${bookingId}`)
+        { bookingId, ...payload }, `trip-reminder-${bookingId}`)
     }
   }
 
@@ -168,7 +214,6 @@ class SchedulerImpl {
   /** Schedule daily summary for admin (every 24h). */
   scheduleDailySummary() {
     const MS_24H = 86400000
-    // Fire first summary at next midnight
     const now    = new Date()
     const nextMN = new Date(now)
     nextMN.setHours(23, 0, 0, 0)
@@ -192,3 +237,5 @@ class SchedulerImpl {
 }
 
 export const scheduler = new SchedulerImpl()
+// Initialize schedules from Supabase on load
+scheduler.init()
