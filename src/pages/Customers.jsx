@@ -893,7 +893,7 @@ export default function Customers() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const safePage = Math.min(Math.max(1, page), totalPages)
   const pageRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
-  useEffect(() => { setPage(1) }, [typeFilter, flagFilter, sortBy, customers.length, pageSize])
+  useEffect(() => { setPage(1) }, [typeFilter, flagFilter, sortBy, customers.length, pageSize, newThisMonthFilter])
 
   const pageItems = (() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1)
@@ -962,6 +962,7 @@ export default function Customers() {
               if (s.kind === 'flag') {
                 setFlagFilter(s.filter)
                 setTypeFilter('all')
+                setSortBy('name')
                 setNewThisMonthFilter(false)
               } else if (s.kind === 'newthismonth') {
                 setNewThisMonthFilter(!newThisMonthFilter)
@@ -971,6 +972,7 @@ export default function Customers() {
               } else {
                 setTypeFilter(s.filter)
                 setFlagFilter('all')
+                setSortBy('name')
                 setNewThisMonthFilter(false)
               }
               setPage(1)
