@@ -922,8 +922,8 @@ export default function Customers() {
         <Callout tone="red" icon={AlertTriangle} title={loadError} actionLabel="Retry" onAction={reload} />
       )}
 
-      {/* Widgets — one row, New This Month is display-only */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      {/* Widgets — one row, all cards side by side */}
+      <div className="flex flex-nowrap gap-2 overflow-x-auto no-scrollbar">
         {[
           { label:'Total',      value: customers.length,  icon: User,        tone:'gray',   kind:'type', filter:'all',        tap:true  },
           { label:'Individual', value: customers.filter(c=>c.type==='individual').length, icon: User, tone:'blue', kind:'type', filter:'individual', tap:true },
@@ -934,10 +934,16 @@ export default function Customers() {
         ].map(s => (
           <MetricCard key={s.label} icon={s.icon} tone={s.tone} label={s.label} value={s.value}
             onClick={s.tap ? () => {
-              s.kind === 'flag' ? setFlagFilter(s.filter) : setTypeFilter(s.filter)
+              if (s.kind === 'flag') {
+                setFlagFilter(s.filter)
+                setTypeFilter('all')
+              } else {
+                setTypeFilter(s.filter)
+                setFlagFilter('all')
+              }
               setPage(1)
             } : undefined}
-            className={s.tap && (s.kind === 'flag' ? flagFilter === s.filter : typeFilter === s.filter) ? 'ring-2 ring-blue-500/40' : ''} />
+            className={`shrink-0 w-auto ${s.tap && (s.kind === 'flag' ? flagFilter === s.filter : typeFilter === s.filter) ? 'ring-2 ring-blue-500/40' : ''}`} />
         ))}
       </div>
 
