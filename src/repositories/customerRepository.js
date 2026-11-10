@@ -26,6 +26,9 @@ function toDbCustomer(data = {}) {
     contact_person: data.contact_person ?? data.contactPerson,
     gstin: data.gstin ?? data.gst,
     notes: data.notes,
+    is_vip: data.isVip,
+    is_frequent_traveller: data.isFrequentTraveller,
+    is_blacklisted: data.isBlacklisted,
     is_active: data.is_active ?? (data.status ? data.status !== 'inactive' : undefined),
   }
   return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined))
@@ -275,7 +278,7 @@ export class CustomerRepository extends BaseRepository {
     try {
       const { data, error } = await supabase
         .from('customers')
-        .select('id, customer_id, name, type, status, primary_mobile, alternate_mobile, email, city, address, company_name, contact_person, gstin, notes, is_active, created_at, updated_at')
+        .select('id, customer_id, name, type, status, primary_mobile, alternate_mobile, email, city, address, company_name, contact_person, gstin, notes, is_active, is_vip, is_frequent_traveller, is_blacklisted, created_at, updated_at')
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -290,7 +293,7 @@ export class CustomerRepository extends BaseRepository {
     try {
       const { data, error } = await supabase
         .from('customers')
-        .select('id, customer_id, name, type, status, primary_mobile, alternate_mobile, email, city, address, company_name, contact_person, gstin, notes, is_active, created_at, updated_at')
+        .select('id, customer_id, name, type, status, primary_mobile, alternate_mobile, email, city, address, company_name, contact_person, gstin, notes, is_active, is_vip, is_frequent_traveller, is_blacklisted, created_at, updated_at')
         .eq(UUID_RE.test(String(id)) ? 'id' : 'customer_id', id)
         .single()
 

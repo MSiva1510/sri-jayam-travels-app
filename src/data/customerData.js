@@ -41,6 +41,9 @@ export function normalizeCustomer(row = {}) {
     contactPerson: row.contactPerson ?? row.contact_person ?? '',
     gst:           row.gst ?? row.gstin ?? '',
     notes:         row.notes ?? '',
+    isVip:         row.is_vip ?? false,
+    isFrequentTraveller: row.is_frequent_traveller ?? false,
+    isBlacklisted: row.is_blacklisted ?? false,
     createdAt:     row.createdAt ?? row.created_at ?? null,
     updatedAt:     row.updatedAt ?? row.updated_at ?? null,
   }
@@ -121,7 +124,7 @@ export async function upsertCustomerFromBooking({ name, mobile, address }) {
 
 // ── Computed stats (no storage — derived from bookings array) ─
 export function getCustomerStats(customerId, customerName, bookings) {
-  const mine = bookings.filter(b => b.customer === customerName)
+  const mine = bookings.filter(b => b.customer === customerName || b.customer_name === customerName)
   return {
     totalTrips:     mine.length,
     completedTrips: mine.filter(b => b.status === 'completed').length,
