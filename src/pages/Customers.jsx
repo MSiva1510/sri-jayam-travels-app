@@ -922,8 +922,8 @@ export default function Customers() {
         <Callout tone="red" icon={AlertTriangle} title={loadError} actionLabel="Retry" onAction={reload} />
       )}
 
-      {/* Widgets — one row, all cards side by side */}
-      <div className="flex flex-nowrap gap-2 overflow-x-auto no-scrollbar">
+      {/* Widgets — one row, all 6 cards side by side, no scroll, no wrap */}
+      <div className="grid grid-cols-6 gap-1">
         {[
           { label:'Total',      value: customers.length,  icon: User,        tone:'gray',   kind:'type', filter:'all',        tap:true  },
           { label:'Individual', value: customers.filter(c=>c.type==='individual').length, icon: User, tone:'blue', kind:'type', filter:'individual', tap:true },
@@ -943,7 +943,7 @@ export default function Customers() {
               }
               setPage(1)
             } : undefined}
-            className={`shrink-0 w-auto ${s.tap && (s.kind === 'flag' ? flagFilter === s.filter : typeFilter === s.filter) ? 'ring-2 ring-blue-500/40' : ''}`} />
+            className={s.tap && (s.kind === 'flag' ? flagFilter === s.filter : typeFilter === s.filter) ? 'ring-2 ring-blue-500/40' : ''} />
         ))}
       </div>
 
