@@ -56,8 +56,10 @@ function KpiCard({ icon, value, label, sub, delta, tone = 'blue', valueClass = '
       <div className="flex items-start justify-between gap-2 mb-2.5">
         <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${tiles[tone]}`}>{icon}</div>
         {delta != null && (
-          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 tabular-nums whitespace-nowrap">
-            ↑ {delta}%
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md tabular-nums whitespace-nowrap ${
+            delta >= 0 ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : 'bg-red-100 dark:bg-red-900/30 text-red-500 dark:text-red-400'
+          }`}>
+            {delta >= 0 ? '↑' : '↓'} {Math.abs(delta)}%
           </span>
         )}
       </div>
