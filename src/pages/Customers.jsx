@@ -141,6 +141,11 @@ function FormField({ label, field, type = 'text', required, placeholder, value, 
   const handleChange = (e) => {
     let inputValue = e.target.value
 
+    // Clear the error for this field when user starts typing
+    if (error) {
+      onClearFieldError?.(field)
+    }
+
     // Apply restrictions
     if (restrictions) {
       // Enforce max length
@@ -317,6 +322,18 @@ function CustomerModal({ customer, onClose, onSave }) {
     }
   }
 
+  // Clear error for a specific field when user starts typing
+  const clearFieldError = (field) => {
+    setErrors(prev => {
+      if (prev[field]) {
+        const next = { ...prev }
+        delete next[field]
+        return next
+      }
+      return prev
+    })
+  }
+
   const isCorporate = form.type === 'corporate' || form.type === 'agent'
 
   // ─ Memoized change handlers for each field ─
@@ -366,6 +383,7 @@ function CustomerModal({ customer, onClose, onSave }) {
                 value={form.name}
                 onChange={handleNameChange}
                 error={errors.name}
+                onClearFieldError={clearFieldError}
               />
             </div>
             <FormField
@@ -376,6 +394,7 @@ function CustomerModal({ customer, onClose, onSave }) {
               value={form.mobile}
               onChange={handleMobileChange}
               error={errors.mobile}
+              onClearFieldError={clearFieldError}
             />
             <FormField
               label="Alternate Number"
@@ -384,6 +403,7 @@ function CustomerModal({ customer, onClose, onSave }) {
               value={form.altMobile}
               onChange={handleAltMobileChange}
               error={errors.altMobile}
+              onClearFieldError={clearFieldError}
             />
             <FormField
               label="Email"
@@ -392,6 +412,7 @@ function CustomerModal({ customer, onClose, onSave }) {
               value={form.email}
               onChange={handleEmailChange}
               error={errors.email}
+              onClearFieldError={clearFieldError}
             />
             <FormSelect
               label="Customer Type"
@@ -412,6 +433,7 @@ function CustomerModal({ customer, onClose, onSave }) {
                 value={form.address}
                 onChange={handleAddressChange}
                 error={errors.address}
+                onClearFieldError={clearFieldError}
               />
             </div>
             <FormField
@@ -420,6 +442,7 @@ function CustomerModal({ customer, onClose, onSave }) {
               value={form.city}
               onChange={handleCityChange}
               error={errors.city}
+              onClearFieldError={clearFieldError}
             />
             <FormField
               label="State"
@@ -427,6 +450,7 @@ function CustomerModal({ customer, onClose, onSave }) {
               value={form.state}
               onChange={handleStateChange}
               error={errors.state}
+              onClearFieldError={clearFieldError}
             />
           </div>
 
@@ -442,6 +466,7 @@ function CustomerModal({ customer, onClose, onSave }) {
                     value={form.companyName}
                     onChange={handleCompanyNameChange}
                     error={errors.companyName}
+                    onClearFieldError={clearFieldError}
                   />
                 </div>
                 <FormField
@@ -450,6 +475,7 @@ function CustomerModal({ customer, onClose, onSave }) {
                   value={form.contactPerson}
                   onChange={handleContactPersonChange}
                   error={errors.contactPerson}
+                  onClearFieldError={clearFieldError}
                 />
                 <FormField
                   label="GST Number"
@@ -457,6 +483,7 @@ function CustomerModal({ customer, onClose, onSave }) {
                   value={form.gst}
                   onChange={handleGstChange}
                   error={errors.gst}
+                  onClearFieldError={clearFieldError}
                 />
                 <div className="col-span-2">
                   <FormField
@@ -465,6 +492,7 @@ function CustomerModal({ customer, onClose, onSave }) {
                     value={form.billingAddress}
                     onChange={handleBillingAddressChange}
                     error={errors.billingAddress}
+                    onClearFieldError={clearFieldError}
                   />
                 </div>
               </div>
