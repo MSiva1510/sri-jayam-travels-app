@@ -817,7 +817,6 @@ export default function Customers() {
 
   const handleSave = async (customer) => {
     const isNew = !customers.find(c => c.id === customer.id)
-    setErrors({})
     try {
       await saveCustomer(customer)
       if (isNew) {
