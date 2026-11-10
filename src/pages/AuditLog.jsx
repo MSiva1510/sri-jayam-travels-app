@@ -1,186 +1,13 @@
-// ─── Audit Log Data ───────────────────────────────────────────
-// Day 31: enhanced with severity, module, old/new values, user tracking
+// ─── Audit Log Page ───────────────────────────────────────────
+// Displays audit events from Supabase `audit_logs` table.
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import supabase from '../lib/supabase'
 import PageHeader from '../components/ui/PageHeader'
 import { pageSizeForZoom } from '../utils/zoomPageSize'
-
-export const AUDIT_LOG_KEY    = 'sjt_audit_log'
-export const AUDIT_MAX_ENTRIES = 500
-
-export const SEVERITY = { INFO:'info', WARNING:'warning', ERROR:'error', CRITICAL:'critical' }
-
-export const AUDIT_ACTIONS = {
-  // Trips / Bookings
-  TRIP_CREATED:       { label:'Trip Created',       icon:'📋', module:'bookings',  severity:'info'    },
-  TRIP_UPDATED:       { label:'Trip Updated',       icon:'✏️',  module:'bookings',  severity:'info'    },
-  TRIP_ASSIGNED:      { label:'Trip Assigned',      icon:'🧑‍✈️', module:'trips',     severity:'info'    },
-  TRIP_STARTED:       { label:'Trip Started',       icon:'🚗', module:'trips',     severity:'info'    },
-  TRIP_COMPLETED:     { label:'Trip Completed',     icon:'✅', module:'trips',     severity:'info'    },
-  TRIP_CANCELLED:     { label:'Trip Cancelled',     icon:'❌', module:'trips',     severity:'warning' },
-  BOOKING_PENDING:    { label:'Booking Pending',    icon:'⏳', module:'bookings',  severity:'info'    },
-  BOOKING_APPROVED:   { label:'Booking Approved',   icon:'✅', module:'bookings',  severity:'info'    },
-  BOOKING_CANCELLED:  { label:'Booking Cancelled',  icon:'❌', module:'bookings',  severity:'warning' },
-  BOOKING_CLOSED:     { label:'Booking Closed',     icon:'🔒', module:'bookings',  severity:'info'    },
-  // Expenses
-  EXPENSE_ADDED:      { label:'Expense Added',      icon:'💸', module:'expenses',  severity:'info'    },
-  EXPENSE_APPROVED:   { label:'Expense Approved',   icon:'✅', module:'expenses',  severity:'info'    },
-  EXPENSE_REJECTED:   { label:'Expense Rejected',   icon:'❌', module:'expenses',  severity:'warning' },
-  // Vehicles / Drivers
-  VEHICLE_ASSIGNED:   { label:'Vehicle Assigned',   icon:'🚙', module:'vehicles',  severity:'info'    },
-  DRIVER_ADDED:       { label:'Driver Added',       icon:'🧑‍✈️', module:'drivers',   severity:'info'    },
-  DRIVER_UPDATED:     { label:'Driver Updated',     icon:'✏️',  module:'drivers',   severity:'info'    },
-  // Customers
-  CUSTOMER_ADDED:     { label:'Customer Added',     icon:'👤', module:'customers', severity:'info'    },
-  CUSTOMER_UPDATED:   { label:'Customer Updated',   icon:'✏️',  module:'customers', severity:'info'    },
-  // Finance
-  PAYROLL_SETTLED:    { label:'Payroll Settled',    icon:'💳', module:'payroll',   severity:'info'    },
-  INVOICE_CREATED:    { label:'Invoice Created',    icon:'🧾', module:'finance',   severity:'info'    },
-  // Security
-  USER_LOGIN:         { label:'User Login',         icon:'🔐', module:'security',  severity:'info'    },
-  USER_LOGOUT:        { label:'User Logout',        icon:'🚪', module:'security',  severity:'info'    },
-  USER_CREATED:       { label:'User Created',       icon:'👤', module:'security',  severity:'info'    },
-  USER_UPDATED:       { label:'User Updated',       icon:'✏️',  module:'security',  severity:'info'    },
-  USER_DEACTIVATED:   { label:'User Deactivated',   icon:'🚫', module:'security',  severity:'warning' },
-  USER_ACTIVATED:     { label:'User Activated',     icon:'✅', module:'security',  severity:'info'    },
-  PASSWORD_CHANGED:   { label:'Password Changed',   icon:'🔑', module:'security',  severity:'warning' },
-  PERMISSION_CHANGED: { label:'Permission Changed', icon:'🛡️', module:'security',  severity:'warning' },
-  // System
-  SETTINGS_UPDATED:   { label:'Settings Updated',   icon:'⚙️', module:'settings',  severity:'info'    },
-  BACKUP_STARTED:     { label:'Backup Started',     icon:'💾', module:'backup',    severity:'info'    },
-  BACKUP_COMPLETED:   { label:'Backup Completed',   icon:'✅', module:'backup',    severity:'info'    },
-  ERROR_RESOLVED:     { label:'Error Resolved',     icon:'🔧', module:'system',    severity:'info'    },
-  NOTE_ADDED:         { label:'Note Added',         icon:'📝', module:'general',   severity:'info'    },
-}
-
-export function loadAuditEvents(limit = 50) {
-  try {
-    const raw = localStorage.getItem(AUDIT_LOG_KEY)
-    const all = raw ? JSON.parse(raw) : []
-    return Array.isArray(all) ? (limit ? all.slice(0, limit) : all) : []
-  } catch { return [] }
-}
-
-export function loadRecentActivity(count = 10) {
-  return loadAuditEvents(count)
-}
-
-// Pending audit events that failed to sync (retry on next event)
-const _pendingQueue = []
-
-export function addAuditEvent(action, details = {}) {
-  const def = AUDIT_ACTIONS[action] || { label:action, icon:'📌', module:'general', severity:'info' }
-  const entry = {
-    id:          `AUD-${Date.now()}-${Math.random().toString(36).slice(2,6).toUpperCase()}`,
-    action,
-    label:       def.label,
-    icon:        def.icon,
-    module:      details.module      || def.module   || 'general',
-    severity:    details.severity    || def.severity  || 'info',
-    description: details.description || '',
-    oldValues:   details.oldValues   || null,
-    newValues:   details.newValues   || null,
-    userId:      details.userId      || null,
-    userName:    details.userName    || details.driver || null,
-    timestamp:   new Date().toISOString(),
-    ...details,
-  }
-
-  // Local cache — used as offline fallback / instant read
-  try {
-    const events = loadAuditEvents(AUDIT_MAX_ENTRIES)
-    localStorage.setItem(AUDIT_LOG_KEY, JSON.stringify([entry, ...events].slice(0, AUDIT_MAX_ENTRIES)))
-  } catch {}
-
-  // Supabase write: primary record. Failures are queued for retry.
-  if (supabase) {
-    const payload = {
-      action,
-      table_name:  details.table    || entry.module  || null,
-      record_id:   details.recordId || details.tripId || null,
-      old_values:  details.oldValues || null,
-      new_values:  details.newValues ? { ...details } : null,
-      changed_by:  details.changedBy || details.driver || null,
-      severity:    entry.severity,
-      module:      entry.module,
-      user_name:   entry.userName,
-      changed_at:  entry.timestamp,
-    }
-    // Drain any previously failed writes first
-    const toRetry = _pendingQueue.splice(0)
-    const writeAll = toRetry.length
-      ? supabase.from('audit_logs').insert(toRetry.map(e => e.payload)).then(() =>
-          supabase.from('audit_logs').insert([payload])
-        )
-      : supabase.from('audit_logs').insert([payload])
-
-    writeAll.then(({ error }) => {
-      if (error) {
-        if (import.meta.env.DEV) console.warn('[auditLog] Supabase write failed — queued for retry:', error.message)
-        _pendingQueue.push({ payload, entry })
-      }
-    })
-  }
-
-  return entry
-}
-
-/**
- * Load audit events from Supabase (for the admin AuditLog page).
- * Falls back to localStorage when offline.
- */
-export async function loadAuditEventsFromDB(limit = 100) {
-  if (!supabase) return { data: loadAuditEvents(limit), fromCache: true, error: null }
-  try {
-    const { data, error } = await supabase
-      .from('audit_logs')
-      .select('*')
-      .order('changed_at', { ascending: false })
-      .limit(limit)
-    if (error) throw error
-    // Merge with any locally-pending events not yet synced
-    const pending = _pendingQueue.map(q => q.entry)
-    return { data: [...pending, ...(data || [])].slice(0, limit), fromCache: false, error: null }
-  } catch (err) {
-    // Offline/DB fallback — still surface the real error so it isn't hidden
-    console.error('[AuditLog] Supabase fetch failed, falling back to local cache:', err?.message || err)
-    return { data: loadAuditEvents(limit), fromCache: true, error: err?.message || 'Unknown error' }
-  }
-}
-
-export function fmtAuditTime(iso) {
-  if (!iso) return '—'
-  try {
-    const d    = new Date(iso)
-    const mins = Math.floor((Date.now() - d.getTime()) / 60000)
-    const hrs  = Math.floor(mins / 60)
-    const days = Math.floor(hrs / 24)
-    if (mins < 1)  return 'Just now'
-    if (mins < 60) return `${mins}m ago`
-    if (hrs  < 24) return `${hrs}h ago`
-    if (days < 7)  return `${days}d ago`
-    return d.toLocaleDateString('en-IN', { day:'numeric', month:'short' })
-  } catch { return '—' }
-}
-
-export function clearAuditLog() {
-  try { localStorage.removeItem(AUDIT_LOG_KEY) } catch {}
-}
-
-function SeverityBadge({ severity }) {
-  const styles = {
-    critical: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
-    error:    'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
-    warning:  'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
-    info:     'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-  }
-  return (
-    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${styles[severity] || styles.info}`}>
-      {severity || 'info'}
-    </span>
-  )
-}
+import {
+  AUDIT_ACTIONS, SEVERITY, fmtAuditTime,
+  loadAuditEventsFromDB,
+} from '../data/auditLogData'
 
 export default function AuditLog() {
   const [events, setEvents]     = useState([])
@@ -289,135 +116,108 @@ export default function AuditLog() {
         </div>
       )}
 
-      <div className="flex items-center gap-3 mb-3 flex-wrap">
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search action, table, user…"
-          className="px-3 py-2 rounded-xl border border-[var(--ap-border)] ap-surface text-sm text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 w-64 focus:outline-none"
-        />
-        <select
-          value={moduleFilter}
-          onChange={e => setModuleFilter(e.target.value)}
-          className="px-3 py-2 rounded-xl border border-[var(--ap-border)] ap-surface text-sm text-slate-800 dark:text-white focus:outline-none dark:[&>option]:bg-[var(--ap-surface)]"
-        >
-          {modules.map(m => <option key={m} value={m}>{m === 'all' ? 'All modules' : m}</option>)}
-        </select>
-        {/* Most-active modules — one click filters, clicking again clears */}
-        {topModules.map(({ module, count }) => {
-          const active = moduleFilter === module
-          return (
+      <div className="flex flex-wrap gap-2 mb-4">
+        {modules.map(m => (
+          <button
+            key={m}
+            onClick={() => setModuleFilter(m === 'all' ? 'all' : m)}
+            className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+              moduleFilter === m
+                ? 'bg-[var(--ap-accent)] text-white'
+                : 'bg-[var(--ap-surface-2)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-3)]'
+            }`}
+          >
+            {m}
+          </button>
+        ))}
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr className="text-slate-500 dark:text-slate-400">
+              <th className="text-left pb-2">Time</th>
+              <th className="text-left pb-2">Action</th>
+              <th className="text-left pb-2">Module</th>
+              <th className="text-left pb-2">User</th>
+              <th className="text-left pb-2">Severity</th>
+              <th className="text-left pb-2">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pageRows.map(e => (
+              <tr key={e.id} className="border-b border-[var(--ap-border)]">
+                <td className="py-2 text-slate-600 dark:text-slate-300">{fmtAuditTime(e.changed_at || e.timestamp)}</td>
+                <td className="py-2 font-medium text-slate-800 dark:text-slate-200">{e.action}</td>
+                <td className="py-2 text-slate-500 dark:text-slate-400">{e.module || '—'}</td>
+                <td className="py-2 text-slate-600 dark:text-slate-300">{e.user_name || '—'}</td>
+                <td className="py-2"><SeverityBadge severity={e.severity} /></td>
+                <td className="py-2 text-slate-700 dark:text-slate-200 truncate max-w-[400px]">{e.description || e.action}</td>
+              </tr>
+            ))}
+            {pageRows.length === 0 && (
+              <tr>
+                <td colSpan={6} className="py-4 text-center text-slate-500 dark:text-slate-400">
+                  No audit events found.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mt-4 flex items-center justify-between">
+        <div className="text-xs text-slate-500 dark:text-slate-400">
+          Page {safePage} of {totalPages}
+        </div>
+        <div className="flex gap-1">
+          <button
+            onClick={() => setPage(safePage - 1)}
+            disabled={safePage <= 1}
+            className="px-3 py-1 rounded-lg text-xs font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed
+              bg-[var(--ap-surface-2)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-3)]"
+          >
+            ←
+          </button>
+          {pageNums.map((n) => n === '…' ? (
+            <span key="dots" className="px-2 text-xs text-slate-500">…</span>
+          ) : (
             <button
-              key={module}
-              onClick={() => setModuleFilter(active ? 'all' : module)}
-              title={`${count} events — filter to ${module}`}
-              aria-pressed={active}
-              className={`px-2.5 py-2 rounded-xl border text-xs font-bold tabular-nums transition-colors whitespace-nowrap ${
-                active
-                  ? 'bg-[var(--ap-accent)] border-[var(--ap-accent)] text-white shadow'
-                  : 'border-[var(--ap-border)] ap-surface text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)]'
+              key={n}
+              onClick={() => setPage(n)}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                n === safePage
+                  ? 'bg-[var(--ap-accent)] text-white'
+                  : 'bg-[var(--ap-surface-2)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-3)]'
               }`}
             >
-              {module} · {count}
+              {n}
             </button>
-          )
-        })}
-      </div>
-
-      <div className="rounded-2xl border border-[var(--ap-border)] ap-surface overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-sm text-slate-400">Loading audit log…</div>
-        ) : filtered.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-400">
-            {events.length === 0 ? 'No audit events recorded yet.' : 'No events match your search.'}
-          </div>
-        ) : (
-          <div className="divide-y divide-[var(--ap-border)]">
-            {pageRows.map((e, i) => (
-              <div key={e.id || i} className="flex items-start gap-2.5 px-4 py-2">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-sm text-slate-800 dark:text-white">
-                      {e.action || 'Unknown action'}
-                    </span>
-                    <SeverityBadge severity={e.severity} />
-                    {e.module && (
-                      <span className="text-[10px] uppercase tracking-wide text-slate-400">{e.module}</span>
-                    )}
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    {e.table_name ? `${e.table_name}${e.record_id ? ` · ${e.record_id}` : ''}` : ''}
-                    {(e.user_name || e.changed_by) && ` · by ${e.user_name || e.changed_by}`}
-                  </p>
-                </div>
-                <span className="text-xs text-slate-400 whitespace-nowrap">{fmtAuditTime(e.changed_at)}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {!loading && filtered.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap mt-3">
-          <select
-            value={baseSize}
-            onChange={e => setBaseSize(Number(e.target.value))}
-            title="Base rows at 100% zoom — auto ±1 row per 10% browser zoom"
-            className="px-2.5 py-2 rounded-xl border border-[var(--ap-border)] ap-surface text-xs font-bold text-slate-600 dark:text-slate-300 focus:outline-none"
-          >
-            {[7, 12, 20].map(n => <option key={n} value={n}>{n} / page</option>)}
-          </select>
-          <p className="text-xs text-slate-400 tabular-nums mr-auto">
-            Showing {from} to {to} of {filtered.length} events
-          </p>
-          <button
-            disabled={safePage <= 1}
-            onClick={() => setPage(safePage - 1)}
-            className="px-3 py-2 rounded-xl border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-[var(--ap-surface-2)] transition-colors"
-          >
-            Prev
-          </button>
-          {pageNums.map((p, i, arr) => (
-            <span key={p} className="flex items-center gap-2">
-              {i > 0 && p - arr[i - 1] > 1 && <span className="text-xs text-slate-400">…</span>}
-              <button
-                onClick={() => setPage(p)}
-                className={`min-w-[32px] h-8 px-1.5 rounded-xl text-xs font-bold tabular-nums transition-colors ${p === safePage
-                  ? 'bg-[var(--ap-accent)] text-white'
-                  : 'border border-[var(--ap-border)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)]'}`}
-              >
-                {p}
-              </button>
-            </span>
           ))}
           <button
-            disabled={safePage >= totalPages}
             onClick={() => setPage(safePage + 1)}
-            className="px-3 py-2 rounded-xl border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-[var(--ap-surface-2)] transition-colors"
+            disabled={safePage >= totalPages}
+            className="px-3 py-1 rounded-lg text-xs font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed
+              bg-[var(--ap-surface-2)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-3)]"
           >
-            Next
+            →
           </button>
-          {totalPages > 1 && (
-            <span className="flex items-center gap-1.5 ml-1">
-              <input
-                value={goTo}
-                onChange={e => setGoTo(e.target.value.replace(/\D/g, ''))}
-                onKeyDown={e => { if (e.key === 'Enter') submitGoTo() }}
-                placeholder={`1–${totalPages}`}
-                title={`Go to page (1–${totalPages})`}
-                className="w-16 px-2 py-2 rounded-xl border border-[var(--ap-border)] ap-surface text-xs font-bold tabular-nums text-slate-600 dark:text-slate-300 focus:outline-none text-center"
-              />
-              <button
-                onClick={submitGoTo}
-                className="px-3 py-2 rounded-xl bg-[var(--ap-accent)] text-white text-xs font-bold hover:opacity-90 transition-all"
-              >
-                Go
-              </button>
-            </span>
-          )}
         </div>
-      )}
+      </div>
     </div>
+  )
+}
+
+function SeverityBadge({ severity }) {
+  const styles = {
+    critical: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+    error:    'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+    warning:  'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+    info:     'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-amber-300',
+  }
+  return (
+    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${styles[severity] || styles.info}`}>
+      {severity || 'info'}
+    </span>
   )
 }

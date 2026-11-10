@@ -1,6 +1,5 @@
 // ─── Notification Service ─────────────────────────────────────
-// Supabase-backed notification system.
-// Falls back to localStorage when Supabase is unavailable.
+// Supabase-backed notification system (no localStorage fallback).
 
 import supabase from '../lib/supabase'
 
@@ -24,16 +23,6 @@ export const NOTIFICATION_TYPES = {
   ATTENDANCE_MISSING: { icon:'📅', category:'attendance', priority:'normal', title:'Attendance Missing'      },
 }
 
-// ── Local store fallback ──────────────────────────────────────
-const LS_KEY = 'sjt_notifications'
-
-function _getLocal() {
-  try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]') } catch { return [] }
-}
-function _setLocal(items) {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(items.slice(0, 150))) } catch {}
-}
-
 // ── Create a notification ─────────────────────────────────────
 export async function createNotification({ type, message, userId, relatedId, actionUrl } = {}) {
   const tpl = NOTIFICATION_TYPES[type] || { icon:'🔔', category:'general', priority:'normal', title:'Notification' }
@@ -51,101 +40,84 @@ export async function createNotification({ type, message, userId, relatedId, act
     created_at: new Date().toISOString(),
   }
 
-  if (supabase && userId) {
-    try {
-      const { data, error } = await supabase
-        .from('notifications')
-        .insert({ ...payload, user_id: userId })
-        .select()
-        .single()
-      if (!error && data) return data
-    } catch {}
-  }
+  if (!supabase || !userId) return { ...payload, id: `notif-${Date.now()}` }
 
-  // Local fallback
-  const local = { ...payload, id: `notif-${Date.now()}-${Math.random().toString(36).slice(2,6)}` }
-  const existing = _getLocal()
-  _setLocal([local, ...existing])
-  return local
+  try {
+    const { data, error } = await supabase
+      .from('notifications')
+      .insert({ ...payload, user_id: userId })
+      .select()
+      .single()
+    if (!error && data) return data
+  } catch (err) {
+    console.error('[notificationService] create failed:', err.message)
+  }
+  return { ...payload, id: `notif-${Date.now()}` }
 }
 
 // ── Load notifications ────────────────────────────────────────
 export async function loadNotifications(userId, { status, category, limit = 50 } = {}) {
-  if (supabase && userId) {
-    try {
-      let q = supabase.from('notifications').select('*').eq('user_id', userId)
-      if (status)   q = q.eq('status', status)
-      if (category) q = q.eq('category', category)
-      q = q.order('created_at', { ascending: false }).limit(limit)
-      const { data, error } = await q
-      if (!error && data) return data
-    } catch {}
-  }
-  let items = _getLocal()
-  if (userId)   items = items.filter(n => !n.user_id || n.user_id === userId)
-  if (status)   items = items.filter(n => n.status === status)
-  if (category) items = items.filter(n => n.category === category)
-  return items.slice(0, limit)
+  if (!supabase || !userId) return []
+  try {
+    let q = supabase.from('notifications').select('*').eq('user_id', userId)
+    if (status)   q = q.eq('status', status)
+    if (category) q = q.eq('category', category)
+    q = q.order('created_at', { ascending: false }).limit(limit)
+    const { data, error } = await q
+    if (!error && data) return data
+  } catch {}
+  return []
 }
 
 // ── Mark read ─────────────────────────────────────────────────
 export async function markRead(id) {
-  if (supabase) {
-    try {
-      await supabase.from('notifications')
-        .update({ is_read: true, status: 'read', read_at: new Date().toISOString() })
-        .eq('id', id)
-    } catch {}
-  }
-  _setLocal(_getLocal().map(n => n.id === id ? { ...n, is_read: true, status: 'read' } : n))
+  if (!supabase) return
+  try {
+    await supabase.from('notifications')
+      .update({ is_read: true, status: 'read', read_at: new Date().toISOString() })
+      .eq('id', id)
+  } catch {}
 }
 
 export async function markAllRead(userId) {
-  if (supabase && userId) {
-    try {
-      await supabase.from('notifications')
-        .update({ is_read: true, status: 'read', read_at: new Date().toISOString() })
-        .eq('user_id', userId).eq('status', 'unread')
-    } catch {}
-  }
-  _setLocal(_getLocal().map(n => n.status === 'unread' ? { ...n, is_read: true, status: 'read' } : n))
+  if (!supabase || !userId) return
+  try {
+    await supabase.from('notifications')
+      .update({ is_read: true, status: 'read', read_at: new Date().toISOString() })
+      .eq('user_id', userId).eq('status', 'unread')
+  } catch {}
 }
 
 // ── Archive / dismiss ─────────────────────────────────────────
 export async function archiveNotification(id) {
-  if (supabase) {
-    try {
-      await supabase.from('notifications')
-        .update({ status: 'archived', archived_at: new Date().toISOString() })
-        .eq('id', id)
-    } catch {}
-  }
-  _setLocal(_getLocal().map(n => n.id === id ? { ...n, status: 'archived' } : n))
+  if (!supabase) return
+  try {
+    await supabase.from('notifications')
+      .update({ status: 'archived', archived_at: new Date().toISOString() })
+      .eq('id', id)
+  } catch {}
 }
 
 export async function dismissNotification(id) {
-  if (supabase) {
-    try {
-      await supabase.from('notifications')
-        .update({ status: 'dismissed', dismissed_at: new Date().toISOString() })
-        .eq('id', id)
-    } catch {}
-  }
-  _setLocal(_getLocal().filter(n => n.id !== id))
+  if (!supabase) return
+  try {
+    await supabase.from('notifications')
+      .update({ status: 'dismissed', dismissed_at: new Date().toISOString() })
+      .eq('id', id)
+  } catch {}
 }
 
 // ── Unread count ──────────────────────────────────────────────
 export async function getUnreadCount(userId) {
-  if (supabase && userId) {
-    try {
-      const { count } = await supabase
-        .from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId).eq('status', 'unread')
-      return count || 0
-    } catch {}
-  }
-  return _getLocal().filter(n => n.status === 'unread').length
+  if (!supabase || !userId) return 0
+  try {
+    const { count } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId).eq('status', 'unread')
+    return count || 0
+  } catch {}
+  return 0
 }
 
 // ── Event emitters ────────────────────────────────────────────

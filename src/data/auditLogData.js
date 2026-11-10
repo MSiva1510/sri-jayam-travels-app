@@ -64,6 +64,21 @@ export async function loadAuditEvents(limit = 50) {
   return []
 }
 
+export async function loadAuditEventsFromDB(limit = 100) {
+  if (!supabase) return { data: [], fromCache: true, error: null }
+  try {
+    const { data, error } = await supabase
+      .from('audit_logs')
+      .select('*')
+      .order('changed_at', { ascending: false })
+      .limit(limit)
+    if (error) throw error
+    return { data: data || [], fromCache: false, error: null }
+  } catch (err) {
+    return { data: [], fromCache: true, error: err?.message || 'Unknown error' }
+  }
+}
+
 export async function loadRecentActivity(count = 10) {
   return loadAuditEvents(count)
 }
