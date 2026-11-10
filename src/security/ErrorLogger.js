@@ -1,11 +1,8 @@
 // ─── Error Logger ─────────────────────────────────────────────
 // Central error tracking: severity levels, module tagging,
-// Supabase persistence, localStorage fallback.
+// Supabase persistence only (no localStorage fallback).
 
 import supabase from '../lib/supabase'
-
-const LS_KEY     = 'sjt_error_log'
-const MAX_LOCAL  = 200
 
 export const SEVERITY = {
   INFO:     'info',
@@ -13,9 +10,6 @@ export const SEVERITY = {
   ERROR:    'error',
   CRITICAL: 'critical',
 }
-
-function rLS()      { try { return JSON.parse(localStorage.getItem(LS_KEY)||'[]') } catch { return [] } }
-function wLS(items) { try { localStorage.setItem(LS_KEY, JSON.stringify(items.slice(0, MAX_LOCAL))) } catch {} }
 
 class ErrorLoggerImpl {
   constructor() {
@@ -42,11 +36,6 @@ class ErrorLoggerImpl {
       metadata:  options.metadata || {},
       created_at:new Date().toISOString(),
     }
-
-    // Local store
-    const local = rLS()
-    wLS([entry, ...local])
-    this._errors.unshift(entry)
 
     // Supabase
     if (supabase) {
@@ -80,40 +69,32 @@ class ErrorLoggerImpl {
   }
 
   async getErrors({ severity, module, resolved, limit = 50, offset = 0 } = {}) {
-    if (supabase) {
-      try {
-        let q = supabase.from('error_log').select('*', { count: 'exact' })
-        if (severity) q = q.eq('severity', severity)
-        if (module)   q = q.eq('module', module)
-        if (resolved != null) q = q.eq('resolved', resolved)
-        q = q.order('created_at', { ascending: false }).range(offset, offset + limit - 1)
-        const { data, count, error } = await q
-        if (!error) return { data: data || [], count: count || 0 }
-      } catch {}
-    }
-    let all = rLS()
-    if (severity) all = all.filter(e => e.severity === severity)
-    if (module)   all = all.filter(e => e.module   === module)
-    if (resolved != null) all = all.filter(e => e.resolved === resolved)
-    return { data: all.slice(offset, offset + limit), count: all.length }
+    if (!supabase) return { data: [], count: 0 }
+    try {
+      let q = supabase.from('error_log').select('*', { count: 'exact' })
+      if (severity) q = q.eq('severity', severity)
+      if (module)   q = q.eq('module', module)
+      if (resolved != null) q = q.eq('resolved', resolved)
+      q = q.order('created_at', { ascending: false }).range(offset, offset + limit - 1)
+      const { data, count, error } = await q
+      if (!error) return { data: data || [], count: count || 0 }
+    } catch {}
+    return { data: [], count: 0 }
   }
 
   async resolve(id, resolvedBy) {
-    if (supabase && !id.startsWith('err-')) {
-      try {
-        await supabase.from('error_log').update({
-          resolved:    true,
-          resolved_by: resolvedBy,
-          resolved_at: new Date().toISOString(),
-        }).eq('id', id)
-      } catch {}
-    }
-    const local = rLS().map(e => e.id === id ? { ...e, resolved: true } : e)
-    wLS(local)
+    if (!supabase) return
+    try {
+      await supabase.from('error_log').update({
+        resolved:    true,
+        resolved_by: resolvedBy,
+        resolved_at: new Date().toISOString(),
+      }).eq('id', id)
+    } catch {}
   }
 
   getStats() {
-    const all = rLS()
+    const all = this._errors
     return {
       total:    all.length,
       critical: all.filter(e => e.severity === SEVERITY.CRITICAL).length,

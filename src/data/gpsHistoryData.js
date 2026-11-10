@@ -2,11 +2,12 @@
 // gps_tracking: id, trip_id, driver_id, latitude, longitude,
 //               accuracy, speed_kmh, bearing, altitude, timestamp
 // trip_routes:  id, booking_id, route_data (jsonb), created_at, updated_at
+// All GPS data persisted to Supabase (no localStorage).
 
 import supabase from '../lib/supabase'
 
-const GPS_ROUTE_KEY = 'sjt_gps_route'
-const routeKey = tripId => `${GPS_ROUTE_KEY}:${tripId}`
+const TRIP_ROUTES_TABLE = 'trip_routes'
+const GPS_TRACKING_TABLE = 'gps_tracking'
 
 function normalizePoint(point = {}) {
   return {
@@ -21,69 +22,60 @@ function normalizePoint(point = {}) {
   }
 }
 
-function loadLocalRoute(tripId) {
-  if (!tripId) return []
+// Load GPS track for a trip from Supabase trip_routes.
+export async function loadTripRoute(tripId) {
+  if (!tripId || !supabase) return []
   try {
-    const raw = localStorage.getItem(routeKey(tripId))
-    return raw ? JSON.parse(raw) : []
-  } catch {
-    return []
-  }
-}
-
-function saveLocalRoute(tripId, points) {
-  try {
-    localStorage.setItem(routeKey(tripId), JSON.stringify(points.slice(-1000)))
+    const { data } = await supabase
+      .from(TRIP_ROUTES_TABLE)
+      .select('route_data')
+      .eq('booking_id', tripId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+    if (data && data.length > 0 && data[0].route_data) {
+      return Array.isArray(data[0].route_data) ? data[0].route_data : []
+    }
   } catch {}
-}
-
-// Load GPS track for a trip from the local live route buffer.
-// Supabase writes are async, while the UI expects this helper to be synchronous.
-export function loadTripRoute(tripId) {
-  return loadLocalRoute(tripId)
+  return []
 }
 
 // Get most recent GPS point for a trip
-export function getLatestRoutePoint(tripId) {
-  const points = loadLocalRoute(tripId)
+export async function getLatestRoutePoint(tripId) {
+  const points = await loadTripRoute(tripId)
   return points.length ? points[points.length - 1] : null
 }
 
-// Save a single GPS point
+// Save a single GPS point to gps_tracking table
 export function saveRoutePoint(tripIdOrPoint, pointArg = {}) {
   const tripId = typeof tripIdOrPoint === 'object' ? tripIdOrPoint.tripId : tripIdOrPoint
   const point = typeof tripIdOrPoint === 'object' ? tripIdOrPoint : pointArg
   const { lat, lng, accuracy, speed, bearing, altitude, driverId } = point
   if (!tripId || !lat || !lng) return
 
-  const route = loadLocalRoute(tripId)
-  route.push(normalizePoint(point))
-  saveLocalRoute(tripId, route)
-
-  if (!supabase || !tripId || !lat || !lng) return
-  try {
-    supabase.from('gps_tracking').insert([{
-      trip_id:    tripId,
-      driver_id:  driverId   || null,
-      latitude:   lat,
-      longitude:  lng,
-      accuracy:   accuracy   || null,
-      speed_kmh:  speed      || null,
-      bearing:    bearing    || null,
-      altitude:   altitude   || null,
-      timestamp:  new Date().toISOString(),
-    }])
-  } catch (err) {
+  if (!supabase) return
+  supabase.from(GPS_TRACKING_TABLE).insert([{
+    trip_id:    tripId,
+    driver_id:  driverId   || null,
+    latitude:   lat,
+    longitude:  lng,
+    accuracy:   accuracy   || null,
+    speed_kmh:  speed      || null,
+    bearing:    bearing    || null,
+    altitude:   altitude   || null,
+    timestamp:  new Date().toISOString(),
+  }]).catch(err => {
     if (import.meta.env.DEV) console.warn('[GPS] save failed:', err.message)
-  }
+  })
 }
 
-export function clearTripRoute(tripId) {
-  if (!tripId) return
-  try { localStorage.removeItem(routeKey(tripId)) } catch {}
+export async function clearTripRoute(tripId) {
+  if (!tripId || !supabase) return
+  try {
+    await supabase.from(TRIP_ROUTES_TABLE).delete().eq('booking_id', tripId)
+  } catch {}
 }
 
-export function buildRouteHistoryEntry({
+export async function buildRouteHistoryEntry({
   tripId,
   customer,
   driver,
@@ -93,7 +85,7 @@ export function buildRouteHistoryEntry({
   endTime,
   duration,
 } = {}) {
-  const routePoints = loadLocalRoute(tripId)
+  const routePoints = await loadTripRoute(tripId)
   return {
     tripId,
     customer,
@@ -128,7 +120,6 @@ export function startRouteRecording(tripId, getCurrentPoint, intervalMs = 30000)
 
 // Calculate route distance in km from array of {lat, lng} points
 export function calcRouteDistanceKm(points = []) {
-  if (typeof points === 'string') points = loadLocalRoute(points)
   if (!Array.isArray(points) || points.length < 2) return 0
   let dist = 0
   for (let i = 1; i < points.length; i++) {

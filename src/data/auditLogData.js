@@ -1,9 +1,9 @@
 // ─── Audit Log Data ───────────────────────────────────────────
-// Day 31: enhanced with severity, module, old/new values, user tracking
+// Day 31: enhanced with severity, module, old/new values, user tracking.
+// All entries persisted to Supabase `audit_logs` table (no localStorage).
 
 import supabase from '../lib/supabase'
 
-export const AUDIT_LOG_KEY    = 'sjt_audit_log'
 export const AUDIT_MAX_ENTRIES = 500
 
 export const SEVERITY = { INFO:'info', WARNING:'warning', ERROR:'error', CRITICAL:'critical' }
@@ -51,21 +51,25 @@ export const AUDIT_ACTIONS = {
   NOTE_ADDED:         { label:'Note Added',         icon:'📝', module:'general',   severity:'info'    },
 }
 
-export function loadAuditEvents(limit = 50) {
+export async function loadAuditEvents(limit = 50) {
+  if (!supabase) return []
   try {
-    const raw = localStorage.getItem(AUDIT_LOG_KEY)
-    const all = raw ? JSON.parse(raw) : []
-    return Array.isArray(all) ? (limit ? all.slice(0, limit) : all) : []
-  } catch { return [] }
+    const { data, error } = await supabase
+      .from('audit_logs')
+      .select('*')
+      .order('changed_at', { ascending: false })
+      .limit(limit)
+    if (!error && data) return data
+  } catch {}
+  return []
 }
 
-export function loadRecentActivity(count = 10) {
+export async function loadRecentActivity(count = 10) {
   return loadAuditEvents(count)
 }
 
-export function addAuditEvent(action, details = {}) {
+export async function addAuditEvent(action, details = {}) {
   const def = AUDIT_ACTIONS[action] || { label:action, icon:'📌', module:'general', severity:'info' }
-  const events = loadAuditEvents(AUDIT_MAX_ENTRIES)
   const entry = {
     id:          `AUD-${Date.now()}-${Math.random().toString(36).slice(2,6).toUpperCase()}`,
     action,
@@ -82,26 +86,23 @@ export function addAuditEvent(action, details = {}) {
     ...details,
   }
 
-  try {
-    localStorage.setItem(AUDIT_LOG_KEY, JSON.stringify([entry, ...events].slice(0, AUDIT_MAX_ENTRIES)))
-  } catch {}
-
-  // Persist to Supabase
   if (supabase) {
-    supabase.from('audit_logs').insert([{
-      action,
-      table_name:  details.table    || entry.module  || null,
-      record_id:   details.recordId || details.tripId || null,
-      old_values:  details.oldValues || null,
-      new_values:  details.newValues || details       || null,
-      changed_by:  details.changedBy || details.driver || null,
-      severity:    entry.severity,
-      module:      entry.module,
-      user_name:   entry.userName,
-      changed_at:  entry.timestamp,
-    }]).then(({ error }) => {
-      if (error && import.meta.env.DEV) console.warn('[auditLog] insert failed:', error.message)
-    })
+    try {
+      await supabase.from('audit_logs').insert([{
+        action,
+        table_name:  details.table    || entry.module  || null,
+        record_id:   details.recordId || details.tripId || null,
+        old_values:  details.oldValues || null,
+        new_values:  details.newValues || details       || null,
+        changed_by:  details.changedBy || details.driver || null,
+        severity:    entry.severity,
+        module:      entry.module,
+        user_name:   entry.userName,
+        changed_at:  entry.timestamp,
+      }])
+    } catch (err) {
+      if (import.meta.env.DEV) console.warn('[auditLog] insert failed:', err.message)
+    }
   }
 
   return entry
@@ -122,6 +123,10 @@ export function fmtAuditTime(iso) {
   } catch { return '—' }
 }
 
-export function clearAuditLog() {
-  try { localStorage.removeItem(AUDIT_LOG_KEY) } catch {}
+export async function clearAuditLog() {
+  if (supabase) {
+    try {
+      await supabase.from('audit_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+    } catch {}
+  }
 }
