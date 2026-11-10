@@ -4,7 +4,7 @@ import {
   Plus, Phone, MapPin, Edit2, Trash2,
   X, ChevronDown, ChevronUp, Building2,
   FileText, Star, Repeat, Ban, Calendar,
-  AlertTriangle, User, Navigation,
+  AlertTriangle, User, Navigation, Search,
 } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
 import Avatar     from '../components/ui/Avatar'
@@ -808,6 +808,7 @@ export default function Customers() {
   const [typeFilter,   setTypeFilter]   = useState('all')
   const [flagFilter,   setFlagFilter]   = useState('all')
   const [newThisMonthFilter, setNewThisMonthFilter] = useState(false)
+  const [customerSearch, setCustomerSearch] = useState('')
   const [sortBy,       setSortBy]       = useState('name')
   const [expanded,     setExpanded]     = useState(null)
   const [loadError,    setLoadError]    = useState(null)
@@ -921,18 +922,23 @@ export default function Customers() {
         const created = new Date(c.createdAt || 0)
         return created.getMonth() === now.getMonth() && created.getFullYear() === now.getFullYear()
       })
+      .filter(c => {
+        if (!customerSearch) return true
+        const q = customerSearch.toLowerCase()
+        return [c.name, c.mobile, c.customer_id].some(v => String(v ?? '').toLowerCase().includes(q))
+      })
       .sort((a, b) =>
         sortBy === 'name'   ? (a.name ?? '').localeCompare(b.name ?? '') :
         sortBy === 'city'   ? (a.city || '').localeCompare(b.city || '') :
         sortBy === 'recent' ? (b.updatedAt || '').localeCompare(a.updatedAt || '') :
         0
       )
-  }, [customers, typeFilter, flagFilter, sortBy, bookings, newThisMonthFilter])
+  }, [customers, typeFilter, flagFilter, sortBy, bookings, newThisMonthFilter, customerSearch])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const safePage = Math.min(Math.max(1, page), totalPages)
   const pageRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
-  useEffect(() => { setPage(1) }, [typeFilter, flagFilter, sortBy, customers.length, pageSize, newThisMonthFilter])
+  useEffect(() => { setPage(1) }, [typeFilter, flagFilter, sortBy, customers.length, pageSize, newThisMonthFilter, customerSearch])
 
   const pageItems = (() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1)
@@ -977,9 +983,20 @@ export default function Customers() {
       <PageHeader compact
         title="Customers"
         subtitle={`${customers.length} customers in directory`}
-        action={canAdd
-          ? <Button icon={Plus} onClick={() => setShowAdd(true)}>Add Customer</Button>
-          : null}
+        action={
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              placeholder="Search customers…"
+              value={customerSearch}
+              onChange={e => setCustomerSearch(e.target.value)}
+              className="px-3 py-2 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-xs text-slate-700 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-blue-500 w-64"
+            />
+            {canAdd && (
+              <Button icon={Plus} onClick={() => setShowAdd(true)}>Add Customer</Button>
+            )}
+          </div>
+        }
       />
 
       {loadError && (
