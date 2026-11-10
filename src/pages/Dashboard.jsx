@@ -75,6 +75,42 @@ function MiniStat({ icon: Icon, value, label, tone = 'blue', onClick }) {
   )
 }
 
+// ── Recent Activity Widget (async, loads from Supabase audit_logs) ─────
+function RecentActivityWidget({ limit }) {
+  const [activities, setActivities] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    loadRecentActivity(limit).then(list => {
+      setActivities(Array.isArray(list) ? list : [])
+      setLoading(false)
+    })
+  }, [limit])
+
+  if (loading) return null
+  if (activities.length === 0) return null
+
+  return (
+    <section>
+      <SectionHeader className="mb-3" eyebrow="Audit Trail" title="Recent Activity" />
+      <Surface padded={false} className="overflow-hidden">
+        <div className="divide-y ap-hairline">
+          {activities.map(ev => (
+            <div key={ev.id} className="flex items-center gap-3 px-4 py-2.5">
+              <span className="text-base flex-shrink-0" aria-hidden="true">{ev.icon}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">{ev.label}</p>
+                {ev.description && <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{ev.description}</p>}
+              </div>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 flex-shrink-0">{fmtAuditTime(ev.timestamp)}</span>
+            </div>
+          ))}
+        </div>
+      </Surface>
+    </section>
+  )
+}
+
 export default function Dashboard() {
   const { can, isAdmin, isManager } = useAuth()
   const navigate = useNavigate()
@@ -1043,29 +1079,9 @@ export default function Dashboard() {
       })()}
 
       {/* ── Recent Activity (Audit Log, max 5 on the dashboard) ── */}
-      {(isAdmin || isManager) && (() => {
-        const recentActivity = loadRecentActivity(5)
-        if (recentActivity.length === 0) return null
-        return (
-          <section>
-            <SectionHeader className="mb-3" eyebrow="Audit Trail" title="Recent Activity" />
-            <Surface padded={false} className="overflow-hidden">
-              <div className="divide-y ap-hairline">
-                {recentActivity.map(ev => (
-                  <div key={ev.id} className="flex items-center gap-3 px-4 py-2.5">
-                    <span className="text-base flex-shrink-0" aria-hidden="true">{ev.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">{ev.label}</p>
-                      {ev.description && <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{ev.description}</p>}
-                    </div>
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 flex-shrink-0">{fmtAuditTime(ev.timestamp)}</span>
-                  </div>
-                ))}
-              </div>
-            </Surface>
-          </section>
-        )
-      })()}
+      {(isAdmin || isManager) && (
+        <RecentActivityWidget limit={5} />
+      )}
 
       {/* ── Latest Trips ── */}
       <section>

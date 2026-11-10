@@ -160,7 +160,7 @@ export default function NotificationCenter() {
     if (!open) return
     loadNotifs()
     getBusinessAlerts().then(setAlerts).catch(()=>{})
-    setActivity(loadRecentActivity(12))
+    loadRecentActivity(12).then(list => setActivity(Array.isArray(list) ? list : []))
   }, [open, loadNotifs])
 
   const inbox    = notifications.filter(n => ['unread','read'].includes(n.status))

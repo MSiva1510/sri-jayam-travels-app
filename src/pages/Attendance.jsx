@@ -241,6 +241,7 @@ function AdminAttendanceView({ isAdmin }) {
   const [bookings, setBookings] = useState([])
   const [vehicles, setVehicles] = useState([])
   const [loadError, setLoadError] = useState(null)
+  const [driverActivity, setDriverActivity] = useState([])
 
   const reload = useCallback(async () => {
     const [rec, drv, bks, veh] = await Promise.allSettled([loadAttendance(), loadDrivers(), loadBookings(), loadVehicles()])
@@ -303,11 +304,15 @@ function AdminAttendanceView({ isAdmin }) {
     return matchSearch && matchTab
   })
 
-  // Real driver-related activity (audit trail) — section omitted when empty.
-  const driverActivity = useMemo(() => loadRecentActivity(40).filter(ev =>
-    ev.module === 'drivers' ||
-    ['TRIP_ASSIGNED', 'VEHICLE_ASSIGNED', 'TRIP_STARTED', 'TRIP_COMPLETED'].includes(ev.action)
-  ).slice(0, 6), [drivers.length, allRecords.length])
+  useEffect(() => {
+    loadRecentActivity(40).then(list => {
+      const filtered = (Array.isArray(list) ? list : []).filter(ev =>
+        ev.module === 'drivers' ||
+        ['TRIP_ASSIGNED', 'VEHICLE_ASSIGNED', 'TRIP_STARTED', 'TRIP_COMPLETED'].includes(ev.action)
+      ).slice(0, 6)
+      setDriverActivity(filtered)
+    })
+  }, [drivers.length, allRecords.length])
 
   const handleMarkAttendance = async (driverName, status) => {
     const existing = dateRecords.find(r => r.driver === driverName)
