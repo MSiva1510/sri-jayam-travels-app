@@ -925,16 +925,19 @@ export default function Customers() {
       {/* Widgets — one row, New This Month is display-only */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {[
-          { label:'Total',      value: customers.length,  icon: User,        tone:'gray',   filter:'all',        tap:true  },
-          { label:'Individual', value: customers.filter(c=>c.type==='individual').length, icon: User, tone:'blue', filter:'individual', tap:true },
-          { label:'Corporate',  value: corporateCount,    icon: Building2,   tone:'violet', filter:'corporate',  tap:true  },
-          { label:'VIP',        value: customers.filter(c=>effectiveFlags(c, customerAuto[c.id]||{}).isVip).length,         icon: Star,   tone:'amber', filter:'vip', tap:true },
-          { label:'Frequent',   value: customers.filter(c=>effectiveFlags(c, customerAuto[c.id]||{}).isFrequentTraveller).length, icon: Repeat, tone:'blue', filter:'frequent', tap:true },
-          { label:'New This Month', value: newThisMonth,  icon: Calendar,    tone:'green',  filter:null,         tap:false },
+          { label:'Total',      value: customers.length,  icon: User,        tone:'gray',   kind:'type', filter:'all',        tap:true  },
+          { label:'Individual', value: customers.filter(c=>c.type==='individual').length, icon: User, tone:'blue', kind:'type', filter:'individual', tap:true },
+          { label:'Corporate',  value: corporateCount,    icon: Building2,   tone:'violet', kind:'type', filter:'corporate',  tap:true  },
+          { label:'VIP',        value: customers.filter(c=>effectiveFlags(c, customerAuto[c.id]||{}).isVip).length,         icon: Star,   tone:'amber', kind:'flag', filter:'vip', tap:true },
+          { label:'Frequent',   value: customers.filter(c=>effectiveFlags(c, customerAuto[c.id]||{}).isFrequentTraveller).length, icon: Repeat, tone:'blue', kind:'flag', filter:'frequent', tap:true },
+          { label:'New This Month', value: newThisMonth,  icon: Calendar,    tone:'green',  kind:'type', filter:null,         tap:false },
         ].map(s => (
           <MetricCard key={s.label} icon={s.icon} tone={s.tone} label={s.label} value={s.value}
-            onClick={s.tap ? () => { setTypeFilter(s.filter); setPage(1) } : undefined}
-            className={s.tap && typeFilter === s.filter ? 'ring-2 ring-blue-500/40' : ''} />
+            onClick={s.tap ? () => {
+              s.kind === 'flag' ? setFlagFilter(s.filter) : setTypeFilter(s.filter)
+              setPage(1)
+            } : undefined}
+            className={s.tap && (s.kind === 'flag' ? flagFilter === s.filter : typeFilter === s.filter) ? 'ring-2 ring-blue-500/40' : ''} />
         ))}
       </div>
 
