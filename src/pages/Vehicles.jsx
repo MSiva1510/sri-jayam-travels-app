@@ -3,7 +3,7 @@ import {
   Plus, Wrench, Shield, Fuel, Gauge, X, CheckCircle,
   ChevronDown, ChevronUp, AlertTriangle, Car, User,
   Calendar, FileText, Edit2, History, MapPin, Clock,
-  Search, Download, Eye,
+  Search, Download, Eye, Trash2,
 } from 'lucide-react'
 import PageHeader   from '../components/ui/PageHeader'
 import Avatar       from '../components/ui/Avatar'
@@ -27,6 +27,7 @@ import { getVehicleStatusEntry, getVehicleStatusCfg }   from '../data/vehicleSta
 import { fmtAuditTime }                            from '../data/auditLogData'
 import { loadBookings }                            from '../data/tripTypes'
 import { withTimeout } from '../utils/withTimeout'
+import supabase        from '../lib/supabase'
 
 // ─────────────────────────────────────────────────────────────
 //  Status config
@@ -123,43 +124,127 @@ const SVC_TYPES = [
   {key:'brake',label:'Brake'},{key:'general',label:'General Service'},{key:'other',label:'Other'},
 ]
 const SVC_ICONS = {oil_change:'🛢️',tyre:'🔄',battery:'🔋',brake:'⛔',general:'🔧',other:'🔧'}
-const SVC_LS = id => `sjt_vsvc_${id}`
-const readSvc  = id => { try { return JSON.parse(localStorage.getItem(SVC_LS(id))||'[]') } catch { return [] } }
-const writeSvc = (id,d) => { try { localStorage.setItem(SVC_LS(id),JSON.stringify(d)) } catch {} }
+const EMPTY_SERVICE_FORM = {
+  service_type:'general', service_date:'', next_service_date:'',
+  service_km:'', cost:'', vendor:'', notes:'',
+}
 
+// Service history is fleet data, so it lives in the `vehicle_service` table —
+// not in one browser's localStorage where no other admin can see it.
 function VehicleServicePanel({ vehicle: v }) {
-  const [services, setServices] = useState(() => readSvc(v.id||v.reg))
+  const vehicleId = v.id
+  const [services, setServices] = useState([])
+  const [loading,  setLoading]  = useState(true)
+  const [loadError, setLoadError] = useState(null)
+  const [saveError, setSaveError] = useState(null)
+  const [saving,   setSaving]   = useState(false)
   const [showAdd,  setShowAdd]  = useState(false)
-  const [form, setForm] = useState({service_type:'general',service_date:'',next_service_date:'',service_km:'',cost:'',vendor:'',notes:''})
+  const [form, setForm] = useState(EMPTY_SERVICE_FORM)
+
+  const loadServices = useCallback(async () => {
+    if (!vehicleId) { setServices([]); setLoading(false); return }
+    setLoading(true); setLoadError(null)
+    try {
+      const { data, error } = await supabase
+        .from('vehicle_service')
+        .select('*')
+        .eq('vehicle_id', vehicleId)
+        .order('service_date', { ascending: false })
+      if (error) throw error
+      setServices(Array.isArray(data) ? data : [])
+    } catch (err) {
+      console.error('[Vehicles] load service history failed:', err)
+      setLoadError(err.message || 'Could not load service history')
+    } finally {
+      setLoading(false)
+    }
+  }, [vehicleId])
+  useEffect(() => { loadServices() }, [loadServices])
+
   const totalCost = services.reduce((s,i)=>s+Number(i.cost||0),0)
-  const latest    = [...services].sort((a,b)=>(b.service_date||'').localeCompare(a.service_date||''))[0]
-  const handleAdd = () => {
-    if (!form.service_date) return
-    const item = {...form,id:`svc-${Date.now()}`,created_at:new Date().toISOString()}
-    const updated = [item,...services]; setServices(updated); writeSvc(v.id||v.reg,updated)
-    setForm({service_type:'general',service_date:'',next_service_date:'',service_km:'',cost:'',vendor:'',notes:''}); setShowAdd(false)
+  const latest    = services[0] // list is ordered newest service date first
+
+  const handleAdd = async () => {
+    if (!form.service_date) { setSaveError('Pick the service date'); return }
+    setSaving(true); setSaveError(null)
+    try {
+      const payload = {
+        vehicle_id:        vehicleId,
+        service_type:      form.service_type || 'general',
+        service_date:      form.service_date,
+        next_service_date: form.next_service_date || null,
+        service_km:        form.service_km === '' ? null : Number(form.service_km),
+        cost:              form.cost === '' ? 0 : Number(form.cost),
+        vendor:            form.vendor.trim() || null,
+        notes:             form.notes.trim() || null,
+        status:            'completed',
+      }
+      const { data, error } = await supabase
+        .from('vehicle_service')
+        .insert(payload)
+        .select()
+        .single()
+      if (error) throw error
+      setServices(prev => [data, ...prev])
+      setForm(EMPTY_SERVICE_FORM)
+      setShowAdd(false)
+    } catch (err) {
+      console.error('[Vehicles] save service record failed:', err)
+      setSaveError(err.message || 'Could not save the service record')
+    } finally {
+      setSaving(false)
+    }
   }
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this service record?')) return
+    try {
+      const { error } = await supabase.from('vehicle_service').delete().eq('id', id)
+      if (error) throw error
+      setServices(prev => prev.filter(s => s.id !== id))
+    } catch (err) {
+      console.error('[Vehicles] delete service record failed:', err)
+      setSaveError(err.message || 'Could not delete the service record')
+    }
+  }
+
+  // Guard against a zero/blank service interval — dividing by it produced
+  // Infinity and a full bar for a vehicle that had never been serviced.
+  const kmNow   = Number(v.km) || 0
+  const kmNext  = Number(v.nextServiceKm) || 0
+  const hasNext = kmNext > 0
+  const pct     = hasNext ? Math.min(100, Math.round((kmNow / kmNext) * 100)) : 0
+
   const INP = fieldCls
   return (
     <div className="space-y-3">
-      {v.nextServiceKm && v.km && (
+      {hasNext && (
         <div className="bg-[var(--ap-surface-2)] rounded-xl p-3 border border-[var(--ap-border)]">
           <div className="flex justify-between text-xs mb-1.5">
             <span className="text-slate-500 dark:text-slate-400 font-medium">KM to Next Service</span>
-            <span className="font-bold text-slate-700 dark:text-slate-200">{Number(v.km).toLocaleString()} / {Number(v.nextServiceKm).toLocaleString()} km</span>
+            <span className="font-bold text-slate-700 dark:text-slate-200">{kmNow.toLocaleString()} / {kmNext.toLocaleString()} km</span>
           </div>
           <div className="h-2 bg-[var(--ap-surface-2)] rounded-full overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full" style={{width:`${Math.min(100,Math.round((v.km/v.nextServiceKm)*100))}%`}} />
+            <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full" style={{width:`${pct}%`}} />
           </div>
-          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 text-right">{Math.max(0,v.nextServiceKm-v.km).toLocaleString()} km remaining</p>
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 text-right">{Math.max(0, kmNext - kmNow).toLocaleString()} km remaining</p>
         </div>
       )}
       <div className="grid grid-cols-3 gap-2">
-        <div className="bg-[var(--ap-surface-2)] rounded-xl p-2.5 text-center border border-[var(--ap-border)]"><p className="text-base font-sf font-semibold text-slate-700 dark:text-white">{services.length}</p><p className="text-[9px] text-slate-500 dark:text-slate-400 uppercase">Records</p></div>
+        <div className="bg-[var(--ap-surface-2)] rounded-xl p-2.5 text-center border border-[var(--ap-border)]"><p className="text-base font-sf font-semibold text-slate-700 dark:text-white">{loading ? '…' : services.length}</p><p className="text-[9px] text-slate-500 dark:text-slate-400 uppercase">Records</p></div>
         <div className="bg-[var(--ap-surface-2)] rounded-xl p-2.5 text-center border border-[var(--ap-border)]"><p className="text-base font-sf font-semibold text-emerald-600 dark:text-emerald-400">Rs.{totalCost.toLocaleString('en-IN')}</p><p className="text-[9px] text-slate-500 dark:text-slate-400 uppercase">Total Cost</p></div>
         <div className="bg-[var(--ap-surface-2)] rounded-xl p-2.5 text-center border border-[var(--ap-border)]"><p className="text-xs font-sf font-semibold text-slate-700 dark:text-white">{latest?.service_date||'—'}</p><p className="text-[9px] text-slate-500 dark:text-slate-400 uppercase">Last Done</p></div>
       </div>
-      <Button variant="primary" size="sm" icon={Plus} onClick={()=>setShowAdd(o=>!o)}>Log Service</Button>
+
+      {loadError && (
+        <div className="flex items-center gap-2 rounded-xl bg-red-50 dark:bg-red-900/20 px-3 py-2">
+          <AlertTriangle size={14} className="text-red-500 flex-shrink-0" />
+          <p className="text-xs text-red-600 dark:text-red-400 flex-1">{loadError}</p>
+          <button onClick={loadServices} className="text-xs font-bold text-red-600 dark:text-red-400 underline">Retry</button>
+        </div>
+      )}
+
+      <Button variant="primary" size="sm" icon={Plus} onClick={()=>{ setShowAdd(o=>!o); setSaveError(null) }}>Log Service</Button>
       {showAdd && (
         <div className="bg-[var(--ap-surface-2)] rounded-xl p-3 border border-[var(--ap-border)] space-y-2.5">
           <div className="grid grid-cols-2 gap-2">
@@ -177,15 +262,18 @@ function VehicleServicePanel({ vehicle: v }) {
               <input value={form.vendor} onChange={e=>setForm(f=>({...f,vendor:e.target.value}))} placeholder="Garage name" className={INP} /></div>
           </div>
           <input value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} placeholder="Notes (optional)" className={INP} />
+          {saveError && <p className="text-xs text-red-500">{saveError}</p>}
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="flex-1" onClick={()=>setShowAdd(false)}>Cancel</Button>
-            <Button variant="primary" size="sm" className="flex-1" onClick={handleAdd}>Save</Button>
+            <Button variant="outline" size="sm" className="flex-1" onClick={()=>{ setShowAdd(false); setSaveError(null) }}>Cancel</Button>
+            <Button variant="primary" size="sm" className="flex-1" disabled={saving} onClick={handleAdd}>{saving ? 'Saving…' : 'Save'}</Button>
           </div>
         </div>
       )}
-      {services.length === 0 ? <p className="text-xs text-slate-500 dark:text-slate-400 text-center py-3">No service records yet.</p> : (
+      {saveError && !showAdd && <p className="text-xs text-red-500">{saveError}</p>}
+      {loading ? <p className="text-xs text-slate-500 dark:text-slate-400 text-center py-3">Loading service history…</p>
+        : services.length === 0 ? <p className="text-xs text-slate-500 dark:text-slate-400 text-center py-3">No service records yet.</p> : (
         <div className="space-y-2">
-          {[...services].sort((a,b)=>(b.service_date||'').localeCompare(a.service_date||'')).map(svc=>(
+          {services.map(svc=>(
             <div key={svc.id} className="bg-[var(--ap-surface-2)] rounded-xl p-3 border border-[var(--ap-border)] flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-[var(--ap-surface-2)] flex items-center justify-center flex-shrink-0 text-sm">{SVC_ICONS[svc.service_type]||'🔧'}</div>
               <div className="flex-1 min-w-0">
@@ -194,7 +282,8 @@ function VehicleServicePanel({ vehicle: v }) {
                   <span>{svc.service_date}</span>{svc.vendor&&<span>· {svc.vendor}</span>}{svc.service_km&&<span>· {Number(svc.service_km).toLocaleString()} km</span>}
                 </div>
               </div>
-              {svc.cost>0&&<span className="text-xs font-bold text-slate-700 dark:text-slate-200 flex-shrink-0">Rs.{Number(svc.cost).toLocaleString('en-IN')}</span>}
+              {Number(svc.cost) > 0 && <span className="text-xs font-bold text-slate-700 dark:text-slate-200 flex-shrink-0">Rs.{Number(svc.cost).toLocaleString('en-IN')}</span>}
+              <IconButton icon={Trash2} size={14} tone="red" label="Delete service record" onClick={() => handleDelete(svc.id)} />
             </div>
           ))}
         </div>

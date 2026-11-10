@@ -1,8 +1,9 @@
 // ─── Role Manager Page ────────────────────────────────────────
 // Role cards + info + summary + module permission matrix, all backed by
-// the real permissionEngine matrix (role_permissions table). Custom roles
-// persist their definitions locally; their permissions persist as real
-// role_permissions rows, enforced by can() (unknown roles deny by default).
+// the real permissionEngine matrix (role_permissions table). The three
+// roles are system roles: their key/name are fixed by routing and can't be
+// renamed here, so the page shows that as fact instead of offering disabled
+// inputs. Only the permission matrix is editable, and it is enforced by can().
 // NOTE: module rows toggle only real permissions — cells without a real
 // permission are omitted rather than faked.
 
@@ -23,10 +24,6 @@ import { authRepository } from '../../repositories/authRepository'
 import { permissionEngine } from '../../security/PermissionEngine'
 import { loadAuditEvents } from '../../data/auditLogData'
 import { useAuth } from '../../context/AuthContext'
-
-const LS_ROLE_DEFS = 'sjt_role_defs'
-const rDefs = () => { try { return JSON.parse(localStorage.getItem(LS_ROLE_DEFS) || '{}') } catch { return {} } }
-const wDefs = (d) => { try { localStorage.setItem(LS_ROLE_DEFS, JSON.stringify(d)) } catch {} }
 
 // ── Modules with their REAL permissions (no invented cells) ──
 const MODULES = [
@@ -60,14 +57,6 @@ export default function RoleManager() {
   const navigate = useNavigate()
   const { roleMatrix, setRoleMatrix } = useAdmin()
 
-  // Only admin / manager / driver exist — drop any other stored defs.
-  const [defs, setDefs] = useState(() => {
-    const d = rDefs()
-    const keep = {}
-    ;['admin', 'manager', 'driver'].forEach(k => { if (d[k]) keep[k] = d[k] })
-    if (Object.keys(d).length !== Object.keys(keep).length) wDefs(keep)
-    return keep
-  })
   const [sel, setSel] = useState('admin')
   const [rtab, setRtab] = useState('perms')
   const [search, setSearch] = useState('')
@@ -86,7 +75,6 @@ export default function RoleManager() {
     Promise.resolve(loadAuditEvents(300)).then(e => setActivity(Array.isArray(e) ? e : [])).catch(() => setActivity([]))
   }, [])
 
-  const saveDefs = (d) => { setDefs(d); wDefs(d) }
   const roles = useMemo(() => {
     // Fixed set: admin, manager, driver. Anything else in the matrix
     // (future/custom roles) is intentionally hidden and unmanageable here.
@@ -94,7 +82,6 @@ export default function RoleManager() {
       .filter(k => roleMatrix && Object.prototype.hasOwnProperty.call(roleMatrix, k))
       .map(k => {
         const builtin = BUILTIN_META[k]
-        const def = defs[k] || {}
         return {
           key: k,
           label: builtin.label,
@@ -102,12 +89,9 @@ export default function RoleManager() {
           icon: builtin.icon,
           tile: builtin.tile,
           builtin: true,
-          status: def.status || 'active',
-          createdAt: def.createdAt || null,
-          updatedAt: def.updatedAt || null,
         }
       })
-  }, [roleMatrix, defs])
+  }, [roleMatrix])
   useEffect(() => {
     if (!roles.some(r => r.key === sel) && roles.length) setSel(roles[0].key)
   }, [roles, sel])
@@ -138,14 +122,6 @@ export default function RoleManager() {
     } finally {
       setSaving(s => ({ ...s, [key]: false }))
     }
-  }
-
-  const isOpen = (k) => expandAll || openMods.has(k)
-
-  const touchDef = (patch) => {
-    if (!role || role.builtin) return
-    const d = { ...defs, [role.key]: { ...(defs[role.key] || {}), ...patch, updatedAt: new Date().toISOString() } }
-    saveDefs(d)
   }
 
   if (!role) return null
@@ -196,36 +172,33 @@ export default function RoleManager() {
         <div className="space-y-4">
           <div className="ap-surface rounded-2xl p-4 space-y-3">
             <p className="text-sm font-bold text-slate-800 dark:text-white">Role Information</p>
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Role Name *</label>
-              <input value={role.label} disabled={role.builtin} onChange={e => touchDef({ label: e.target.value })}
-                className="w-full px-3 py-2.5 text-xs rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none font-bold disabled:opacity-70" />
+            <div className="space-y-2">
+              {[
+                ['Role Name', role.label],
+                ['Description', role.desc],
+                ['Role Key', role.key],
+                ['Type', 'System role'],
+              ].map(([l, v]) => (
+                <div key={l} className="flex items-start justify-between gap-3 py-1 border-b border-[var(--ap-border)] last:border-0">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex-shrink-0 pt-0.5">{l}</span>
+                  <span className={`text-xs font-semibold text-slate-700 dark:text-slate-200 text-right ${l === 'Role Key' ? 'font-mono' : ''}`}>{v}</span>
+                </div>
+              ))}
             </div>
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Description</label>
-              <textarea value={role.desc} disabled={role.builtin} onChange={e => touchDef({ desc: e.target.value })} rows={2}
-                className="w-full px-3 py-2.5 text-xs rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none resize-none disabled:opacity-70" />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Status</label>
-              <select value={role.status} disabled={role.builtin} onChange={e => touchDef({ status: e.target.value })}
-                className="w-full px-3 py-2.5 text-xs rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none font-bold disabled:opacity-70">
-                <option value="active">🟢 Active</option>
-                <option value="inactive">⚪ Inactive</option>
-              </select>
-            </div>
-            <p className="text-[11px] text-slate-400">System role — name is locked{role.key === 'admin' ? '; permissions stay full-access' : ''}.</p>
+            <p className="text-[11px] text-slate-400">
+              System role — the name is fixed by the app. Use the permission matrix to control what this role can do.
+              {role.key === 'admin' ? ' Administrator always keeps full access.' : ''}
+            </p>
           </div>
 
           <div className="ap-surface rounded-2xl p-4">
             <p className="text-sm font-bold text-slate-800 dark:text-white mb-3">Role Summary</p>
             <div className="space-y-2.5">
               {[
-                ['Modules Access', `${[...MODULES, ...ADMIN_MODULES].filter(m => m.perms.some(p => perms[p])).length} / ${MODULES.length + ADMIN_MODULES.length}`],
+                ['Modules Access', `${modulesAccess} / ${MODULES.length + ADMIN_MODULES.length}`],
                 ['Total Permissions', `${granted.length}`],
                 ['Users Assigned', `${roleUsers.length}`],
-                ['Created On', role.createdAt ? new Date(role.createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase() : 'System'],
-                ['Last Updated', role.updatedAt ? new Date(role.updatedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase() : '—'],
+                ['Role Type', 'System'],
               ].map(([l, v]) => (
                 <div key={l} className="flex items-center justify-between">
                   <span className="text-[11px] text-slate-400">{l}</span>
@@ -360,11 +333,11 @@ export default function RoleManager() {
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-slate-400">Type</span>
-                <span className="font-bold text-slate-700 dark:text-slate-200">{role.builtin ? 'System role' : 'Custom role'}</span>
+                <span className="font-bold text-slate-700 dark:text-slate-200">System role</span>
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-slate-400">Status</span>
-                <span className="font-bold text-slate-700 dark:text-slate-200 capitalize">{role.status}</span>
+                <span className="font-bold text-slate-700 dark:text-slate-200">Active</span>
               </div>
               <p className="text-[11px] text-slate-400">
                 System role — always available. The Administrator role stays full-access.

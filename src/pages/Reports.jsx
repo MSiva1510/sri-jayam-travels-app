@@ -1086,7 +1086,16 @@ function KpiDot({ label, tone }) {
 
 function BusinessAlerts() {
   const [alerts, setAlerts] = useState([])
-  useEffect(() => { getBusinessAlerts().then(setAlerts).catch(() => { }) }, [])
+  const [status, setStatus] = useState('loading') // loading | ready | error
+  const [attempt, setAttempt] = useState(0)
+  useEffect(() => {
+    let alive = true
+    setStatus('loading')
+    getBusinessAlerts()
+      .then(list => { if (alive) { setAlerts(Array.isArray(list) ? list : []); setStatus('ready') } })
+      .catch(err => { console.error('[Reports] load business alerts failed:', err); if (alive) setStatus('error') })
+    return () => { alive = false }
+  }, [attempt])
   const PC = {
     high: { badge: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400', label: 'High' },
     medium: { badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', label: 'Medium' },
@@ -1094,6 +1103,24 @@ function BusinessAlerts() {
   }
   const TI = { insurance: '🛡', permit: '📋', fc: '📄', puc: '💨', service: '🔧' }
   const highs = alerts.filter(a => a.priority === 'high').length
+  if (status === 'loading') return (
+    <div className="ap-surface rounded-2xl p-10 text-center" role="status" aria-busy="true">
+      <span className="sr-only">Checking documents and service dates…</span>
+      <RefreshCw size={28} className="mx-auto text-slate-300 dark:text-slate-600 mb-3 animate-spin" />
+      <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Checking documents and service dates…</p>
+    </div>
+  )
+  if (status === 'error') return (
+    <div className="ap-surface rounded-2xl p-10 text-center">
+      <AlertTriangle size={34} className="mx-auto text-amber-500 mb-3" />
+      <p className="font-bold text-slate-700 dark:text-slate-200 text-sm">Couldn't load document alerts</p>
+      <p className="text-xs text-slate-400 mt-1 mb-3">This is a loading failure — not a confirmation that everything is up to date.</p>
+      <button onClick={() => setAttempt(n => n + 1)}
+        className="px-3.5 py-2 rounded-xl bg-slate-800 dark:bg-white text-white dark:text-slate-900 text-xs font-bold hover:opacity-90 transition-opacity">
+        Retry
+      </button>
+    </div>
+  )
   if (alerts.length === 0) return (
     <div className="ap-surface rounded-2xl p-10 text-center">
       <CheckCircle size={34} className="mx-auto text-emerald-400 mb-3" />

@@ -553,6 +553,7 @@ export default function UserManagement() {
   const [profiles,   setProfiles]   = useState([])
   const [auditMap,   setAuditMap]   = useState({})
   const [loading,    setLoading]    = useState(true)
+  const [loadError,  setLoadError]  = useState('')
   const [search,     setSearch]     = useState('')
   const [roleTab,    setRoleTab]    = useState('all')
   const [roleFilter, setRoleFilter] = useState('all')
@@ -572,23 +573,31 @@ export default function UserManagement() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [list, evts] = await Promise.all([
-      authRepository.listProfiles(),
-      Promise.resolve(loadAuditEvents(500)).catch(() => []),
-    ])
-    const scoped = isAdmin ? list : list.filter(p => p.role === 'driver')
-    setProfiles(scoped)
-    // Latest login per user from real USER_LOGIN audit events
-    const logins = {}
-    ;(Array.isArray(evts) ? evts : []).forEach(e => {
-      if (e.action !== 'USER_LOGIN') return
-      const key = String(e.user_name || '').toLowerCase()
-      if (!key) return
-      const t = new Date(e.timestamp || e.changed_at).getTime()
-      if (Number.isFinite(t) && (!logins[key] || t > logins[key])) logins[key] = t
-    })
-    setAuditMap(logins)
-    setLoading(false)
+    setLoadError('')
+    try {
+      const [list, evts] = await Promise.all([
+        authRepository.listProfiles(),
+        Promise.resolve(loadAuditEvents(500)).catch(() => []),
+      ])
+      const scoped = isAdmin ? list : list.filter(p => p.role === 'driver')
+      setProfiles(scoped)
+      // Latest login per user from real USER_LOGIN audit events
+      const logins = {}
+      ;(Array.isArray(evts) ? evts : []).forEach(e => {
+        if (e.action !== 'USER_LOGIN') return
+        const key = String(e.user_name || '').toLowerCase()
+        if (!key) return
+        const t = new Date(e.timestamp || e.changed_at).getTime()
+        if (Number.isFinite(t) && (!logins[key] || t > logins[key])) logins[key] = t
+      })
+      setAuditMap(logins)
+    } catch (err) {
+      console.error('[UserManagement] load failed:', err)
+      setProfiles([])
+      setLoadError(err.message || 'Could not load user accounts.')
+    } finally {
+      setLoading(false)
+    }
   }, [isAdmin])
 
   useEffect(() => { load() }, [load])
@@ -614,10 +623,15 @@ export default function UserManagement() {
       return
     }
     const next = profile.status === 'active' ? 'inactive' : 'active'
-    await doToggleStatus(profile, next)
-    showToast(`${profile.full_name} ${next === 'active' ? 'activated' : 'deactivated'}`)
-    if (drawer?.id === profile.id) setDrawer({ ...drawer, status: next })
-    load()
+    try {
+      await doToggleStatus(profile, next)
+      showToast(`${profile.full_name} ${next === 'active' ? 'activated' : 'deactivated'}`)
+      if (drawer?.id === profile.id) setDrawer({ ...drawer, status: next })
+      load()
+    } catch (err) {
+      console.error('[UserManagement] status change failed:', err)
+      showToast(`Could not ${next === 'active' ? 'activate' : 'deactivate'} ${profile.full_name}. Please try again.`)
+    }
   }
 
   const handleResetPwd = async (profile) => {
@@ -638,9 +652,14 @@ export default function UserManagement() {
     if (!window.confirm(`${next === 'active' ? 'Activate' : 'Deactivate'} ${ids.length} account${ids.length !== 1 ? 's' : ''}?`)) return
     setBulking(true)
     try {
-      for (const id of ids) { try { await doToggleStatus({ id }, next) } catch {} }
-      showToast(`${ids.length} account${ids.length !== 1 ? 's' : ''} ${next === 'active' ? 'activated' : 'deactivated'}`)
-      setSelected(new Set())
+      let failed = 0
+      for (const id of ids) { try { await doToggleStatus({ id }, next) } catch { failed++ } }
+      if (failed) {
+        showToast(`${failed} of ${ids.length} account${ids.length !== 1 ? 's' : ''} could not be updated. Please try again.`)
+      } else {
+        showToast(`${ids.length} account${ids.length !== 1 ? 's' : ''} ${next === 'active' ? 'activated' : 'deactivated'}`)
+        setSelected(new Set())
+      }
       load()
     } finally {
       setBulking(false)
@@ -735,6 +754,14 @@ export default function UserManagement() {
         </div>
       )}
 
+      {loadError && (
+        <div className="flex items-start gap-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-xl px-4 py-3">
+          <AlertCircle size={15} className="text-red-500 flex-shrink-0 mt-0.5" />
+          <p className="flex-1 text-sm text-red-700 dark:text-red-400">{loadError}</p>
+          <button onClick={load} className="text-xs font-bold text-red-700 dark:text-red-400 underline flex-shrink-0">Retry</button>
+        </div>
+      )}
+
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
@@ -815,6 +842,13 @@ export default function UserManagement() {
               <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
               <p className="text-xs text-slate-400">Loading accounts…</p>
             </div>
+          </div>
+        ) : loadError ? (
+          <div className="text-center py-14">
+            <AlertCircle size={32} className="mx-auto text-red-400 mb-3" />
+            <p className="text-sm font-bold text-slate-500 dark:text-slate-400">Accounts couldn't be loaded</p>
+            <p className="text-xs text-slate-400 mt-1">{loadError}</p>
+            <button onClick={load} className="mt-3 px-4 py-2 rounded-xl bg-[var(--ap-accent)] text-white text-xs font-bold">Try again</button>
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-14">

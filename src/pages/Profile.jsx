@@ -6,6 +6,7 @@ import Avatar     from '../components/ui/Avatar'
 import Button     from '../components/ui/Button'
 import { useAuth, ROLE_LABELS, ROLE_COLORS } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
+import { loadProfilePrefs, saveProfilePrefs, DEFAULT_PROFILE_PREFS } from '../data/profilePrefsData'
 
 function Toggle({ checked, onChange }) {
   return (
@@ -61,13 +62,38 @@ export default function Profile() {
   const { darkMode, setDarkMode } = useApp()
   const roleColors = user ? ROLE_COLORS[user.role] : null
 
-  const [notifRide,   setNotifRide]   = useState(true)
-  const [notifEmail,  setNotifEmail]  = useState(false)
-  const [notifSMS,    setNotifSMS]    = useState(true)
-  const [twoFA,       setTwoFA]       = useState(false)
+  const [prefs,       setPrefs]       = useState(DEFAULT_PROFILE_PREFS)
+  const [prefsError,  setPrefsError]  = useState('')
   const [savedMsg,    setSavedMsg]    = useState(false)
   const [saving,      setSaving]      = useState(false)
   const [formError,   setFormError]   = useState('')
+
+  // Notification choices follow the account (stored in Supabase), not the tab.
+  useEffect(() => {
+    if (!user?.id) return
+    let alive = true
+    loadProfilePrefs(user.id)
+      .then(p => { if (alive) setPrefs(p) })
+      .catch(err => {
+        console.error('[Profile] load notification settings failed:', err)
+        if (alive) setPrefsError('Could not load your notification settings.')
+      })
+    return () => { alive = false }
+  }, [user?.id])
+
+  const setPref = async (field, value) => {
+    const previous = prefs
+    const next = { ...previous, [field]: value }
+    setPrefs(next)
+    setPrefsError('')
+    try {
+      await saveProfilePrefs(user.id, next)
+    } catch (err) {
+      console.error('[Profile] save notification setting failed:', err)
+      setPrefs(previous)
+      setPrefsError('Could not save that setting. Please try again.')
+    }
+  }
 
   // Editable profile fields (persisted to public.profiles via AuthContext)
   const [fullName, setFullName] = useState('')
@@ -198,10 +224,10 @@ export default function Profile() {
         />
         <div className="pt-1 border-t border-[var(--ap-border)]">
           <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Language</label>
-          <select className="w-full px-3 py-2.5 text-sm rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/30">
-            <option>English</option>
-            <option>Tamil</option>
-          </select>
+          <div className="flex items-center justify-between gap-3 w-full px-3 py-2.5 text-sm rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)]">
+            <span className="text-slate-800 dark:text-slate-100">English</span>
+            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">More languages coming soon</span>
+          </div>
         </div>
       </Section>
 
@@ -209,12 +235,13 @@ export default function Profile() {
       <Section icon={Lock} title="Security">
         <Field label="New Password"      value={pwNew}     onChange={setPwNew}     type="password" />
         <Field label="Confirm Password"  value={pwConfirm} onChange={setPwConfirm} type="password" />
-        <ToggleRow
-          label="Two-Factor Authentication"
-          sub="Require OTP on every login"
-          checked={twoFA}
-          onChange={setTwoFA}
-        />
+        <div className="flex items-center justify-between gap-4 py-1">
+          <div>
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Two-Factor Authentication</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Not available yet — your password is the only sign-in step.</p>
+          </div>
+          <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 flex-shrink-0">Not enabled</span>
+        </div>
         <Button icon={Lock} variant="secondary" onClick={handleUpdatePassword} disabled={pwSaving}>
           {pwSaving ? 'Updating…' : 'Update Password'}
         </Button>
@@ -222,9 +249,10 @@ export default function Profile() {
 
       {/* ── 4. Notifications ── */}
       <Section icon={Bell} title="Notifications">
-        <ToggleRow label="Ride Alerts"     sub="Notify on new trip assignment"      checked={notifRide}  onChange={setNotifRide}  />
-        <ToggleRow label="Email Updates"   sub="Receive weekly summary emails"      checked={notifEmail} onChange={setNotifEmail} />
-        <ToggleRow label="SMS Alerts"      sub="SMS for trip start and completion"  checked={notifSMS}   onChange={setNotifSMS}   />
+        <ToggleRow label="Ride Alerts"     sub="Notify on new trip assignment"      checked={prefs.notifRide}  onChange={v => setPref('notifRide', v)}  />
+        <ToggleRow label="Email Updates"   sub="Receive weekly summary emails"      checked={prefs.notifEmail} onChange={v => setPref('notifEmail', v)} />
+        <ToggleRow label="SMS Alerts"      sub="SMS for trip start and completion"  checked={prefs.notifSMS}   onChange={v => setPref('notifSMS', v)}   />
+        {prefsError && <p className="text-xs font-semibold text-red-600 dark:text-red-400">{prefsError}</p>}
       </Section>
     </div>
   )

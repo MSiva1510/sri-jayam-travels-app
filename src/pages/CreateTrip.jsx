@@ -4,7 +4,7 @@ import {
   ArrowLeft, Plus, Minus, ChevronRight,
   Calendar, Clock, User, Car, FileText,
   MapPin, RotateCcw, Navigation, Key,
-  CheckCircle, AlertTriangle,
+  CheckCircle, AlertTriangle, IndianRupee,
 } from 'lucide-react'
 import { TRIP_TYPE_LIST, TRIP_TYPE_CONFIG, saveBooking, generateBookingNumber } from '../data/tripTypes'
 import { addAuditEvent }   from '../data/auditLogData'
@@ -295,6 +295,10 @@ function MultiDayFields({ data, set }) {
 function RentalWithDriverFields({ data, set }) {
   return (
     <FieldGroup title="Rental Period" icon={Clock}>
+      <div>
+        <Label required>Pickup Location</Label>
+        <Input icon={MapPin} value={data.pickup} onChange={e => set({ ...data, pickup: e.target.value })} placeholder="e.g. Hotel Atithi, Puducherry" required field="pickup" />
+      </div>
       <Grid2>
         <div>
           <Label required>Pickup Time</Label>
@@ -318,6 +322,10 @@ function RentalWithDriverFields({ data, set }) {
 function SelfDriveFields({ data, set }) {
   return (
     <FieldGroup title="Self Drive Details" icon={Key}>
+      <div>
+        <Label required>Pickup Location</Label>
+        <Input icon={MapPin} value={data.pickup} onChange={e => set({ ...data, pickup: e.target.value })} placeholder="e.g. Puducherry office" required field="pickup" />
+      </div>
       <Grid2>
         <div>
           <Label required>Pickup Time</Label>
@@ -377,7 +385,7 @@ function SelfDriveFields({ data, set }) {
 // ─────────────────────────────────────────────────────────────
 const EMPTY_COMMON = {
   customer: '', contact: '', vehicle: '', driver: '',
-  startDate: '', startTime: '', notes: '',
+  startDate: '', startTime: '', fare: '', notes: '',
 }
 
 const EMPTY_TYPE_DATA = {
@@ -385,8 +393,8 @@ const EMPTY_TYPE_DATA = {
   round_trip:         { pickup: '', destination: '', returnDate: '', returnTime: '' },
   local_visit:        { baseLocation: '', stops: [''], waitingTime: '' },
   multi_day:          { pickup: '', destination: '', numberOfDays: '' },
-  rental_with_driver: { pickupTime: '', returnTime: '' },
-  self_drive:         { pickupTime: '', returnTime: '', securityDeposit: '', startKm: '', endKm: '' },
+  rental_with_driver: { pickup: '', pickupTime: '', returnTime: '' },
+  self_drive:         { pickup: '', pickupTime: '', returnTime: '', securityDeposit: '', startKm: '', endKm: '' },
 }
 
 export default function CreateTrip() {
@@ -398,6 +406,7 @@ export default function CreateTrip() {
   const [common,     setCommon]     = useState(EMPTY_COMMON)
   const [typeData,   setTypeData]   = useState({})
   const [submitted,  setSubmitted]  = useState(false)
+  const [created,    setCreated]    = useState(null)
   const [errors,     setErrors]     = useState({})
   const [drivers,    setDrivers]    = useState([])
   const [vehicles,   setVehicles]   = useState([])
@@ -429,6 +438,7 @@ export default function CreateTrip() {
     if (!common.vehicle)         e.vehicle  = 'Vehicle is required'
     if (!isSelfDrive && !common.driver) e.driver = 'Driver is required'
     if (!common.startDate)       e.startDate = 'Start date is required'
+    if (!(Number(common.fare) > 0)) e.fare = 'Enter the trip fare (greater than 0)'
     return e
   }
 
@@ -444,8 +454,9 @@ export default function CreateTrip() {
     const selectedVehicle = vehicles.find(v => v.id === common.vehicle)
 
     // Derive pickup/drop from type-specific data for display
-    const pickup = typeData.pickup || typeData.baseLocation || common.customer
-    const drop   = typeData.drop   || typeData.destination  || typeData.stops?.join(' · ') || '—'
+    const pickup = typeData.pickup || typeData.baseLocation || '—'
+    const drop   = typeData.drop   || typeData.destination  || typeData.stops?.filter(Boolean).join(' · ') || '—'
+    const fare   = Number(common.fare) || 0
 
     // Build payload with snake_case column names matching the Supabase schema
     const booking = {
@@ -464,7 +475,7 @@ export default function CreateTrip() {
       notes:            common.notes.trim(),
       driver_id:        selectedDriver?.id  || null,
       vehicle_id:       selectedVehicle?.id || null,
-      total_fare:       null,
+      total_fare:       fare,
       total_km:         null,
       // Store display names + all type-specific fields in type_data JSONB
       type_data: {
@@ -492,6 +503,7 @@ export default function CreateTrip() {
     if (selectedDriver) {
       addTimelineEvent(bookingNo, 'assigned', `Assigned to ${selectedDriver.name}`)
     }
+    setCreated({ no: bookingNo, fare, pickup, drop })
     setSubmitted(true)
   }
 
@@ -512,8 +524,11 @@ export default function CreateTrip() {
           {/* Summary */}
           <div className="bg-[var(--ap-surface-2)] rounded-2xl p-4 text-left space-y-2.5">
             {[
+              { label: 'Booking No.', value: created?.no || '—' },
               { label: 'Trip Type',   value: cfg.label },
               { label: 'Customer',    value: common.customer },
+              { label: 'Route',       value: `${created?.pickup || '—'} → ${created?.drop || '—'}` },
+              { label: 'Fare',        value: `Rs. ${Number(created?.fare || 0).toLocaleString('en-IN')}` },
               { label: 'Vehicle',     value: vehicles.find(v => v.id === common.vehicle)?.reg || common.vehicle },
               { label: 'Driver',      value: drivers.find(d => d.id === common.driver)?.name || (tripType === 'self_drive' ? 'Self Drive' : '—') },
               { label: 'Start Date',  value: common.startDate },
@@ -529,7 +544,7 @@ export default function CreateTrip() {
             <Button
               variant="secondary"
               className="flex-1"
-              onClick={() => { setStep(0); setTripType(null); setCommon(EMPTY_COMMON); setTypeData({}); setSubmitted(false) }}
+              onClick={() => { setStep(0); setTripType(null); setCommon(EMPTY_COMMON); setTypeData({}); setSubmitted(false); setCreated(null) }}
             >
               New Trip
             </Button>
@@ -704,6 +719,25 @@ export default function CreateTrip() {
               />
             </div>
           </Grid2>
+        </FieldGroup>
+
+        {/* Fare */}
+        <FieldGroup title="Fare" icon={IndianRupee}>
+          <div>
+            <Label required>Trip Fare (Rs.)</Label>
+            <Input
+              type="number"
+              min="0"
+              step="1"
+              value={common.fare}
+              onChange={e => setCommon({ ...common, fare: e.target.value })}
+              placeholder="e.g. 2500"
+              required
+              className={errors.fare ? 'border-red-400 dark:border-red-600' : ''}
+            />
+            {errors.fare && <p className="text-xs text-red-500 mt-1">{errors.fare}</p>}
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5">Used for invoices, revenue and driver settlement.</p>
+          </div>
         </FieldGroup>
 
         {/* Type-specific fields */}

@@ -3,7 +3,7 @@
 // table, key = 'company_settings'). Loaded with deep-merge so new
 // defaults don't break old saves. Business data — never localStorage.
 
-import supabase from '../lib/supabase'
+import { loadSettingValue, saveSettingValue, deleteSettingValue } from './settingsStore'
 
 export const SETTINGS_KEY = 'company_settings'
 
@@ -49,40 +49,33 @@ function mergeWithDefaults(saved) {
 }
 
 export async function loadSettings() {
-  const { data, error } = await supabase
-    .from('settings')
-    .select('value')
-    .eq('key', SETTINGS_KEY)
-    .maybeSingle()
-  if (error) {
+  try {
+    return mergeWithDefaults(await loadSettingValue(SETTINGS_KEY, null))
+  } catch (error) {
     console.error('[settingsData] loadSettings failed:', error)
     throw error
   }
-  return mergeWithDefaults(data?.value)
 }
 
 export async function saveSettings(settings) {
   const value = { ...settings, updatedAt: new Date().toISOString() }
-  const { error } = await supabase
-    .from('settings')
-    .upsert({ key: SETTINGS_KEY, value }, { onConflict: 'key' })
-  if (error) {
+  try {
+    await saveSettingValue(SETTINGS_KEY, value)
+    return true
+  } catch (error) {
     console.error('[settingsData] saveSettings failed:', error)
     throw error
   }
-  return true
 }
 
 export async function resetSettings() {
-  const { error } = await supabase
-    .from('settings')
-    .delete()
-    .eq('key', SETTINGS_KEY)
-  if (error) {
+  try {
+    await deleteSettingValue(SETTINGS_KEY)
+    return true
+  } catch (error) {
     console.error('[settingsData] resetSettings failed:', error)
     throw error
   }
-  return true
 }
 
 // ── Convenience getters used by InvoiceModal ──────────────────

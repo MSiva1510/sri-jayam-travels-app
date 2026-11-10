@@ -3,6 +3,7 @@
 // communication_queue, and communication_providers.
 
 import supabase from '../lib/supabase'
+import { loadSettingValue, saveSettingValue } from '../data/settingsStore'
 
 const LS_LOGS   = 'sjt_comm_logs'
 const LS_PREFS  = 'sjt_notif_prefs'
@@ -254,8 +255,8 @@ export const mobilePushSettingsRepository = {
   async get() {
     if (supabase) {
       try {
-        const { data, error } = await supabase.from('settings').select('value').eq('key', 'mobile_push_settings').single()
-        if (!error && data?.value) return { ...this.defaults(), ...data.value }
+        const value = await loadSettingValue('mobile_push_settings', null)
+        if (value) return { ...this.defaults(), ...value }
       } catch {}
     }
     try {
@@ -267,10 +268,8 @@ export const mobilePushSettingsRepository = {
   async save(cfg) {
     const value = { ...this.defaults(), ...cfg, updated_at: new Date().toISOString() }
     if (supabase) {
-      try {
-        const { error } = await supabase.from('settings').upsert({ key: 'mobile_push_settings', value }, { onConflict: 'key' })
-        if (!error) return value
-      } catch {}
+      await saveSettingValue('mobile_push_settings', value)
+      return value
     }
     try { localStorage.setItem(LS_MOBILE_PUSH, JSON.stringify(value)) } catch {}
     return value

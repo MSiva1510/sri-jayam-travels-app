@@ -1,5 +1,6 @@
 // ─── Admin Repository ─────────────────────────────────────────
 import supabase from '../lib/supabase'
+import { saveSettingValue } from '../data/settingsStore'
 
 const LS = {
   ROLES:    'sjt_role_perms',
@@ -126,11 +127,10 @@ export const systemSettingsRepository = {
   async set(key, value, updatedBy) {
     if (supabase) {
       try {
-        await supabase.from('settings').upsert(
-          { setting_key:key, setting_value:String(value), updated_by:updatedBy, updated_at:new Date().toISOString() },
-          { onConflict:'setting_key' }
-        )
-      } catch {}
+        await saveSettingValue(key, String(value))
+      } catch (err) {
+        console.error('[adminRepository] system setting save failed:', key, err)
+      }
     }
     const local = rLS(LS.SETTINGS)
     const idx = local.findIndex(s => s.setting_key === key)

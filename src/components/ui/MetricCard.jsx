@@ -12,12 +12,15 @@ export const METRIC_TONES = {
 }
 
 export default function MetricCard({
-  label, value, sub, icon: Icon, tone = 'blue', trend, trendUp,
+  label, value, sub, icon: Icon, tone = 'blue', trend, trendUp, trendGood,
   onClick, className = '',
 }) {
   const chip = METRIC_TONES[tone] || METRIC_TONES.blue
   const interactive = typeof onClick === 'function'
   const Comp = interactive ? 'button' : 'div'
+  // trendUp = arrow direction; trendGood = colour (defaults to same). Lets a
+  // rising expense count read red while still showing an up arrow.
+  const good = trendGood === undefined ? trendUp : trendGood
   return (
     <Comp
       type={interactive ? 'button' : undefined}
@@ -33,7 +36,7 @@ export default function MetricCard({
         )}
         {trend !== undefined && (
           <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-md tabular-nums ${
-            trendUp
+            good
               ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
               : 'bg-red-500/10 text-red-600 dark:text-red-400'
           }`}>

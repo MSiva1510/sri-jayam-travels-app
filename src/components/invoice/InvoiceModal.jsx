@@ -80,8 +80,8 @@ export default function InvoiceModal({ booking, onClose, docType }) {
   }, [])
   const cur = invSettings.currency
 
-  const invNo      = booking.bookingNo || booking.id
-  const invDate    = fmtShort(new Date().toISOString().slice(0, 10))
+  const invNo      = booking.invoiceNo || booking.invoice_no || booking.bookingNo || booking.id
+  const invDate    = fmtShort(booking.invoiceDate || booking.invoice_date || booking.createdAt || booking.created_at || new Date().toISOString().slice(0, 10))
   const tripDate   = fmtShort(booking.startDate)
   const monthPill  = (booking.startDate ? new Date(booking.startDate) : new Date())
     .toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
@@ -107,6 +107,23 @@ export default function InvoiceModal({ booking, onClose, docType }) {
     { desc: 'Other Charges', amt: extras,  show: extras > 0  },
   ].filter(r => r.show)
 
+  // One total, computed from the same line items that are printed — the
+  // amount due must never disagree with its own breakdown.
+  const totalAmount = lineItems.reduce((sum, r) => sum + (Number(r.amt) || 0), 0)
+
+  // Payments are only "PAID" on an explicit payment status. A completed
+  // trip is not the same thing as a settled bill.
+  const paymentStatus = String(booking.paymentStatus ?? booking.payment_status ?? '').toLowerCase()
+  const isPaid = ['paid', 'settled'].includes(paymentStatus)
+  const stampText  = isQuote ? 'QUOTE' : isPaid ? 'PAID' : isDone ? 'COMPLETED' : (booking.status || 'PENDING').toUpperCase().slice(0, 12)
+  const stampTone  = isQuote
+    ? 'border-sky-500 text-sky-600'
+    : isPaid
+    ? 'border-emerald-500 text-emerald-600'
+    : isDone
+    ? 'border-slate-400 text-slate-500'
+    : 'border-amber-500 text-amber-600'
+
   // WhatsApp message
   const waText = encodeURIComponent(
     `*${biz.name}*\n` +
@@ -115,7 +132,8 @@ export default function InvoiceModal({ booking, onClose, docType }) {
     `Date: ${fmtDate(booking.startDate)}\n` +
     `${booking.pickup || '—'} → ${booking.drop || '—'}\n` +
     `Distance: ${totalKm || '—'} km\n` +
-    `Fare: ${cur} ${(booking.fare || 0).toLocaleString('en-IN')}\n\n` +
+    `Fare: ${cur} ${(booking.fare || 0).toLocaleString('en-IN')}\n` +
+    `*Total: ${cur} ${totalAmount.toLocaleString('en-IN')}*\n\n` +
     `${invSettings.footerText}\n` +
     `${biz.phone}`
   )
@@ -290,9 +308,9 @@ export default function InvoiceModal({ booking, onClose, docType }) {
               <div className="mx-3 mb-3 mt-1 rounded-xl px-4 py-2.5 flex items-center justify-between gap-3"
                 style={{ background: '#16205c' }}>
                 <p className="text-[11px] font-bold text-white/85 uppercase tracking-wider">{isQuote ? 'Estimated Total' : 'Total Amount Due'}</p>
-                <p className="font-sf font-semibold text-white text-base tabular-nums">{fmtMoney(booking.fare, cur)}</p>
+                <p className="font-sf font-semibold text-white text-base tabular-nums">{fmtMoney(totalAmount, cur)}</p>
               </div>
-              <p className="px-4 pb-3 text-[11px] italic text-slate-500">In words: {amountInWords(booking.fare)}</p>
+              <p className="px-4 pb-3 text-[11px] italic text-slate-500">In words: {amountInWords(totalAmount)}</p>
             </div>
 
             {/* ── Driver / vehicle strip ── */}
@@ -329,14 +347,8 @@ export default function InvoiceModal({ booking, onClose, docType }) {
                   <span className="text-[8px] font-bold text-slate-500">Google Review</span>
                 </div>
                 <div className="flex flex-col items-center gap-1">
-                  <div className={`w-16 h-16 rounded-full border-[3px] flex flex-col items-center justify-center ${
-                    isQuote
-                      ? 'border-sky-500 text-sky-600'
-                      : isDone
-                      ? 'border-emerald-500 text-emerald-600'
-                      : 'border-amber-500 text-amber-600'
-                  }`}>
-                    <span className="text-[11px] font-semibold leading-none">{isQuote ? 'QUOTE' : isDone ? 'PAID' : (booking.status || 'PENDING').toUpperCase().slice(0, 9)}</span>
+                  <div className={`w-16 h-16 rounded-full border-[3px] flex flex-col items-center justify-center ${stampTone}`}>
+                    <span className="text-[11px] font-semibold leading-none">{stampText}</span>
                     <span className="text-[8px] font-semibold mt-0.5">{tripDate}</span>
                   </div>
                 </div>

@@ -10,7 +10,7 @@ import { dataService } from '../services/dataService'
 
 const EXPENSES_STORAGE_KEY = 'sjt_expenses'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-const EXPENSE_SELECT = 'id, booking_id, driver_id, driver_name, amount, expense_date, description, created_by, status, type, odometer_km, litres_filled, fuel_station, fuel_rate, created_at, updated_at'
+const EXPENSE_SELECT = 'id, booking_id, driver_id, driver_name, amount, expense_date, description, created_by, status, type, odometer_km, litres_filled, fuel_station, fuel_rate, receipt_url, receipt_name, created_at, updated_at'
 
 function toDbExpense(data = {}) {
   const payload = {
@@ -27,6 +27,8 @@ function toDbExpense(data = {}) {
     litres_filled: data.litresFilled,
     fuel_station: data.fuelStation,
     fuel_rate: data.fuelRate,
+    receipt_url: data.receipt_url ?? data.receiptUrl ?? undefined,
+    receipt_name: data.receipt_name ?? data.receiptName ?? undefined,
   }
   return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined))
 }

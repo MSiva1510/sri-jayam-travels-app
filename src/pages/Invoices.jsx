@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, Printer, Eye, AlertTriangle, FileText, X, Columns3, Check, CalendarDays, IndianRupee } from 'lucide-react'
+import { Plus, Printer, Eye, AlertTriangle, FileText, X, Columns3, Check, CalendarDays, IndianRupee, Trash2 } from 'lucide-react'
 import Avatar        from '../components/ui/Avatar'
 import Button        from '../components/ui/Button'
 import PageHeader    from '../components/ui/PageHeader'
@@ -14,6 +14,7 @@ import { fieldCls, Select as FieldSelect } from '../components/ui/Field'
 import InvoiceModal  from '../components/invoice/InvoiceModal'
 import { useAuth }   from '../context/AuthContext'
 import { loadBookings, getStatusCfg } from '../data/tripTypes'
+import { loadManualInvoices, saveManualInvoices, deleteManualInvoice } from '../data/manualInvoiceData'
 import { pageSizeFor } from '../utils/zoomPageSize'
 
 // ── Customizable columns (Actions is always on; preference persists) ──
@@ -157,8 +158,24 @@ export default function Invoices() {
 
   // Picker tabs: billable (completed/closed) vs new or non-complete trips
   const [pickTab, setPickTab] = useState('completed') // 'completed' | 'ongoing'
-  // Manual bills/quotations live in-session and list under New/Ongoing only
+  // Manual bills/quotations are stored in Supabase (`settings.manual_invoices`)
+  // so they survive a reload and are visible to every admin.
   const [manualDocs, setManualDocs] = useState([])
+  const [manualError, setManualError] = useState(null)
+  const [manualSaving, setManualSaving] = useState(false)
+
+  const reloadManualDocs = useCallback(async () => {
+    try {
+      const list = await loadManualInvoices()
+      setManualDocs(list)
+      setManualError(null)
+    } catch (err) {
+      console.error('[Invoices] load manual invoices failed:', err)
+      setManualError(err.message || 'Could not load manual invoices')
+    }
+  }, [])
+  useEffect(() => { reloadManualDocs() }, [reloadManualDocs])
+
   // Manual bill / quotation creator
   const [manualOpen, setManualOpen] = useState(false)
   const [manualKind, setManualKind] = useState('invoice') // 'invoice' | 'quotation'
@@ -173,8 +190,8 @@ export default function Invoices() {
   const updManual = (k) => (e) => setManualForm(f => ({ ...f, [k]: e.target.value }))
   const manualValid = manualForm.customer.trim() !== '' && Number(manualForm.fare) > 0
 
-  const createManual = () => {
-    if (!manualValid) return
+  const createManual = async () => {
+    if (!manualValid || manualSaving) return
     const num = (v) => Number(v) || 0
     const doc = {
       id: `manual-${Date.now()}`,
@@ -199,17 +216,45 @@ export default function Invoices() {
       notes: manualForm.notes.trim(),
       leadSource: manualForm.leadSource.trim(),
       source: manualForm.leadSource.trim(),
-      status: 'draft',
+      status: 'pending',
       docType: manualKind,
       isManual: true,
+      createdAt: new Date().toISOString(),
     }
-    // Lists under New/Ongoing only — preview it right away
-    setManualDocs(prev => [doc, ...prev])
-    setSelected(doc)
-    setManualOpen(false)
+    setManualSaving(true)
+    setManualError(null)
+    try {
+      const next = await saveManualInvoices([doc, ...manualDocs])
+      setManualDocs(next)
+      setSelected(next.find(d => d.bookingNo === doc.bookingNo) || doc)
+      setManualOpen(false)
+    } catch (err) {
+      console.error('[Invoices] save manual invoice failed:', err)
+      setManualError(err.message || 'Could not save this bill. Please try again.')
+    } finally {
+      setManualSaving(false)
+    }
   }
-  const completedList = bookings.filter(b => b.status === 'completed' || b.status === 'closed')
-  const ongoingList = [...manualDocs, ...bookings.filter(b => b.status !== 'completed' && b.status !== 'closed')]
+
+  const deleteManual = async (id) => {
+    if (!window.confirm('Delete this manual bill? This cannot be undone.')) return
+    try {
+      await deleteManualInvoice(id)
+      setManualDocs(docs => docs.filter(d => d.id !== id))
+      setManualError(null)
+    } catch (err) {
+      console.error('[Invoices] delete manual invoice failed:', err)
+      setManualError(err.message || 'Could not delete this bill. Please try again.')
+    }
+  }
+
+  const billableTrips = bookings.filter(b => b.status === 'completed' || b.status === 'closed')
+  // Manual invoices are bills too, so they belong in the invoice list and in
+  // the completed tab. Quotations stay in New/Ongoing until they become bills.
+  const manualInvoices  = manualDocs.filter(d => d.docType !== 'quotation')
+  const manualQuotes    = manualDocs.filter(d => d.docType === 'quotation')
+  const completedList   = [...manualInvoices, ...billableTrips]
+  const ongoingList     = [...manualQuotes, ...bookings.filter(b => b.status !== 'completed' && b.status !== 'closed')]
   const pickList = pickTab === 'completed' ? completedList : ongoingList
 
   // Main list shows completed trips only — ongoing lives in Trips + picker
@@ -311,9 +356,9 @@ export default function Invoices() {
                     : 'No new or ongoing trips right now.'}
                 </p>
               ) : pickList.map(b => (
-                <button key={b.id} onClick={() => { setSelected(b); setPickerOpen(false) }}
-                  className="ap-surface ios-press w-full text-left p-3 flex items-center justify-between gap-3">
-                  <div className="min-w-0 flex-1">
+                <div key={b.id} className="ap-surface ios-press w-full flex items-center gap-1.5 pr-1.5">
+                  <button onClick={() => { setSelected(b); setPickerOpen(false) }}
+                    className="flex-1 min-w-0 text-left p-3">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{b.customer}</p>
                       <StatusBadge status={b.status} />
@@ -327,12 +372,17 @@ export default function Invoices() {
                         </span>
                       )}
                     </div>
-                    <p className="text-[10px] font-mono text-slate-400 truncate mt-0.5">{b.bookingNo || b.id} · {b.pickup} → {b.drop}</p>
-                  </div>
-                  <span className="text-xs font-semibold text-navy-800 dark:text-blue-300 whitespace-nowrap tabular-nums flex-shrink-0">
-                    {b.fare ? `Rs. ${b.fare.toLocaleString('en-IN')}` : '—'}
-                  </span>
-                </button>
+                    <p className="text-[10px] font-mono text-slate-400 truncate mt-0.5">{b.bookingNo || b.id} · {b.pickup || '—'} → {b.drop || '—'}</p>
+                    <span className="text-xs font-semibold text-navy-800 dark:text-blue-300 whitespace-nowrap tabular-nums">
+                      {b.fare ? `Rs. ${b.fare.toLocaleString('en-IN')}` : '—'}
+                    </span>
+                  </button>
+                  {b.isManual && canCreate && (
+                    <IconButton icon={Trash2} size={15} tone="red"
+                      label={`Delete ${b.docType === 'quotation' ? 'quotation' : 'manual invoice'} for ${b.customer}`}
+                      onClick={() => deleteManual(b.id)} />
+                  )}
+                </div>
               ))}
             </div>
             {pickTab === 'ongoing' && (
@@ -417,10 +467,16 @@ export default function Invoices() {
               {!manualValid && (
                 <p className="text-[11px] text-slate-400 dark:text-slate-500">Add a customer name and a fare above Rs. 0 to preview.</p>
               )}
+              {manualError && (
+                <div className="flex items-start gap-2 rounded-xl bg-red-50 dark:bg-red-900/20 px-3 py-2">
+                  <AlertTriangle size={14} className="text-red-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-red-600 dark:text-red-400">{manualError}</p>
+                </div>
+              )}
             </div>
             <div className="p-3 border-t border-[var(--ap-border)]">
-              <Button variant="primary" className="w-full" disabled={!manualValid} onClick={createManual}>
-                Preview {manualKind === 'quotation' ? 'Quotation' : 'Invoice'}
+              <Button variant="primary" className="w-full" disabled={!manualValid || manualSaving} onClick={createManual}>
+                {manualSaving ? 'Saving…' : `Preview ${manualKind === 'quotation' ? 'Quotation' : 'Invoice'}`}
               </Button>
             </div>
           </div>
@@ -478,6 +534,11 @@ export default function Invoices() {
 
       {loadError && (
         <Callout tone="red" icon={AlertTriangle} title={loadError} actionLabel="Retry" onAction={reloadBookings} />
+      )}
+
+      {manualError && !manualOpen && (
+        <Callout tone="red" icon={AlertTriangle} title={manualError}
+          actionLabel="Retry" onAction={reloadManualDocs} />
       )}
 
       {!loading && (
@@ -560,7 +621,10 @@ export default function Invoices() {
                     <div className="flex items-center gap-2.5">
                       <Avatar name={b.customer} size={28} />
                       <div className="min-w-0">
-                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate max-w-[160px]">{b.customer}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate max-w-[160px]">{b.customer}</p>
+                          {b.isManual && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 uppercase tracking-wide flex-shrink-0">Manual</span>}
+                        </div>
                         <p className="text-[10px] font-mono text-slate-400 truncate max-w-[160px]">{b.bookingNo || b.id}</p>
                       </div>
                     </div>
@@ -593,7 +657,10 @@ export default function Invoices() {
             <div className="flex items-center gap-2.5 mb-2">
               <Avatar name={b.customer} size={32} />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{b.customer}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{b.customer}</p>
+                  {b.isManual && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 uppercase tracking-wide flex-shrink-0">Manual</span>}
+                </div>
                 <p className="text-[11px] text-slate-400 dark:text-slate-500 font-mono truncate">{b.bookingNo || b.id} · {b.startDate || ''}</p>
               </div>
               <StatusBadge status={b.status} />

@@ -579,17 +579,29 @@ function SystemTab({ user }) {
     } catch { setCacheKB(null) }
   }
   useEffect(() => { measure() }, [])
+  // Only throwaway lookups are removed. Business records (drivers, trips,
+  // expenses, settlements…), theme choices and preferences are never deleted
+  // from here — locally stored fallback rows are still real data.
+  const CLEARABLE_KEYS = [
+    'sjt_geocode_cache',
+    'sjt_supabase_missing_tables',
+    'sjt_supabase_missing_tables_v2',
+    'sjt_gps_method',
+    'sjt_gps_last_call',
+  ]
   const clearCache = () => {
-    if (!window.confirm('Clear cached app data? You stay signed in.')) return
+    if (!window.confirm('Clear temporary cached data? Saved records, theme and sign-in are kept.')) return
     try {
       cacheClear()
       const drop = []
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i)
-        if (k && k.startsWith('sjt') && !k.startsWith('sjt-theme') && k !== 'sjt_brand_color' && k !== 'sjt_sb_color' && k !== 'sjt_compact' && k !== 'sjt-sidebar-style' && k !== 'sjt-theme-mode' && k !== 'sjt-font-size') drop.push(k)
+        if (k && CLEARABLE_KEYS.some(prefix => k === prefix || k.startsWith(`${prefix}_`))) drop.push(k)
       }
       drop.forEach(k => localStorage.removeItem(k))
-    } catch {}
+    } catch (err) {
+      console.error('[Settings] clear cache failed:', err)
+    }
     window.location.reload()
   }
   let host = ''

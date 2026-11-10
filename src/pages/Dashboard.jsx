@@ -166,9 +166,13 @@ export default function Dashboard() {
   const absentCount  = todayAttendance.filter(a => a.status === 'absent').length
 
   // ── Booking derived ───────────────────────────────────────
+  // Cancelled trips never earned a fare — they are excluded from every
+  // money/KM figure and from the trend charts, but still counted in the
+  // booking status tiles.
+  const revenueBookings  = bookings.filter(b => b.status !== 'cancelled')
   const todayStr         = toLocalDateStr()
   const thisMonthKey     = toLocalMonthStr()
-  const monthBookings    = bookings.filter(b => b.startDate?.startsWith(thisMonthKey))
+  const monthBookings    = revenueBookings.filter(b => b.startDate?.startsWith(thisMonthKey))
   const monthFare        = monthBookings.reduce((s, b) => s + (b.fare || 0), 0)
   const monthKm          = monthBookings.reduce((s, b) => s + (b.km || 0), 0)
   const monthDone        = monthBookings.filter(b => b.status === 'completed').length
@@ -238,16 +242,41 @@ export default function Dashboard() {
   const periodTag        = period === 'year' ? 'this year' : 'this month'
   const periodTagCap     = period === 'year' ? 'This Year' : 'This Month'
   const periodBookings   = bookings.filter(b => b.startDate?.startsWith(periodKey))
-  const periodFare       = periodBookings.reduce((s, b) => s + (b.fare || 0), 0)
-  const periodKm         = periodBookings.reduce((s, b) => s + (b.km || 0), 0)
-  const periodDone       = periodBookings.filter(b => b.status === 'completed').length
-  const periodPending    = periodBookings.filter(b => ['draft', 'confirmed', 'assigned'].includes(b.status)).length
+  const periodRevenue    = periodBookings.filter(b => b.status !== 'cancelled')
+  const periodFare       = periodRevenue.reduce((s, b) => s + (b.fare || 0), 0)
+  const periodKm         = periodRevenue.reduce((s, b) => s + (b.km || 0), 0)
+  const periodDone       = periodRevenue.filter(b => b.status === 'completed').length
+  const periodPending    = periodRevenue.filter(b => ['draft', 'confirmed', 'assigned'].includes(b.status)).length
   const periodCancelled  = periodBookings.filter(b => b.status === 'cancelled').length
   const periodExpenses   = allExpenses.filter(e => { const d = getExpenseDate(e); return d ? d.startsWith(periodKey) : false })
   const periodExpTotal   = periodExpenses.reduce((s, e) => s + (e.amount || 0), 0)
   const periodNet        = periodFare - periodExpTotal
   const periodCustomers  = customers.filter(c => c.createdAt?.startsWith(periodKey)).length
   const expByCategory    = summariseByType(periodExpenses).slice(0, 3)
+
+  // ── Real period-over-period deltas (previous month / previous year) ──
+  const prevPeriodKey = (() => {
+    if (period === 'year') return String(Number(periodYear) - 1)
+    const now = new Date()
+    return toLocalMonthStr(new Date(now.getFullYear(), now.getMonth() - 1, 1))
+  })()
+  const prevRevenue = bookings.filter(b =>
+    b.status !== 'cancelled' && b.startDate?.startsWith(prevPeriodKey)
+  )
+  const prevPeriodFare = prevRevenue.reduce((s, b) => s + (b.fare || 0), 0)
+  const prevPeriodExpTotal = allExpenses
+    .filter(e => (getExpenseDate(e) || '').startsWith(prevPeriodKey))
+    .reduce((s, e) => s + (e.amount || 0), 0)
+  const prevPeriodNet = prevPeriodFare - prevPeriodExpTotal
+  const deltaPct = (current, previous) => {
+    const prev = Number(previous)
+    const cur  = Number(current)
+    if (!(prev > 0)) return cur > 0 ? 100 : undefined
+    return Math.round(((cur - prev) / prev) * 1000) / 10
+  }
+  const fareDelta = deltaPct(periodFare, prevPeriodFare)
+  const netDelta  = deltaPct(periodNet, prevPeriodNet)
+  const expDelta  = deltaPct(periodExpTotal, prevPeriodExpTotal)
 
   // ── Settlement derived ────────────────────────────────────
   const totalPayrollPaid = settlements
@@ -257,8 +286,8 @@ export default function Dashboard() {
   const settledApproved = settlements.filter(s => s.status === 'approved').length
 
   // ── Revenue KPIs ──────────────────────────────────────────
-  const totalFare = bookings.reduce((s, b) => s + (b.fare  || 0), 0)
-  const totalKm   = bookings.reduce((s, b) => s + (b.km    || 0), 0)
+  const totalFare = revenueBookings.reduce((s, b) => s + (b.fare  || 0), 0)
+  const totalKm   = revenueBookings.reduce((s, b) => s + (b.km    || 0), 0)
   const totalExp  = allExpenses.reduce((s, e) => s + (e.amount || 0), 0)
   const totalNet  = totalFare - totalExp
   const doneTrips    = bookingCompleted.length
@@ -273,7 +302,7 @@ export default function Dashboard() {
       const d     = new Date(now.getFullYear(), now.getMonth() - i, 1)
       const key   = toLocalMonthStr(d)
       const label = d.toLocaleDateString('en-IN', { month: 'short' })
-      const fare  = bookings
+      const fare  = revenueBookings
         .filter(b => b.startDate?.startsWith(key))
         .reduce((s, b) => s + (b.fare || 0), 0)
       months.push({ month: label, fare })
@@ -287,7 +316,7 @@ export default function Dashboard() {
       const d     = new Date(y, m, 1)
       const key   = toLocalMonthStr(d)
       const label = d.toLocaleDateString('en-IN', { month: 'short' })
-      const fare  = bookings
+      const fare  = revenueBookings
         .filter(b => b.startDate?.startsWith(key))
         .reduce((s, b) => s + (b.fare || 0), 0)
       out.push({ month: label, fare })
@@ -328,7 +357,7 @@ export default function Dashboard() {
       const d     = new Date(now.getFullYear(), now.getMonth() - i, 1)
       const key   = toLocalMonthStr(d)
       const label = d.toLocaleDateString('en-IN', { month: 'short' })
-      out.push({ month: label, fare: bookings.filter(b => b.startDate?.startsWith(key)).length })
+      out.push({ month: label, fare: revenueBookings.filter(b => b.startDate?.startsWith(key)).length })
     }
     return out
   })()
@@ -467,10 +496,10 @@ export default function Dashboard() {
       {/* ── KPI Stats (follow the Month / This Year toggle) ── */}
       {can('revenueDashboard') ? (
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-          <MetricCard label={`Fare (${periodTagCap})`}     value={`Rs. ${periodFare.toLocaleString('en-IN')}`} sub={`${periodBookings.length} trips ${periodTag}`} icon={IndianRupee} tone="blue"   trend={8.4} trendUp />
-          <MetricCard label={`Net Income (${periodTagCap})`} value={`Rs. ${periodNet.toLocaleString('en-IN')}`}  sub={`After trip costs ${periodTag}`}             icon={TrendingUp}  tone="green"  trend={5.2} trendUp />
+          <MetricCard label={`Fare (${periodTagCap})`}     value={`Rs. ${periodFare.toLocaleString('en-IN')}`} sub={`${periodRevenue.length} trips ${periodTag}`} icon={IndianRupee} tone="blue"   trend={fareDelta === undefined ? undefined : Math.abs(fareDelta)} trendUp={fareDelta >= 0} />
+          <MetricCard label={`Net Income (${periodTagCap})`} value={`Rs. ${periodNet.toLocaleString('en-IN')}`}  sub={`After trip costs ${periodTag}`}             icon={TrendingUp}  tone="green"  trend={netDelta === undefined ? undefined : Math.abs(netDelta)} trendUp={netDelta >= 0} />
           <MetricCard label={`KM (${periodTagCap})`}       value={periodKm.toLocaleString('en-IN')}               sub={`Kilometres covered ${periodTag}`}           icon={Car}         tone="violet" />
-          <MetricCard label={`Expenses (${periodTagCap})`} value={`Rs. ${periodExpTotal.toLocaleString('en-IN')}`} sub={`${periodExpenses.length} entries ${periodTag}`} icon={Receipt}     tone="amber"  trend={2.1} trendUp={false} />
+          <MetricCard label={`Expenses (${periodTagCap})`} value={`Rs. ${periodExpTotal.toLocaleString('en-IN')}`} sub={`${periodExpenses.length} entries ${periodTag}`} icon={Receipt}     tone="amber"  trend={expDelta === undefined ? undefined : Math.abs(expDelta)} trendUp={expDelta >= 0} trendGood={expDelta <= 0} />
         </div>
       ) : (
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">

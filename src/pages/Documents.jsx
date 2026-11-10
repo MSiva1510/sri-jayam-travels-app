@@ -1,6 +1,7 @@
 // ─── Documents Page — Module 3 ────────────────────────────
 // Centralised document management with expiry tracking, per-entity
-// categories and localStorage/Supabase dual-write.
+// categories. Metadata lives in the Supabase `documents` table and the
+// actual files in the private `trip-documents` storage bucket.
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
@@ -127,57 +128,78 @@ function daysLeft(d) {
   return Math.floor((new Date(d + 'T00:00:00') - today) / 86400000)
 }
 
-// ── Local store ───────────────────────────────────────────────
-const LS_KEY = 'sjt_documents'
-function readLocal()  { try { return JSON.parse(localStorage.getItem(LS_KEY)||'[]') } catch { return [] } }
-function writeLocal(d){ try { localStorage.setItem(LS_KEY, JSON.stringify(d)) } catch {} }
-let _local = readLocal()
+// ── Persistence (Supabase only) ───────────────────────────────
+// Documents are business data, not browser state. If the backend is
+// unavailable the page must say so rather than silently showing a stale
+// localStorage copy that other admins will never see.
+const DOC_BUCKET     = 'trip-documents'
+const DOC_MAX_BYTES  = 10 * 1024 * 1024      // matches the bucket limit
+const SIGNED_URL_TTL = 60 * 60 * 24 * 365    // private bucket → 1-year link
 
-async function fetchDocs() {
-  if (supabase) {
-    try {
-      const { data, error } = await supabase.from('documents').select('*').order('created_at', { ascending:false })
-      if (!error && data) return data
-    } catch {}
-  }
-  return _local
+function requireSupabase() {
+  if (!supabase) throw new Error('Supabase is not configured')
+  return supabase
 }
 
-async function upsertDoc(doc) {
-  const payload = {
+async function fetchDocs() {
+  const { data, error } = await requireSupabase()
+    .from('documents')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (error) throw new Error(error.message || 'Could not load documents')
+  return Array.isArray(data) ? data : []
+}
+
+function docPayload(doc) {
+  return {
     document_type: doc.doc_type || 'other',
     related_entity: doc.category,
     title:          doc.title,
     category:       doc.category,
     doc_type:       doc.doc_type,
     status:         calcStatus(doc.expiry_date),
-    expiry_date:    doc.expiry_date  || null,
-    reminder_date:  doc.reminder_date|| null,
-    notes:          doc.notes        || null,
-    driver_id:      doc.driver_id    || null,
-    vehicle_id:     doc.vehicle_id   || null,
-    customer_id:    doc.customer_id  || null,
-    file_name:      doc.file_name    || doc.fileName    || null,
-    file_url:       doc.file_url     || doc.fileUrl     || null,
+    expiry_date:    doc.expiry_date   || null,
+    reminder_date:  doc.reminder_date || null,
+    notes:          doc.notes         || null,
+    driver_id:      doc.driver_id     || null,
+    vehicle_id:     doc.vehicle_id    || null,
+    customer_id:    doc.customer_id   || null,
+    file_name:      doc.file_name     || null,
+    file_url:       doc.file_url      || null,
+    file_size:      doc.file_size == null ? null : Number(doc.file_size),
   }
-  if (supabase) {
-    try {
-      const { data, error } = await supabase.from('documents').insert(payload).select().single()
-      if (!error && data) { _local = [data, ..._local]; writeLocal(_local); return data }
-    } catch {}
-  }
-  const saved = { ...payload, id: `local-${Date.now()}`, created_at: new Date().toISOString() }
-  _local = [saved, ..._local]
-  writeLocal(_local)
-  return saved
+}
+
+async function upsertDoc(doc) {
+  const client  = requireSupabase()
+  const payload = docPayload(doc)
+  const isUpdate = doc.id && !String(doc.id).startsWith('local-')
+  const query = isUpdate
+    ? client.from('documents').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', doc.id)
+    : client.from('documents').insert(payload)
+  const { data, error } = await query.select().single()
+  if (error) throw new Error(error.message || 'Could not save document')
+  return data
 }
 
 async function removeDoc(id) {
-  if (supabase && !String(id).startsWith('local-')) {
-    try { await supabase.from('documents').delete().eq('id', id) } catch {}
-  }
-  _local = _local.filter(d => d.id !== id)
-  writeLocal(_local)
+  const { error } = await requireSupabase().from('documents').delete().eq('id', id)
+  if (error) throw new Error(error.message || 'Could not delete document')
+}
+
+// Upload the chosen file to the private bucket and return a signed link.
+async function uploadDocFile(file, category) {
+  const client = requireSupabase()
+  const ext    = (file.name.split('.').pop() || 'bin').toLowerCase()
+  const path   = `${category || 'other'}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+  const { error: uploadError } = await client.storage
+    .from(DOC_BUCKET)
+    .upload(path, file, { upsert: false, contentType: file.type || undefined })
+  if (uploadError) throw new Error(uploadError.message || 'File upload failed')
+
+  const { data, error } = await client.storage.from(DOC_BUCKET).createSignedUrl(path, SIGNED_URL_TTL)
+  if (error || !data?.signedUrl) throw new Error(error?.message || 'Could not create a file link')
+  return { url: data.signedUrl, name: file.name, size: file.size }
 }
 
 const STATUS_TONE = { active: 'green', expiring_soon: 'amber', expired: 'red', pending: 'gray' }
@@ -198,43 +220,54 @@ function AddDocModal({ onClose, onSave, drivers, vehicles }) {
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState({})
   const [preview, setPreview] = useState(null)
+  const [fileName, setFileName] = useState('')
   const fileInputRef = useRef(null)
+  const fileRef = useRef(null)          // the real File, uploaded on save
   const upd = patch => setForm(f => ({ ...f, ...patch }))
+
+  const ALLOWED_MIMES = [
+    'image/jpeg', 'image/png', 'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ]
+
+  const clearFile = () => {
+    fileRef.current = null
+    setPreview(null)
+    setFileName('')
+    setForm(f => ({ ...f, fileUrl: null, fileName: '' }))
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0]
-    if (!file) {
-      setPreview(null)
+    if (!file) { clearFile(); return }
+
+    if (!ALLOWED_MIMES.includes(file.type)) {
+      setErrors(prev => ({ ...prev, file: 'Only JPG, PNG, PDF, DOC or DOCX files are allowed' }))
+      clearFile()
+      return
+    }
+    if (file.size > DOC_MAX_BYTES) {
+      setErrors(prev => ({ ...prev, file: 'File size must be 10 MB or less' }))
+      clearFile()
       return
     }
 
-    // Validate file type (optional)
-    const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf']
-    if (!allowedTypes.includes(file.type)) {
-      setErrors(prev => ({ ...prev, file: 'Only JPG, PNG, and PDF files are allowed' }))
-      return
-    }
-
-    // Validate file size (optional - 5MB max)
-    const maxSize = 5 * 1024 * 1024 // 5MB
-    if (file.size > maxSize) {
-      setErrors(prev => ({ ...prev, file: 'File size must be less than 5MB' }))
-      return
-    }
-
-    // Clear file error
     setErrors(prev => ({ ...prev, file: '' }))
+    fileRef.current = file
+    setFileName(file.name)
+    setForm(f => ({ ...f, fileName: file.name }))
 
-    // Create preview URL
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      setPreview(ev.target.result)
-      setForm(f => ({ ...f, fileUrl: ev.target.result, fileName: file.name }))
+    // Local preview only — the uploaded file is the one sent to storage.
+    if (file.type === 'image/jpeg' || file.type === 'image/png') {
+      const reader = new FileReader()
+      reader.onload = ev => setPreview(ev.target.result)
+      reader.onerror = () => setErrors(prev => ({ ...prev, file: 'Could not preview this file' }))
+      reader.readAsDataURL(file)
+    } else {
+      setPreview(null)
     }
-    reader.onerror = (ev) => {
-      setErrors(prev => ({ ...prev, file: 'Failed to read file' }))
-    }
-    reader.readAsDataURL(file)
   }
 
   const docTypes    = DOC_TYPES[form.category] || []
@@ -250,6 +283,7 @@ function AddDocModal({ onClose, onSave, drivers, vehicles }) {
     const e = {}
     if (!form.title.trim())                        e.title     = 'Required'
     if (form.category !== 'trip' && !form.entity_id) e.entity_id = 'Select one'
+    if (!fileRef.current)                          e.file      = 'Attach the document file'
     return e
   }
 
@@ -257,18 +291,29 @@ function AddDocModal({ onClose, onSave, drivers, vehicles }) {
     const e = validate()
     if (Object.keys(e).length) { setErrors(e); return }
     setSaving(true)
+    setErrors({})
     try {
+      // Upload first so a failed upload never leaves a document row with a
+      // dead link — and never stores a giant base64 string in the database.
+      const fileMeta = await uploadDocFile(fileRef.current, form.category)
       const payload = {
         ...form,
         title:       form.title.trim(),
         driver_id:   form.category === 'driver'   ? form.entity_id : null,
         vehicle_id:  form.category === 'vehicle'  ? form.entity_id : null,
         customer_id: form.category === 'customer' ? form.entity_id : null,
+        file_url:    fileMeta.url,
+        file_name:   fileMeta.name,
+        file_size:   fileMeta.size,
       }
       const saved = await upsertDoc(payload)
       onSave(saved)
-    } catch (err) { console.error(err) }
-    setSaving(false)
+    } catch (err) {
+      console.error('[Documents] save failed:', err)
+      setErrors({ save: err.message || 'Could not save the document. Please try again.' })
+    } finally {
+      setSaving(false)
+    }
   }
 
   const INP = fieldCls
@@ -379,47 +424,50 @@ function AddDocModal({ onClose, onSave, drivers, vehicles }) {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".jpg,.jpeg,.png,.pdf"
+                accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
                 onChange={handleFileChange}
                 className={`${INP} ${errors.file ? 'border-red-400' : ''}`}
               />
               {errors.file && <p className="text-xs text-red-500 mt-1">{errors.file}</p>}
-              {preview && (
+              {fileName && (
                 <div className="mt-2 flex items-center gap-3">
-                  {(form.fileUrl || '').startsWith('data:image/') && (
+                  {preview && (
                     <img src={preview} alt="Preview" className="w-16 h-16 object-cover rounded" />
                   )}
-                  {(form.fileUrl || '').startsWith('data:application/pdf') && (
+                  {!preview && (
                     <div className="w-16 h-16 bg-blue-500/20 rounded flex items-center justify-center">
-                      <div className="text-xs font-bold text-blue-600">PDF</div>
+                      <div className="text-xs font-bold text-blue-600">
+                        {(fileName.split('.').pop() || 'FILE').toUpperCase().slice(0, 4)}
+                      </div>
                     </div>
                   )}
                   <div className="flex flex-col">
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{form.fileName || 'No file selected'}</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPreview(null)
-                        setForm(f => ({ ...f, fileUrl: null, fileName: '' }))
-                        if (fileInputRef.current) fileInputRef.current.value = ''
-                      }}
-                      className="text-xs text-red-500 hover:underline"
-                    >
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200 break-all">{fileName}</span>
+                    <button type="button" onClick={clearFile} className="text-xs text-red-500 hover:underline">
                       Remove
                     </button>
                   </div>
                 </div>
               )}
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">JPG, PNG, PDF, DOC or DOCX · up to 10 MB</p>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-[var(--ap-border)] flex gap-2 flex-shrink-0">
-          <Button variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" className="flex-1" disabled={saving} onClick={handleSave}>
-            {saving ? 'Saving…' : 'Add Document'}
-          </Button>
+        <div className="px-5 py-4 border-t border-[var(--ap-border)] flex-shrink-0">
+          {errors.save && (
+            <div className="mb-2.5 flex items-start gap-2 rounded-xl bg-red-50 dark:bg-red-900/20 px-3 py-2">
+              <AlertTriangle size={14} className="text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-red-600 dark:text-red-400">{errors.save}</p>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Button variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
+            <Button variant="primary" className="flex-1" disabled={saving} onClick={handleSave}>
+              {saving ? 'Saving…' : 'Add Document'}
+            </Button>
+          </div>
         </div>
       </div>
     </ModalOverlay>
@@ -443,6 +491,7 @@ export default function Documents() {
   const [ownerFilter, setOwnerFilter] = useState('all') // 'all' | `driver:id` | `vehicle:id`
   const [search,    setSearch]    = useState('')
   const [showAdd,   setShowAdd]   = useState(false)
+  const [deleteError, setDeleteError] = useState(null)
   const [page,      setPage]      = useState(1)
   const [visibleCols, setVisibleCols] = useState(loadDocCols)
   const [colsOpen, setColsOpen] = useState(false)
@@ -462,18 +511,22 @@ export default function Documents() {
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
-    try {
-      const [d, dr, veh, cust] = await Promise.allSettled([
-        fetchDocs(),
-        loadDrivers(),
-        loadVehicles(),
-        loadCustomers(),
-      ])
-      setDocs(d.status === 'fulfilled' ? d.value : [])
-      setDrivers(dr.status === 'fulfilled' ? dr.value : [])
-      setVehicles(veh.status === 'fulfilled' ? veh.value : [])
-      setCustomers(cust.status === 'fulfilled' ? cust.value.filter(c => !c._deleted) : [])
-    } catch { setError('Failed to load documents') }
+    const [d, dr, veh, cust] = await Promise.allSettled([
+      fetchDocs(),
+      loadDrivers(),
+      loadVehicles(),
+      loadCustomers(),
+    ])
+    if (d.status === 'fulfilled') {
+      setDocs(d.value)
+    } else {
+      console.error('[Documents] load failed:', d.reason)
+      setDocs([])
+      setError(d.reason?.message || 'Failed to load documents')
+    }
+    setDrivers(dr.status === 'fulfilled' ? dr.value : [])
+    setVehicles(veh.status === 'fulfilled' ? veh.value : [])
+    setCustomers(cust.status === 'fulfilled' ? cust.value.filter(c => !c._deleted) : [])
     setLoading(false)
   }, [])
 
@@ -644,8 +697,14 @@ export default function Documents() {
   const handleSave = doc => { setDocs(prev => [doc, ...prev.filter(d => d.id !== doc.id)]); setShowAdd(false) }
   const handleDelete = async id => {
     if (!window.confirm('Delete this document?')) return
-    await removeDoc(id)
-    setDocs(prev => prev.filter(d => d.id !== id))
+    setDeleteError(null)
+    try {
+      await removeDoc(id)
+      setDocs(prev => prev.filter(d => d.id !== id))
+    } catch (err) {
+      console.error('[Documents] delete failed:', err)
+      setDeleteError(err.message || 'Could not delete this document. Please try again.')
+    }
   }
 
   const getCategoryIcon = cat => {
@@ -679,6 +738,11 @@ export default function Documents() {
       {error && (
         <Callout tone="red" icon={AlertTriangle} title={`Unable to load documents — ${error}`}
           actionLabel="Try again" onAction={load} />
+      )}
+
+      {deleteError && (
+        <Callout tone="red" icon={AlertTriangle} title={deleteError}
+          actionLabel="Dismiss" onAction={() => setDeleteError(null)} />
       )}
 
       {/* 2. Summary KPIs — compact operational cards */}

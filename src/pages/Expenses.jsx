@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import {
   Plus, Search, ChevronDown, ChevronUp,
   X, Edit2, Trash2, CheckCircle, AlertTriangle,
   Receipt, Calendar, User, Car, FileText,
-  TrendingDown, BarChart3, Paperclip,
+  TrendingDown, BarChart3, Paperclip, Eye,
 } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
 import ModalOverlay from '../components/ui/ModalOverlay'
@@ -30,6 +30,31 @@ import { loadDrivers } from '../data/driverData'
 import { loadVehicles } from '../data/vehicleData'
 import { addAuditEvent } from '../data/auditLogData'
 import { pageSizeFor } from '../utils/zoomPageSize'
+import supabase from '../lib/supabase'
+
+// ── Receipt storage ───────────────────────────────────────────
+// Bills go to the private `expense-bills` bucket; the row keeps the file
+// name and a long-lived signed link (the bucket is not public).
+const RECEIPT_BUCKET    = 'expense-bills'
+const RECEIPT_MAX_BYTES = 10 * 1024 * 1024
+const RECEIPT_TTL       = 60 * 60 * 24 * 365
+const RECEIPT_MIMES     = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+
+async function uploadReceipt(file) {
+  if (!supabase) throw new Error('Supabase is not configured')
+  const ext  = (file.name.split('.').pop() || 'bin').toLowerCase()
+  const path = `${new Date().getFullYear()}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+  const { error } = await supabase.storage
+    .from(RECEIPT_BUCKET)
+    .upload(path, file, { upsert: false, contentType: file.type || undefined })
+  if (error) throw new Error(error.message || 'Receipt upload failed')
+
+  const { data, error: signError } = await supabase.storage
+    .from(RECEIPT_BUCKET)
+    .createSignedUrl(path, RECEIPT_TTL)
+  if (signError || !data?.signedUrl) throw new Error(signError?.message || 'Could not create a receipt link')
+  return { url: data.signedUrl, name: file.name }
+}
 
 // ─────────────────────────────────────────────────────────────
 //  Shared badges
@@ -49,7 +74,7 @@ const EMPTY = {
   date: new Date().toISOString().slice(0,10),
   amount:'', description:'', tripRef:'',
   driver:'', vehicle:'', addedBy:'',
-  receiptName:'', receiptDate:'', notes:'',
+  receiptName:'', receiptUrl:'', receiptDate:'', notes:'',
 }
 
 // ── EF and ESel defined OUTSIDE modal so React doesn't remount on every keystroke ──
@@ -94,6 +119,9 @@ function ExpenseModal({ expense, drivers, vehicles, onClose, onSave, currentUser
   const isEdit   = !!expense?.id
   const [form,   setForm]   = useState(() => expense || { ...EMPTY, addedBy: currentUser?.name || '' })
   const [errors, setErrors] = useState({})
+  const [saving, setSaving] = useState(false)
+  const [receiptFile, setReceiptFile] = useState(null)
+  const fileInputRef = useRef(null)
   const upd = (field, value) => setForm(f => ({ ...f, [field]: value }))
 
   const allowedTypes = isDrv ? EXPENSE_TYPES.filter(t => DRIVER_ALLOWED_TYPES.includes(t.key)) : EXPENSE_TYPES
@@ -105,18 +133,58 @@ function ExpenseModal({ expense, drivers, vehicles, onClose, onSave, currentUser
     return e
   }
 
-  const handleSave = () => {
+  const handleReceiptChange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) { setReceiptFile(null); return }
+    if (!RECEIPT_MIMES.includes(file.type)) {
+      setErrors(prev => ({ ...prev, receipt: 'Use a JPG, PNG, WEBP or PDF file' }))
+      setReceiptFile(null)
+      e.target.value = ''
+      return
+    }
+    if (file.size > RECEIPT_MAX_BYTES) {
+      setErrors(prev => ({ ...prev, receipt: 'Receipt must be 10 MB or less' }))
+      setReceiptFile(null)
+      e.target.value = ''
+      return
+    }
+    setErrors(prev => ({ ...prev, receipt: '' }))
+    setReceiptFile(file)
+    // Name is only a label until the file is uploaded on save.
+    upd('receiptName', file.name)
+  }
+
+  const clearReceipt = () => {
+    setReceiptFile(null)
+    setForm(f => ({ ...f, receiptName: '', receiptUrl: '' }))
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const handleSave = async () => {
     const e = validate()
     if (Object.keys(e).length) { setErrors(e); return }
-    const now = new Date().toISOString()
-    onSave({
-      ...form,
-      id:        form.id || generateExpenseId(),
-      amount:    Number(form.amount),
-      status:    form.status || 'draft',
-      createdAt: form.createdAt || now,
-      updatedAt: now,
-    })
+    setSaving(true)
+    setErrors({})
+    try {
+      let receipt = { url: form.receiptUrl || '', name: form.receiptName || '' }
+      if (receiptFile) receipt = await uploadReceipt(receiptFile)
+      const now = new Date().toISOString()
+      await onSave({
+        ...form,
+        receiptName: receipt.name,
+        receiptUrl:  receipt.url,
+        id:        form.id || generateExpenseId(),
+        amount:    Number(form.amount),
+        status:    form.status || 'draft',
+        createdAt: form.createdAt || now,
+        updatedAt: now,
+      })
+    } catch (err) {
+      console.error('[Expenses] save failed:', err)
+      setErrors({ save: err.message || 'Could not save this expense. Please try again.' })
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -212,22 +280,26 @@ function ExpenseModal({ expense, drivers, vehicles, onClose, onSave, currentUser
           {/* Receipt attachment */}
           <div>
             <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-              Receipt (Mock — future Google Drive)
+              Receipt
             </label>
-            <div className="flex gap-2">
-              <input type="text" value={form.receiptName || ''} onChange={e => upd('receiptName', e.target.value)}
-                placeholder="receipt_filename.jpg" className={`${fieldCls} flex-1`} />
-              <Button type="button" variant="secondary" size="sm" icon={Paperclip} className="whitespace-nowrap"
-                onClick={() => upd('receiptName', `receipt_${form.type}_${form.date}.jpg`)}>
-                Attach
-              </Button>
-            </div>
-            {form.receiptName && (
-              <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".jpg,.jpeg,.png,.webp,.pdf"
+              onChange={handleReceiptChange}
+              className={`${fieldCls} ${errors.receipt ? 'border-red-400 dark:border-red-600' : ''}`}
+            />
+            {errors.receipt && <p className="text-[11px] text-red-500 mt-1">{errors.receipt}</p>}
+            {(form.receiptName || receiptFile) && (
+              <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1 flex-wrap">
                 <CheckCircle size={10} /> {form.receiptName}
+                {form.receiptUrl && !receiptFile && (
+                  <a href={form.receiptUrl} target="_blank" rel="noopener noreferrer" className="underline">View</a>
+                )}
+                <button type="button" onClick={clearReceipt} className="text-red-500 underline">Remove</button>
               </p>
             )}
-            <p className="text-[10px] text-slate-400 mt-1">Google Drive integration planned for a future release.</p>
+            <p className="text-[10px] text-slate-400 mt-1">JPG, PNG, WEBP or PDF · up to 10 MB</p>
           </div>
 
           {/* Notes */}
@@ -239,11 +311,19 @@ function ExpenseModal({ expense, drivers, vehicles, onClose, onSave, currentUser
           </div>
         </div>
 
-        <div className="px-5 py-4 border-t border-[var(--ap-border)] flex gap-2 flex-shrink-0">
-          <Button variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
-          <Button variant="amber" className="flex-1" onClick={handleSave}>
-            {isEdit ? 'Save Changes' : isDrv ? 'Submit Expense' : 'Add Expense'}
-          </Button>
+        <div className="px-5 py-4 border-t border-[var(--ap-border)] flex-shrink-0">
+          {errors.save && (
+            <div className="mb-2.5 flex items-start gap-2 rounded-xl bg-red-50 dark:bg-red-900/20 px-3 py-2">
+              <AlertTriangle size={14} className="text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-red-600 dark:text-red-400">{errors.save}</p>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Button variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
+            <Button variant="amber" className="flex-1" disabled={saving} onClick={handleSave}>
+              {saving ? 'Saving…' : isEdit ? 'Save Changes' : isDrv ? 'Submit Expense' : 'Add Expense'}
+            </Button>
+          </div>
         </div>
       </div>
     </ModalOverlay>
@@ -342,7 +422,14 @@ function ExpenseDetail({ expense, onEdit, onDelete, onApprove, onReject, canEdit
         <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/15 rounded-lg px-3 py-2 border border-blue-100 dark:border-blue-800/30">
           <FileText size={12} className="text-blue-500 flex-shrink-0" />
           <span className="text-xs font-medium text-blue-700 dark:text-blue-400 flex-1 truncate">{expense.receiptName}</span>
-          <span className="text-[10px] text-blue-500">Stored locally</span>
+          {expense.receiptUrl ? (
+            <a href={expense.receiptUrl} target="_blank" rel="noopener noreferrer"
+              className="text-[10px] font-bold text-blue-600 dark:text-blue-400 underline flex items-center gap-1 flex-shrink-0">
+              <Eye size={11} /> View
+            </a>
+          ) : (
+            <span className="text-[10px] text-slate-400 flex-shrink-0">No file</span>
+          )}
         </div>
       )}
 
@@ -494,8 +581,11 @@ export default function Expenses() {
   const handleSave = async (exp) => {
     try {
       await saveExpense(exp)
-      addAuditEvent('EXPENSE_ADDED', {
-        description: `${exp.type} — Rs. ${(exp.amount||0).toLocaleString('en-IN')} by ${exp.driver || 'Staff'}`,
+      // Editing an existing bill is an update, not a new expense.
+      addAuditEvent(editExp ? 'EXPENSE_UPDATED' : 'EXPENSE_ADDED', {
+        description: editExp
+          ? `${exp.type} — Rs. ${(exp.amount||0).toLocaleString('en-IN')} updated by ${exp.driver || 'Staff'}`
+          : `${exp.type} — Rs. ${(exp.amount||0).toLocaleString('en-IN')} by ${exp.driver || 'Staff'}`,
         driver: exp.driver,
       })
       await reload()
@@ -506,6 +596,7 @@ export default function Expenses() {
     } catch (err) {
       console.error('[Expenses] save failed:', err)
       showError('Could not save expense. Please try again.')
+      throw err
     }
   }
 

@@ -4,6 +4,7 @@
 
 import { payrollRepository } from '../repositories/payrollRepository'
 import supabase               from '../lib/supabase'
+import { loadSettingValue, saveSettingValue } from './settingsStore'
 import { withCache, cacheClear } from '../utils/dataCache'
 
 // ── Settlement status config ──────────────────────────────────
@@ -23,6 +24,42 @@ export const DEDUCTION_TYPES = [
   { key:'fine',     label:'Fine'           },
   { key:'misc',     label:'Miscellaneous'  },
 ]
+
+// One canonical deduction list for a settlement/payroll record.
+// Legacy rows may carry a `deductions` array, scalar `penalty`/`advance`
+// fields, and/or a pre-computed `totalDeductions`. Counting all three
+// double-charges the driver, so values are merged by type and the total is
+// always derived from this list — never from a stored sum.
+export function normalizeDeductions(record = {}) {
+  const out = []
+  const seen = new Set()
+  const push = (type, amount, label) => {
+    const amt = Number(amount) || 0
+    if (!(amt > 0) || seen.has(type)) return
+    seen.add(type)
+    out.push({
+      type,
+      label: label || DEDUCTION_TYPES.find(t => t.key === type)?.label || 'Deduction',
+      amount: amt,
+    })
+  }
+  if (Array.isArray(record.deductions)) {
+    record.deductions.forEach(d => {
+      if (!d || typeof d !== 'object') return
+      const type = d.type || 'misc'
+      push(type, d.amount, d.label)
+    })
+  }
+  push('penalty', record.penalty, 'Penalty')
+  push('advance', record.advance, 'Advance Salary')
+  // A stored total with no itemisation (older rows) is the only source left.
+  if (out.length === 0) push('misc', record.totalDeductions, 'Deductions')
+  return out
+}
+
+export function deductionTotal(record = {}) {
+  return normalizeDeductions(record).reduce((s, d) => s + d.amount, 0)
+}
 
 export const DEFAULT_PAYROLL_SETTINGS = {
   // Per-driver daily wage, keyed by driver id (legacy rows may use the name).
@@ -70,18 +107,12 @@ export function tripCompanyAmount(p = {}) {
 }
 
 // ── Supabase payroll settings ─────────────────────────────────
-// Stored in `settings` table: { key: 'payroll_settings', value: JSON }
+// Stored in `settings` table under the 'payroll_settings' key.
 
 export async function loadPayrollSettings() {
   try {
-    const { data, error } = await supabase
-      .from('settings')
-      .select('value')
-      .eq('key', 'payroll_settings')
-      .single()
-    if (error && error.code === 'PGRST116') return DEFAULT_PAYROLL_SETTINGS
-    if (error) throw error
-    return data?.value || DEFAULT_PAYROLL_SETTINGS
+    const value = await loadSettingValue('payroll_settings', null)
+    return value || DEFAULT_PAYROLL_SETTINGS
   } catch (err) {
     console.error('[settlementData] loadPayrollSettings failed:', err)
     return DEFAULT_PAYROLL_SETTINGS
@@ -90,10 +121,9 @@ export async function loadPayrollSettings() {
 
 export async function savePayrollSettings(cfg) {
   const value = { ...cfg, updatedAt: new Date().toISOString() }
-  const { error } = await supabase
-    .from('settings')
-    .upsert({ key: 'payroll_settings', value }, { onConflict: 'key' })
-  if (error) {
+  try {
+    await saveSettingValue('payroll_settings', value)
+  } catch (error) {
     console.error('[settlementData] savePayrollSettings failed:', error)
     throw error
   }
@@ -109,10 +139,10 @@ export function calculateIncentive(completedTrips, rules) {
 }
 
 // ── Build settlement (pure computation — no storage) ──────────
-// Daily-wage model: drivers are paid per day they drive
-// (wagePay = dailyWage × daysWorked). Bata goes straight to the
-// driver, so it is reported as info (bataDirect) and NEVER added
-// to the company payout.
+// Daily-wage model: wagePay = dailyWage × daysWorked. Bata is money the
+// driver receives for the trips, so it is part of total payable (the trip
+// model on this page treats it the same way). Deductions are normalised to
+// one list so the total can never be counted twice.
 export function buildSettlement({
   driver, driverId, month, year, workingDays, daysWorked,
   completedTrips, totalTrips,
@@ -139,8 +169,9 @@ export function buildSettlement({
 
   const wagePay         = dailyWage * days
   const incentive       = calculateIncentive(completedTrips, settings?.incentiveRules || DEFAULT_PAYROLL_SETTINGS.incentiveRules)
-  const totalDeductions = deductions.reduce((s,d) => s + (d.amount || 0), 0)
-  const grossAmount     = wagePay + fuelAmt + parkingAmt + incentive + bonus
+  const normalDeductions = normalizeDeductions({ deductions })
+  const totalDeductions = normalDeductions.reduce((s,d) => s + d.amount, 0)
+  const grossAmount     = wagePay + bataDirect + fuelAmt + parkingAmt + incentive + bonus
   const netAmount       = Math.max(0, grossAmount - totalDeductions)
 
   return {
@@ -148,7 +179,7 @@ export function buildSettlement({
     bataDirect, fuelAmt, parkingAmt,
     incentive, bonus,
     grossAmount, totalDeductions, netAmount,
-    deductions,
+    deductions: normalDeductions,
     expBata, expFuel, expParking,
     notes,
   }
@@ -176,15 +207,20 @@ export function buildDriverMonthlyPayroll({ driver, driverId, monthKey, bookings
   const bataExtra = trips.reduce((s, t) => s + (Number(t.bata) || 0), 0)
   const daysWorked = new Set(trips.map(t => (t.startDate || '').slice(0, 10)).filter(Boolean)).size
   const gross = salaryTotal + bataExtra
+  // Deductions come from the settlement, once, through the canonical list.
+  const deductions = normalizeDeductions(settlement || {})
+  const totalDeductions = deductions.reduce((s, d) => s + d.amount, 0)
+  const net = Math.max(0, gross - totalDeductions)
   const paidTrip = tripPayslips
     .filter(p => p.status === 'paid' && trips.some(t => t.id != null && t.id === p.bookingId))
     .reduce((s, p) => s + tripDriverAmount(p), 0)
-  const paidAmount = settlement?.status === 'paid' ? Number(settlement.netAmount ?? gross) : paidTrip
-  const balance = Math.max(0, gross - paidAmount)
+  const paidAmount = settlement?.status === 'paid' ? Number(settlement.netAmount ?? net) : paidTrip
+  const balance = Math.max(0, net - paidAmount)
   return {
     driver, driverId: driverId ?? null, monthKey,
     trips, tripCount, salaryTotal, bataExtra, daysWorked,
-    gross, paidAmount, balance,
+    gross, deductions, totalDeductions, net, netAmount: net,
+    paidAmount, balance,
     status: settlement?.status ?? 'draft',
     settlementId: settlement?.id ?? null,
     settlement,
@@ -227,10 +263,8 @@ async function _loadSettlements() {
 export const loadSettlements = withCache('settlements', _loadSettlements)
 
 export function normalizeSettlement(row = {}) {
-  const deductionsArray = Array.isArray(row.deductions) ? row.deductions : []
-  const totalDeductions = Array.isArray(row.deductions)
-    ? row.deductions.reduce((s, d) => s + (Number(d.amount) || 0), 0)
-    : Number(row.totalDeductions ?? row.deductions ?? 0)
+  const deductionsArray = normalizeDeductions(row)
+  const totalDeductions = deductionsArray.reduce((s, d) => s + d.amount, 0)
   const baseSalary = Number(row.baseSalary ?? row.basic_pay ?? 0)
   const dailyWage = Number(row.dailyWage ?? row.daily_wage ?? 0)
   const daysWorked = Number(row.daysWorked ?? row.days_worked ?? row.workingDays ?? row.working_days ?? 0)

@@ -75,6 +75,7 @@ export default function PublicBooking() {
   const [pickup,      setPickup]      = useState('')
   const [drop,        setDrop]        = useState('')
   const [returnDest,  setReturnDest]  = useState('')
+  const [returnDate,  setReturnDate]  = useState('')
   const [vehicleType, setVehicleType] = useState('')
   const [date,        setDate]        = useState('')
   const [time,        setTime]        = useState('')
@@ -112,6 +113,10 @@ export default function PublicBooking() {
     if (!date)        e.date        = 'Select travel date'
     if ((tripType === 'one_way' || tripType === 'round_trip') && !pickup.trim()) e.pickup = 'Enter pickup'
     if ((tripType === 'one_way' || tripType === 'round_trip') && !drop.trim())   e.drop   = 'Enter drop'
+    if (tripType === 'round_trip' && !returnDate) e.returnDate = 'Select return date'
+    if (tripType === 'round_trip' && returnDate && date && returnDate < date) {
+      e.returnDate = 'Return date must be on or after the travel date'
+    }
     if (tripType === 'local_visit' && !areaName.trim()) e.areaName = 'Enter area name'
     if (['multi_day','self_drive'].includes(tripType) && !numDays) e.numDays = 'Enter number of days'
     if (Object.keys(e).length) { setErrors(e); return }
@@ -133,6 +138,7 @@ export default function PublicBooking() {
       type_data: {
         vehicleType,
         returnDest,
+        returnDate,
         numDays:  Number(numDays) || 0,
         stops:    stops.filter(Boolean),
         dayLocs:  dayLocs.filter(Boolean),
@@ -161,6 +167,7 @@ export default function PublicBooking() {
   const reset = () => {
     setStep('customer'); setName(''); setMobile('')
     setTripType(''); setPickup(''); setDrop(''); setReturnDest('')
+    setReturnDate('')
     setVehicleType(''); setDate(''); setTime(''); setAreaName('')
     setNumDays(''); setStops(['']); setDayLocs([''])
     setSdIdNum(''); setSdIdType(''); setSdDLNum(''); setSdDLExpiry('')
@@ -395,6 +402,13 @@ export default function PublicBooking() {
                     <Inp type="date" min={today} value={date} onChange={e => setDate(e.target.value)} />
                     {errors.date && <p className="text-xs text-red-500 mt-1">{errors.date}</p>}
                   </div>
+                  {tripType === 'round_trip' && (
+                    <div>
+                      <Label required>Return Date</Label>
+                      <Inp type="date" min={date || today} value={returnDate} onChange={e => setReturnDate(e.target.value)} />
+                      {errors.returnDate && <p className="text-xs text-red-500 mt-1">{errors.returnDate}</p>}
+                    </div>
+                  )}
                   <div>
                     <Label>Pickup Time</Label>
                     <Inp type="time" value={time} onChange={e => setTime(e.target.value)} />
@@ -436,7 +450,7 @@ export default function PublicBooking() {
                 <div className="bg-teal-50 border border-teal-100 rounded-xl px-5 py-4">
                   <p className="text-xs text-teal-600 font-bold uppercase tracking-wider mb-1">Booking Reference</p>
                   <p className="text-2xl font-semibold text-teal-700 tracking-widest">{bookingRef}</p>
-                  <p className="text-xs text-teal-500 mt-1">Save this number for tracking</p>
+                  <p className="text-xs text-teal-500 mt-1">Keep this reference for your records</p>
                 </div>
                 <div className="text-left space-y-2 bg-slate-50 rounded-xl px-4 py-3">
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Summary</p>
