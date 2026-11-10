@@ -295,16 +295,26 @@ function CustomerModal({ customer, onClose, onSave }) {
     return e
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const e = validate()
     if (Object.keys(e).length) { setErrors(e); return }
     const now = new Date().toISOString()
-    onSave({
-      ...form,
-      id:        form.id || generateCustomerId(),
-      createdAt: form.createdAt || now,
-      updatedAt: now,
-    })
+    try {
+      await onSave({
+        ...form,
+        id:        form.id || generateCustomerId(),
+        createdAt: form.createdAt || now,
+        updatedAt: now,
+      })
+    } catch (err) {
+      const errorObj = typeof err === 'object' && err !== null ? err : { message: String(err), field: null }
+      if (errorObj.field) {
+        setErrors({ [errorObj.field]: errorObj.message })
+      } else {
+        // Non-field error — show as a general error at the top of the mobile field
+        setErrors({ _general: errorObj.message || 'Could not save customer. Please try again.' })
+      }
+    }
   }
 
   const isCorporate = form.type === 'corporate' || form.type === 'agent'
@@ -337,6 +347,13 @@ function CustomerModal({ customer, onClose, onSave }) {
           </div>
           <IconButton icon={X} label="Close customer form" size={16} onClick={onClose} className="w-9 h-9 rounded-xl bg-slate-500/10" />
         </div>
+
+        {/* General save error (non-field-specific) */}
+        {errors._general && (
+          <div className="px-5 py-3 mb-2 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40">
+            <p className="text-sm text-red-700 dark:text-red-400">{errors._general}</p>
+          </div>
+        )}
 
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
           {/* Basic info */}
@@ -800,6 +817,7 @@ export default function Customers() {
 
   const handleSave = async (customer) => {
     const isNew = !customers.find(c => c.id === customer.id)
+    setErrors({})
     try {
       await saveCustomer(customer)
       if (isNew) {
@@ -810,8 +828,8 @@ export default function Customers() {
       setEditCustomer(null)
       showToast(`${isNew ? 'Added' : 'Updated'} ${customer.name}`)
     } catch (err) {
-      console.error('[Customers] save failed:', err)
-      toast?.({ type: 'error', title: 'Could not save customer. Please try again.' })
+      // Re-throw structured errors so the modal can display them field-specifically.
+      throw err
     }
   }
 
