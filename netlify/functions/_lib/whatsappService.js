@@ -8,7 +8,8 @@ import { localPhone, messagePreview, sendWhatsApp, waMessage } from './whatsappA
 import { botStep, bookedReply, nextBookingNumber, statusReply } from './whatsappBot.js'
 import { dueMessages } from './whatsappTrip.js'
 
-export const BOT_PAUSE_HOURS = 12
+export const STAFF_PAUSE_HOURS = 24
+const BOOKING_FAILURE_PAUSE_HOURS = 12
 
 /** Today's date in India, 'YYYY-MM-DD'. */
 export function todayIST(now = Date.now()) {
@@ -139,8 +140,16 @@ export async function handleInbound(db, config, message, now = Date.now()) {
     p_contact_name: message.contactName ?? null,
   })
   if (!config) return { replied: 0, reason: 'not configured' }
-  if (conv?.bot_paused_until && Date.parse(conv.bot_paused_until) > now) {
+  const pauseEndsAt = Date.parse(conv?.bot_paused_until ?? '')
+  if (pauseEndsAt > now) {
     return { replied: 0, reason: 'staff handling' }
+  }
+
+  if (conv?.needs_staff && Number.isFinite(pauseEndsAt)) {
+    await db.update(`whatsapp_conversations?phone=eq.${enc(message.from)}`, {
+      bot_paused_until: null,
+      needs_staff: false,
+    })
   }
 
   const step = botStep(conv, {
@@ -151,6 +160,7 @@ export async function handleInbound(db, config, message, now = Date.now()) {
 
   const replies = [...step.replies]
   const patch = { state: step.state, data: step.data }
+  if (!conv?.welcome_checked_at) patch.welcome_checked_at = new Date(now).toISOString()
 
   if (step.action?.type === 'create_booking') {
     try {
@@ -159,12 +169,12 @@ export async function handleInbound(db, config, message, now = Date.now()) {
     } catch (e) {
       console.error('[whatsapp-bot] booking failed:', e.message)
       replies.push({ kind: 'text', body: 'Sorry, we could not save the booking. Our team will contact you here shortly.' })
-      patch.bot_paused_until = new Date(now + BOT_PAUSE_HOURS * 3_600_000).toISOString()
+      patch.bot_paused_until = new Date(now + BOOKING_FAILURE_PAUSE_HOURS * 3_600_000).toISOString()
     }
   } else if (step.action?.type === 'trip_status') {
     replies.push(await tripStatus(db, message.from))
   } else if (step.action?.type === 'handoff') {
-    patch.bot_paused_until = new Date(now + BOT_PAUSE_HOURS * 3_600_000).toISOString()
+    patch.bot_paused_until = new Date(now + STAFF_PAUSE_HOURS * 3_600_000).toISOString()
     patch.needs_staff = true
   }
 

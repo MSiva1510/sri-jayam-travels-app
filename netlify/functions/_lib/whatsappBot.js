@@ -154,9 +154,11 @@ export function locationText(raw) {
   return (loc.label ? `${loc.label} (${at})` : at).slice(0, 200)
 }
 
-function menu(contactName) {
+function menu(contactName, welcome = false) {
   return buttons(
-    `Vanakkam${firstName(contactName)}! Welcome to Sri Jayam Travels 🚖\nHow can we help you?`,
+    `${welcome
+      ? `Vanakkam${firstName(contactName)}! Welcome to Sri Jayam Travels 🚖\n`
+      : ''}How can we help you?`,
     MENU_BUTTONS,
   )
 }
@@ -183,11 +185,17 @@ export function botStep(conv, msg, today) {
   const raw = String(msg.text ?? '').trim()
   const done = (replies, nextState = null, nextData = {}, action = null) =>
     ({ replies, state: nextState, data: nextData, action })
+  const isFirstHi = input === 'hi' && !conv?.welcome_checked_at
 
   if (CANCEL_WORDS.includes(input) && state) {
     return done([buttons('Cancelled — no booking was made. What would you like to do?', MENU_BUTTONS)])
   }
-  if (RESET_WORDS.includes(input)) return done([menu(msg.contactName)])
+  if (RESET_WORDS.includes(input)) {
+    return {
+      ...done([menu(msg.contactName, isFirstHi)]),
+      welcome: isFirstHi,
+    }
+  }
 
   switch (state) {
     case 'book_pickup':

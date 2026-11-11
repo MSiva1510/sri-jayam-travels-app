@@ -5,13 +5,13 @@
 //
 // reply: free text to the customer. WhatsApp allows it only within 24 h
 // of the customer's last message (else 409 — use a template). Pauses the
-// bot for BOT_PAUSE_HOURS so it does not talk over staff.
+// bot for 24 hours so it does not talk over staff.
 // resume_bot: hands the chat back to the bot now.
 // Staff only (admin / manager), same check as the GPS proxy.
 
 import { supabaseAdmin } from './_lib/supabaseAdmin.js'
 import { waMessage, waPhone, whatsappConfig } from './_lib/whatsappApi.js'
-import { BOT_PAUSE_HOURS, sendAndRecord } from './_lib/whatsappService.js'
+import { STAFF_PAUSE_HOURS, sendAndRecord } from './_lib/whatsappService.js'
 import { extractBearer, verifySupabaseStaff } from './_lib/verifySupabaseUser.js'
 
 export const REPLY_WINDOW_MS = 24 * 3_600_000
@@ -71,7 +71,7 @@ export async function handler(event, _context, env = process.env, fetchImpl = fe
     sentBy: staff.user.id,
   })
   await db.update(path, {
-    bot_paused_until: new Date(now + BOT_PAUSE_HOURS * 3_600_000).toISOString(),
+    bot_paused_until: new Date(now + STAFF_PAUSE_HOURS * 3_600_000).toISOString(),
     needs_staff: false,
     unread: 0,
     state: null,

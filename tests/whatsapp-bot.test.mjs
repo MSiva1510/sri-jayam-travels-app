@@ -43,6 +43,7 @@ test('dates and times the bot understands', () => {
 test('booking conversation: menu → pickup → drop → date → time → confirm', () => {
   let s = botStep(null, { text: 'Hi', contactName: 'Mani Kumar' }, TODAY)
   assert.equal(s.replies[0].kind, 'buttons')
+  assert.equal(s.welcome, true)
   assert.match(s.replies[0].body, /Vanakkam Mani!/)
   assert.deepEqual(s.replies[0].buttons.map(b => b.id), ['book', 'status', 'staff'])
 
@@ -65,6 +66,20 @@ test('booking conversation: menu → pickup → drop → date → time → confi
     type: 'create_booking',
     booking: { pickup: 'Ariyakuppam', drop: 'Chennai airport', date: '2026-10-31', time: '05:30' },
   })
+})
+
+test('Vanakkam is only sent for the first message when it is exactly Hi', () => {
+  const firstHi = botStep(null, { text: 'Hi', contactName: 'Mani Kumar' }, TODAY)
+  assert.match(firstHi.replies[0].body, /^Vanakkam Mani!/)
+
+  const firstHello = botStep(null, { text: 'Hello', contactName: 'Mani Kumar' }, TODAY)
+  assert.doesNotMatch(firstHello.replies[0].body, /Vanakkam/)
+  const nextHi = botStep(
+    { state: null, data: {}, welcome_checked_at: '2026-10-30T12:00:00.000Z' },
+    { text: 'Hi', contactName: 'Mani Kumar' },
+    TODAY,
+  )
+  assert.doesNotMatch(nextHi.replies[0].body, /Vanakkam/)
 })
 
 test('locations: WhatsApp shares, maps links and typed coordinates are understood', () => {
@@ -383,16 +398,23 @@ test('webhook: a customer books by sharing their live location and a maps link',
   assert.match(sent.at(-1).text.body, /Your request FY26-NOV-0053 is booked/)
 })
 
-test('webhook: "Talk to staff" pauses the bot until staff hand it back', async () => {
+test('webhook: "Talk to staff" pauses the bot for 24 hours, then resumes it', async () => {
   const { db, sent } = fakeWorld()
-  await webhook(incoming('Talk to staff', { replyId: 'staff' }), {}, ENV)
+  await webhook(incoming('Hi'), {}, ENV, fetch, NOW)
+  await webhook(incoming('Talk to staff', { replyId: 'staff' }), {}, ENV, fetch, NOW)
   const conv = db.conversations.get(PHONE)
   assert.equal(conv.needs_staff, true)
-  assert.ok(Date.parse(conv.bot_paused_until) > Date.now())
+  assert.equal(Date.parse(conv.bot_paused_until), NOW + 24 * 3_600_000)
   const before = sent.length
-  await webhook(incoming('hello?'), {}, ENV)
+  await webhook(incoming('hello?'), {}, ENV, fetch, NOW + 23 * 3_600_000)
   assert.equal(sent.length, before, 'bot stays quiet')
-  assert.equal(db.inbound.length, 2, 'message still stored for the inbox')
+  assert.equal(db.inbound.length, 3, 'messages are still stored for the inbox')
+
+  await webhook(incoming('Hi'), {}, ENV, fetch, NOW + 24 * 3_600_000)
+  assert.equal(sent.length, before + 1, 'bot resumes after 24 hours')
+  assert.equal(db.conversations.get(PHONE).needs_staff, false)
+  assert.equal(db.conversations.get(PHONE).bot_paused_until, null)
+  assert.doesNotMatch(sent.at(-1).interactive.body.text, /Vanakkam/)
 })
 
 test('notify: secret or staff only; each template once; failures retried next time', async () => {
