@@ -85,7 +85,58 @@ export function estimateTravelTime(distanceKm, avgSpeedKph = 55) {
   return `${h}h ${m}m`
 }
 
-// ── Google Maps directions URL ────────────────────────────────
+// ── parseLocation ──
+// Parses a place from anything the user can type:
+//   • "12.9716,79.1587" or "geo:12.9716,79.1587" → coordinates
+//   • Google/Apple/Bing maps links → coordinates (or URL for short links)
+//   • Typed place name → forward geocode
+// Returns { lat, lng, label, url?, raw } or null.
+export function parseLocation(raw) {
+  const s = String(raw ?? '').trim()
+  if (!s) return null
+
+  // Typed coordinates: "12.9716,79.1587"
+  const m = /^(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)$/.exec(s)
+  if (m) {
+    const p = point(m[1], m[2])
+    if (p) return { ...p, label: '', raw }
+  }
+
+  // geo:12.9716,79.1587
+  const m2 = /^geo:(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)/i.exec(s)
+  if (m2) {
+    const p = point(m2[1], m2[2])
+    if (p) return { ...p, label: '', raw }
+  }
+
+  // Maps links
+  if (/(?:google\.[a-z.]+|maps\.app\.goo\.gl|goo\.gl|maps\.apple\.com|bing\.com\/maps)/i.test(s)) {
+    for (const re of [
+      /[?&](?:q|query|ll|center|daddr|saddr|destination|coordinates)=?(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i,
+      /[?&]cp=(-?\d+(?:\.\d+)?)~(-?\d+(?:\.\d+)?)/i,
+      /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/,
+      /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/,
+    ]) {
+      const m3 = re.exec(s)
+      if (m3) {
+        const p = point(m3[1], m3[2])
+        if (p) return { ...p, label: '', raw }
+      }
+    }
+    return { url: s } // short link: keep it
+  }
+
+  return null
+}
+
+function point(lat, lng) {
+  const a = Number(lat)
+  const b = Number(lng)
+  return Number.isFinite(a) && Number.isFinite(b) && Math.abs(a) <= 90 && Math.abs(b) <= 180
+    ? { lat: a, lng: b }
+    : null
+}
+
 // ── Forward geocoder (offline first, Nominatim fallback) ──────
 // Resolves a place name to { lat, lng, label, source }. Local AREA_MAP
 // answers instantly for service-area places; anything else goes to

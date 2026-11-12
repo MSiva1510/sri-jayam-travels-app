@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import {
   Car, ChevronRight, CheckCircle, Plus, X,
-  ArrowLeft, RotateCcw, Star, User,
+  ArrowLeft, RotateCcw, Star, User, MapPin,
 } from 'lucide-react'
 import supabase from '../lib/supabase'
+import LocationPicker from '../components/ui/LocationPicker'
 
 const TRIP_TYPES = [
   { key:'one_way',     label:'One Way',           icon:'🚗', desc:'Single destination' },
@@ -335,12 +336,12 @@ export default function PublicBooking() {
                   <>
                     <div>
                       <Label required>Pickup Location</Label>
-                      <Inp value={pickup} onChange={e => setPickup(e.target.value)} placeholder="e.g. Puducherry Bus Stand" />
+                      <LocationPicker value={pickup} onChange={e => setPickup(e)} error={errors.pickup} label="Pickup Location" />
                       {errors.pickup && <p className="text-xs text-red-500 mt-1">{errors.pickup}</p>}
                     </div>
                     <div>
                       <Label required>Drop Location</Label>
-                      <Inp value={drop} onChange={e => setDrop(e.target.value)} placeholder="e.g. Chennai Airport" />
+                      <LocationPicker value={drop} onChange={e => setDrop(e)} error={errors.drop} label="Drop Location" />
                       {errors.drop && <p className="text-xs text-red-500 mt-1">{errors.drop}</p>}
                     </div>
                   </>
@@ -350,12 +351,12 @@ export default function PublicBooking() {
                   <>
                     <div>
                       <Label required>Pickup Location</Label>
-                      <Inp value={pickup} onChange={e => setPickup(e.target.value)} placeholder="e.g. Puducherry" />
+                      <LocationPicker value={pickup} onChange={e => setPickup(e)} error={errors.pickup} label="Pickup Location" />
                       {errors.pickup && <p className="text-xs text-red-500 mt-1">{errors.pickup}</p>}
                     </div>
                     <div>
                       <Label required>Destination</Label>
-                      <Inp value={drop} onChange={e => setDrop(e.target.value)} placeholder="e.g. Tirupati" />
+                      <LocationPicker value={drop} onChange={e => setDrop(e)} error={errors.drop} label="Drop Location" />
                       {errors.drop && <p className="text-xs text-red-500 mt-1">{errors.drop}</p>}
                     </div>
                     <div>
