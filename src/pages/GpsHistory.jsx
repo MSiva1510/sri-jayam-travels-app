@@ -101,6 +101,7 @@ export default function GpsHistory() {
   const [customerF, setCustomerF] = useState('all')
   const [statusF, setStatusF] = useState('all')
   const [search, setSearch] = useState('')
+  const [locationSearch, setLocationSearch] = useState('')
 
   // Track
   const [points, setPoints] = useState([])
@@ -319,6 +320,23 @@ export default function GpsHistory() {
 
   const selCls = 'px-3 py-2.5 text-xs rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 focus:outline-none font-bold w-full'
 
+  const searchLocation = async (locationName) => {
+    try {
+      const result = await forwardGeocode(locationName)
+      if (result) {
+        setTripId('')
+        setSearch('')
+        setVehicleF('all')
+        setDriverF('all')
+        setCustomerF('all')
+        setStatusF('all')
+        setLocationSearch(locationName)
+      } else {
+        setLocationSearch('')
+      }
+    } catch {}
+  }
+
   return (
     <div className="space-y-4 animate-fade-up">
       <PageHeader
@@ -398,6 +416,19 @@ export default function GpsHistory() {
               <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by trip, vehicle, driver…"
                 className="w-full pl-8 pr-3 py-2.5 text-xs rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none" />
+            </div>
+          </div>
+          <div className="col-span-2 sm:col-span-2 xl:col-span-1">
+            <div className="relative">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input value={locationSearch} onChange={e => setLocationSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchLocation(e.target.value)} placeholder="Search by location (e.g. Puducherry Bus Stand)"
+                className="w-full pl-8 pr-3 py-2.5 text-xs rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none" />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                <button onClick={() => locationSearch && searchLocation(locationSearch)} title="Search by location"
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-[var(--ap-surface-2)] transition-colors">
+                  <Search size={13} />
+                </button>
+              </div>
             </div>
           </div>
           <div className="col-span-2 sm:col-span-2 xl:col-span-1">
