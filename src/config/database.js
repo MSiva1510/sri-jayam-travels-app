@@ -1,8 +1,11 @@
 import { isSupabaseConfigured } from '../lib/supabase'
 
+// import.meta.env is undefined outside Vite (node scripts/tests).
+const env = import.meta.env ?? {}
+
 const DATABASE_CONFIG = {
   provider: 'supabase',
-  debug: import.meta.env.VITE_DATABASE_DEBUG === 'true',
+  debug: env.VITE_DATABASE_DEBUG === 'true',
 }
 
 export const DATABASE_PROVIDERS = {

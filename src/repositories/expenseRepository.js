@@ -10,9 +10,9 @@ import { dataService } from '../services/dataService'
 
 const EXPENSES_STORAGE_KEY = 'sjt_expenses'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-const EXPENSE_SELECT = 'id, expense_no, booking_id, driver_id, driver_name, vehicle_reg, trip_ref, amount, expense_date, description, created_by, status, type, odometer_km, litres_filled, fuel_station, fuel_rate, receipt_url, receipt_name, created_at, updated_at'
+export const EXPENSE_SELECT = 'id, expense_no, booking_id, driver_id, driver_name, vehicle_reg, trip_ref, amount, expense_date, description, created_by, status, type, odometer_km, litres_filled, fuel_station, fuel_rate, receipt_url, receipt_name, created_at, updated_at'
 
-function toDbExpense(data = {}) {
+export function toDbExpense(data = {}) {
   const bookingId = [data.booking_id, data.bookingId, data.tripRef]
     .find(v => UUID_RE.test(String(v || '')))
   const uiType = data.type === 'misc' ? 'other' : data.type

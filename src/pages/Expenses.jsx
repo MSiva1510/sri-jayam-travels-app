@@ -38,7 +38,7 @@ import supabase from '../lib/supabase'
 const RECEIPT_BUCKET    = 'expense-bills'
 const RECEIPT_MAX_BYTES = 10 * 1024 * 1024
 const RECEIPT_TTL       = 60 * 60 * 24 * 365
-const RECEIPT_MIMES     = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+const RECEIPT_MIMES     = ['image/jpeg', 'image/png', 'application/pdf']
 
 async function uploadReceipt(file) {
   if (!supabase) throw new Error('Supabase is not configured')
@@ -153,7 +153,7 @@ function ExpenseModal({ expense, drivers, vehicles, existingExpenses, onClose, o
     const file = e.target.files?.[0]
     if (!file) { setReceiptFile(null); return }
     if (!RECEIPT_MIMES.includes(file.type)) {
-      setErrors(prev => ({ ...prev, receipt: 'Use a JPG, PNG, WEBP or PDF file' }))
+      setErrors(prev => ({ ...prev, receipt: 'Use a JPG, PNG or PDF file' }))
       setReceiptFile(null)
       e.target.value = ''
       return
@@ -315,7 +315,7 @@ function ExpenseModal({ expense, drivers, vehicles, existingExpenses, onClose, o
             <input
               ref={fileInputRef}
               type="file"
-              accept=".jpg,.jpeg,.png,.webp,.pdf"
+              accept=".jpg,.jpeg,.png,.pdf"
               onChange={handleReceiptChange}
               className={`w-full rounded-[12px] border bg-[var(--ap-surface-2)] px-3 py-2 text-xs text-slate-600 dark:text-slate-300 cursor-pointer file:mr-3 file:rounded-md file:border-0 file:bg-[var(--ap-border)] file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-700 dark:file:text-slate-200 ${errors.receipt ? 'border-red-400 dark:border-red-600' : 'border-[var(--ap-border)]'}`}
             />
@@ -329,7 +329,7 @@ function ExpenseModal({ expense, drivers, vehicles, existingExpenses, onClose, o
                 <button type="button" onClick={clearReceipt} className="text-red-500 underline">Remove</button>
               </p>
             )}
-            <p className="text-[10px] text-slate-400 mt-1">JPG, PNG, WEBP or PDF · up to 10 MB</p>
+            <p className="text-[10px] text-slate-400 mt-1">JPG, PNG or PDF · up to 10 MB</p>
           </div>
 
           {/* Notes */}
