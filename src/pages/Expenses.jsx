@@ -117,7 +117,7 @@ function ExpenseModal({ expense, drivers, vehicles, onClose, onSave, currentUser
   const [bookings, setBookings] = useState([])
   useEffect(() => { loadBookings().then(b => setBookings(Array.isArray(b) ? b : [])) }, [])
   const isEdit   = !!expense?.id
-  const [form,   setForm]   = useState(() => expense || { ...EMPTY, addedBy: currentUser?.name || '' })
+  const [form,   setForm]   = useState(() => expense || { ...EMPTY, addedBy: currentUser?.name || '', driver: currentUser?.name || '' })
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
   const [receiptFile, setReceiptFile] = useState(null)
@@ -130,6 +130,7 @@ function ExpenseModal({ expense, drivers, vehicles, onClose, onSave, currentUser
     const e = {}
     if (!form.type)               e.type   = 'Expense type is required'
     if (!form.amount || form.amount <= 0) e.amount = 'Valid amount is required'
+    if (form.date && new Date(form.date) > new Date(new Date().toISOString().slice(0,10))) e.date = 'Date cannot be in the future'
     return e
   }
 
@@ -320,6 +321,15 @@ function ExpenseModal({ expense, drivers, vehicles, onClose, onSave, currentUser
           )}
           <div className="flex gap-2">
             <Button variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
+            <button onClick={() => {
+              setForm({ ...EMPTY, addedBy: currentUser?.name || "", driver: currentUser?.name || "" });
+              setErrors({});
+              setReceiptFile(null);
+              if (fileInputRef.current) fileInputRef.current.value = "";
+            }} className="flex-1 px-3 py-2 rounded-lg border border-[var(--ap-border)] text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)] transition-colors">
+              Reset Form
+            </button>
+            <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
             <Button variant="amber" className="flex-1" disabled={saving} onClick={handleSave}>
               {saving ? 'Saving…' : isEdit ? 'Save Changes' : isDrv ? 'Submit Expense' : 'Add Expense'}
             </Button>
@@ -913,3 +923,4 @@ export default function Expenses() {
     </div>
   )
 }
+
