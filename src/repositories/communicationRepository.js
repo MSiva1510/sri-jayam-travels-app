@@ -162,6 +162,21 @@ export const communicationQueueRepository = {
     } catch {}
     return null
   },
+
+  /** Cancel pending queue items older than 1 day (24h). */
+  async cancelStalePending(maxAgeHours = 24) {
+    if (!supabase) return 0
+    try {
+      const cutoff = new Date(Date.now() - maxAgeHours * 3_600_000).toISOString()
+      const { data } = await supabase.from('communication_queue')
+        .update({ status: 'cancelled', processed_at: new Date().toISOString(), failure_reason: 'Auto-cancelled: pending older than 1 day' })
+        .eq('status', 'pending')
+        .lt('created_at', cutoff)
+        .select('id')
+      return data?.length ?? 0
+    } catch {}
+    return 0
+  },
 }
 
 // ── Provider Configuration ────────────────────────────────────

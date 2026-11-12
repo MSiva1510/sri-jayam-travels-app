@@ -8,7 +8,7 @@ import { localPhone, messagePreview, sendWhatsApp, waMessage } from './whatsappA
 import { botStep, bookedReply, nextBookingNumber, statusReply } from './whatsappBot.js'
 import { dueMessages } from './whatsappTrip.js'
 
-export const STAFF_PAUSE_HOURS = 24
+export const STAFF_PAUSE_HOURS = 6
 const BOOKING_FAILURE_PAUSE_HOURS = 12
 
 /** Today's date in India, 'YYYY-MM-DD'. */

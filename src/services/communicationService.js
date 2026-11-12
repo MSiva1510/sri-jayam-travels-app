@@ -412,6 +412,10 @@ export async function cancelQueueItem(queueId) {
   return true
 }
 
+export async function cancelStalePendingQueue() {
+  return communicationQueueRepository.cancelStalePending()
+}
+
 /**
  * Get a specific queue item by ID
  * @param {string} queueId - Queue item ID
@@ -520,5 +524,29 @@ export async function checkCommunicationHealth() {
       error: error.message,
       timestamp: new Date().toISOString()
     }
+  }
+}
+
+// ── WhatsApp bot resume ─────────────────────────────────────
+// Staff can resume a paused bot so it starts answering again immediately.
+// Calls the whatsapp-send API with action 'resume_bot'.
+export async function resumeBot(phone) {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+  if (!supabaseUrl || !supabaseKey) throw new Error('Supabase not configured')
+  try {
+    const res = await fetch(`${supabaseUrl}/functions/v1/whatsapp/send`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${supabaseKey}`,
+      },
+      body: JSON.stringify({ action: 'resume_bot', phone }),
+    })
+    const result = await res.json()
+    if (!res.ok) throw new Error(result.error || 'Failed to resume bot')
+    return result
+  } catch (error) {
+    throw error
   }
 }

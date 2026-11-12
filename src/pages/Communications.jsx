@@ -17,7 +17,7 @@ import StatusPill from '../components/ui/StatusPill'
 import { useCommunicationCtx } from '../hooks/useCommunication'
 import { exportToCSV } from '../data/reportData'
 import { fmtAuditTime } from '../data/auditLogData'
-import { getCommunicationLogs, openWhatsApp, scheduler } from '../services/communicationService'
+import { getCommunicationLogs, openWhatsApp, scheduler, resumeBot, cancelStalePendingQueue } from '../services/communicationService'
 
 // ── Constants ─────────────────────────────────────────────────
 const TABS = [
@@ -394,10 +394,14 @@ function CommLogsTab() {
   const [page, setPage]       = useState(1)
   const [drawer, setDrawer]   = useState(null)
   const [copied, setCopied]   = useState(false)
+  const [resuming, setResuming] = useState(false)
+  const [cancellingStale, setCancellingStale] = useState(false)
 
   const reload = async () => {
     setLoading(true); setLoadError(null)
     try {
+      // Auto-cancel pending messages older than 1 day
+      try { await cancelStalePendingQueue() } catch {}
       const { data, count } = await getCommunicationLogs({ limit: 200 })
       setLogs(Array.isArray(data) ? data : [])
       setTotal(count || 0)
@@ -405,6 +409,19 @@ function CommLogsTab() {
       setLoadError('Unable to load communication logs')
     }
     setLoading(false)
+  }
+  const cancelStalePending = async () => {
+    setCancellingStale(true)
+    try {
+      const cancelled = await cancelStalePendingQueue()
+      if (cancelled > 0) {
+        setLoadError(`Cancelled ${cancelled} pending message(s) older than 1 day`)
+        await reload()
+      }
+    } catch {
+      setLoadError('Unable to cancel stale pending messages')
+    }
+    setCancellingStale(false)
   }
   useEffect(() => { reload() }, [])
   useEffect(() => { setPage(1) }, [search, channel, status, recipient, trigger, range])
@@ -523,6 +540,11 @@ function CommLogsTab() {
             className="w-8 h-8 rounded-lg border border-[var(--ap-border)] flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-[var(--ap-surface-2)] transition-colors">
             <RefreshCw size={13} />
           </button>
+          <button onClick={cancelStalePending} title="Cancel stale pending" aria-label="Cancel stale pending"
+            className="w-8 h-8 rounded-lg border border-[var(--ap-border)] flex items-center justify-center text-slate-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+            <Trash2 size={13} />
+            {cancellingStale ? <span className="ml-2 text-[9px] text-red-400 font-bold">Cancelling…</span> : null}
+          </button>
           <button onClick={handleExport}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-colors">
             <Download size={13} /> Export Logs
@@ -639,10 +661,22 @@ function CommLogsTab() {
               <Copy size={13} /> {copied ? 'Copied!' : 'Copy'}
             </button>
             {drawer.channel === 'whatsapp' && drawer.recipient_contact && (
-              <button onClick={() => openWhatsApp(drawer.recipient_contact, `${drawer.subject || ''}\n${drawer.body || ''}`.trim())}
-                className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500 transition-all active:scale-95">
-                <ExternalLink size={13} /> WhatsApp
-              </button>
+              <>
+                <button onClick={() => openWhatsApp(drawer.recipient_contact, `${drawer.subject || ''}\n${drawer.body || ''}`.trim())}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500 transition-all active:scale-95">
+                  <ExternalLink size={13} /> WhatsApp
+                </button>
+                <button onClick={() => {
+                  setResuming(true)
+                  resumeBot(drawer.recipient_contact).then(() => {
+                    setResuming(false)
+                    setDrawer(null)
+                  }).catch(() => setResuming(false))
+                }}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-500 transition-all active:scale-95">
+                  {resuming ? <span className="flex items-center gap-1"><RefreshCw size={13} className="animate-spin" /> Resuming…</span> : <span className="flex items-center gap-1"><RefreshCw size={13} /> Resume Bot</span>}
+                </button>
+              </>
             )}
             <button onClick={() => setDrawer(null)}
               className="flex-1 py-2.5 rounded-xl bg-[var(--ap-accent)] text-white text-xs font-bold hover:opacity-90 transition-all">

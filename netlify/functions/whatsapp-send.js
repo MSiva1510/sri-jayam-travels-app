@@ -5,7 +5,7 @@
 //
 // reply: free text to the customer. WhatsApp allows it only within 24 h
 // of the customer's last message (else 409 — use a template). Pauses the
-// bot for 24 hours so it does not talk over staff.
+// bot for 6 hours so it does not talk over staff.
 // resume_bot: hands the chat back to the bot now.
 // Staff only (admin / manager), same check as the GPS proxy.
 
