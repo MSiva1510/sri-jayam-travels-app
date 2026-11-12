@@ -398,20 +398,20 @@ test('webhook: a customer books by sharing their live location and a maps link',
   assert.match(sent.at(-1).text.body, /Your request FY26-NOV-0053 is booked/)
 })
 
-test('webhook: "Talk to staff" pauses the bot for 24 hours, then resumes it', async () => {
+test('webhook: "Talk to staff" pauses the bot for 6 hours, then resumes it', async () => {
   const { db, sent } = fakeWorld()
   await webhook(incoming('Hi'), {}, ENV, fetch, NOW)
   await webhook(incoming('Talk to staff', { replyId: 'staff' }), {}, ENV, fetch, NOW)
   const conv = db.conversations.get(PHONE)
   assert.equal(conv.needs_staff, true)
-  assert.equal(Date.parse(conv.bot_paused_until), NOW + 24 * 3_600_000)
+  assert.equal(Date.parse(conv.bot_paused_until), NOW + 6 * 3_600_000)
   const before = sent.length
-  await webhook(incoming('hello?'), {}, ENV, fetch, NOW + 23 * 3_600_000)
+  await webhook(incoming('hello?'), {}, ENV, fetch, NOW + 5 * 3_600_000 + 59 * 60_000)
   assert.equal(sent.length, before, 'bot stays quiet')
   assert.equal(db.inbound.length, 3, 'messages are still stored for the inbox')
 
-  await webhook(incoming('Hi'), {}, ENV, fetch, NOW + 24 * 3_600_000)
-  assert.equal(sent.length, before + 1, 'bot resumes after 24 hours')
+  await webhook(incoming('Hi'), {}, ENV, fetch, NOW + 6 * 3_600_000)
+  assert.equal(sent.length, before + 1, 'bot resumes after 6 hours')
   assert.equal(db.conversations.get(PHONE).needs_staff, false)
   assert.equal(db.conversations.get(PHONE).bot_paused_until, null)
   assert.doesNotMatch(sent.at(-1).interactive.body.text, /Vanakkam/)

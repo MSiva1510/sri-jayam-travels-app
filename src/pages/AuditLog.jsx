@@ -4,10 +4,12 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import PageHeader from '../components/ui/PageHeader'
 import { pageSizeForZoom } from '../utils/zoomPageSize'
+import { Search as SearchIcon } from 'lucide-react'
 import {
   AUDIT_ACTIONS, SEVERITY, fmtAuditTime,
   loadAuditEventsFromDB,
 } from '../data/auditLogData'
+import { fieldCls, Select as FieldSelect } from '../components/ui/Field'
 
 export default function AuditLog() {
   const [events, setEvents]     = useState([])
@@ -116,20 +118,24 @@ export default function AuditLog() {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2 mb-4">
-        {modules.map(m => (
-          <button
-            key={m}
-            onClick={() => setModuleFilter(m === 'all' ? 'all' : m)}
-            className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-              moduleFilter === m
-                ? 'bg-[var(--ap-accent)] text-white'
-                : 'bg-[var(--ap-surface-2)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-3)]'
-            }`}
-          >
-            {m}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex-1 min-w-[180px] max-w-xs">
+          <div className="relative">
+            <SearchIcon size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search actions, users, modules…"
+              className="w-full px-3 py-2.5 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-sm text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-500 pl-9"
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-shrink-0">
+          <FieldSelect value={typeFilter} onChange={e => setModuleFilter(e.target.value)} aria-label="Filter by module">
+            <option value="all">All Modules</option>
+            {CUSTOMER_TYPES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+          </FieldSelect>
+        </div>
       </div>
 
       <div className="overflow-x-auto">
@@ -167,10 +173,10 @@ export default function AuditLog() {
       </div>
 
       <div className="mt-4 flex items-center justify-between">
-        <div className="text-xs text-slate-500 dark:text-slate-400">
-          Page {safePage} of {totalPages}
+        <div className="text-xs text-slate-500 dark:text-slate-400 tabular-nums whitespace-nowrap flex-shrink-0">
+          Page {safePage} of {totalPages} · {filtered.length} event{filtered.length !== 1 ? 's' : ''}
         </div>
-        <div className="flex gap-1">
+        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-shrink-0">
           <button
             onClick={() => setPage(safePage - 1)}
             disabled={safePage <= 1}
