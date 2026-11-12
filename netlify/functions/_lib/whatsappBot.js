@@ -236,6 +236,17 @@ export function botStep(conv, msg, today) {
 
     case 'book_confirm':
       if (input === 'confirm' || input === 'yes' || input === 'ok') {
+        if (data.self_drive) {
+          // Self-drive needs ID details first
+          return done(
+            [buttons(`Self Drive — ID Details:\n1) Aadhaar\n2) PAN Card\n3) Passport\n4) Voter ID\n\nReply with ID type number (1-4) or name:`, [
+              { id: 'confirm', title: 'Confirm' },
+              { id: 'cancel', title: 'Cancel' },
+            ])],
+            'book_selfdrive_id_type',
+            data,
+          )
+        }
         return done([], null, {}, { type: 'create_booking', booking: data })
       }
       return done(
@@ -246,6 +257,59 @@ export function botStep(conv, msg, today) {
         state,
         data,
       )
+
+    case 'book_selfdrive_id_type': {
+      const idMap = { '1': 'Aadhaar', '2': 'PAN Card', '3': 'Passport', '4': 'Voter ID' }
+      const idType = idMap[input] || input
+      if (!idType || !['Aadhaar','PAN Card','Passport','Voter ID'].includes(idType)) {
+        return done(
+          [text('Please reply with ID type: 1) Aadhaar, 2) PAN Card, 3) Passport, 4) Voter ID')],
+          state,
+          data,
+        )
+      }
+      return done(
+        [text(`Please enter your ${idType} number:`)],
+        'book_selfdrive_id_num',
+        { ...data, idType },
+      )
+    }
+
+    case 'book_selfdrive_id_num': {
+      if (!raw || raw.length < 3) {
+        return done([text('Please enter a valid ID number:')], state, data)
+      }
+      return done(
+        [text('Please enter your Driving Licence number:')],
+        'book_selfdrive_dl_num',
+        { ...data, idNum: raw },
+      )
+    }
+
+    case 'book_selfdrive_dl_num': {
+      if (!raw || raw.length < 3) {
+        return done([text('Please enter a valid Driving Licence number:')], state, data)
+      }
+      return done(
+        [text('Please enter your Driving Licence expiry date (DD/MM/YYYY):')],
+        'book_selfdrive_dl_expiry',
+        { ...data, dlNum: raw },
+      )
+    }
+
+    case 'book_selfdrive_dl_expiry': {
+      if (!raw || raw.length < 5) {
+        return done([text('Please enter a valid expiry date (DD/MM/YYYY):')], state, data)
+      }
+      return done(
+        [buttons(`Please check your self-drive trip:\n${bookingSummary(data)}\n\nID: ${data.idType} — ${data.idNum}\nDL: ${data.dlNum}\nDL Expiry: ${data.dlExpiry}\n\nTap Confirm to book:`, [
+          { id: 'confirm', title: 'Confirm' },
+          { id: 'cancel', title: 'Cancel' },
+        ])],
+        'book_confirm',
+        data,
+      )
+    }
 
     default:
       break

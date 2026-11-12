@@ -78,7 +78,7 @@ async function createBotBooking(db, phone, contactName, data) {
     try {
       const [row] = await db.insert('bookings', [{
         booking_number: bookingNumber,
-        type: 'one_way',
+        type: data.type === 'self_drive' ? 'self_drive' : 'one_way',
         status: 'pending',
         customer_name: contactName || 'WhatsApp customer',
         customer_contact: local,
@@ -88,7 +88,11 @@ async function createBotBooking(db, phone, contactName, data) {
         start_date: data.date,
         start_time: data.time,
         notes: 'Booked on WhatsApp',
-        type_data: { lead_source: 'WhatsApp', source: 'whatsapp_bot' },
+        type_data: {
+          lead_source: 'WhatsApp',
+          source: 'whatsapp_bot',
+          ...(data.idType ? { idType: data.idType, idNum: data.idNum, dlNum: data.dlNum, dlExpiry: data.dlExpiry } : {}),
+        },
       }])
       return { booking: row, customer }
     } catch (e) {
