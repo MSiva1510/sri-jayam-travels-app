@@ -19,7 +19,7 @@ import { fieldCls, Select as FieldSelect } from '../components/ui/Field'
 import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../context/AuthContext'
 import {
-  loadExpenses, saveExpense, deleteExpense, generateExpenseId,
+  loadExpenses, saveExpense, deleteExpense, generateExpenseId, generateExpenseNo,
   EXPENSE_TYPES, APPROVAL_STATUSES, DRIVER_ALLOWED_TYPES,
   getExpTypeCfg, getApprovalCfg,
   isToday, isThisWeek, isThisMonth,
@@ -59,7 +59,7 @@ async function uploadReceipt(file) {
 // ─────────────────────────────────────────────────────────────
 //  Shared badges
 // ─────────────────────────────────────────────────────────────
-const APPROVAL_TONE = { draft: 'gray', submitted: 'blue', approved: 'green', rejected: 'red' }
+const APPROVAL_TONE = { pending: 'blue', approved: 'green', rejected: 'red' }
 
 function ApprovalBadge({ status }) {
   const cfg = getApprovalCfg(status)
@@ -69,16 +69,21 @@ function ApprovalBadge({ status }) {
 // ─────────────────────────────────────────────────────────────
 //  Add / Edit Expense Modal — Modules 2 & 3
 // ─────────────────────────────────────────────────────────────
+const todayLocalISO = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 const EMPTY = {
-  id:'', type:'fuel', status:'draft',
-  date: new Date().toISOString().slice(0,10),
+  id:'', type:'fuel', status:'pending',
+  date: todayLocalISO(),
   amount:'', description:'', tripRef:'',
   driver:'', vehicle:'', addedBy:'',
   receiptName:'', receiptUrl:'', receiptDate:'', notes:'',
 }
 
 // ── EF and ESel defined OUTSIDE modal so React doesn't remount on every keystroke ──
-function EF({ label, field, type='text', required, placeholder, value, onChange, error }) {
+function EF({ label, field, type='text', required, placeholder, value, onChange, error, min, max, step }) {
   const handleChange = (e) => {
     let v = e.target.value
     if (type === 'number' && field === 'amount' && (isNaN(v) || Number(v) < 0)) v = ''
@@ -92,7 +97,7 @@ function EF({ label, field, type='text', required, placeholder, value, onChange,
         {label}{required && <span className="text-red-500 ml-1">*</span>}
       </label>
       <input type={type} value={value || ''} placeholder={placeholder}
-        onChange={handleChange} required={required}
+        onChange={handleChange} required={required} min={min} max={max} step={step}
         className={`${fieldCls} ${error ? 'border-red-400 dark:border-red-600' : ''}`} />
       {error && <p className="text-[11px] text-red-500 mt-1">{error}</p>}
     </div>
@@ -105,7 +110,8 @@ function ESel({ label, field, children, required, value, onChange, error }) {
       <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
         {label}{required && <span className="text-red-500 ml-1">*</span>}
       </label>
-      <FieldSelect value={value || ''} onChange={e => onChange(field, e.target.value)}>
+      <FieldSelect value={value || ''} onChange={e => onChange(field, e.target.value)}
+        className={error ? 'border-red-400 dark:border-red-600' : ''}>
         {children}
       </FieldSelect>
       {error && <p className="text-[11px] text-red-500 mt-1">{error}</p>}
@@ -113,16 +119,24 @@ function ESel({ label, field, children, required, value, onChange, error }) {
   )
 }
 
-function ExpenseModal({ expense, drivers, vehicles, onClose, onSave, currentUser, isDriver: isDrv }) {
+function ExpenseModal({ expense, drivers, vehicles, existingExpenses, onClose, onSave, currentUser, isDriver: isDrv }) {
   const [bookings, setBookings] = useState([])
   useEffect(() => { loadBookings().then(b => setBookings(Array.isArray(b) ? b : [])) }, [])
   const isEdit   = !!expense?.id
-  const [form,   setForm]   = useState(() => expense || { ...EMPTY, addedBy: currentUser?.name || '', driver: currentUser?.name || '' })
+  const [form,   setForm]   = useState(() => expense || { ...EMPTY, date: todayLocalISO(), addedBy: currentUser?.name || '', driver: currentUser?.name || '' })
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
   const [receiptFile, setReceiptFile] = useState(null)
   const fileInputRef = useRef(null)
-  const upd = (field, value) => setForm(f => ({ ...f, [field]: value }))
+  const upd = (field, value) => {
+    setForm(f => ({ ...f, [field]: value }))
+    setErrors(prev => {
+      if (!prev[field]) return prev
+      const next = { ...prev }
+      delete next[field]
+      return next
+    })
+  }
 
   const allowedTypes = isDrv ? EXPENSE_TYPES.filter(t => DRIVER_ALLOWED_TYPES.includes(t.key)) : EXPENSE_TYPES
 
@@ -130,7 +144,8 @@ function ExpenseModal({ expense, drivers, vehicles, onClose, onSave, currentUser
     const e = {}
     if (!form.type)               e.type   = 'Expense type is required'
     if (!form.amount || form.amount <= 0) e.amount = 'Valid amount is required'
-    if (form.date && new Date(form.date) > new Date(new Date().toISOString().slice(0,10))) e.date = 'Date cannot be in the future'
+    if (!form.date)               e.date   = 'Expense date is required'
+    else if (form.date > todayLocalISO()) e.date = 'Date cannot be in the future'
     return e
   }
 
@@ -158,6 +173,14 @@ function ExpenseModal({ expense, drivers, vehicles, onClose, onSave, currentUser
   const clearReceipt = () => {
     setReceiptFile(null)
     setForm(f => ({ ...f, receiptName: '', receiptUrl: '' }))
+    setErrors(prev => { const n = { ...prev }; delete n.receipt; return n })
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const handleReset = () => {
+    setForm({ ...EMPTY, date: todayLocalISO(), addedBy: currentUser?.name || '', driver: currentUser?.name || '' })
+    setErrors({})
+    setReceiptFile(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -175,8 +198,9 @@ function ExpenseModal({ expense, drivers, vehicles, onClose, onSave, currentUser
         receiptName: receipt.name,
         receiptUrl:  receipt.url,
         id:        form.id || generateExpenseId(),
+        expenseNo: form.expenseNo || generateExpenseNo(existingExpenses),
         amount:    Number(form.amount),
-        status:    form.status || 'draft',
+        status:    form.status || 'pending',
         createdAt: form.createdAt || now,
         updatedAt: now,
       })
@@ -195,8 +219,8 @@ function ExpenseModal({ expense, drivers, vehicles, onClose, onSave, currentUser
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--ap-border)] flex-shrink-0">
           <div>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{isEdit ? 'Edit Expense' : 'Add Expense'}</p>
-            <h3 className="font-sf font-semibold text-slate-800 dark:text-white text-base">
-              {isEdit ? form.id : 'New Expense'}
+            <h3 className="font-sf font-semibold text-slate-800 dark:text-white text-base truncate max-w-[320px]">
+              {isEdit ? (form.expenseNo || form.description?.trim() || 'Expense details') : 'New Expense'}
             </h3>
           </div>
           <IconButton icon={X} label="Close expense form" onClick={onClose} />
@@ -210,8 +234,8 @@ function ExpenseModal({ expense, drivers, vehicles, onClose, onSave, currentUser
                 <option key={t.key} value={t.key}>{t.icon} {t.label}</option>
               ))}
             </ESel>
-            <EF label="Date"   field="date"   type="date" required value={form.date} onChange={upd} error={errors.date} />
-            <EF label="Amount (Rs.)" field="amount" type="number" required placeholder="0" value={form.amount} onChange={upd} error={errors.amount} />
+            <EF label="Date"   field="date"   type="date" required max={todayLocalISO()} value={form.date} onChange={upd} error={errors.date} />
+            <EF label="Amount (Rs.)" field="amount" type="number" required placeholder="0" min="0" step="0.01" value={form.amount} onChange={upd} error={errors.amount} />
             {!isDrv && (
               <ESel label="Status" field="status" value={form.status} onChange={upd} error={errors.status}>
                 {APPROVAL_STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
@@ -232,12 +256,17 @@ function ExpenseModal({ expense, drivers, vehicles, onClose, onSave, currentUser
             )}
             <ESel label="Vehicle" field="vehicle" value={form.vehicle} onChange={upd} error={errors.vehicle}>
               <option value="">— None —</option>
-              {(vehicles||[]).map(v => <option key={v.id} value={v.reg}>{v.reg} — {v.type}</option>)}
+              {(vehicles||[]).map(v => <option key={v.id} value={v.registration || v.reg}>{v.registration || v.reg} — {v.vehicle_type || v.type || v.model || 'Vehicle'}</option>)}
             </ESel>
           </div>
 
           {/* Trip reference */}
-          <ESel label="Trip Reference (optional)" field="tripRef" value={form.tripRef} onChange={upd} error={errors.tripRef}>
+          <ESel label="Trip Reference (optional)" field="tripRef" value={form.tripRef} error={errors.tripRef}
+            onChange={(field, value) => {
+              const b = bookings.find(x => x.bookingNo === value)
+              upd(field, value)
+              upd('bookingId', b?.id || '')
+            }}>
             <option value="">— No trip linked —</option>
             {bookings.map(b => (
               <option key={b.id} value={b.bookingNo}>{b.bookingNo} — {b.customer}</option>
@@ -281,14 +310,14 @@ function ExpenseModal({ expense, drivers, vehicles, onClose, onSave, currentUser
           {/* Receipt attachment */}
           <div>
             <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-              Receipt
+              Receipt (optional)
             </label>
             <input
               ref={fileInputRef}
               type="file"
               accept=".jpg,.jpeg,.png,.webp,.pdf"
               onChange={handleReceiptChange}
-              className={`${fieldCls} ${errors.receipt ? 'border-red-400 dark:border-red-600' : ''}`}
+              className={`w-full rounded-[12px] border bg-[var(--ap-surface-2)] px-3 py-2 text-xs text-slate-600 dark:text-slate-300 cursor-pointer file:mr-3 file:rounded-md file:border-0 file:bg-[var(--ap-border)] file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-700 dark:file:text-slate-200 ${errors.receipt ? 'border-red-400 dark:border-red-600' : 'border-[var(--ap-border)]'}`}
             />
             {errors.receipt && <p className="text-[11px] text-red-500 mt-1">{errors.receipt}</p>}
             {(form.receiptName || receiptFile) && (
@@ -319,18 +348,16 @@ function ExpenseModal({ expense, drivers, vehicles, onClose, onSave, currentUser
               <p className="text-xs text-red-600 dark:text-red-400">{errors.save}</p>
             </div>
           )}
-          <div className="flex gap-2">
-            <Button variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
-            <button onClick={() => {
-              setForm({ ...EMPTY, addedBy: currentUser?.name || "", driver: currentUser?.name || "" });
-              setErrors({});
-              setReceiptFile(null);
-              if (fileInputRef.current) fileInputRef.current.value = "";
-            }} className="flex-1 px-3 py-2 rounded-lg border border-[var(--ap-border)] text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)] transition-colors">
-              Reset Form
-            </button>
-            <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
-            <Button variant="amber" className="flex-1" disabled={saving} onClick={handleSave}>
+          <div className="flex items-center gap-2">
+            {!isEdit && (
+              <button type="button" onClick={handleReset}
+                className="px-2 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors">
+                Reset
+              </button>
+            )}
+            <div className="flex-1" />
+            <Button variant="outline" className="min-w-[96px]" onClick={onClose}>Cancel</Button>
+            <Button variant="amber" className="min-w-[128px]" disabled={saving} onClick={handleSave}>
               {saving ? 'Saving…' : isEdit ? 'Save Changes' : isDrv ? 'Submit Expense' : 'Add Expense'}
             </Button>
           </div>
@@ -403,7 +430,7 @@ function ExpenseDetail({ expense, onEdit, onDelete, onApprove, onReject, canEdit
       {/* Detail grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         {[
-          { label:'Expense ID', value: expense.id,          mono: true    },
+          { label:'Expense ID', value: expense.expenseNo || String(expense.id).slice(0, 8), mono: true    },
           { label:'Date',       value: expense.date                        },
           { label:'Amount',     value: `Rs. ${expense.amount.toLocaleString('en-IN')}`, hi: true },
           { label:'Driver',     value: expense.driver  || '—'             },
@@ -446,7 +473,7 @@ function ExpenseDetail({ expense, onEdit, onDelete, onApprove, onReject, canEdit
       {/* Action buttons */}
       <div className="flex gap-2 flex-wrap pt-1">
         {/* Module 6: Approval actions */}
-        {canApprove && expense.status === 'submitted' && (
+        {canApprove && expense.status === 'pending' && (
           <>
             <Button variant="teal" size="sm" icon={CheckCircle} onClick={() => onApprove(expense)}>Approve</Button>
             <Button variant="danger" size="sm" icon={X} onClick={() => onReject(expense)}>Reject</Button>
@@ -586,7 +613,7 @@ export default function Expenses() {
   const bataAmt      = rangeFiltered.filter(e=>e.type==='bata').reduce((s,e)=>s+e.amount,0)
   const tollAmt      = rangeFiltered.filter(e=>e.type==='toll').reduce((s,e)=>s+e.amount,0)
   const parkAmt      = rangeFiltered.filter(e=>e.type==='parking').reduce((s,e)=>s+e.amount,0)
-  const pendingCount = rangeFiltered.filter(e=>e.status==='submitted').length
+  const pendingCount = rangeFiltered.filter(e=>e.status==='pending').length
 
   const handleSave = async (exp) => {
     try {
@@ -669,7 +696,7 @@ export default function Expenses() {
           icon={Receipt}
           title={`${pendingCount} expense${pendingCount!==1?'s':''} awaiting approval`}
           actionLabel="Review"
-          onAction={() => setStatFilter('submitted')}
+          onAction={() => setStatFilter('pending')}
         />
       )}
 
@@ -779,7 +806,7 @@ export default function Expenses() {
             onChange={k => { setStatFilter(k); setPage(1) }}
             options={[
               { key:'all',       label:`All ${rangeFiltered.length}` },
-              { key:'submitted', label:`Pending ${rangeFiltered.filter(e=>e.status==='submitted').length}` },
+              { key:'pending', label:`Pending ${rangeFiltered.filter(e=>e.status==='pending').length}` },
               { key:'approved',  label:`Approved ${rangeFiltered.filter(e=>e.status==='approved').length}` },
               { key:'rejected',  label:`Rejected ${rangeFiltered.filter(e=>e.status==='rejected').length}` },
             ]}
@@ -914,6 +941,7 @@ export default function Expenses() {
           expense={editExp}
           drivers={drivers}
           vehicles={vehicles}
+          existingExpenses={expenses}
           onClose={() => { setShowAdd(false); setEditExp(null) }}
           onSave={handleSave}
           currentUser={user}

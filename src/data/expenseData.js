@@ -20,8 +20,7 @@ export const EXPENSE_TYPES = [
 export const getExpTypeCfg = key => EXPENSE_TYPES.find(t => t.key === key) || EXPENSE_TYPES[EXPENSE_TYPES.length - 1]
 
 export const APPROVAL_STATUSES = [
-  { key:'draft',     label:'Draft',     badge:'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',                dot:'bg-slate-400'   },
-  { key:'submitted', label:'Submitted', badge:'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',                  dot:'bg-blue-500'    },
+  { key:'pending',   label:'Pending',   badge:'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',                  dot:'bg-blue-500'    },
   { key:'approved',  label:'Approved',  badge:'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',      dot:'bg-emerald-500' },
   { key:'rejected',  label:'Rejected',  badge:'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',                     dot:'bg-red-500'     },
 ]
@@ -33,6 +32,20 @@ export function generateExpenseId() {
   const m  = String(d.getMonth() + 1).padStart(2, '0')
   const ts = Date.now().toString().slice(-4)
   return `EXP-${y}${m}-${ts}`
+}
+
+// The `expenses.expense_no` column is NOT NULL with no DB default, so the
+// client generates the next number for the current month.
+export function generateExpenseNo(expenses = []) {
+  const d = new Date()
+  const prefix = `EXP-${String(d.getFullYear()).slice(-2)}${String(d.getMonth() + 1).padStart(2, '0')}-`
+  const max = (expenses || []).reduce((m, e) => {
+    const no = String(e?.expenseNo || e?.expense_no || '')
+    if (!no.startsWith(prefix)) return m
+    const n = parseInt(no.slice(prefix.length), 10)
+    return Number.isFinite(n) ? Math.max(m, n) : m
+  }, 0)
+  return `${prefix}${String(max + 1).padStart(4, '0')}`
 }
 
 export const DRIVER_ALLOWED_TYPES = ['toll','parking','food','bata']
@@ -56,17 +69,19 @@ export function normalizeExpense(row = {}) {
   return {
     ...row,
     id: row.id || row.expense_id,
+    expenseNo: row.expense_no ?? row.expenseNo ?? '',
     date: row.date ?? row.expense_date ?? '',
     amount: Number(row.amount ?? 0),
     description: row.description ?? row.notes ?? row.location ?? '',
-    tripRef: row.tripRef ?? row.booking_id ?? '',
-    driver: row.driver ?? row.driver_name ?? row.driver_id ?? '',
-    vehicle: row.vehicle ?? row.vehicle_registration ?? row.vehicle_id ?? '',
+    tripRef: row.trip_ref ?? row.tripRef ?? row.booking_id ?? '',
+    bookingId: row.bookingId ?? row.booking_id ?? '',
+    driver: row.driver ?? row.driver_name ?? '',
+    vehicle: row.vehicle_reg ?? row.vehicle ?? row.vehicle_registration ?? row.vehicle_id ?? '',
     addedBy: row.addedBy ?? row.created_by ?? '',
     receiptName: row.receiptName ?? row.receipt_name ?? row.bill_image_url ?? '',
     receiptUrl: row.receiptUrl ?? row.receipt_url ?? row.bill_image_url ?? '',
     receiptDate: row.receiptDate ?? row.expense_date ?? '',
-    status: row.status ?? 'draft',
+    status: !row.status || ['draft', 'submitted'].includes(row.status) ? 'pending' : row.status,
     createdAt: row.createdAt ?? row.created_at ?? '',
     updatedAt: row.updatedAt ?? row.updated_at ?? row.created_at ?? '',
     // Fuel-specific fields

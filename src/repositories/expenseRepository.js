@@ -10,19 +10,31 @@ import { dataService } from '../services/dataService'
 
 const EXPENSES_STORAGE_KEY = 'sjt_expenses'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-const EXPENSE_SELECT = 'id, booking_id, driver_id, driver_name, amount, expense_date, description, created_by, status, type, odometer_km, litres_filled, fuel_station, fuel_rate, receipt_url, receipt_name, created_at, updated_at'
+const EXPENSE_SELECT = 'id, expense_no, booking_id, driver_id, driver_name, vehicle_reg, trip_ref, amount, expense_date, description, created_by, status, type, odometer_km, litres_filled, fuel_station, fuel_rate, receipt_url, receipt_name, created_at, updated_at'
 
 function toDbExpense(data = {}) {
+  const bookingId = [data.booking_id, data.bookingId, data.tripRef]
+    .find(v => UUID_RE.test(String(v || '')))
+  const uiType = data.type === 'misc' ? 'other' : data.type
+  // DB check constraint only allows pending / approved / rejected.
+  const status = ['pending', 'approved', 'rejected'].includes(data.status)
+    ? data.status
+    : (['draft', 'submitted'].includes(data.status) ? 'pending' : data.status)
   const payload = {
-    booking_id: UUID_RE.test(String(data.booking_id || data.tripRef || '')) ? (data.booking_id || data.tripRef) : undefined,
+    expense_no: data.expense_no ?? data.expenseNo,
+    expense_type: data.expense_type ?? (['fuel', 'toll'].includes(uiType) ? uiType : 'other'),
+    booking_id: bookingId ?? null,
+    trip_ref: data.trip_ref ?? (UUID_RE.test(String(data.tripRef || '')) ? undefined : data.tripRef),
     driver_id: UUID_RE.test(String(data.driver_id || '')) ? data.driver_id : undefined,
     driver_name: data.driver_name ?? data.driver,
+    vehicle_reg: data.vehicle_reg ?? data.vehicle,
     amount: data.amount,
     expense_date: data.expense_date ?? data.date ?? data.receiptDate,
     description: data.description ?? data.notes ?? data.location,
     created_by: UUID_RE.test(String(data.created_by || '')) ? data.created_by : undefined,
-    status: data.status,
-    type: data.type === 'misc' ? 'other' : data.type,
+    status,
+    approval_status: data.approval_status ?? status,
+    type: uiType,
     odometer_km: data.odometerKm,
     litres_filled: data.litresFilled,
     fuel_station: data.fuelStation,
