@@ -116,8 +116,9 @@ test('locations: WhatsApp shares, maps links and typed coordinates are understoo
 test('booking conversation: location request button, location share and maps link', () => {
   let s = botStep(null, { text: 'Book a trip', replyId: 'book' }, TODAY)
   assert.equal(s.state, 'book_pickup')
-  assert.equal(s.replies[0].kind, 'location')
-  assert.match(s.replies[0].body, /Share your pickup location/)
+  const locReply = s.replies.find(r => r.kind === 'location')
+  assert.equal(locReply.kind, 'location')
+  assert.match(locReply.body, /Share your pickup location/)
 
   // Live location / share (WhatsApp flattens name · address · lat,lng).
   s = botStep(s, { text: 'Ariyakuppam · Main Road · 12.9716,79.1587' }, TODAY)
@@ -134,6 +135,16 @@ test('booking conversation: location request button, location share and maps lin
   s = botStep(s, { text: 'skip' }, TODAY)
   assert.match(s.replies[0].body, /Pickup: Ariyakuppam · Main Road \(12\.97160, 79\.15870\)/)
   assert.match(s.replies[0].body, /Drop: 13\.08270, 80\.27070/)
+})
+
+test('bot starts with the welcome message before any flow reply', () => {
+  const s = botStep(null, { text: 'Book a trip', replyId: 'book', contactName: 'Mani Kumar' }, TODAY)
+  assert.match(s.replies[0].body, /Vanakkam Mani!/)
+  assert.equal(s.state, 'book_pickup')
+  assert.match(s.replies[1].body, /Share your pickup location/)
+
+  const later = botStep({ state: 'book_pickup', data: {}, welcome_checked_at: '2026-10-30T12:00:00.000Z' }, { text: 'Ariyakuppam' }, TODAY)
+  assert.equal(later.replies.length, 1, 'no second welcome for returning conversations')
 })
 
 test('cancel, status, staff and unknown text', () => {

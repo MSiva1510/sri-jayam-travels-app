@@ -2,9 +2,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  formatPhone, displayName, isWithinReplyWindow, isBotPaused, inboundText,
+  formatPhone, displayName, isWithinReplyWindow, isBotPaused, inboundText, typeLabel,
   senderLabel, statusLabel, mergeThread, upsertById, sortConversations,
-  filterConversations, REPLY_WINDOW_MS,
+  filterConversations, latestByPhone, dayKey, dateDividerLabel, groupThread,
+  REPLY_WINDOW_MS,
 } from '../src/utils/whatsappInbox.js'
 
 test('formats Indian numbers as +91 xxxxx xxxxx', () => {
@@ -42,6 +43,36 @@ test('inbound media without text shows the message type', () => {
   assert.equal(inboundText({ text_body: null, message_type: 'image' }), '[image]')
   assert.equal(inboundText({ text_body: '', message_type: 'location' }), '[location]')
   assert.equal(inboundText({}), '[message]')
+})
+
+test('unknown or rejected message types render a friendly label, not a raw type', () => {
+  // Meta reports content it could not accept as type "unsupported" (131051).
+  assert.equal(inboundText({ text_body: null, message_type: 'unsupported' }), 'Unsupported message')
+  assert.equal(inboundText({ text_body: null, message_type: 'errors' }), 'Delivery error')
+  assert.equal(inboundText({ text_body: null, message_type: 'revoke' }), 'Message revoked')
+  assert.equal(typeLabel('unsupported'), 'Unsupported message')
+  assert.equal(typeLabel('reaction', { payload: { reaction: { emoji: '👍' } } }), '👍')
+  assert.equal(typeLabel('location'), 'Location')
+})
+
+test('reactions attach to the message they reply to and do not bubble up', () => {
+  const outbound = [
+    { id: 'o1', wamid: 'wamid.OUT1', created_at: '2026-10-30T10:00:00Z', body: 'Vanakkam! Welcome', kind: 'bot' },
+  ]
+  const inbound = [
+    { id: 'i1', wamid: 'wamid.IN1', from_phone: 'a', received_at: '2026-10-30T10:05:00Z', message_type: 'text', text_body: 'hi' },
+    { id: 'i2', wamid: 'wamid.IN2', from_phone: 'a', received_at: '2026-10-30T10:06:00Z', message_type: 'reaction', payload: { reaction: { emoji: '👍', message_id: 'wamid.OUT1' } } },
+  ]
+  const thread = mergeThread(inbound, outbound)
+  assert.equal(thread.length, 2)
+  assert.equal(thread[0].reaction?.emoji, '👍')
+  assert.equal(thread[0].text, 'Vanakkam! Welcome')
+  assert.equal(thread[1].text, 'hi')
+
+  // Reaction with an unknown target becomes its own row, not a crash.
+  const orphan = mergeThread([{ id: 'i3', wamid: 'wamid.IN3', from_phone: 'a', received_at: '2026-10-30T11:00:00Z', message_type: 'reaction', payload: { reaction: { emoji: '🙏' } } }], [])
+  assert.equal(orphan.length, 1)
+  assert.equal(orphan[0].text, '🙏')
 })
 
 test('sender and status labels', () => {
@@ -112,7 +143,6 @@ test('filters by chip and search', () => {
 })
 
 test('latestByPhone keeps the newest message per phone', async () => {
-  const { latestByPhone } = await import('../src/utils/whatsappInbox.js')
   const map = latestByPhone(
     [
       { from_phone: 'a', received_at: '2026-10-30T10:00:00Z', text_body: 'old' },
@@ -121,7 +151,7 @@ test('latestByPhone keeps the newest message per phone', async () => {
     ],
     [
       { to_phone: 'b', created_at: '2026-10-30T09:30:00Z', body: 'Hello!' },
-      { to_phone: 'a', created_at: '2026-10-30T11:00:00Z', body: 'reply' },
+      { to_phone: 'a', created_at: '2026-10-30T11:00:00Z', body: 'reply', status: 'read' },
     ],
   )
   assert.deepEqual(map.a, { text: '[image]', at: '2026-10-30T12:00:00Z', direction: 'in' })
@@ -129,4 +159,43 @@ test('latestByPhone keeps the newest message per phone', async () => {
   const next = latestByPhone([{ from_phone: 'b', received_at: '2026-10-30T13:00:00Z', text_body: 'new' }], [], map)
   assert.equal(next.b.text, 'new')
   assert.equal(next.a.text, '[image]')
+})
+
+test('outbound previews carry the delivery status for list ticks', () => {
+  const map = latestByPhone([], [
+    { to_phone: 'a', created_at: '2026-10-30T09:30:00Z', body: 'reply', status: 'read' },
+  ])
+  assert.equal(map.a.status, 'read')
+  assert.equal(map.a.direction, 'out')
+})
+
+test('day keys and date dividers use the local calendar', () => {
+  const now = new Date(2026, 9, 30, 21, 0).getTime() // 30 Oct 2026, 21:00 local
+  const todayAt = new Date(2026, 9, 30, 9, 0).toISOString()
+  const yesterdayAt = new Date(2026, 9, 29, 23, 30).toISOString()
+  const olderAt = new Date(2026, 8, 12, 10, 0).toISOString()
+  const lastYearAt = new Date(2025, 9, 30, 10, 0).toISOString()
+
+  assert.equal(dayKey(todayAt), dayKey(now))
+  assert.equal(dayKey('garbage'), '')
+  assert.equal(dateDividerLabel(todayAt, now), 'Today')
+  assert.equal(dateDividerLabel(yesterdayAt, now), 'Yesterday')
+  assert.equal(dateDividerLabel(olderAt, now), '12 September')
+  assert.equal(dateDividerLabel(lastYearAt, now), '30 October 2025')
+})
+
+test('groupThread marks date breaks and same-sender runs', () => {
+  const thread = [
+    { key: 'a', direction: 'in', at: new Date(2026, 9, 29, 23, 58).toISOString() },
+    { key: 'b', direction: 'in', at: new Date(2026, 9, 30, 0, 1).toISOString() },  // next day
+    { key: 'c', direction: 'in', at: new Date(2026, 9, 30, 0, 3).toISOString() },  // same run
+    { key: 'd', direction: 'out', at: new Date(2026, 9, 30, 0, 4).toISOString() }, // other side
+    { key: 'e', direction: 'in', at: new Date(2026, 9, 30, 0, 20).toISOString() }, // gap > 4 min
+  ]
+  const out = groupThread(thread)
+  assert.deepEqual(out.map(m => m.newDay), [true, true, false, false, false])
+  assert.deepEqual(out.map(m => m.groupStart), [true, true, false, true, true])
+  assert.deepEqual(out.map(m => m.groupEnd), [true, false, true, true, true])
+  assert.deepEqual(groupThread(), [])
+  assert.deepEqual(groupThread([{ direction: 'in', at: 'garbage' }])[0].groupStart, true)
 })

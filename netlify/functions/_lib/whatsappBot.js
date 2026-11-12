@@ -187,6 +187,13 @@ export function botStep(conv, msg, today) {
     ({ replies, state: nextState, data: nextData, action })
   const isFirstHi = input === 'hi' && !conv?.welcome_checked_at
 
+  // First contact with the bot: greet before the flow (menu button, typed
+  // place, status ask … all get the "Vanakkam … Welcome" start of the chat).
+  const greetFirst = (replies) => {
+    if (conv?.welcome_checked_at || state) return replies
+    return [menu(msg.contactName, true), ...replies]
+  }
+
   if (CANCEL_WORDS.includes(input) && state) {
     return done([buttons('Cancelled — no booking was made. What would you like to do?', MENU_BUTTONS)])
   }
@@ -316,20 +323,15 @@ export function botStep(conv, msg, today) {
   }
 
   if (input === 'book' || input === '1' || input === 'book a trip') {
-    return done([location('Sure! Share your pickup location, or type the place name.')], 'book_pickup', {})
+    return done([...greetFirst([location('Sure! Share your pickup location, or type the place name.')])], 'book_pickup', {})
   }
   if (input === 'status' || input === '2' || input === 'my trip status') {
-    return done([], null, {}, { type: 'trip_status' })
+    return done(greetFirst([]), null, {}, { type: 'trip_status' })
   }
   if (input === 'staff' || input === '3' || input === 'talk to staff') {
-    return done(
-      [text('Okay, our team will reply here shortly. Type menu any time to use the bot again.')],
-      null,
-      {},
-      { type: 'handoff' },
-    )
+    return done(greetFirst([text('Okay, our team will reply here shortly. Type menu any time to use the bot again.')]), null, {}, { type: 'handoff' })
   }
-  return done([menu(msg.contactName)])
+  return done(greetFirst([menu(msg.contactName)]))
 }
 
 /** Reply after create_booking succeeded. */
