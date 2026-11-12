@@ -7,6 +7,7 @@ import {
   ChevronLeft, ChevronRight, AlertTriangle, Navigation, Clock,
   MessageCircle, IndianRupee,
 } from 'lucide-react'
+import LocationPicker from '../components/ui/LocationPicker'
 import PageHeader   from '../components/ui/PageHeader'
 import Avatar       from '../components/ui/Avatar'
 import ModalOverlay from '../components/ui/ModalOverlay'
@@ -176,12 +177,13 @@ function BookingModal({ booking, onClose, onSave, userName }) {
           </div>
           <div>
             <FieldLabel required>Pickup Location</FieldLabel>
-            <Input value={form.pickup} onChange={e=>upd({pickup:e.target.value})} placeholder="e.g. Hotel Atithi, Puducherry" required field="pickup" />
+            <LocationPicker value={form.pickup} onChange={e => upd({ pickup: e })} error={errors.pickup} required />
             {errors.pickup && <p className="text-xs text-red-500 mt-1">{errors.pickup}</p>}
           </div>
           <div>
             <FieldLabel>Drop / Destination</FieldLabel>
-            <Input value={form.drop} onChange={e=>upd({drop:e.target.value})} placeholder="e.g. Chennai Airport" field="drop" />
+            <LocationPicker value={form.drop} onChange={e => upd({ drop: e })} error={errors.drop} />
+            {errors.drop && <p className="text-xs text-red-500 mt-1">{errors.drop}</p>}
           </div>
           <Grid2>
             <div>
