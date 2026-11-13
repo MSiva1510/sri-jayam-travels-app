@@ -14,6 +14,7 @@ import {
   Check, CheckCheck, Clock, AlertCircle, RefreshCw, Inbox, Info, X, Smile,
   Image as ImageIcon, FileText, MapPin, Mic, Sticker, User, Lock, ExternalLink,
   Video, MousePointerClick, Plane, CarFront, Luggage, Compass, Navigation, Camera,
+  ArrowDown,
 } from 'lucide-react'
 import Avatar from '../components/ui/Avatar'
 import supabase from '../lib/supabase'
@@ -325,11 +326,15 @@ export default function WhatsApp() {
   const [sendError, setSendError] = useState('')
   const [resuming, setResuming] = useState(false)
   const [emojiOpen, setEmojiOpen] = useState(false)
+  const [showScrollDown, setShowScrollDown] = useState(false)
   const [now, setNow] = useState(() => Date.now())
 
   const selectedRef = useRef(null)
   const threadEndRef = useRef(null)
   const textareaRef = useRef(null)
+  const scrollerRef = useRef(null)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   useEffect(() => { selectedRef.current = selected }, [selected])
 
   // Re-evaluate the 24 h window / bot pause as time passes.
@@ -470,6 +475,11 @@ export default function WhatsApp() {
   }), [conversations])
   const conv = useMemo(() => conversations.find(c => c.phone === selected) || null, [conversations, selected])
   const thread = useMemo(() => groupThread(mergeThread(inbound, outbound)), [inbound, outbound])
+  const filteredThread = useMemo(() => {
+    if (!searchOpen || !searchQuery.trim()) return thread
+    const q = searchQuery.trim().toLowerCase()
+    return thread.filter(m => String(m.text || '').toLowerCase().includes(q))
+  }, [thread, searchOpen, searchQuery])
   const canReply = conv ? isWithinReplyWindow(conv.last_inbound_at, now) : false
   const paused = conv ? isBotPaused(conv.bot_paused_until, now) : false
   const replyHoursLeft = conv?.last_inbound_at
@@ -478,7 +488,7 @@ export default function WhatsApp() {
 
   useEffect(() => {
     threadEndRef.current?.scrollIntoView({ block: 'end' })
-  }, [thread.length, selected])
+  }, [filteredThread.length, selected])
 
   // Escape closes the details drawer or emoji picker.
   useEffect(() => {
@@ -539,6 +549,13 @@ export default function WhatsApp() {
       el.focus()
       el.setSelectionRange(start + emoji.length, start + emoji.length)
     })
+  }
+
+  const onScrollerScroll = () => {
+    const el = scrollerRef.current
+    if (!el) return
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 240
+    setShowScrollDown(!nearBottom)
   }
 
   const onKeyDown = (e) => {
@@ -748,7 +765,7 @@ export default function WhatsApp() {
   const threadPane = (
     <section
       aria-label="Conversation"
-      className={`min-w-0 flex-1 flex-col ${selected ? 'flex' : 'hidden lg:flex'}`}
+      className={`min-w-0 relative flex-1 flex-col ${selected ? 'flex' : 'hidden lg:flex'}`}
     >
       {!conv ? (
         <div className="relative flex h-full flex-1 items-center justify-center overflow-hidden bg-[#efeae2] px-6 py-10 dark:bg-[#0b141a]">
@@ -808,6 +825,9 @@ export default function WhatsApp() {
             <IconButton label="Call customer" href={`tel:+${conv.phone}`}>
               <Phone size={18} />
             </IconButton>
+            <IconButton label="Search messages" onClick={() => setSearchOpen(v => !v)}>
+              <Search size={18} />
+            </IconButton>
             <IconButton label="Contact info" onClick={() => setDetailsOpen(v => !v)} active={detailsOpen}>
               <Info size={18} />
             </IconButton>
@@ -816,14 +836,19 @@ export default function WhatsApp() {
           {/* Messages */}
           <div className="relative min-h-0 flex-1 bg-[#efeae2] dark:bg-[#0b141a]">
             <WallpaperDoodles />
-            <div className="absolute inset-0 z-10 overflow-y-auto px-1.5 py-3 sm:px-4" aria-live="polite">
+            <div
+              ref={scrollerRef}
+              onScroll={onScrollerScroll}
+              className="absolute inset-0 z-10 overflow-y-auto px-1.5 py-3 sm:px-4"
+              aria-live="polite"
+            >
               <div className="mx-auto flex min-h-full w-full max-w-[900px] flex-col justify-end">
                 {threadError ? (
                   <div role="alert" className="mx-auto max-w-sm rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-center text-[12.5px] text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
                     {threadError}
                     <button type="button" onClick={() => loadThread(conv.phone)} className="ml-2 font-semibold underline">Retry</button>
                   </div>
-                ) : threadLoading && thread.length === 0 ? (
+                ) : threadLoading && filteredThread.length === 0 ? (
                   <div role="status" aria-busy="true" className="space-y-2.5 py-2">
                     <span className="sr-only">Loading messages…</span>
                     {[0, 1, 2, 3, 4].map(i => (
@@ -832,7 +857,7 @@ export default function WhatsApp() {
                       </div>
                     ))}
                   </div>
-                ) : thread.length === 0 ? (
+                ) : filteredThread.length === 0 ? (
                   <div className="py-10 text-center">
                     <MessageCircle size={34} className="mx-auto text-[#8696a0]" />
                     <p className="mt-3 text-sm font-semibold text-[#41525d] dark:text-[#e9edef]">No messages yet</p>
@@ -841,7 +866,7 @@ export default function WhatsApp() {
                 ) : (
                   <>
                     <EncryptionNotice />
-                    {thread.map(item => (
+                    {filteredThread.map(item => (
                       <Fragment key={item.key}>
                         {item.newDay && <DateDivider label={dateDividerLabel(item.at, now)} />}
                         <Bubble item={item} now={now} />
@@ -851,8 +876,52 @@ export default function WhatsApp() {
                 )}
                 <div ref={threadEndRef} />
               </div>
+              {showScrollDown && (
+                <button
+                  type="button"
+                  onClick={() => threadEndRef.current?.scrollIntoView({ block: 'end' })}
+                  aria-label="Scroll to bottom"
+                  className="absolute bottom-4 right-4 z-20 grid h-10 w-10 place-items-center rounded-full bg-white text-[#54656f] shadow-[0_2px_8px_rgba(11,20,26,0.25)] transition-colors hover:bg-[#f0f2f5] dark:bg-[#2a3942] dark:text-[#aebac1] dark:hover:bg-[#233138]"
+                >
+                  <ArrowDown size={18} />
+                </button>
+              )}
             </div>
           </div>
+
+          {searchOpen && (
+            <div className="absolute inset-0 z-20 flex flex-col border-l border-[#e9edef] bg-white dark:border-[#222d34] dark:bg-[#111b21]">
+              <div className="flex h-[60px] flex-shrink-0 items-center justify-between border-b border-[#e9edef] px-3 dark:border-[#222d34]">
+                <h2 className="text-[15px] font-semibold text-[#111b21] dark:text-[#e9edef]">Search</h2>
+                <IconButton label="Close search" onClick={() => { setSearchOpen(false); setSearchQuery('') }}>
+                  <X size={18} />
+                </IconButton>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto p-3">
+                <div className="relative">
+                  <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8696a0]" aria-hidden="true" />
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="Search messages"
+                    aria-label="Search messages"
+                    autoFocus
+                    className="h-10 w-full rounded-lg border border-transparent bg-[#f0f2f5] pl-9 pr-8 text-[13.5px] text-[#111b21] outline-none placeholder-[#8696a0] focus:border-[#25d366]/50 focus:bg-white dark:bg-[#202c33] dark:text-[#e9edef] dark:focus:bg-[#2a3942]"
+                  />
+                  {searchQuery && (
+                    <button type="button" onClick={() => setSearchQuery('')} aria-label="Clear search"
+                      className="absolute right-2 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full text-[#8696a0] hover:bg-black/5 dark:hover:bg-white/10">
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+                <p className="mt-3 text-[12px] text-[#667781] dark:text-[#8696a0]">
+                  {filteredThread.length} message{filteredThread.length === 1 ? '' : 's'} found
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Composer */}
           <div className="flex-shrink-0 border-t border-[#e9edef] bg-[#f0f2f5] px-2 py-2 dark:border-[#222d34] dark:bg-[#202c33] sm:px-3">
