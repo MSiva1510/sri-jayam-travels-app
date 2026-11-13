@@ -1,6 +1,6 @@
 // ─── Supabase JWT verification for serverless / dev middleware ─────────
 // The GPS proxy relays requests to the vendor API on behalf of the browser.
-// Without this check anyone on the internet could use our Netlify function
+// Without this check anyone on the internet could use our serverless function
 // as a free relay (and burn the vendor quota). We require a valid Supabase
 // session AND an active staff profile (admin / manager) — the same roles
 // that are allowed to open /fleet in the UI.

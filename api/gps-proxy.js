@@ -1,6 +1,6 @@
-// Vercel entry point → netlify/functions/gps-proxy.js
+// Vercel entry point → vercel/functions/gps-proxy.js
 // Signed-in staff only (bearer Supabase session).
-import { handler } from '../netlify/functions/gps-proxy.js'
-import { wrapNetlifyHandler } from '../server/vercelAdapter.js'
+import { handler } from '../vercel/functions/gps-proxy.js'
+import { wrapFunctionHandler } from '../server/vercelAdapter.js'
 
-export default wrapNetlifyHandler(handler, 'api/gps-proxy')
+export default wrapFunctionHandler(handler, 'api/gps-proxy')

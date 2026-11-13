@@ -1,10 +1,11 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
-import { extractBearer, verifySupabaseStaff } from './netlify/functions/_lib/verifySupabaseUser.js'
+import { fileURLToPath, URL } from 'node:url'
+import { extractBearer, verifySupabaseStaff } from './vercel/functions/_lib/verifySupabaseUser.js'
 
 const DEFAULT_ALLOWED_GPS_HOSTS = ['mvt.apmkingstrack.com', 'app.gpstrack.in']
 
-// Mirrors netlify/functions/gps-proxy.js so dev behaves like production
+// Mirrors vercel/functions/gps-proxy.js so dev behaves like production
 // (same allow-list, same auth requirement).
 function gpsProxyDevMiddleware(env) {
   return {
@@ -96,6 +97,11 @@ function gpsProxyDevMiddleware(env) {
 
 export default defineConfig(({ mode }) => ({
   plugins: [react(), gpsProxyDevMiddleware(loadEnv(mode, process.cwd(), 'VITE_'))],
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
   // maplibre ships its own worker bundle — the dep optimizer chokes on
   // it (maplibre-gl-worker.mjs error), so serve it unbundled in dev.
   // Production uses rollup (unaffected).

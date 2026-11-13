@@ -1,5 +1,5 @@
 // ─── WhatsApp Cloud API webhook (Meta → Sri Jayam) ─────────────────────
-// Callback URL: https://<site>/api/whatsapp/webhook  (see netlify.toml)
+// Callback URL: https://<site>/api/whatsapp/webhook  (see vercel.json)
 //
 //   GET  — Meta's one-time verification: echoes hub.challenge when
 //          hub.verify_token matches WHATSAPP_VERIFY_TOKEN.
@@ -13,7 +13,7 @@
 //          bot (whatsappService.handleInbound); a bot failure is logged but
 //          still answers 200, so Meta does not resend and double-reply.
 //
-// Server-only env (Netlify → Site configuration → Environment variables):
+// Server-only env (Vercel → Site configuration → Environment variables):
 //   WHATSAPP_VERIFY_TOKEN, WHATSAPP_APP_SECRET,
 //   SUPABASE_URL (or VITE_SUPABASE_URL), SUPABASE_SERVICE_ROLE_KEY,
 //   WHATSAPP_TOKEN + WHATSAPP_PHONE_NUMBER_ID (bot replies; without them

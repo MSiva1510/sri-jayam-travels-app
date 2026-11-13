@@ -1,5 +1,5 @@
 // ─── WhatsApp Cloud API webhook helpers ────────────────────────────────
-// Pure functions used by netlify/functions/whatsapp-webhook.js:
+// Pure functions used by vercel/functions/whatsapp-webhook.js:
 //   • the one-time GET verification Meta performs when you save the
 //     callback URL (hub.mode / hub.verify_token / hub.challenge),
 //   • X-Hub-Signature-256 checking, so only Meta can post events,

@@ -1,5 +1,5 @@
 // WhatsApp bot, trip messages and inbox replies
-// (netlify/functions/_lib/whatsapp{Bot,Trip,Api,Service}.js,
+// (vercel/functions/_lib/whatsapp{Bot,Trip,Api,Service}.js,
 //  whatsapp-webhook.js / whatsapp-notify.js / whatsapp-send.js).
 //
 // The functions talk to Supabase REST and Meta's Graph API with fetch; the
@@ -10,13 +10,13 @@ import { test, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 
-import { botStep, parseTripDate, parseTripTime, nextBookingNumber, statusReply, parseLocation, locationText } from '../netlify/functions/_lib/whatsappBot.js'
-import { dueMessages, TEMPLATES } from '../netlify/functions/_lib/whatsappTrip.js'
-import { waPhone, templateText, waMessage, messagePreview } from '../netlify/functions/_lib/whatsappApi.js'
-import { todayIST } from '../netlify/functions/_lib/whatsappService.js'
-import { handler as webhook } from '../netlify/functions/whatsapp-webhook.js'
-import { handler as notify } from '../netlify/functions/whatsapp-notify.js'
-import { handler as send } from '../netlify/functions/whatsapp-send.js'
+import { botStep, parseTripDate, parseTripTime, nextBookingNumber, statusReply, parseLocation, locationText, tripType } from '../vercel/functions/_lib/whatsappBot.js'
+import { dueMessages, TEMPLATES } from '../vercel/functions/_lib/whatsappTrip.js'
+import { waPhone, templateText, waMessage, messagePreview } from '../vercel/functions/_lib/whatsappApi.js'
+import { todayIST } from '../vercel/functions/_lib/whatsappService.js'
+import { handler as webhook } from '../vercel/functions/whatsapp-webhook.js'
+import { handler as notify } from '../vercel/functions/whatsapp-notify.js'
+import { handler as send } from '../vercel/functions/whatsapp-send.js'
 
 const TODAY = '2026-10-30'
 const NOW = Date.parse('2026-10-30T12:00:00Z') // fixed clock — todayIST(NOW) === '2026-10-30'
@@ -40,7 +40,7 @@ test('dates and times the bot understands', () => {
   assert.equal(parseTripTime('25:00'), undefined)
 })
 
-test('booking conversation: menu → pickup → drop → date → time → confirm', () => {
+test('booking conversation: menu → trip type → pickup → drop → date → time → confirm', () => {
   let s = botStep(null, { text: 'Hi', contactName: 'Mani Kumar' }, TODAY)
   assert.equal(s.replies[0].kind, 'buttons')
   assert.equal(s.welcome, true)
@@ -48,7 +48,16 @@ test('booking conversation: menu → pickup → drop → date → time → confi
   assert.deepEqual(s.replies[0].buttons.map(b => b.id), ['book', 'status', 'staff'])
 
   s = botStep(s, { text: 'Book a trip', replyId: 'book' }, TODAY)
+  assert.equal(s.state, 'book_type')
+  assert.deepEqual(s.replies.at(-1).buttons.map(b => b.id), ['one_way', 'round_trip', 'self_drive'])
+
+  const badType = botStep(s, { text: 'someday' }, TODAY)
+  assert.equal(badType.state, 'book_type', 'asks again until a trip type is picked')
+  assert.match(badType.replies[0].body, /choose your trip type/)
+
+  s = botStep(s, { text: 'One way', replyId: 'one_way' }, TODAY)
   assert.equal(s.state, 'book_pickup')
+  assert.equal(s.data.type, 'one_way')
   s = botStep(s, { text: 'Ariyakuppam' }, TODAY)
   s = botStep(s, { text: 'Chennai airport' }, TODAY)
   assert.equal(s.state, 'book_date')
@@ -58,14 +67,64 @@ test('booking conversation: menu → pickup → drop → date → time → confi
   s = botStep(s, { text: 'tomorrow' }, TODAY)
   s = botStep(s, { text: '5:30 am' }, TODAY)
   assert.equal(s.state, 'book_confirm')
-  assert.match(s.replies[0].body, /Pickup: Ariyakuppam\nDrop: Chennai airport\nDate: 31 Oct 2026\nTime: 05:30/)
+  assert.match(s.replies[0].body, /Trip: One way\nPickup: Ariyakuppam\nDrop: Chennai airport\nDate: 31 Oct 2026\nTime: 05:30/)
 
   const done = botStep(s, { text: 'Confirm', replyId: 'confirm' }, TODAY)
   assert.equal(done.state, null)
   assert.deepEqual(done.action, {
     type: 'create_booking',
-    booking: { pickup: 'Ariyakuppam', drop: 'Chennai airport', date: '2026-10-31', time: '05:30' },
+    booking: { type: 'one_way', pickup: 'Ariyakuppam', drop: 'Chennai airport', date: '2026-10-31', time: '05:30' },
   })
+})
+
+test('trip type: one way, round trip (return date) and self drive (ID + licence)', () => {
+  // Typed aliases map to the bookings.type values.
+  assert.equal(tripType('1'), 'one_way')
+  assert.equal(tripType('One way'), 'one_way')
+  assert.equal(tripType('round'), 'round_trip')
+  assert.equal(tripType('Round trip'), 'round_trip')
+  assert.equal(tripType('self driving'), 'self_drive')
+  assert.equal(tripType('something else'), null)
+
+  // Round trip asks for the return date and keeps it with the booking.
+  let s = botStep(null, { text: 'book cab' }, TODAY)
+  assert.equal(s.state, 'book_type')
+  s = botStep(s, { text: 'Round trip', replyId: 'round_trip' }, TODAY)
+  s = botStep(s, { text: 'Ariyakuppam' }, TODAY)
+  s = botStep(s, { text: 'Chennai' }, TODAY)
+  s = botStep(s, { text: '5/11' }, TODAY)
+  assert.equal(s.state, 'book_return_date')
+  const tooEarly = botStep(s, { text: '4/11' }, TODAY)
+  assert.equal(tooEarly.state, 'book_return_date')
+  assert.match(tooEarly.replies[0].body, /cannot be before the pickup date/)
+  s = botStep(s, { text: '7/11' }, TODAY)
+  assert.equal(s.state, 'book_time')
+  s = botStep(s, { text: 'skip' }, TODAY)
+  assert.match(s.replies[0].body, /Trip: Round trip[\s\S]*Return: 7 Nov 2026/)
+  const done = botStep(s, { text: 'Confirm', replyId: 'confirm' }, TODAY)
+  assert.equal(done.action.booking.type, 'round_trip')
+  assert.equal(done.action.booking.return_date, '2026-11-07')
+
+  // Self drive collects the ID and licence once, then books.
+  s = botStep(null, { text: 'Book a trip', replyId: 'book' }, TODAY)
+  s = botStep(s, { text: 'Self drive', replyId: 'self_drive' }, TODAY)
+  assert.equal(s.data.self_drive, true)
+  s = botStep(s, { text: 'Ariyakuppam' }, TODAY)
+  s = botStep(s, { text: 'Chennai' }, TODAY)
+  s = botStep(s, { text: 'tomorrow' }, TODAY)
+  s = botStep(s, { text: 'skip' }, TODAY)
+  s = botStep(s, { text: 'Confirm', replyId: 'confirm' }, TODAY)
+  assert.equal(s.state, 'book_selfdrive_id_type')
+  s = botStep(s, { text: '1' }, TODAY)
+  s = botStep(s, { text: '1234 5678 9012' }, TODAY)
+  s = botStep(s, { text: 'TN01-20200012345' }, TODAY)
+  s = botStep(s, { text: '31/12/2030' }, TODAY)
+  assert.equal(s.state, 'book_confirm')
+  assert.match(s.replies[0].body, /ID: Aadhaar — 1234 5678 9012\nDL: TN01-20200012345\nDL Expiry: 31\/12\/2030/)
+  const booked = botStep(s, { text: 'Confirm', replyId: 'confirm' }, TODAY)
+  assert.equal(booked.action.type, 'create_booking')
+  assert.equal(booked.action.booking.type, 'self_drive')
+  assert.equal(booked.action.booking.dlExpiry, '31/12/2030')
 })
 
 test('Vanakkam is only sent for the first message when it is exactly Hi', () => {
@@ -115,6 +174,7 @@ test('locations: WhatsApp shares, maps links and typed coordinates are understoo
 
 test('booking conversation: location request button, location share and maps link', () => {
   let s = botStep(null, { text: 'Book a trip', replyId: 'book' }, TODAY)
+  s = botStep(s, { text: 'One way', replyId: 'one_way' }, TODAY)
   assert.equal(s.state, 'book_pickup')
   const locReply = s.replies.find(r => r.kind === 'location')
   assert.equal(locReply.kind, 'location')
@@ -140,14 +200,14 @@ test('booking conversation: location request button, location share and maps lin
 test('bot starts with the welcome message before any flow reply', () => {
   const s = botStep(null, { text: 'Book a trip', replyId: 'book', contactName: 'Mani Kumar' }, TODAY)
   assert.match(s.replies[0].body, /Vanakkam Mani!/)
-  assert.equal(s.state, 'book_pickup')
-  assert.match(s.replies[1].body, /Share your pickup location/)
+  assert.equal(s.state, 'book_type')
+  assert.match(s.replies[1].body, /Which type of trip do you need/)
 
   const later = botStep({ state: 'book_pickup', data: {}, welcome_checked_at: '2026-10-30T12:00:00.000Z' }, { text: 'Ariyakuppam' }, TODAY)
   assert.equal(later.replies.length, 1, 'no second welcome for returning conversations')
 })
 
-test('cancel, status, staff and unknown text', () => {
+test('cancel, status, staff, booking intents and unknown text', () => {
   const mid = { state: 'book_drop', data: { pickup: 'X' } }
   const c = botStep(mid, { text: 'cancel' }, TODAY)
   assert.equal(c.state, null)
@@ -155,9 +215,18 @@ test('cancel, status, staff and unknown text', () => {
   assert.doesNotMatch(c.replies[0].body, /Vanakkam/)
   assert.deepEqual(c.replies[0].buttons.map(b => b.id), ['book', 'status', 'staff'])
   assert.equal(botStep(null, { text: '2' }, TODAY).action.type, 'trip_status')
+  assert.equal(botStep(null, { text: 'my trip status' }, TODAY).action.type, 'trip_status')
   const staff = botStep(null, { text: 'x', replyId: 'staff' }, TODAY)
   assert.equal(staff.action.type, 'handoff')
+
+  // "book cab"/"cab"/"taxi" … start the booking flow without the menu.
+  for (const text of ['book cab', 'Book a Cab', 'cab', 'taxi', 'I want to book a cab', 'need a car']) {
+    const r = botStep(null, { text }, TODAY)
+    assert.equal(r.state, 'book_type', text)
+    assert.deepEqual(r.replies.at(-1).buttons.map(b => b.id), ['one_way', 'round_trip', 'self_drive'], text)
+  }
   assert.equal(botStep(null, { text: 'what is the fare?' }, TODAY).replies[0].kind, 'buttons')
+  assert.equal(botStep(null, { text: 'what is the fare?' }, TODAY).state, null)
 })
 
 test('status reply lists the newest trips with driver and car', () => {
@@ -246,7 +315,7 @@ const ENV = {
 const realFetch = globalThis.fetch
 afterEach(() => { globalThis.fetch = realFetch })
 
-function fakeWorld({ staffRole = 'manager' } = {}) {
+function fakeWorld({ staffRole = 'manager', failBookings = false } = {}) {
   const db = {
     inbound: [], outbound: [], conversations: new Map(), bookings: [{ ...BOOKING }],
     drivers: [{ ...DRIVER }], customers: [],
@@ -322,6 +391,7 @@ function fakeWorld({ staffRole = 'manager' } = {}) {
         if (p.select === 'booking_number') return json(db.bookings.map(b => ({ booking_number: b.booking_number })))
         return json(db.bookings.filter(b => String(b.customer_contact).endsWith(p.customer_contact.slice(-10))))
       case 'POST bookings': {
+        if (failBookings) return json({ message: 'database is unavailable' }, 500)
         const row = { id: crypto.randomUUID(), ...body[0] }
         if (db.bookings.some(b => b.booking_number === row.booking_number)) {
           return new Response('{"code":"23505","message":"duplicate key"}', { status: 409 })
@@ -371,11 +441,12 @@ test('webhook: a customer books a trip end to end, and a retried message is not 
   res = await webhook(hi, {}, ENV, fetch, NOW) // Meta retry
   assert.equal(JSON.parse(res.body).replied, 0)
 
-  for (const [text, replyId] of [['Book a trip', 'book'], ['Ariyakuppam'], ['Chennai'], ['5/11'], ['skip'], ['Confirm', 'confirm']]) {
+  for (const [text, replyId] of [['book cab', null], ['One way', 'one_way'], ['Ariyakuppam'], ['Chennai'], ['5/11'], ['skip'], ['Confirm', 'confirm']]) {
     await webhook(incoming(text, { replyId }), {}, ENV, fetch, NOW)
   }
   const booking = db.bookings.at(-1)
   assert.equal(booking.status, 'pending')
+  assert.equal(booking.type, 'one_way')
   assert.equal(booking.booking_number, 'FY26-NOV-0053')
   assert.deepEqual([booking.customer_name, booking.customer_contact, booking.start_date, booking.start_time],
     ['Mani Kumar', '7305581235', '2026-11-05', null])
@@ -384,9 +455,51 @@ test('webhook: a customer books a trip end to end, and a retried message is not 
   assert.equal(db.conversations.get(PHONE).state, null)
 })
 
+test('webhook: a round trip saves type and return date', async () => {
+  const { db, sent } = fakeWorld()
+  for (const [text, replyId] of [
+    ['book cab', null], ['Round trip', 'round_trip'], ['Ariyakuppam'], ['Chennai'],
+    ['5/11'], ['7/11'], ['skip'], ['Confirm', 'confirm'],
+  ]) {
+    await webhook(incoming(text, { replyId }), {}, ENV, fetch, NOW)
+  }
+  const booking = db.bookings.at(-1)
+  assert.equal(booking.type, 'round_trip')
+  assert.equal(booking.start_date, '2026-11-05')
+  assert.equal(booking.end_date, '2026-11-07')
+  assert.equal(booking.status, 'pending')
+  assert.match(sent.at(-1).text.body, /Trip: Round trip[\s\S]*Return: 7 Nov 2026/)
+})
+
+test('webhook: a self drive saves the type and ID details', async () => {
+  const { db, sent } = fakeWorld()
+  for (const [text, replyId] of [
+    ['book cab', null], ['Self drive', 'self_drive'], ['Ariyakuppam'], ['Chennai'],
+    ['5/11'], ['skip'], ['Confirm', 'confirm'],
+    ['1'], ['1234 5678 9012'], ['TN01-20200012345'], ['31/12/2030'], ['Confirm', 'confirm'],
+  ]) {
+    await webhook(incoming(text, { replyId }), {}, ENV, fetch, NOW)
+  }
+  const booking = db.bookings.at(-1)
+  assert.equal(booking.type, 'self_drive')
+  assert.equal(booking.end_date, null)
+  assert.deepEqual(booking.type_data, {
+    lead_source: 'WhatsApp',
+    source: 'whatsapp_bot',
+    idType: 'Aadhaar',
+    idNum: '1234 5678 9012',
+    dlNum: 'TN01-20200012345',
+    dlExpiry: '31/12/2030',
+  })
+  assert.match(sent.at(-1).text.body, /Your request .* is booked/)
+})
+
 test('webhook: a customer books by sharing their live location and a maps link', async () => {
   const { db, sent } = fakeWorld()
   await webhook(incoming('Book a trip', { replyId: 'book' }), {}, ENV, fetch, NOW)
+  assert.equal(sent.at(-1).type, 'interactive')
+  assert.equal(sent.at(-1).interactive.type, 'button')
+  await webhook(incoming('One way', { replyId: 'one_way' }), {}, ENV, fetch, NOW)
   assert.equal(sent.at(-1).type, 'interactive')
   assert.equal(sent.at(-1).interactive.type, 'location_request_message')
   assert.deepEqual(sent.at(-1).interactive.action, { name: 'send_location' })
@@ -426,6 +539,25 @@ test('webhook: "Talk to staff" pauses the bot for 6 hours, then resumes it', asy
   assert.equal(db.conversations.get(PHONE).needs_staff, false)
   assert.equal(db.conversations.get(PHONE).bot_paused_until, null)
   assert.doesNotMatch(sent.at(-1).interactive.body.text, /Vanakkam/)
+})
+
+test('webhook: a failed booking pauses the bot for 5 minutes only', async () => {
+  const { db, sent } = fakeWorld({ failBookings: true })
+  for (const [text, replyId] of [['book cab', null], ['One way', 'one_way'], ['Ariyakuppam'], ['Chennai'], ['5/11'], ['skip'], ['Confirm', 'confirm']]) {
+    await webhook(incoming(text, { replyId }), {}, ENV, fetch, NOW)
+  }
+  const conv = db.conversations.get(PHONE)
+  assert.equal(Date.parse(conv.bot_paused_until), NOW + 5 * 60_000, 'paused for 5 minutes, not 12 hours')
+  assert.match(sent.at(-1).text.body, /could not save the booking/)
+  assert.equal(db.bookings.length, 1, 'no new booking was stored')
+
+  const before = sent.length
+  await webhook(incoming('Hi'), {}, ENV, fetch, NOW + 4 * 60_000)
+  assert.equal(sent.length, before, 'still paused after 4 minutes')
+  assert.equal(db.inbound.length, 8, 'the message is still stored for the inbox')
+
+  await webhook(incoming('Hi'), {}, ENV, fetch, NOW + 5 * 60_000)
+  assert.equal(sent.length, before + 1, 'bot resumes after 5 minutes')
 })
 
 test('notify: secret or staff only; each template once; failures retried next time', async () => {

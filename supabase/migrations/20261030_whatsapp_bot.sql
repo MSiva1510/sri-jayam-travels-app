@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- WhatsApp bot, inbox and trip messages (netlify/functions/whatsapp-*.js).
+-- WhatsApp bot, inbox and trip messages (vercel/functions/whatsapp-*.js).
 --
 --   1. whatsapp_conversations — one row per customer phone: bot state, when
 --      the customer last wrote (24 h reply window), unread count, "needs
@@ -93,7 +93,7 @@ CREATE POLICY whatsapp_outbound_staff_read
   ON public.whatsapp_outbound_messages FOR SELECT TO authenticated
   USING (public.is_staff());
 
--- ── 3. Functions for the Netlify functions (service role) ───────────────────
+-- ── 3. Functions for the Vercel functions (service role) ───────────────────
 CREATE OR REPLACE FUNCTION public.whatsapp_touch_conversation(
   p_phone        text,
   p_direction    text,

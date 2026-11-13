@@ -38,7 +38,7 @@ jobs:
           set -e
           ! git ls-files | grep -E '(^|/)\.env(\.local)?$' || (echo "::error::.env file committed" && exit 1)
           ! git ls-files | grep -E '\.backup[0-9]*$'      || (echo "::error::backup file committed" && exit 1)
-          ! grep -rEn 'service_role|sb_secret_|eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9' --include='*.js' --include='*.jsx' --include='*.dart' --include='*.toml' src netlify mobile/lib || (echo "::error::possible secret in source" && exit 1)
+          ! grep -rEn 'service_role|sb_secret_|eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9' --include='*.js' --include='*.jsx' --include='*.dart' --include='*.toml' src vercel mobile/lib || (echo "::error::possible secret in source" && exit 1)
 
   mobile:
     name: Mobile — analyze (advisory)

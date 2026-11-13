@@ -1,26 +1,25 @@
-// ─── Vercel ⇄ Netlify function adapter ───────────────────────────────────
-// The app's server code lives in `netlify/functions/*` and speaks the Netlify
+// ─── Vercel function adapter ─────────────────────────────────────────────
+// The app's server code lives in `vercel/functions/*` and speaks a simple
 // event/response shape:  handler({ httpMethod, headers, queryStringParameters,
 // body }) → { statusCode, headers, body }.
 //
 // Vercel serves files under `api/` as functions with the Web-standard
 // signature (`fetch(request) → Response`). This adapter converts one to the
-// other so the SAME handler runs on either host — no duplicated business
-// logic.
+// other so the same handler runs everywhere — no duplicated business logic.
 //
 // The request body is read as raw bytes on purpose: the Meta webhook verifies
 // `X-Hub-Signature-256` against the exact bytes Meta sent, so re-serialising
 // parsed JSON would break signature checks.
 
 /** @param {Request} request */
-export async function toNetlifyEvent(request) {
+export async function toHandlerEvent(request) {
   const url = new URL(request.url)
 
   const headers = {}
   request.headers.forEach((value, key) => { headers[key] = value })
 
-  // Netlify passes `null` when there is no query string; keep that shape so
-  // handlers that do `if (!query) ...` behave identically.
+  // The handler event passes `null` when there is no query string; keep that
+  // shape so handlers that do `if (!query) ...` behave identically.
   let queryStringParameters = null
   if (url.search) {
     queryStringParameters = {}
@@ -63,16 +62,16 @@ export function toWebResponse(result = {}) {
 }
 
 /**
- * Builds a Vercel Web-standard fetch handler from a Netlify-style handler.
+ * Builds a Vercel Web-standard fetch handler from an event-style handler.
  * @param {(event: any, context?: any) => Promise<any>} handler
  * @param {string} label  used in the 500 log line
  */
-export function wrapNetlifyHandler(handler, label) {
+export function wrapFunctionHandler(handler, label) {
   return {
     /** @param {Request} request */
     async fetch(request) {
       try {
-        const event = await toNetlifyEvent(request)
+        const event = await toHandlerEvent(request)
         return toWebResponse(await handler(event))
       } catch (error) {
         console.error(`[${label}] unhandled:`, error?.message ?? error)

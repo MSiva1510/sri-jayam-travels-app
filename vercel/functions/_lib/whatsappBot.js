@@ -13,8 +13,54 @@ export const MENU_BUTTONS = [
   { id: 'staff', title: 'Talk to staff' },
 ]
 
+// Trip models. The ids are the values stored in bookings.type.
+export const TRIP_TYPE_BUTTONS = [
+  { id: 'one_way', title: 'One way' },
+  { id: 'round_trip', title: 'Round trip' },
+  { id: 'self_drive', title: 'Self drive' },
+]
+
+const TRIP_TYPE_ALIASES = {
+  one_way: ['one_way', 'one way', 'oneway', 'single', 'single trip', '1'],
+  round_trip: ['round_trip', 'round trip', 'roundtrip', 'round', 'return', 'two way', '2'],
+  self_drive: ['self_drive', 'self drive', 'selfdrive', 'self driving', 'drive myself', '3'],
+}
+
+const TRIP_TYPE_LABEL = {
+  one_way: 'One way',
+  round_trip: 'Round trip',
+  self_drive: 'Self drive',
+}
+
 const RESET_WORDS = ['hi', 'hii', 'hello', 'hey', 'menu', 'start', 'vanakkam', '0']
 const CANCEL_WORDS = ['cancel', 'stop', 'exit']
+
+const BOOK_VERBS = /\b(?:book|booking|reserve|need|want|hire)\b/
+const BOOK_NOUNS = /\b(?:cab|taxi|car|trip|ride|vehicle)\b/
+
+/** "book cab", "cab", "taxi", "I want to book a cab" … all start a booking. */
+function isBookIntent(input) {
+  if (input === '1' || input === 'book' || input === 'booking') return true
+  if (/^(?:cab|taxi|car|trip)$/.test(input)) return true
+  return BOOK_VERBS.test(input) && BOOK_NOUNS.test(input)
+}
+
+function isStatusIntent(input) {
+  return input === '2' || /\bstatus\b/.test(input)
+}
+
+function isStaffIntent(input) {
+  return input === '3' || /\b(?:staff|agent|human|operator)\b/.test(input) || /\btalk to\b/.test(input)
+}
+
+/** Button id / typed wording → bookings.type, or null. */
+export function tripType(input) {
+  const t = norm(input)
+  for (const [type, aliases] of Object.entries(TRIP_TYPE_ALIASES)) {
+    if (aliases.includes(t)) return type
+  }
+  return null
+}
 
 const STATUS_LABEL = {
   draft: 'Draft', pending: 'Waiting for confirmation', approved: 'Confirmed', confirmed: 'Confirmed',
@@ -164,12 +210,15 @@ function menu(contactName, welcome = false) {
 }
 
 function bookingSummary(d) {
-  return [
+  const rows = [`Trip: ${TRIP_TYPE_LABEL[d.type] ?? TRIP_TYPE_LABEL.one_way}`]
+  rows.push(
     `Pickup: ${d.pickup}`,
     `Drop: ${d.drop}`,
     `Date: ${prettyDate(d.date)}`,
-    `Time: ${d.time ?? 'Not given'}`,
-  ].join('\n')
+  )
+  if (d.return_date) rows.push(`Return: ${prettyDate(d.return_date)}`)
+  rows.push(`Time: ${d.time ?? 'Not given'}`)
+  return rows.join('\n')
 }
 
 /**
@@ -205,6 +254,22 @@ export function botStep(conv, msg, today) {
   }
 
   switch (state) {
+    case 'book_type': {
+      const type = tripType(input)
+      if (!type) {
+        return done(
+          [buttons('Please choose your trip type:', TRIP_TYPE_BUTTONS)],
+          state,
+          data,
+        )
+      }
+      return done(
+        [location('Sure! Share your pickup location, or type the place name.')],
+        'book_pickup',
+        { ...data, type, ...(type === 'self_drive' ? { self_drive: true } : {}) },
+      )
+    }
+
     case 'book_pickup':
       if (!raw) return done([location('Please share your pickup location, or type the place name.')], state, data)
       return done(
@@ -224,7 +289,19 @@ export function botStep(conv, msg, today) {
     case 'book_date': {
       const date = parseTripDate(raw, today)
       if (!date) return done([text('Sorry, I could not read that date. Type today, tomorrow or a date like 5/11.')], state, data)
+      if (data.type === 'round_trip') {
+        return done([text('Return date? Type today, tomorrow or a date like 5/11.')], 'book_return_date', { ...data, date })
+      }
       return done([text('Pickup time? For example 6:30 am. Type skip if not sure.')], 'book_time', { ...data, date })
+    }
+
+    case 'book_return_date': {
+      const returnDate = parseTripDate(raw, today)
+      if (!returnDate) return done([text('Sorry, I could not read that date. Type today, tomorrow or a date like 5/11.')], state, data)
+      if (returnDate < data.date) {
+        return done([text('The return date cannot be before the pickup date. Please type the return date again.')], state, data)
+      }
+      return done([text('Pickup time? For example 6:30 am. Type skip if not sure.')], 'book_time', { ...data, return_date: returnDate })
     }
 
     case 'book_time': {
@@ -243,13 +320,10 @@ export function botStep(conv, msg, today) {
 
     case 'book_confirm':
       if (input === 'confirm' || input === 'yes' || input === 'ok') {
-        if (data.self_drive) {
-          // Self-drive needs ID details first
+        if (data.self_drive && !data.dlNum) {
+          // Self-drive needs the ID details once, before the final confirm.
           return done(
-            [buttons(`Self Drive — ID Details:\n1) Aadhaar\n2) PAN Card\n3) Passport\n4) Voter ID\n\nReply with ID type number (1-4) or name:`, [
-              { id: 'confirm', title: 'Confirm' },
-              { id: 'cancel', title: 'Cancel' },
-            ])],
+            [text('Self Drive — ID Details:\n1) Aadhaar\n2) PAN Card\n3) Passport\n4) Voter ID\n\nReply with the ID type number (1-4) or name:')],
             'book_selfdrive_id_type',
             data,
           )
@@ -267,8 +341,14 @@ export function botStep(conv, msg, today) {
 
     case 'book_selfdrive_id_type': {
       const idMap = { '1': 'Aadhaar', '2': 'PAN Card', '3': 'Passport', '4': 'Voter ID' }
-      const idType = idMap[input] || input
-      if (!idType || !['Aadhaar','PAN Card','Passport','Voter ID'].includes(idType)) {
+      const typed = {
+        aadhaar: 'Aadhaar', aadhar: 'Aadhaar',
+        pan: 'PAN Card', 'pan card': 'PAN Card',
+        passport: 'Passport',
+        voter: 'Voter ID', 'voter id': 'Voter ID',
+      }
+      const idType = idMap[input] || typed[input]
+      if (!idType) {
         return done(
           [text('Please reply with ID type: 1) Aadhaar, 2) PAN Card, 3) Passport, 4) Voter ID')],
           state,
@@ -308,13 +388,14 @@ export function botStep(conv, msg, today) {
       if (!raw || raw.length < 5) {
         return done([text('Please enter a valid expiry date (DD/MM/YYYY):')], state, data)
       }
+      const next = { ...data, dlExpiry: raw }
       return done(
-        [buttons(`Please check your self-drive trip:\n${bookingSummary(data)}\n\nID: ${data.idType} — ${data.idNum}\nDL: ${data.dlNum}\nDL Expiry: ${data.dlExpiry}\n\nTap Confirm to book:`, [
+        [buttons(`Please check your self-drive trip:\n${bookingSummary(next)}\n\nID: ${next.idType} — ${next.idNum}\nDL: ${next.dlNum}\nDL Expiry: ${next.dlExpiry}\n\nTap Confirm to book:`, [
           { id: 'confirm', title: 'Confirm' },
           { id: 'cancel', title: 'Cancel' },
         ])],
         'book_confirm',
-        data,
+        next,
       )
     }
 
@@ -322,14 +403,18 @@ export function botStep(conv, msg, today) {
       break
   }
 
-  if (input === 'book' || input === '1' || input === 'book a trip') {
-    return done([...greetFirst([location('Sure! Share your pickup location, or type the place name.')])], 'book_pickup', {})
-  }
-  if (input === 'status' || input === '2' || input === 'my trip status') {
+  if (isStatusIntent(input)) {
     return done(greetFirst([]), null, {}, { type: 'trip_status' })
   }
-  if (input === 'staff' || input === '3' || input === 'talk to staff') {
+  if (isStaffIntent(input)) {
     return done(greetFirst([text('Okay, our team will reply here shortly. Type menu any time to use the bot again.')]), null, {}, { type: 'handoff' })
+  }
+  if (isBookIntent(input)) {
+    return done(
+      [...greetFirst([buttons('Which type of trip do you need?', TRIP_TYPE_BUTTONS)])],
+      'book_type',
+      {},
+    )
   }
   return done(greetFirst([menu(msg.contactName)]))
 }

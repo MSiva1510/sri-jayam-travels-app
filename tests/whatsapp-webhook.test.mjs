@@ -1,4 +1,4 @@
-// WhatsApp Cloud API webhook (netlify/functions/whatsapp-webhook.js).
+// WhatsApp Cloud API webhook (vercel/functions/whatsapp-webhook.js).
 //
 // Meta verifies the callback URL with a GET, then POSTs signed events. The
 // function must echo the challenge only for our verify token, refuse any
@@ -7,8 +7,8 @@
 import { test, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
-import { handler } from '../netlify/functions/whatsapp-webhook.js'
-import { verifyChallenge, verifySignature, parseWebhook } from '../netlify/functions/_lib/whatsappWebhook.js'
+import { handler } from '../vercel/functions/whatsapp-webhook.js'
+import { verifyChallenge, verifySignature, parseWebhook } from '../vercel/functions/_lib/whatsappWebhook.js'
 
 const ENV = {
   WHATSAPP_VERIFY_TOKEN: 'verify-me',

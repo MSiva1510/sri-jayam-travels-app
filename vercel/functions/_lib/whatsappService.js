@@ -9,7 +9,8 @@ import { botStep, bookedReply, nextBookingNumber, statusReply } from './whatsapp
 import { dueMessages } from './whatsappTrip.js'
 
 export const STAFF_PAUSE_HOURS = 6
-const BOOKING_FAILURE_PAUSE_HOURS = 12
+/** A failed booking only pauses the bot briefly so the customer can retry. */
+export const BOOKING_FAILURE_PAUSE_MS = 5 * 60_000
 
 /** Today's date in India, 'YYYY-MM-DD'. */
 export function todayIST(now = Date.now()) {
@@ -75,10 +76,11 @@ async function createBotBooking(db, phone, contactName, data) {
 
   for (let bump = 0; bump < 5; bump++) {
     const bookingNumber = nextBookingNumber(data.date, numbers, bump)
+    const type = ['one_way', 'round_trip', 'self_drive'].includes(data.type) ? data.type : 'one_way'
     try {
       const [row] = await db.insert('bookings', [{
         booking_number: bookingNumber,
-        type: data.type === 'self_drive' ? 'self_drive' : 'one_way',
+        type,
         status: 'pending',
         customer_name: contactName || 'WhatsApp customer',
         customer_contact: local,
@@ -87,6 +89,7 @@ async function createBotBooking(db, phone, contactName, data) {
         drop_location: data.drop,
         start_date: data.date,
         start_time: data.time,
+        end_date: data.return_date ?? null,
         notes: 'Booked on WhatsApp',
         type_data: {
           lead_source: 'WhatsApp',
@@ -172,8 +175,8 @@ export async function handleInbound(db, config, message, now = Date.now()) {
       replies.push(bookedReply(booking.booking_number, step.action.booking, customer))
     } catch (e) {
       console.error('[whatsapp-bot] booking failed:', e.message)
-      replies.push({ kind: 'text', body: 'Sorry, we could not save the booking. Our team will contact you here shortly.' })
-      patch.bot_paused_until = new Date(now + BOOKING_FAILURE_PAUSE_HOURS * 3_600_000).toISOString()
+      replies.push({ kind: 'text', body: 'Sorry, we could not save the booking. Please try again in 5 minutes, or our team will contact you here.' })
+      patch.bot_paused_until = new Date(now + BOOKING_FAILURE_PAUSE_MS).toISOString()
     }
   } else if (step.action?.type === 'trip_status') {
     replies.push(await tripStatus(db, message.from))

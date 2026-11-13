@@ -7,9 +7,9 @@
 //   WHATSAPP_TOKEN=… WHATSAPP_WABA_ID=… node scripts/whatsapp-templates.mjs --list   # status
 //
 // PowerShell: $env:WHATSAPP_TOKEN="…"; $env:WHATSAPP_WABA_ID="…"; node scripts/whatsapp-templates.mjs
-// Template text lives in netlify/functions/_lib/whatsappTrip.js (TEMPLATES).
+// Template text lives in vercel/functions/_lib/whatsappTrip.js (TEMPLATES).
 
-import { TEMPLATES } from '../netlify/functions/_lib/whatsappTrip.js'
+import { TEMPLATES } from '../vercel/functions/_lib/whatsappTrip.js'
 
 const token = process.env.WHATSAPP_TOKEN
 const waba = process.env.WHATSAPP_WABA_ID

@@ -1,5 +1,5 @@
 // ─── Supabase REST with the service-role key (server only) ──────────────
-// Bypasses RLS: only for Netlify functions that have already checked who
+// Bypasses RLS: only for serverless functions that have already checked who
 // is calling (Meta signature, staff session or the notify secret).
 
 export function supabaseAdmin(env = process.env, fetchImpl = fetch) {

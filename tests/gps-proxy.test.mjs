@@ -1,4 +1,4 @@
-// Contract tests for netlify/functions/gps-proxy.js
+// Contract tests for vercel/functions/gps-proxy.js
 // Supabase auth is mocked via global fetch; no network needed.
 import { test, before } from 'node:test'
 import assert from 'node:assert/strict'
@@ -26,7 +26,7 @@ before(async () => {
     // vendor
     return { status: 200, ok: true, text: async () => JSON.stringify({ relayed: u }), headers: { get: () => 'application/json' } }
   }
-  ;({ handler } = await import('../netlify/functions/gps-proxy.js'))
+  ;({ handler } = await import('../vercel/functions/gps-proxy.js'))
 })
 
 const okBody = { target_url: 'https://mvt.apmkingstrack.com/api', vendor_method: 'GET', company_id: '1' }

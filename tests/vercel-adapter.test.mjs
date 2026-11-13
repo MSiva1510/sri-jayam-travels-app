@@ -13,7 +13,7 @@ process.env.SUPABASE_URL = 'https://example.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-key'
 
 const { default: webhook } = await import('../api/whatsapp/webhook.js')
-const { toNetlifyEvent, toWebResponse } = await import('../server/vercelAdapter.js')
+const { toHandlerEvent, toWebResponse } = await import('../server/vercelAdapter.js')
 
 const URL_BASE = 'https://app.travelsjayam.in/api/whatsapp/webhook'
 
@@ -61,9 +61,9 @@ test('Vercel webhook: unknown methods are 405', async () => {
   assert.equal(response.status, 405)
 })
 
-test('adapter keeps the raw body bytes and Netlify event shape', async () => {
+test('adapter keeps the raw body bytes and event shape', async () => {
   const body = '{"a":1,  "b":"ü"}'
-  const event = await toNetlifyEvent(new Request(`${URL_BASE}?x=1&x=2`, {
+  const event = await toHandlerEvent(new Request(`${URL_BASE}?x=1&x=2`, {
     method: 'POST',
     body,
     headers: { 'X-Custom': 'yes' },
@@ -77,12 +77,12 @@ test('adapter keeps the raw body bytes and Netlify event shape', async () => {
 })
 
 test('adapter passes null when there is no query string', async () => {
-  const event = await toNetlifyEvent(new Request(URL_BASE))
+  const event = await toHandlerEvent(new Request(URL_BASE))
   assert.equal(event.queryStringParameters, null)
   assert.equal(event.body, '')
 })
 
-test('adapter turns a Netlify response into a Web Response', async () => {
+test('adapter turns an event response into a Web Response', async () => {
   const response = toWebResponse({
     statusCode: 418,
     headers: { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' },

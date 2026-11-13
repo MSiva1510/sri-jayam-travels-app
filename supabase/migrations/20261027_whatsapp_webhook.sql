@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- WhatsApp Cloud API webhook storage (netlify/functions/whatsapp-webhook.js).
+-- WhatsApp Cloud API webhook storage (vercel/functions/whatsapp-webhook.js).
 --
 --   1. whatsapp_inbound_messages — customer messages Meta delivers to us.
 --      Unique wamid makes Meta's retries no-ops. Staff (is_staff) can read;
