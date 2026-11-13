@@ -1,13 +1,15 @@
-// ─── WhatsApp inbox ───────────────────────────────────────────
+// ─── WhatsApp chat page ───────────────────────────────────────
 // Staff read and answer customers' WhatsApp chats. The bot answers
 // automatically; "Talk to staff" pauses it and flags needs_staff.
 // Reads go straight to Supabase (RLS: staff SELECT, UPDATE on
 // conversations only); replies / resume go through the Netlify
 // function POST /api/whatsapp/send with the staff session token.
 //
-// Visual language follows the official WhatsApp Web 2025 layout:
-// white chat list, filter pills, beige doodle wallpaper, mint
-// outgoing bubbles, blue read ticks, floating composer pill.
+// Visual language follows the official WhatsApp Web 2025 layout
+// (from the whatsapp-web-ui design source): white chat list, filter
+// pills, beige doodle wallpaper, mint outgoing bubbles, blue read
+// ticks, floating composer pill, E2E encryption notice, reactions,
+// scroll-to-bottom, in-chat search.
 import { Fragment, useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   MessageCircle, Search, Phone, ArrowLeft, Send, Bot, AlertTriangle,

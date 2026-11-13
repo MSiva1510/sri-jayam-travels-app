@@ -1,5 +1,5 @@
 // ─── WhatsApp inbox helpers ───────────────────────────────────
-// Pure functions used by pages/WhatsApp.jsx (tested in
+// Pure functions used by pages/WhatsAppChat.jsx (tested in
 // tests/whatsappInbox.test.mjs). No React, no Supabase.
 
 export const REPLY_WINDOW_MS = 24 * 3_600_000
