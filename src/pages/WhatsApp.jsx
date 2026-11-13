@@ -263,10 +263,20 @@ function DateDivider({ label }) {
   if (!label) return null
   return (
     <div className="my-3 flex justify-center">
-      <span className="rounded-lg bg-white/95 px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-[#54656f] shadow-sm dark:bg-[#182229] dark:text-[#8696a0]">
+      <span className="rounded-[5px] bg-[#e1f2fa] px-2.5 py-1 text-[11px] font-medium uppercase text-[#000] shadow-sm dark:bg-[#1e2a30] dark:text-[rgba(241,241,242,0.92)]">
         {label}
       </span>
     </div>
+  )
+}
+
+function EncryptionNotice() {
+  return (
+    <p className="mx-auto my-3 max-w-[85%] rounded-[5px] bg-[#fdf4c5] px-3 py-2 text-center text-[12.8px] leading-[20px] text-[#000] shadow-sm dark:bg-[#20272b] dark:text-[#fada64]">
+      <Lock size={12} className="mr-1 inline-block align-middle" aria-hidden="true" />
+      Messages are end-to-end encrypted. No one outside of this chat, not even WhatsApp, can read or
+      listen to them. Click to learn more.
+    </p>
   )
 }
 
@@ -829,12 +839,15 @@ export default function WhatsApp() {
                     <p className="mt-1 text-xs text-[#667781] dark:text-[#8696a0]">This chat has no stored messages.</p>
                   </div>
                 ) : (
-                  thread.map(item => (
-                    <Fragment key={item.key}>
-                      {item.newDay && <DateDivider label={dateDividerLabel(item.at, now)} />}
-                      <Bubble item={item} now={now} />
-                    </Fragment>
-                  ))
+                  <>
+                    <EncryptionNotice />
+                    {thread.map(item => (
+                      <Fragment key={item.key}>
+                        {item.newDay && <DateDivider label={dateDividerLabel(item.at, now)} />}
+                        <Bubble item={item} now={now} />
+                      </Fragment>
+                    ))}
+                  </>
                 )}
                 <div ref={threadEndRef} />
               </div>
