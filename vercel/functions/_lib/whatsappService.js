@@ -137,6 +137,33 @@ async function tripStatus(db, phone) {
 }
 
 /**
+ * Saves the bot's progress. A deployment can land before its migration, so a
+ * rejected welcome_checked_at is retried without that one field — losing the
+ * greeting marker is harmless, losing the state is not. Any remaining failure
+ * is logged and the reply still goes out: a database problem must never leave
+ * a customer unanswered.
+ */
+async function saveConversation(db, phone, patch) {
+  const path = `whatsapp_conversations?phone=eq.${enc(phone)}`
+  try {
+    await db.update(path, patch)
+    return
+  } catch (e) {
+    if (!('welcome_checked_at' in patch)) {
+      console.error('[whatsapp-bot] could not save conversation:', e.message)
+      return
+    }
+    console.error('[whatsapp-bot] conversation update rejected welcome_checked_at, retrying without it:', e.message)
+  }
+  const { welcome_checked_at: _omitted, ...rest } = patch
+  try {
+    await db.update(path, rest)
+  } catch (e) {
+    console.error('[whatsapp-bot] could not save conversation:', e.message)
+  }
+}
+
+/**
  * One newly stored inbound message: update the conversation and, unless
  * staff took over, let the bot answer.
  */
@@ -185,7 +212,7 @@ export async function handleInbound(db, config, message, now = Date.now()) {
     patch.needs_staff = true
   }
 
-  await db.update(`whatsapp_conversations?phone=eq.${enc(message.from)}`, patch)
+  await saveConversation(db, message.from, patch)
   for (const r of replies) {
     await sendAndRecord(db, config, { to: message.from, msg: toGraph(message.from, r), kind: 'bot' })
   }
