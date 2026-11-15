@@ -2,44 +2,70 @@
 // Displays audit events from Supabase `audit_logs` on the app's design table
 // (same surface / header / pagination language as Communications & Expenses).
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react'
 import PageHeader from '../components/ui/PageHeader'
 import {
   Search as SearchIcon, RefreshCw, ChevronLeft, ChevronRight, AlertTriangle,
 } from 'lucide-react'
 import { AUDIT_ACTIONS, fmtAuditTime, loadAuditEventsFromDB } from '../data/auditLogData'
 
-// Rows per page are derived from the real viewport height so the table always
-// fits one screen (no vertical scrolling). Browser zoom changes innerHeight in
-// CSS pixels, so 90% naturally fits more rows and 110% fits fewer.
-const ROW_H      = 52   // desktop row height (px)
-const CARD_H     = 92   // mobile card height (px)
-const CHROME_H   = 340  // topbar + page header + toolbar + pagination + padding
-const MIN_ROWS   = 5
-const MAX_ROWS   = 40
+const FALLBACK_ROW_H  = 52   // desktop row height until a real row is measured
+const FALLBACK_CARD_H = 96   // mobile card height until a real card is measured
+const SAFE_GAP        = 10   // breathing room above the bottom edge (px)
+const MIN_ROWS        = 3
+const MAX_ROWS        = 40
 
-function rowsForViewport() {
-  if (typeof window === 'undefined') return 10
-  const avail = window.innerHeight - CHROME_H
-  if (window.innerWidth < 768) {
-    return Math.max(3, Math.min(12, Math.floor(avail / CARD_H)))
-  }
-  // Reserve one extra row so the pagination bar always sits above the fold
-  // and the page never shows a vertical scrollbar.
-  return Math.max(MIN_ROWS, Math.min(MAX_ROWS, Math.floor(avail / ROW_H) - 1))
-}
+// Rows per page are driven by the *actual rendered layout* instead of guessed
+// chrome heights: after every render we compare the bottom of the pagination bar
+// with the bottom of the scroll viewport (`main`) and grow/shrink the page size
+// until the pager sits exactly inside it. That guarantees one screen with no
+// vertical scrollbar at any zoom (90 / 100 / 110 %), window size or font scale.
+function useFitRows({ rootRef, pagerRef, signature, total }) {
+  const [rows, setRows] = useState(8)
+  const triesRef  = useRef(0)
+  const sigRef    = useRef(signature)
 
-function useRowsPerPage() {
-  const [rows, setRows] = useState(rowsForViewport)
-  useEffect(() => {
-    let raf = 0
-    const onResize = () => {
-      cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(() => setRows(rowsForViewport()))
+  useLayoutEffect(() => {
+    const root  = rootRef.current
+    const pager = pagerRef.current
+    const main  = root?.closest('main')
+    if (!root || !pager || !main) return
+
+    if (sigRef.current !== signature) {
+      sigRef.current = signature
+      triesRef.current = 0
     }
-    window.addEventListener('resize', onResize)
-    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', onResize) }
-  }, [])
+    if (triesRef.current > 12) return
+
+    const mobile = window.innerWidth < 768
+    const rowSel = mobile ? '[data-audit-card]' : '[data-audit-row]'
+    const rowEl  = root.querySelector(rowSel)
+    const rowH   = rowEl ? rowEl.getBoundingClientRect().height : (mobile ? FALLBACK_CARD_H : FALLBACK_ROW_H)
+    if (!rowH || rowH < 20) return
+    const shown = root.querySelectorAll(rowSel).length
+
+    // Scroll-relative maths: both rects move together when `main` scrolls.
+    const slack = (main.getBoundingClientRect().bottom - SAFE_GAP)
+      - pager.getBoundingClientRect().bottom
+      - main.scrollTop
+
+    setRows(prev => {
+      let next = prev
+      if (slack < -1) {
+        next = prev - Math.max(1, Math.ceil(-slack / rowH))
+      } else if (shown >= prev && slack >= rowH) {
+        // Only grow on a full page — a short last page would otherwise make the
+        // table look empty and send the count back up every render.
+        next = prev + Math.floor(slack / rowH)
+      }
+      next = Math.max(MIN_ROWS, Math.min(MAX_ROWS, next, Math.max(MIN_ROWS, total || MIN_ROWS)))
+
+      if (next === prev) { triesRef.current = 0; return prev }
+      triesRef.current += 1
+      return next
+    })
+  })
+
   return rows
 }
 
@@ -62,7 +88,9 @@ export default function AuditLog() {
   const [sevFilter, setSevFilter]       = useState('all')
   const [page, setPage]         = useState(1)
   const [goPage, setGoPage]     = useState('')
-  const rowsPerPage = useRowsPerPage()
+
+  const rootRef  = useRef(null)
+  const pagerRef = useRef(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -99,7 +127,13 @@ export default function AuditLog() {
     })
   }, [events, search, moduleFilter, sevFilter])
 
-  useEffect(() => { setPage(1); setGoPage('') }, [search, moduleFilter, sevFilter, rowsPerPage])
+  const rowsPerPage = useFitRows({
+    rootRef, pagerRef,
+    total: filtered.length,
+    signature: `${loading}|${filtered.length}|${moduleFilter}|${sevFilter}|${search}`,
+  })
+
+  useEffect(() => { setPage(1); setGoPage('') }, [search, moduleFilter, sevFilter])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage))
   const safePage   = Math.min(Math.max(1, page), totalPages)
@@ -124,7 +158,7 @@ export default function AuditLog() {
   const clearFilters = () => { setSearch(''); setModuleFilter('all'); setSevFilter('all') }
 
   return (
-    <div className="space-y-4 animate-fade-up">
+    <div ref={rootRef} className="space-y-4 animate-fade-up">
       <PageHeader
         title="Audit Log"
         subtitle={`${events.length} recent event${events.length === 1 ? '' : 's'}${fromCache ? ' · showing cached copy' : ''}`}
@@ -169,100 +203,105 @@ export default function AuditLog() {
       </div>
 
       {/* Table / states */}
-      {loading ? (
-        <SkeletonRows n={6} />
-      ) : filtered.length === 0 ? (
-        <div className="ap-surface rounded-2xl p-10 text-center">
-          <div className="text-3xl mb-2 opacity-60">🗂️</div>
-          <p className="text-sm font-bold text-slate-500 dark:text-slate-400">
-            {hasFilters ? 'No events match these filters' : 'No audit events yet'}
-          </p>
-          <p className="text-xs text-slate-400 mt-1">
-            {hasFilters ? 'Try clearing search or choosing a different filter.' : 'System activity appears here as it happens.'}
-          </p>
-        </div>
-      ) : (<>
-        {/* Desktop table */}
-        <div className="ap-surface rounded-2xl overflow-hidden hidden md:block">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-[var(--ap-surface-2)]/95 border-b border-[var(--ap-border)]">
-                  {['#', 'Time', 'Action', 'Module', 'User', 'Severity', 'Description'].map(h => (
-                    <th key={h} className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {pageRows.map((e, i) => {
-                  const def = AUDIT_ACTIONS[e.action]
-                  return (
-                    <tr key={e.id || i} className="border-b border-[var(--ap-border)] last:border-0 hover:bg-[var(--ap-surface-2)] transition-colors">
-                      <td className="px-3 py-2.5 text-xs text-slate-400 tabular-nums">{(safePage - 1) * rowsPerPage + i + 1}</td>
-                      <td className="px-3 py-2.5 whitespace-nowrap">
-                        <span className="block text-xs font-semibold text-slate-600 dark:text-slate-300">{fmtAuditTime(e.changed_at || e.timestamp)}</span>
-                        <span className="block text-[10px] text-slate-400 tabular-nums">{fmtDateTime(e.changed_at || e.timestamp)}</span>
-                      </td>
-                      <td className="px-3 py-2.5 max-w-[220px]">
-                        <span className="flex items-center gap-1.5">
-                          <span className="text-[13px]" aria-hidden="true">{def?.icon || '📌'}</span>
-                          <span className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{def?.label || prettyAction(e.action)}</span>
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        {e.module
-                          ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full capitalize bg-[var(--ap-surface-2)] text-slate-500 dark:text-slate-400">{e.module}</span>
-                          : <span className="text-xs text-slate-400">—</span>}
-                      </td>
-                      <td className="px-3 py-2.5 max-w-[150px]">
-                        <span className="block text-xs text-slate-600 dark:text-slate-300 truncate">{e.user_name || e.changed_by || '—'}</span>
-                      </td>
-                      <td className="px-3 py-2.5"><SeverityBadge severity={e.severity} /></td>
-                      <td className="px-3 py-2.5 max-w-[380px]">
-                        <span className="block text-xs text-slate-600 dark:text-slate-300 truncate">
-                          {e.new_values?.description || e.description || e.table_name || '—'}
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+      <div>
+        {loading ? (
+          <SkeletonRows n={Math.min(rowsPerPage, 6)} />
+        ) : filtered.length === 0 ? (
+          <div className="ap-surface rounded-2xl p-10 text-center">
+            <div className="text-3xl mb-2 opacity-60">🗂️</div>
+            <p className="text-sm font-bold text-slate-500 dark:text-slate-400">
+              {hasFilters ? 'No events match these filters' : 'No audit events yet'}
+            </p>
+            <p className="text-xs text-slate-400 mt-1">
+              {hasFilters ? 'Try clearing search or choosing a different filter.' : 'System activity appears here as it happens.'}
+            </p>
           </div>
-        </div>
+        ) : (<>
+          {/* Desktop table */}
+          <div className="ap-surface rounded-2xl overflow-hidden hidden md:block">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-[var(--ap-surface-2)]/95 border-b border-[var(--ap-border)]">
+                    {['#', 'Time', 'Action', 'Module', 'User', 'Severity', 'Description'].map(h => (
+                      <th key={h} className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageRows.map((e, i) => {
+                    const def = AUDIT_ACTIONS[e.action]
+                    return (
+                      <tr key={e.id || i} data-audit-row
+                        className="border-b border-[var(--ap-border)] last:border-0 hover:bg-[var(--ap-surface-2)] transition-colors">
+                        <td className="px-3 py-2.5 text-xs text-slate-400 tabular-nums">{(safePage - 1) * rowsPerPage + i + 1}</td>
+                        <td className="px-3 py-2.5 whitespace-nowrap">
+                          <span className="block text-xs font-semibold text-slate-600 dark:text-slate-300">{fmtAuditTime(e.changed_at || e.timestamp)}</span>
+                          <span className="block text-[10px] text-slate-400 tabular-nums">{fmtDateTime(e.changed_at || e.timestamp)}</span>
+                        </td>
+                        <td className="px-3 py-2.5 max-w-[220px]">
+                          <span className="flex items-center gap-1.5">
+                            <span className="text-[13px]" aria-hidden="true">{def?.icon || '📌'}</span>
+                            <span className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{def?.label || prettyAction(e.action)}</span>
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          {e.module
+                            ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full capitalize bg-[var(--ap-surface-2)] text-slate-500 dark:text-slate-400">{e.module}</span>
+                            : <span className="text-xs text-slate-400">—</span>}
+                        </td>
+                        <td className="px-3 py-2.5 max-w-[150px]">
+                          <span className="block text-xs text-slate-600 dark:text-slate-300 truncate">{e.user_name || e.changed_by || '—'}</span>
+                        </td>
+                        <td className="px-3 py-2.5"><SeverityBadge severity={e.severity} /></td>
+                        <td className="px-3 py-2.5 max-w-[380px]">
+                          <span className="block text-xs text-slate-600 dark:text-slate-300 truncate">
+                            {e.new_values?.description || e.description || e.table_name || '—'}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-        {/* Mobile cards */}
-        <div className="space-y-2 md:hidden">
-          {pageRows.map((e, i) => {
-            const def = AUDIT_ACTIONS[e.action]
-            return (
-              <div key={e.id || i} className="ap-surface rounded-2xl p-3.5">
-                <div className="flex items-start gap-2.5">
-                  <span className="w-8 h-8 rounded-[10px] bg-[var(--ap-surface-2)] flex items-center justify-center text-[13px] flex-shrink-0">
-                    {def?.icon || '📌'}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{def?.label || prettyAction(e.action)}</p>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                      {e.new_values?.description || e.description || e.table_name || '—'}
-                    </p>
+          {/* Mobile cards */}
+          <div className="space-y-2 md:hidden">
+            {pageRows.map((e, i) => {
+              const def = AUDIT_ACTIONS[e.action]
+              return (
+                <div key={e.id || i} data-audit-card className="ap-surface rounded-2xl p-3.5">
+                  <div className="flex items-start gap-2.5">
+                    <span className="w-8 h-8 rounded-[10px] bg-[var(--ap-surface-2)] flex items-center justify-center text-[13px] flex-shrink-0">
+                      {def?.icon || '📌'}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{def?.label || prettyAction(e.action)}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                        {e.new_values?.description || e.description || e.table_name || '—'}
+                      </p>
+                    </div>
+                    <SeverityBadge severity={e.severity} />
                   </div>
-                  <SeverityBadge severity={e.severity} />
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    {e.module && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full capitalize bg-[var(--ap-surface-2)] text-slate-500 dark:text-slate-400">{e.module}</span>
+                    )}
+                    <span className="text-[10px] text-slate-400 truncate">{e.user_name || e.changed_by || 'System'}</span>
+                    <span className="text-[10px] text-slate-400 ml-auto tabular-nums">{fmtAuditTime(e.changed_at || e.timestamp)}</span>
+                  </div>
                 </div>
-                <div className="mt-2 flex items-center gap-2 flex-wrap">
-                  {e.module && (
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full capitalize bg-[var(--ap-surface-2)] text-slate-500 dark:text-slate-400">{e.module}</span>
-                  )}
-                  <span className="text-[10px] text-slate-400 truncate">{e.user_name || e.changed_by || 'System'}</span>
-                  <span className="text-[10px] text-slate-400 ml-auto tabular-nums">{fmtAuditTime(e.changed_at || e.timestamp)}</span>
-                </div>
-              </div>
-            )
-          })}
-        </div>
+              )
+            })}
+          </div>
+        </>)}
+      </div>
 
-        {/* Pagination */}
-        <div className="rounded-2xl border border-[var(--ap-border)] ap-surface px-2.5 sm:px-3 py-2 flex items-center justify-between gap-2 sm:gap-3 flex-wrap shadow-lg">
+      {/* Pagination */}
+      {!loading && filtered.length > 0 && (
+        <div ref={pagerRef} className="rounded-2xl border border-[var(--ap-border)] ap-surface px-2.5 sm:px-3 py-2 flex items-center justify-between gap-2 sm:gap-3 flex-wrap shadow-lg">
           <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
             Showing {from}–{to} of {filtered.length} event{filtered.length !== 1 ? 's' : ''}
           </p>
@@ -310,7 +349,7 @@ export default function AuditLog() {
             />
           </div>
         </div>
-      </>)}
+      )}
     </div>
   )
 }
