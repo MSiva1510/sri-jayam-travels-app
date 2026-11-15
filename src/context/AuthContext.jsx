@@ -9,6 +9,7 @@ import { sessionManager }            from '../security/SessionManager'
 import { addAuditEvent }             from '../data/auditLogData'
 import { withTimeout }               from '../utils/withTimeout'
 import { backgroundServiceManager }  from '../services/BackgroundServiceManager'
+import { setRememberMe }             from '../lib/authStorage'
 
 const AUTH_TIMEOUT_MS = 10_000
 
@@ -166,10 +167,13 @@ export function AuthProvider({ children }) {
     }
   }, [applySession])
 
-  const login = useCallback(async ({ email, password }) => {
+  const login = useCallback(async ({ email, password, remember = true }) => {
     setAuthLoading(true)
     setLoginError('')
     try {
+      // Choose where the session token lives *before* Supabase stores it:
+      // localStorage (remember me) or sessionStorage (this tab only).
+      setRememberMe(remember)
       const { user: authUser } = await authRepository.signIn({ email, password })
       const profile = await withTimeout(
         authRepository.getProfile(authUser.id),

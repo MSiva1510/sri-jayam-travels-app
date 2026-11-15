@@ -6,6 +6,7 @@ import { useApp }  from '../context/AppContext'
 import { BIZ }     from '../config/business'
 import LoginMascots from '../components/auth/LoginMascots'
 import supabase from '../lib/supabase'
+import { isRememberMe } from '../lib/authStorage'
 import './login.css'
 
 export default function Login() {
@@ -18,6 +19,7 @@ export default function Login() {
   const [email,        setEmail]        = useState('')
   const [password,     setPassword]     = useState('')
   const [showPass,     setShowPass]     = useState(false)
+  const [remember,     setRemember]     = useState(() => isRememberMe())
   const [forgotMode,   setForgotMode]   = useState(false)
   const [resetSent,    setResetSent]    = useState(false)
   const [resetLoading, setResetLoading] = useState(false)
@@ -55,7 +57,7 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!email.trim() || !password) return
-    const loggedInUser = await login({ email: email.trim().toLowerCase(), password })
+    const loggedInUser = await login({ email: email.trim().toLowerCase(), password, remember })
     if (loggedInUser) {
       setFocused(null)
       setMood('success')
@@ -123,10 +125,12 @@ export default function Login() {
                 <img src={BIZ.logo} alt="SJT" className="w-full h-full object-contain"
                   onError={e => { e.target.style.display='none'; e.target.parentNode.innerHTML='<span class="text-white font-semibold text-xs">SJT</span>' }} />
               </div>
-              <div>
-                <p className="font-sf font-semibold text-slate-800 dark:text-white text-sm tracking-wide leading-tight">SRI JAYAM TRAVELS</p>
-                <p className="text-slate-400 dark:text-slate-500 text-[10px] tracking-[0.2em]">PUDUCHERRY</p>
-              </div>
+              <img
+                src={BIZ.headerLogo}
+                alt="Sri Jayam Travels"
+                className="h-10 w-auto max-w-[190px] rounded-lg object-contain"
+                onError={e => { e.target.style.display = 'none' }}
+              />
             </div>
 
             <div className="flex-1 flex items-end justify-center px-2 sm:px-6 lg:px-4 pt-4 lg:pt-8">
@@ -236,7 +240,19 @@ export default function Login() {
                     </button>
                   </div>
 
-                  <div className="rise flex justify-end -mt-1" style={{ '--d': 5 }}>
+                  <div className="rise flex items-center justify-between gap-3 -mt-1" style={{ '--d': 5 }}>
+                    <label
+                      className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 font-medium cursor-pointer select-none"
+                      title={remember ? 'Stay signed in on this device' : 'You will be signed out when this tab closes'}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={remember}
+                        onChange={e => setRemember(e.target.checked)}
+                        className="h-3.5 w-3.5 rounded border-slate-300 dark:border-slate-600 accent-slate-900 dark:accent-blue-500 cursor-pointer"
+                      />
+                      Remember me
+                    </label>
                     <button type="button" onClick={() => { setForgotMode(true); setLoginError('') }}
                       className="text-[11px] text-slate-400 hover:text-slate-800 dark:hover:text-white font-medium transition-colors">
                       Forgot password?

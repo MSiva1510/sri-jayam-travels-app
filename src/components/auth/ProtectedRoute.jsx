@@ -1,5 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { BIZ } from '../../config/business'
 
 // ── Full-screen loading spinner shown while session is being restored ──
 function AuthSpinner() {
@@ -7,7 +8,7 @@ function AuthSpinner() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-100 dark:bg-[var(--ap-bg)] gap-4">
       <div className="w-12 h-12 rounded-2xl overflow-hidden border border-white/20 shadow-lg">
         <img
-          src="https://www.travelsjayam.in/logo.png"
+          src={BIZ.logo}
           alt="SJT"
           className="w-full h-full object-contain p-1"
           onError={e => { e.target.style.display = 'none' }}
