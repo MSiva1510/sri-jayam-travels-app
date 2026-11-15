@@ -601,6 +601,7 @@ export default function Drivers() {
   // the driver, fare stays with the company.
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
+  const [ledgerPage, setLedgerPage] = useState(1)
   const handleSyncPayslips = async () => {
     setSyncing(true)
     setSyncMsg('')
@@ -625,6 +626,15 @@ export default function Drivers() {
       setSyncing(false)
     }
   }
+
+  // Bata ledger: rows with an amount above zero, sorted by driver name, paginated.
+  const LEDGER_PAGE_SIZE = 10
+  const ledgerFiltered = payslips
+    .filter(p => tripDriverAmount(p) > 0)
+    .sort((a, b) => String(a.driver || '').localeCompare(String(b.driver || '')))
+  const ledgerPageCount = Math.max(1, Math.ceil(ledgerFiltered.length / LEDGER_PAGE_SIZE))
+  const ledgerPageSafe = Math.min(ledgerPage, ledgerPageCount - 1)
+  const ledgerRows = ledgerFiltered.slice(ledgerPageSafe * LEDGER_PAGE_SIZE, (ledgerPageSafe + 1) * LEDGER_PAGE_SIZE)
 
   if (loading) {
     return (
@@ -873,13 +883,13 @@ export default function Drivers() {
                 </tr>
               </thead>
               <tbody>
-                {payslips.length === 0 ? (
+                {ledgerFiltered.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
                       No payslips yet — complete a trip to generate a payslip
                     </td>
                   </tr>
-                ) : payslips.slice(0, 20).map(p => (
+                ) : ledgerRows.map(p => (
                   <tr key={p.id} className="border-b border-[var(--ap-border)] hover:bg-[var(--ap-surface-2)] transition-colors">
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-2">
@@ -902,6 +912,18 @@ export default function Drivers() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+
+        {/* Bata ledger pagination */}
+        <div className="flex items-center justify-between gap-2 px-4 py-2.5">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
+            Showing {ledgerRows.length} of {ledgerFiltered.length} payslip{ledgerFiltered.length === 1 ? '' : 's'}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" icon={ChevronLeft} disabled={ledgerPageSafe === 0} onClick={() => setLedgerPage(ledgerPageSafe - 1)}>Prev</Button>
+            <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 tabular-nums">Page {ledgerPageSafe + 1}</span>
+            <Button variant="outline" size="sm" icon={ChevronRight} disabled={ledgerPageSafe >= ledgerPageCount - 1} onClick={() => setLedgerPage(ledgerPageSafe + 1)}>Next</Button>
           </div>
         </div>
       </div>
