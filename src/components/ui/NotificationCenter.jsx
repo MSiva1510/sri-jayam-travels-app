@@ -107,7 +107,7 @@ function NotifRow({ n, onRead, onArchive, onDismiss, archived = false }) {
         {onDismiss && (
           <button onClick={e => { e.stopPropagation(); onDismiss() }}
             className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-            title="Dismiss">
+            title="Delete">
             <Trash2 size={11} />
           </button>
         )}

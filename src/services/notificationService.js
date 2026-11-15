@@ -107,6 +107,18 @@ export async function dismissNotification(id) {
   } catch {}
 }
 
+/** Permanently delete a notification row (Delete button / dismiss). */
+export async function deleteNotification(id) {
+  if (!supabase) return
+  try {
+    const { error } = await supabase.from('notifications').delete().eq('id', id)
+    if (error) throw error
+  } catch (err) {
+    console.error('[notificationService] delete failed:', err.message)
+    throw err
+  }
+}
+
 // ── Unread count ──────────────────────────────────────────────
 export async function getUnreadCount(userId) {
   if (!supabase || !userId) return 0

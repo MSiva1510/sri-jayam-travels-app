@@ -13,7 +13,7 @@ import {
 } from '../services/communicationService'
 import {
   loadNotifications, markRead, markAllRead,
-  archiveNotification, dismissNotification,
+  archiveNotification, deleteNotification,
 } from '../services/notificationService'
 
 const CommunicationContext = createContext(null)
@@ -161,7 +161,7 @@ export function CommunicationProvider({ children }) {
   }, [])
 
   const doDismiss = useCallback(async (id) => {
-    await dismissNotification(id)
+    await deleteNotification(id)
     setNotifications(prev => prev.filter(n => n.id !== id))
   }, [])
 

@@ -428,6 +428,11 @@ export async function cancelCommunication(id) {
   })
 }
 
+/** Permanently remove a communication log row. */
+export async function deleteCommunication(id) {
+  return communicationLogRepository.remove(id)
+}
+
 /**
  * Get a specific queue item by ID
  * @param {string} queueId - Queue item ID

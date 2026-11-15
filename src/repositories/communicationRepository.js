@@ -47,6 +47,18 @@ export const communicationLogRepository = {
     }
   },
 
+  async remove(id) {
+    if (!supabase || String(id).startsWith('log-')) return null
+    try {
+      const { error } = await supabase.from('communication_logs').delete().eq('id', id)
+      if (error) throw error
+      return true
+    } catch (err) {
+      console.error('[communicationLogRepository] delete failed:', err.message)
+      throw err
+    }
+  },
+
   async getStats() {
     if (!supabase) return []
     try {

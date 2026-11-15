@@ -17,7 +17,7 @@ import StatusPill from '../components/ui/StatusPill'
 import { useCommunicationCtx } from '../hooks/useCommunication'
 import { exportToCSV } from '../data/reportData'
 import { fmtAuditTime } from '../data/auditLogData'
-import { getCommunicationLogs, openWhatsApp, scheduler, resumeBot, pauseBot, cancelStalePendingQueue, cancelCommunication } from '../services/communicationService'
+import { getCommunicationLogs, openWhatsApp, scheduler, resumeBot, pauseBot, cancelStalePendingQueue, deleteCommunication } from '../services/communicationService'
 
 // ── Constants ─────────────────────────────────────────────────
 const TABS = [
@@ -363,7 +363,7 @@ function NotificationsTab() {
                       className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"><BookOpen size={12}/></button>}
                     <button onClick={()=>archive(n.id)} title="Archive"
                       className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-[var(--ap-surface-2)] transition-colors"><Archive size={12}/></button>
-                    <button onClick={()=>dismiss(n.id)} title="Dismiss"
+                    <button onClick={()=>dismiss(n.id)} title="Delete"
                       className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"><Trash2 size={12}/></button>
                   </div>
                 </div>
@@ -452,12 +452,13 @@ function CommLogsTab() {
     }
     setCancellingStale(false)
   }
-  const cancelLogRequest = async (l) => {
+  const deleteLogRequest = async (l) => {
     try {
-      await cancelCommunication(l.id)
+      await deleteCommunication(l.id)
+      setDrawer(null)
       await reload()
     } catch {
-      setLoadError('Unable to cancel the pending request')
+      setLoadError('Unable to delete the communication log')
     }
   }
   useEffect(() => { reload() }, [])
@@ -656,12 +657,10 @@ function CommLogsTab() {
                             <ExternalLink size={13} />
                           </button>
                         )}
-                        {['pending', 'processing', 'queued', 'retrying'].includes(l.status) && (
-                          <button onClick={() => cancelLogRequest(l)} title="Cancel pending request" aria-label="Cancel pending request"
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                            <Trash2 size={13} />
-                          </button>
-                        )}
+                        <button onClick={() => deleteLogRequest(l)} title="Delete log" aria-label="Delete log"
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                          <Trash2 size={13} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -715,6 +714,10 @@ function CommLogsTab() {
                 </button>
               </>
             )}
+            <button onClick={() => deleteLogRequest(drawer)}
+              className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-red-200 dark:border-red-900/40 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+              <Trash2 size={13} /> Delete
+            </button>
             <button onClick={() => setDrawer(null)}
               className="flex-1 py-2.5 rounded-xl bg-[var(--ap-accent)] text-white text-xs font-bold hover:opacity-90 transition-all">
               Close
