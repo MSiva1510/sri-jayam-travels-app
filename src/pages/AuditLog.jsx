@@ -6,10 +6,10 @@ import PageHeader from '../components/ui/PageHeader'
 import { pageSizeForZoom } from '../utils/zoomPageSize'
 import { Search as SearchIcon } from 'lucide-react'
 import {
-  AUDIT_ACTIONS, SEVERITY, fmtAuditTime,
+  AUDIT_ACTIONS, fmtAuditTime,
   loadAuditEventsFromDB,
 } from '../data/auditLogData'
-import { fieldCls, Select as FieldSelect } from '../components/ui/Field'
+import { Select as FieldSelect } from '../components/ui/Field'
 
 export default function AuditLog() {
   const [events, setEvents]     = useState([])
@@ -76,7 +76,6 @@ export default function AuditLog() {
       .slice(0, 4)
       .map(([module, count]) => ({ module, count }))
   }, [events])
-
   // Reset to first page whenever the result set or page size changes
   useEffect(() => { setPage(1); setGoTo('') }, [search, moduleFilter, pageSize, baseSize, events.length])
 
@@ -131,12 +130,31 @@ export default function AuditLog() {
           </div>
         </div>
         <div className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-shrink-0">
-          <FieldSelect value={typeFilter} onChange={e => setModuleFilter(e.target.value)} aria-label="Filter by module">
-            <option value="all">All Modules</option>
-            {CUSTOMER_TYPES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+          <FieldSelect value={moduleFilter} onChange={e => setModuleFilter(e.target.value)} aria-label="Filter by module">
+            {modules.map(m => (
+              <option key={m} value={m}>{m === 'all' ? 'All Modules' : prettyModule(m)}</option>
+            ))}
           </FieldSelect>
         </div>
       </div>
+
+      {topModules.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {topModules.map(({ module, count }) => (
+            <button
+              key={module}
+              onClick={() => setModuleFilter(moduleFilter === module ? 'all' : module)}
+              className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${
+                moduleFilter === module
+                  ? 'bg-[var(--ap-accent)] text-white'
+                  : 'bg-[var(--ap-surface-2)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-3)]'
+              }`}
+            >
+              {prettyModule(module)} <span className="tabular-nums opacity-70">{count}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
@@ -153,18 +171,23 @@ export default function AuditLog() {
           <tbody>
             {pageRows.map(e => (
               <tr key={e.id} className="border-b border-[var(--ap-border)]">
-                <td className="py-2 text-slate-600 dark:text-slate-300">{fmtAuditTime(e.changed_at || e.timestamp)}</td>
-                <td className="py-2 font-medium text-slate-800 dark:text-slate-200">{e.action}</td>
-                <td className="py-2 text-slate-500 dark:text-slate-400">{e.module || '—'}</td>
-                <td className="py-2 text-slate-600 dark:text-slate-300">{e.user_name || '—'}</td>
+                <td className="py-2 whitespace-nowrap text-slate-600 dark:text-slate-300">{fmtAuditTime(e.changed_at || e.timestamp)}</td>
+                <td className="py-2 font-medium text-slate-800 dark:text-slate-200">
+                  <span className="mr-1.5" aria-hidden="true">{AUDIT_ACTIONS[e.action]?.icon || '📌'}</span>
+                  {AUDIT_ACTIONS[e.action]?.label || prettyAction(e.action)}
+                </td>
+                <td className="py-2 text-slate-500 dark:text-slate-400">{prettyModule(e.module) || '—'}</td>
+                <td className="py-2 text-slate-600 dark:text-slate-300">{e.user_name || e.changed_by || '—'}</td>
                 <td className="py-2"><SeverityBadge severity={e.severity} /></td>
-                <td className="py-2 text-slate-700 dark:text-slate-200 truncate max-w-[400px]">{e.description || e.action}</td>
+                <td className="py-2 text-slate-700 dark:text-slate-200 truncate max-w-[400px]">
+                  {e.new_values?.description || e.description || e.table_name || '—'}
+                </td>
               </tr>
             ))}
             {pageRows.length === 0 && (
               <tr>
                 <td colSpan={6} className="py-4 text-center text-slate-500 dark:text-slate-400">
-                  No audit events found.
+                  {loading ? 'Loading audit events…' : 'No audit events found.'}
                 </td>
               </tr>
             )}
@@ -212,6 +235,25 @@ export default function AuditLog() {
       </div>
     </div>
   )
+}
+
+function prettyAction(action) {
+  if (!action) return 'Activity'
+  return String(action)
+    .toLowerCase()
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
+}
+
+function prettyModule(module) {
+  if (!module) return ''
+  return String(module)
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
 }
 
 function SeverityBadge({ severity }) {

@@ -3,11 +3,13 @@
 // CommunicationContext. Falls back gracefully when context is unavailable.
 
 import { useState, useRef, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import {
   Bell, X, CheckCheck, CheckCircle, AlertTriangle,
   Clock, Archive, Trash2, BookOpen, BellOff, Inbox, Activity,
 } from 'lucide-react'
 import { useCommunicationCtx } from '../../hooks/useCommunication'
+import { useAuth } from '../../context/AuthContext'
 import { getBusinessAlerts } from '../../data/reportData'
 import { loadRecentActivity, fmtAuditTime } from '../../data/auditLogData'
 import { NOTIFICATION_TYPES } from '../../services/notificationService'
@@ -178,6 +180,8 @@ export default function NotificationCenter() {
     notifications, unreadCount, notifLoading,
     loadNotifs, markRead, markAllRead, archive, dismiss,
   } = useCommunicationCtx()
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
 
   const [open,     setOpen]    = useState(false)
   const [tab,      setTab]     = useState('inbox')
@@ -206,6 +210,14 @@ export default function NotificationCenter() {
     activity: { badge: 0,              count: activity.length },
     archived: { badge: 0,              count: archived.length },
   }
+
+  // "View all" goes to the page that owns the current tab.
+  const viewAll =
+    tab === 'activity' ? (isAdmin
+      ? { to: '/audit-log',  label: 'Open audit log' }
+      : { to: '/communications', label: 'View all' })
+  : tab === 'alerts'   ? { to: '/documents', label: 'View documents' }
+  :                      { to: '/communications', label: 'View all' }
 
   return (
     <div ref={wrapRef} className="relative">
@@ -351,9 +363,10 @@ export default function NotificationCenter() {
             <p className="text-[10px] text-slate-400 dark:text-slate-500">
               {unread.length > 0 ? `${unread.length} unread` : 'All caught up'}
             </p>
-            <a href="/communications" className="text-[10px] font-bold text-blue-600 hover:underline dark:text-blue-400">
-              View all →
-            </a>
+            <Link to={viewAll.to} onClick={() => setOpen(false)}
+              className="text-[10px] font-bold text-blue-600 hover:underline dark:text-blue-400">
+              {viewAll.label} →
+            </Link>
           </div>
         </div>
       )}
