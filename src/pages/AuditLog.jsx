@@ -24,7 +24,9 @@ function rowsForViewport() {
   if (window.innerWidth < 768) {
     return Math.max(3, Math.min(12, Math.floor(avail / CARD_H)))
   }
-  return Math.max(MIN_ROWS, Math.min(MAX_ROWS, Math.floor(avail / ROW_H)))
+  // Reserve one extra row so the pagination bar always sits above the fold
+  // and the page never shows a vertical scrollbar.
+  return Math.max(MIN_ROWS, Math.min(MAX_ROWS, Math.floor(avail / ROW_H) - 1))
 }
 
 function useRowsPerPage() {
