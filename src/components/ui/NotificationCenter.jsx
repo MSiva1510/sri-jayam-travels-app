@@ -92,22 +92,23 @@ function NotifRow({ n, onRead, onArchive, onDismiss, archived = false }) {
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="flex items-start gap-2">
-          <p className={`text-xs font-bold leading-snug ${isUnread ? 'text-slate-800 dark:text-white' : 'text-slate-600 dark:text-slate-300'}`}>
+        {/* Fixed 3-line layout so rows never grow the panel: title / message / meta */}
+        <div className="flex h-4 items-center gap-2">
+          <p className={`flex-1 truncate text-xs font-bold leading-4 ${isUnread ? 'text-slate-800 dark:text-white' : 'text-slate-600 dark:text-slate-300'}`}>
             {n.title}
           </p>
-          {isUnread && <span className="mt-1 w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />}
+          {isUnread && <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-500" />}
         </div>
 
-        {n.message && (
-          <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 line-clamp-2">{n.message}</p>
-        )}
+        <p className="h-4 truncate text-[11px] leading-4 text-slate-500 dark:text-slate-400">
+          {n.message || ''}
+        </p>
 
-        <div className="mt-1.5 flex items-center gap-2">
-          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full capitalize ${catClass}`}>
+        <div className="flex h-4 items-center gap-2">
+          <span className={`text-[9px] font-bold px-1.5 rounded-full capitalize leading-4 ${catClass}`}>
             {n.category || 'general'}
           </span>
-          <span className="text-[10px] text-slate-400 dark:text-slate-500">{fmtTime(n.created_at)}</span>
+          <span className="text-[10px] leading-4 text-slate-400 dark:text-slate-500">{fmtTime(n.created_at)}</span>
         </div>
       </div>
 
