@@ -417,6 +417,18 @@ export async function cancelStalePendingQueue() {
 }
 
 /**
+ * Cancel one pending communication request (log row → status cancelled).
+ * @param {string} id - communication_logs id
+ */
+export async function cancelCommunication(id) {
+  return communicationLogRepository.update(id, {
+    status: 'cancelled',
+    processed_at: new Date().toISOString(),
+    failure_reason: 'Cancelled by user',
+  })
+}
+
+/**
  * Get a specific queue item by ID
  * @param {string} queueId - Queue item ID
  * @returns {Promise<Object|null>} Queue item or null if not found

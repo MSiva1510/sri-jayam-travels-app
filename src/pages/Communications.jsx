@@ -17,7 +17,7 @@ import StatusPill from '../components/ui/StatusPill'
 import { useCommunicationCtx } from '../hooks/useCommunication'
 import { exportToCSV } from '../data/reportData'
 import { fmtAuditTime } from '../data/auditLogData'
-import { getCommunicationLogs, openWhatsApp, scheduler, resumeBot, pauseBot, cancelStalePendingQueue } from '../services/communicationService'
+import { getCommunicationLogs, openWhatsApp, scheduler, resumeBot, pauseBot, cancelStalePendingQueue, cancelCommunication } from '../services/communicationService'
 
 // ── Constants ─────────────────────────────────────────────────
 const TABS = [
@@ -450,6 +450,14 @@ function CommLogsTab() {
     }
     setCancellingStale(false)
   }
+  const cancelLogRequest = async (l) => {
+    try {
+      await cancelCommunication(l.id)
+      await reload()
+    } catch {
+      setLoadError('Unable to cancel the pending request')
+    }
+  }
   useEffect(() => { reload() }, [])
   useEffect(() => { setPage(1) }, [search, channel, status, recipient, trigger, range])
 
@@ -644,6 +652,12 @@ function CommLogsTab() {
                             title="Open in WhatsApp" aria-label="Open in WhatsApp"
                             className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors">
                             <ExternalLink size={13} />
+                          </button>
+                        )}
+                        {['pending', 'processing', 'queued', 'retrying'].includes(l.status) && (
+                          <button onClick={() => cancelLogRequest(l)} title="Cancel pending request" aria-label="Cancel pending request"
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                            <Trash2 size={13} />
                           </button>
                         )}
                       </div>
