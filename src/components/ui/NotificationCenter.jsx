@@ -156,10 +156,10 @@ function ActivityRow({ ev }) {
   return (
     <div className="flex items-center gap-3 px-4 py-2.5">
       <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--ap-surface-2)] text-[13px]">
-        {ev.icon}
+        {ev.icon || '📌'}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-bold text-slate-700 dark:text-slate-200">{ev.label}</p>
+        <p className="truncate text-xs font-bold text-slate-700 dark:text-slate-200">{ev.label || 'Activity'}</p>
         {ev.description && <p className="truncate text-[10px] text-slate-400 dark:text-slate-500">{ev.description}</p>}
       </div>
       <span className="whitespace-nowrap text-[10px] text-slate-400 dark:text-slate-500">{fmtAuditTime(ev.timestamp)}</span>

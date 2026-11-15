@@ -2,7 +2,7 @@
 // Day 31: enhanced with severity, module, old/new values, user tracking.
 // All entries persisted to Supabase `audit_logs` table (no localStorage).
 
-import supabase from '../lib/supabase'
+import supabase from '../lib/supabase.js'
 
 export const AUDIT_MAX_ENTRIES = 500
 
@@ -80,7 +80,45 @@ export async function loadAuditEventsFromDB(limit = 100) {
 }
 
 export async function loadRecentActivity(count = 10) {
-  return loadAuditEvents(count)
+  const rows = await loadAuditEvents(count)
+  return (Array.isArray(rows) ? rows : []).map(normalizeAuditRow)
+}
+
+// `audit_logs` stores action/changed_at/new_values; the bell and the dashboard
+// widgets expect icon/label/description/timestamp. Normalise once here so
+// every consumer renders real text instead of blank rows.
+export function normalizeAuditRow(row) {
+  if (!row) return null
+  const def = AUDIT_ACTIONS[row.action] || {}
+  const description =
+    row.description ||
+    row.new_values?.description ||
+    row.newValues?.description ||
+    row.user_name ||
+    row.changed_by ||
+    row.table_name ||
+    ''
+
+  return {
+    ...row,
+    id:          row.id || `${row.action}-${row.changed_at || ''}`,
+    icon:        row.icon || def.icon || '📌',
+    label:       row.label || def.label || prettyAction(row.action) || 'Activity',
+    description,
+    module:      row.module || def.module || 'general',
+    severity:    row.severity || def.severity || 'info',
+    timestamp:   row.timestamp || row.changed_at || null,
+  }
+}
+
+function prettyAction(action) {
+  if (!action) return ''
+  return String(action)
+    .toLowerCase()
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
 }
 
 export async function addAuditEvent(action, details = {}) {
