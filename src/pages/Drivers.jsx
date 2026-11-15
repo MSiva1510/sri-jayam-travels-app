@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import {
   Plus, Star, TrendingUp, Upload, X,
   Search, Edit2, Download, Eye, UserCheck, UserX,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import Avatar      from '../components/ui/Avatar'
 import Button      from '../components/ui/Button'
