@@ -415,7 +415,7 @@ export function botStep(conv, msg, today) {
     return done(greetFirst([]), null, {}, { type: 'trip_status' })
   }
   if (isStaffIntent(input)) {
-    return done(greetFirst([text('Okay, our team will reply here shortly. Type menu any time to use the bot again.')]), null, {}, { type: 'handoff' })
+    return done(greetFirst([text('Okay, our team will reply here shortly. Type start manual to use the bot again — after 6 hours it resumes automatically.')]), null, {}, { type: 'handoff' })
   }
   if (isBookIntent(input)) {
     return done(
