@@ -43,6 +43,7 @@ const STATUS_CFG = {
   failed:     { label:'Failed',     badge:'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'             },
   retrying:   { label:'Retrying',   badge:'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' },
   cancelled:  { label:'Cancelled',  badge:'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'        },
+  dismissed:  { label:'Dismissed',  badge:'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'        },
   unread:     { label:'Unread',     badge:'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'         },
   read:       { label:'Read',       badge:'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'        },
   archived:   { label:'Archived',   badge:'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'        },
@@ -65,7 +66,7 @@ const CAT_COLORS = {
 
 const STATUS_TONE = {
   pending: 'amber', processing: 'blue', queued: 'blue', delivered: 'green',
-  failed: 'red', retrying: 'amber', cancelled: 'gray', unread: 'blue', read: 'gray', archived: 'gray',
+  failed: 'red', retrying: 'amber', cancelled: 'gray', dismissed: 'gray', unread: 'blue', read: 'gray', archived: 'gray',
 }
 
 function StatusBadge({ status }) {
@@ -267,6 +268,7 @@ function NotificationsTab() {
       if (filter === 'unread'   && n.status !== 'unread')   return false
       if (filter === 'archived' && n.status !== 'archived') return false
       if (filter === 'read'     && n.status !== 'read')     return false
+      if (filter === 'dismissed' && n.status !== 'dismissed') return false
       if (catFilter !== 'all'   && n.category !== catFilter) return false
       if (search) {
         const q = search.toLowerCase()
@@ -289,7 +291,7 @@ function NotificationsTab() {
         </div>
 
         <div className="flex gap-1 bg-[var(--ap-surface-2)] rounded-xl p-1">
-          {[['all','All'],['unread','Unread'],['read','Read'],['archived','Archived']].map(([k,l]) => (
+          {[['all','All'],['unread','Unread'],['read','Read'],['archived','Archived'],['dismissed','Dismissed']].map(([k,l]) => (
             <button key={k} onClick={()=>setFilter(k)}
               className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${filter===k?'bg-[var(--ap-surface-elevated)] text-slate-900 dark:text-white shadow':'text-slate-500 dark:text-slate-400'}`}>
               {l}
