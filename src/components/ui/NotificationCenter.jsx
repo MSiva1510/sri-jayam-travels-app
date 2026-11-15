@@ -86,7 +86,7 @@ function NotifRow({ n, onRead, onArchive, onDismiss, archived = false }) {
   const icon     = n.icon || NOTIFICATION_TYPES[n.type]?.icon || '🔔'
 
   return (
-    <div className={`group relative flex items-start gap-3 px-4 py-3 transition-colors hover:bg-[var(--ap-surface-2)]/60 ${
+    <div className={`group relative flex h-[72px] items-center gap-3 px-4 transition-colors hover:bg-[var(--ap-surface-2)]/60 ${
       isUnread ? 'bg-blue-50/40 dark:bg-blue-500/5' : ''
     }`}>
       {isUnread && <span className="absolute left-0 top-2.5 bottom-2.5 w-0.5 rounded-r-full bg-blue-500" />}
@@ -134,7 +134,7 @@ function NotifRow({ n, onRead, onArchive, onDismiss, archived = false }) {
 function AlertRow({ alert: a }) {
   const isExpired = a.status?.key === 'expired'
   return (
-    <div className={`flex items-start gap-3 px-4 py-3 ${a.priority === 'high' ? 'bg-red-50/40 dark:bg-red-500/5' : ''}`}>
+    <div className={`flex h-[72px] items-center gap-3 px-4 ${a.priority === 'high' ? 'bg-red-50/40 dark:bg-red-500/5' : ''}`}>
       <div className={`mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl ${
         isExpired ? 'bg-red-100 dark:bg-red-900/40' : 'bg-amber-100 dark:bg-amber-900/40'
       }`}>
@@ -159,7 +159,7 @@ function AlertRow({ alert: a }) {
 
 function ActivityRow({ ev }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-2.5">
+    <div className="flex h-[72px] items-center gap-3 px-4">
       <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--ap-surface-2)] text-[13px]">
         {ev.icon || '📌'}
       </span>
@@ -296,7 +296,8 @@ export default function NotificationCenter() {
           </div>
 
           {/* Body */}
-          <div className="mt-2 h-[22rem] overflow-y-auto">
+          {/* Body: exactly 3 fixed-height rows (3 x 72px + 2 dividers) */}
+          <div className="mt-2 h-[218px] overflow-y-auto">
             {notifLoading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
