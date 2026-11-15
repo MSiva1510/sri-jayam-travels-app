@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import {
   Plus, Star, TrendingUp, Upload, X,
   Search, Edit2, Download, Eye, UserCheck, UserX,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import Avatar      from '../components/ui/Avatar'
 import Button      from '../components/ui/Button'
@@ -545,6 +546,7 @@ export default function Drivers() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [vehicleFilter, setVehicleFilter] = useState('all')
   const [editDriver, setEditDriver] = useState(null)
+  const [driversPage, setDriversPage] = useState(1)
 
   const monthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
   const onTripSet = new Set(
@@ -569,17 +571,28 @@ export default function Drivers() {
   const topEarner = bataByDriver[0]
   const vehicleRegs = [...new Set(drivers.map(d => d.vehicle).filter(Boolean))].sort()
 
-  const filteredDrivers = driversWithStats.filter(d => {
-    const q = search.trim().toLowerCase()
-    const matchSearch = !q || [d.name, d.mobile, d.vehicle, d.license ?? d.license_number]
-      .some(v => String(v || '').toLowerCase().includes(q))
-    const matchStatus = statusFilter === 'all' ||
-      (statusFilter === 'active' ? d.status === 'active' : d.status !== 'active')
-    const matchVehicle = vehicleFilter === 'all' || d.vehicle === vehicleFilter
-    return matchSearch && matchStatus && matchVehicle
-  })
+  const filteredDrivers = driversWithStats
+    .filter(d => {
+      const q = search.trim().toLowerCase()
+      const matchSearch = !q || [d.name, d.mobile, d.vehicle, d.license ?? d.license_number]
+        .some(v => String(v || '').toLowerCase().includes(q))
+      const matchStatus = statusFilter === 'all' ||
+        (statusFilter === 'active' ? d.status === 'active' : d.status !== 'active')
+      const matchVehicle = vehicleFilter === 'all' || d.vehicle === vehicleFilter
+      return matchSearch && matchStatus && matchVehicle
+    })
+    // Ledger view: only drivers with an amount above zero.
+    .filter(d => (d.totalPay || 0) > 0)
+    // Roster view: driver name.
+    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
 
   const statPct = (n) => drivers.length ? Math.round((n / drivers.length) * 100) : 0
+
+  // Driver list pagination (page size 10).
+  const DRIVERS_PAGE_SIZE = 10
+  const driversPageCount = Math.max(1, Math.ceil(filteredDrivers.length / DRIVERS_PAGE_SIZE))
+  const driversPageSafe = Math.min(driversPage, driversPageCount - 1)
+  const pagedDrivers = filteredDrivers.slice(driversPageSafe * DRIVERS_PAGE_SIZE, (driversPageSafe + 1) * DRIVERS_PAGE_SIZE)
 
   const exportCsv = () => {
     const rows = [['Name', 'Mobile', 'Status', 'License', 'Vehicle', 'Trips Done', 'Month Fare (Rs)', 'Bata Pay (Rs)']]
@@ -785,13 +798,13 @@ export default function Drivers() {
             </tr>
           </thead>
           <tbody>
-            {filteredDrivers.length === 0 ? (
+            {pagedDrivers.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
                   No drivers found
                 </td>
               </tr>
-            ) : filteredDrivers.map((d, i) => (
+            ) : pagedDrivers.map((d, i) => (
               <tr key={d.id} className="border-b border-[var(--ap-border)] last:border-0 hover:bg-[var(--ap-surface-2)] transition-colors">
                 <td className="px-4 py-2.5">
                   <div className="flex items-center gap-2.5">
@@ -822,13 +835,25 @@ export default function Drivers() {
         </table>
       </div>
 
+      {/* Driver list pagination */}
+      <div className="ap-surface rounded-[20px] px-4 py-3 flex items-center justify-between gap-2">
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
+          Showing {pagedDrivers.length} of {filteredDrivers.length} driver{filteredDrivers.length === 1 ? '' : 's'}
+        </p>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" icon={ChevronLeft} disabled={driversPageSafe === 0} onClick={() => setDriversPage(driversPageSafe - 1)}>Prev</Button>
+          <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 tabular-nums">Page {driversPageSafe + 1}</span>
+          <Button variant="outline" size="sm" icon={ChevronRight} disabled={driversPageSafe >= driversPageCount - 1} onClick={() => setDriversPage(driversPageSafe + 1)}>Next</Button>
+        </div>
+      </div>
+
       {/* Mobile cards — stacked, no slider */}
       <div className="md:hidden space-y-2">
-        {filteredDrivers.length === 0 ? (
+        {pagedDrivers.length === 0 ? (
           <div className="ap-surface rounded-[20px] px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
             No drivers found
           </div>
-        ) : filteredDrivers.map(d => (
+        ) : pagedDrivers.map(d => (
           <div key={d.id} className="ap-surface p-3.5">
             <div className="flex items-center gap-2.5">
               <Avatar name={d.name} size={36} />
