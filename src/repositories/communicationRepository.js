@@ -38,10 +38,13 @@ export const communicationLogRepository = {
   async update(id, updates) {
     if (!supabase || String(id).startsWith('log-')) return null
     try {
-      const { data } = await supabase.from('communication_logs').update(updates).eq('id', id).select().single()
+      const { data, error } = await supabase.from('communication_logs').update(updates).eq('id', id).select().single()
+      if (error) throw error
       return data
-    } catch {}
-    return null
+    } catch (err) {
+      console.error('[communicationLogRepository] update failed:', err.message)
+      throw err
+    }
   },
 
   async getStats() {
