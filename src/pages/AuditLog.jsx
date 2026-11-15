@@ -9,7 +9,37 @@ import {
 } from 'lucide-react'
 import { AUDIT_ACTIONS, fmtAuditTime, loadAuditEventsFromDB } from '../data/auditLogData'
 
-const PAGE_SIZE = 10
+// Rows per page are derived from the real viewport height so the table always
+// fits one screen (no vertical scrolling). Browser zoom changes innerHeight in
+// CSS pixels, so 90% naturally fits more rows and 110% fits fewer.
+const ROW_H      = 52   // desktop row height (px)
+const CARD_H     = 92   // mobile card height (px)
+const CHROME_H   = 340  // topbar + page header + toolbar + pagination + padding
+const MIN_ROWS   = 5
+const MAX_ROWS   = 40
+
+function rowsForViewport() {
+  if (typeof window === 'undefined') return 10
+  const avail = window.innerHeight - CHROME_H
+  if (window.innerWidth < 768) {
+    return Math.max(3, Math.min(12, Math.floor(avail / CARD_H)))
+  }
+  return Math.max(MIN_ROWS, Math.min(MAX_ROWS, Math.floor(avail / ROW_H)))
+}
+
+function useRowsPerPage() {
+  const [rows, setRows] = useState(rowsForViewport)
+  useEffect(() => {
+    let raf = 0
+    const onResize = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => setRows(rowsForViewport()))
+    }
+    window.addEventListener('resize', onResize)
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', onResize) }
+  }, [])
+  return rows
+}
 
 const SEV_CFG = {
   info:     { label: 'Info',     badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',       dot: 'bg-blue-500'    },
@@ -30,6 +60,7 @@ export default function AuditLog() {
   const [sevFilter, setSevFilter]       = useState('all')
   const [page, setPage]         = useState(1)
   const [goPage, setGoPage]     = useState('')
+  const rowsPerPage = useRowsPerPage()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -66,13 +97,13 @@ export default function AuditLog() {
     })
   }, [events, search, moduleFilter, sevFilter])
 
-  useEffect(() => { setPage(1); setGoPage('') }, [search, moduleFilter, sevFilter])
+  useEffect(() => { setPage(1); setGoPage('') }, [search, moduleFilter, sevFilter, rowsPerPage])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage))
   const safePage   = Math.min(Math.max(1, page), totalPages)
-  const pageRows   = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
-  const from       = filtered.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1
-  const to         = Math.min(safePage * PAGE_SIZE, filtered.length)
+  const pageRows   = filtered.slice((safePage - 1) * rowsPerPage, safePage * rowsPerPage)
+  const from       = filtered.length === 0 ? 0 : (safePage - 1) * rowsPerPage + 1
+  const to         = Math.min(safePage * rowsPerPage, filtered.length)
 
   const pageNums = useMemo(() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1)
@@ -165,7 +196,7 @@ export default function AuditLog() {
                   const def = AUDIT_ACTIONS[e.action]
                   return (
                     <tr key={e.id || i} className="border-b border-[var(--ap-border)] last:border-0 hover:bg-[var(--ap-surface-2)] transition-colors">
-                      <td className="px-3 py-2.5 text-xs text-slate-400 tabular-nums">{(safePage - 1) * PAGE_SIZE + i + 1}</td>
+                      <td className="px-3 py-2.5 text-xs text-slate-400 tabular-nums">{(safePage - 1) * rowsPerPage + i + 1}</td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <span className="block text-xs font-semibold text-slate-600 dark:text-slate-300">{fmtAuditTime(e.changed_at || e.timestamp)}</span>
                         <span className="block text-[10px] text-slate-400 tabular-nums">{fmtDateTime(e.changed_at || e.timestamp)}</span>
