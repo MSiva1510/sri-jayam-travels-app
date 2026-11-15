@@ -42,6 +42,10 @@ const CAT_COLOR = {
   general:   'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
 }
 
+// Number of recent audit events shown in the Activity tab (fixed, so the
+// panel keeps its size instead of stretching with the audit trail).
+const ACTIVITY_ROWS = 3
+
 const TABS = [
   { key:'inbox',    label:'Inbox',    Icon: Inbox    },
   { key:'alerts',   label:'Alerts',   Icon: AlertTriangle },
@@ -186,7 +190,8 @@ export default function NotificationCenter() {
     if (!open) return
     loadNotifs()
     getBusinessAlerts().then(setAlerts).catch(() => {})
-    loadRecentActivity(12).then(list => setActivity(Array.isArray(list) ? list : []))
+    // Activity tab shows the 3 most recent events only.
+    loadRecentActivity(ACTIVITY_ROWS).then(list => setActivity(Array.isArray(list) ? list : []))
   }, [open, loadNotifs])
 
   const inbox    = notifications.filter(n => ['unread', 'read'].includes(n.status))
@@ -291,7 +296,7 @@ export default function NotificationCenter() {
           </div>
 
           {/* Body */}
-          <div className="mt-2 max-h-[22rem] overflow-y-auto">
+          <div className="mt-2 h-[22rem] overflow-y-auto">
             {notifLoading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
@@ -323,7 +328,7 @@ export default function NotificationCenter() {
                   activity.length === 0
                     ? <EmptyState icon={<Clock size={20} className="text-slate-300 dark:text-slate-600" />} text="No recent activity" />
                     : <div className="divide-y divide-[var(--ap-border)]/60">
-                        {activity.map(ev => <ActivityRow key={ev.id} ev={ev} />)}
+                        {activity.slice(0, ACTIVITY_ROWS).map(ev => <ActivityRow key={ev.id} ev={ev} />)}
                       </div>
                 )}
 
