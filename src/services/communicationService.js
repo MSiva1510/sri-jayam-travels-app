@@ -527,26 +527,32 @@ export async function checkCommunicationHealth() {
   }
 }
 
-// ── WhatsApp bot resume ─────────────────────────────────────
+// ── WhatsApp bot handoff ────────────────────────────────────
+// Both actions go through the Vercel function (api/whatsapp/send), which
+// checks the signed-in user is staff. The Supabase session token — not the
+// anon key — is what proves that.
+async function postInboxAction(action, phone) {
+  const { data, error } = await supabase.auth.getSession()
+  if (error) throw new Error(error.message)
+  const token = data?.session?.access_token
+  if (!token) throw new Error('Your session has expired. Sign in again and retry.')
+
+  const res = await fetch('/api/whatsapp/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ action, phone }),
+  })
+  const result = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(result.error || `WhatsApp action failed (${res.status})`)
+  return result
+}
+
 // Staff can resume a paused bot so it starts answering again immediately.
-// Calls the whatsapp-send API with action 'resume_bot'.
 export async function resumeBot(phone) {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-  if (!supabaseUrl || !supabaseKey) throw new Error('Supabase not configured')
-  try {
-    const res = await fetch(`${supabaseUrl}/functions/v1/whatsapp/send`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${supabaseKey}`,
-      },
-      body: JSON.stringify({ action: 'resume_bot', phone }),
-    })
-    const result = await res.json()
-    if (!res.ok) throw new Error(result.error || 'Failed to resume bot')
-    return result
-  } catch (error) {
-    throw error
-  }
+  return postInboxAction('resume_bot', phone)
+}
+
+// Staff are answering from their own WhatsApp: keep the bot quiet for 6 h.
+export async function pauseBot(phone) {
+  return postInboxAction('pause_bot', phone)
 }

@@ -1,11 +1,14 @@
 // ─── Inbox actions for staff (web + manager app) ────────────────────────
 // POST /api/whatsapp/send   Authorization: Bearer <Supabase session token>
 //   { "action": "reply",      "phone": "9173…", "text": "…" }
+//   { "action": "pause_bot",  "phone": "9173…" }
 //   { "action": "resume_bot", "phone": "9173…" }
 //
 // reply: free text to the customer. WhatsApp allows it only within 24 h
 // of the customer's last message (else 409 — use a template). Pauses the
 // bot for 6 hours so it does not talk over staff.
+// pause_bot: staff are replying from their own phone (wa.me); keep the bot
+// quiet for the same 6 h without sending anything.
 // resume_bot: hands the chat back to the bot now.
 // Staff only (admin / manager), same check as the GPS proxy.
 
@@ -46,6 +49,12 @@ export async function handler(event, _context, env = process.env, fetchImpl = fe
   if (body.action === 'resume_bot') {
     await db.update(path, { bot_paused_until: null, needs_staff: false, state: null, data: {} })
     return reply(200, { ok: true })
+  }
+
+  if (body.action === 'pause_bot') {
+    const pausedUntil = new Date(now + STAFF_PAUSE_HOURS * 3_600_000).toISOString()
+    await db.update(path, { bot_paused_until: pausedUntil, needs_staff: false, state: null, data: {} })
+    return reply(200, { ok: true, paused_until: pausedUntil })
   }
 
   if (body.action !== 'reply') return reply(400, { error: 'Unknown action' })

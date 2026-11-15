@@ -17,7 +17,7 @@ import StatusPill from '../components/ui/StatusPill'
 import { useCommunicationCtx } from '../hooks/useCommunication'
 import { exportToCSV } from '../data/reportData'
 import { fmtAuditTime } from '../data/auditLogData'
-import { getCommunicationLogs, openWhatsApp, scheduler, resumeBot, cancelStalePendingQueue } from '../services/communicationService'
+import { getCommunicationLogs, openWhatsApp, scheduler, resumeBot, pauseBot, cancelStalePendingQueue } from '../services/communicationService'
 
 // ── Constants ─────────────────────────────────────────────────
 const TABS = [
@@ -395,7 +395,34 @@ function CommLogsTab() {
   const [drawer, setDrawer]   = useState(null)
   const [copied, setCopied]   = useState(false)
   const [resuming, setResuming] = useState(false)
+  const [inboxActionError, setInboxActionError] = useState('')
   const [cancellingStale, setCancellingStale] = useState(false)
+
+  // Opening WhatsApp means a person is answering from their own phone, so the
+  // bot is paused in the background first — otherwise it keeps replying over
+  // them for the next 6 hours. Fire-and-forget: the chat must open on click
+  // (browsers block window.open after an await) and a failure is shown in the
+  // drawer's action area.
+  const openWhatsAppAndPause = (phone, message) => {
+    setInboxActionError('')
+    pauseBot(phone).catch(e => setInboxActionError(e.message || 'Could not pause the bot'))
+    openWhatsApp(phone, message)
+  }
+
+  const handleResume = async (phone) => {
+    setInboxActionError('')
+    setResuming(true)
+    try {
+      await resumeBot(phone)
+      setDrawer(null)
+    } catch (e) {
+      setInboxActionError(e.message || 'Could not resume the bot')
+    }
+    setResuming(false)
+  }
+
+  // An action error belongs to the drawer it was raised in.
+  useEffect(() => { setInboxActionError('') }, [drawer])
 
   const reload = async () => {
     setLoading(true); setLoadError(null)
@@ -613,7 +640,7 @@ function CommLogsTab() {
                           <Copy size={13} />
                         </button>
                         {l.channel === 'whatsapp' && l.recipient_contact && (
-                          <button onClick={() => openWhatsApp(l.recipient_contact, `${l.subject || ''}\n${l.body || ''}`.trim())}
+                          <button onClick={() => openWhatsAppAndPause(l.recipient_contact, `${l.subject || ''}\n${l.body || ''}`.trim())}
                             title="Open in WhatsApp" aria-label="Open in WhatsApp"
                             className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors">
                             <ExternalLink size={13} />
@@ -662,17 +689,11 @@ function CommLogsTab() {
             </button>
             {drawer.channel === 'whatsapp' && drawer.recipient_contact && (
               <>
-                <button onClick={() => openWhatsApp(drawer.recipient_contact, `${drawer.subject || ''}\n${drawer.body || ''}`.trim())}
+                <button onClick={() => openWhatsAppAndPause(drawer.recipient_contact, `${drawer.subject || ''}\n${drawer.body || ''}`.trim())}
                   className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500 transition-all active:scale-95">
                   <ExternalLink size={13} /> WhatsApp
                 </button>
-                <button onClick={() => {
-                  setResuming(true)
-                  resumeBot(drawer.recipient_contact).then(() => {
-                    setResuming(false)
-                    setDrawer(null)
-                  }).catch(() => setResuming(false))
-                }}
+                <button onClick={() => handleResume(drawer.recipient_contact)}
                   className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-500 transition-all active:scale-95">
                   {resuming ? <span className="flex items-center gap-1"><RefreshCw size={13} className="animate-spin" /> Resuming…</span> : <span className="flex items-center gap-1"><RefreshCw size={13} /> Resume Bot</span>}
                 </button>
@@ -687,6 +708,11 @@ function CommLogsTab() {
             <StatusBadge status={drawer.status} />
             <ChannelChip channel={drawer.channel} />
           </div>
+          {inboxActionError && (
+            <div className="bg-red-50 dark:bg-red-900/15 border border-red-200 dark:border-red-800/30 rounded-xl px-3.5 py-2.5">
+              <p className="text-xs font-semibold text-red-600 dark:text-red-400">{inboxActionError}</p>
+            </div>
+          )}
           {drawer.status === 'failed' && (
             <div className="bg-red-50 dark:bg-red-900/15 border border-red-200 dark:border-red-800/30 rounded-xl px-3.5 py-3">
               <p className="text-xs font-semibold text-red-600 dark:text-red-400">Delivery failed</p>

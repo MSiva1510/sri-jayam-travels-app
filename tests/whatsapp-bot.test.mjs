@@ -611,6 +611,15 @@ test('send: staff reply inside 24 h, refused after; resume bot; drivers refused'
   assert.equal(res.statusCode, 200)
   assert.equal(db.conversations.get(PHONE).bot_paused_until, null)
 
+  // Staff answering from their own phone: pause without sending anything.
+  const sentBefore = sent.length
+  res = await call({ action: 'pause_bot', phone: PHONE }, 'Bearer staff-jwt', NOW)
+  assert.equal(res.statusCode, 200)
+  assert.equal(JSON.parse(res.body).paused_until, new Date(NOW + 6 * 3_600_000).toISOString())
+  assert.equal(Date.parse(db.conversations.get(PHONE).bot_paused_until), NOW + 6 * 3_600_000)
+  assert.equal(db.conversations.get(PHONE).needs_staff, false)
+  assert.equal(sent.length, sentBefore, 'pause_bot sends nothing')
+
   assert.equal((await call({ action: 'reply', phone: PHONE, text: 'x' }, 'Bearer bad')).statusCode, 401)
   fakeWorld({ staffRole: 'driver' })
   assert.equal((await call({ action: 'reply', phone: PHONE, text: 'x' })).statusCode, 403)

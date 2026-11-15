@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { fileURLToPath, URL } from 'node:url'
 import { extractBearer, verifySupabaseStaff } from './vercel/functions/_lib/verifySupabaseUser.js'
+import { handler as whatsappSendHandler } from './vercel/functions/whatsapp-send.js'
 
 const DEFAULT_ALLOWED_GPS_HOSTS = ['mvt.apmkingstrack.com', 'app.gpstrack.in']
 
@@ -95,8 +96,53 @@ function gpsProxyDevMiddleware(env) {
   }
 }
 
+// Mirrors api/whatsapp/send.js so staff inbox actions (resume_bot, pause_bot,
+// reply) behave the same in dev as on Vercel.
+function whatsappSendDevMiddleware(env) {
+  return {
+    name: 'whatsapp-send-dev-middleware',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        const pathname = new URL(req.url || '/', 'http://localhost').pathname
+        if (pathname !== '/api/whatsapp/send') {
+          next()
+          return
+        }
+
+        if (req.method !== 'POST') {
+          res.statusCode = 405
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ error: 'Method not allowed' }))
+          return
+        }
+
+        try {
+          const chunks = []
+          for await (const chunk of req) chunks.push(chunk)
+          const result = await whatsappSendHandler(
+            { httpMethod: 'POST', headers: req.headers, body: Buffer.concat(chunks).toString('utf8') },
+            {},
+            { ...process.env, ...env },
+          )
+          res.statusCode = result.statusCode
+          for (const [key, value] of Object.entries(result.headers || {})) res.setHeader(key, value)
+          res.end(result.body)
+        } catch (error) {
+          res.statusCode = 500
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ error: error?.message || 'WhatsApp send request failed' }))
+        }
+      })
+    },
+  }
+}
+
 export default defineConfig(({ mode }) => ({
-  plugins: [react(), gpsProxyDevMiddleware(loadEnv(mode, process.cwd(), 'VITE_'))],
+  plugins: [
+    react(),
+    gpsProxyDevMiddleware(loadEnv(mode, process.cwd(), 'VITE_')),
+    whatsappSendDevMiddleware(loadEnv(mode, process.cwd(), '')),
+  ],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
