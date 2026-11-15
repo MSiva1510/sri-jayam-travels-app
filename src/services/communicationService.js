@@ -423,7 +423,7 @@ export async function cancelStalePendingQueue() {
 export async function cancelCommunication(id) {
   return communicationLogRepository.update(id, {
     status: 'cancelled',
-    processed_at: new Date().toISOString(),
+    sent_at: new Date().toISOString(),
     failure_reason: 'Cancelled by user',
   })
 }
