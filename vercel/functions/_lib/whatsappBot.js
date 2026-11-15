@@ -253,6 +253,12 @@ export function botStep(conv, msg, today) {
     }
   }
 
+  // "back" — from any booking step the customer can ask to go back to the
+  // menu (the typed back button); the menu buttons restart the flow.
+  if (input === 'back') {
+    return done([menu(msg.contactName)], null, {})
+  }
+
   switch (state) {
     case 'book_type': {
       const type = tripType(input)
@@ -312,6 +318,7 @@ export function botStep(conv, msg, today) {
         [buttons(`Please check your trip:\n${bookingSummary(next)}`, [
           { id: 'confirm', title: 'Confirm' },
           { id: 'cancel', title: 'Cancel' },
+          { id: 'back', title: 'Back to menu' },
         ])],
         'book_confirm',
         next,
@@ -393,6 +400,7 @@ export function botStep(conv, msg, today) {
         [buttons(`Please check your self-drive trip:\n${bookingSummary(next)}\n\nID: ${next.idType} — ${next.idNum}\nDL: ${next.dlNum}\nDL Expiry: ${next.dlExpiry}\n\nTap Confirm to book:`, [
           { id: 'confirm', title: 'Confirm' },
           { id: 'cancel', title: 'Cancel' },
+          { id: 'back', title: 'Back to menu' },
         ])],
         'book_confirm',
         next,

@@ -624,3 +624,22 @@ test('send: staff reply inside 24 h, refused after; resume bot; drivers refused'
   fakeWorld({ staffRole: 'driver' })
   assert.equal((await call({ action: 'reply', phone: PHONE, text: 'x' })).statusCode, 403)
 })
+
+test('booking: the final confirm prompt has a Back button, and typing back returns to the menu', () => {
+  const DATA = { type: 'one_way', pickup: 'Ariyakuppam', drop: 'Chennai', date: '2026-10-31', time: '05:30' }
+  const CONV = { state: 'book_time', data: DATA, welcome_checked_at: '2026-10-30T12:00:00Z' }
+
+  // The final confirm asks for a tap — it must offer a way out other than
+  // cancelling, or the customer is stuck mid-form.
+  const s = botStep(CONV, { text: 'skip' }, TODAY)
+  const confirmList = s.replies[0].buttons ?? []
+  assert.ok(confirmList.some(b => b.id === 'back'), 'confirm prompt lists a Back button')
+  assert.equal(confirmList.length, 3, 'WhatsApp caps button lists at three')
+  assert.equal(s.state, 'book_confirm')
+
+  // Typed "back" from anywhere in the flow resets to the menu.
+  const back = botStep(CONV, { text: 'back' }, TODAY)
+  assert.equal(back.state, null)
+  assert.equal(back.replies.length, 1)
+  assert.match(back.replies[0].body, /How can we help you/)
+})
