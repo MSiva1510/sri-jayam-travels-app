@@ -23,7 +23,7 @@ export function getVehicleStatusCfg(status) {
 // Returns cached value — pre-load with loadAllVehicleStatuses()
 export function getVehicleStatusEntry(vehicleReg) {
   return _cache[vehicleReg] || {
-    status: 'available', driver: null, area: null, tripId: null, fuelLevel: null, updatedAt: null,
+    status: 'available', driver: null, area: null, tripId: null, fuelLevel: null, km: null, updatedAt: null,
   }
 }
 
@@ -42,6 +42,7 @@ export async function loadAllVehicleStatuses() {
       tripId:    row.current_trip_id    || null,
       area:      null,
       fuelLevel: row.fuel_level,
+      km:        row.last_km_reading ?? null,
       updatedAt: row.updated_at,
     }
   }

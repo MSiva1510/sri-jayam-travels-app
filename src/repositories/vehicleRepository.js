@@ -8,6 +8,7 @@ import supabase from '../lib/supabase'
 import { getDatabaseProvider, DATABASE_PROVIDERS } from '../config/database'
 import { dataService } from '../services/dataService'
 import { cacheClear } from '../utils/dataCache'
+import { normalizeVehicleRow } from '../utils/vehicleUtils'
 
 const VEHICLES_STORAGE_KEY = 'sjt_vehicles'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -83,7 +84,7 @@ export class VehicleRepository extends BaseRepository {
           .ilike('registration', `%${registration}%`)
 
         if (error) throw error
-        return data || []
+        return (data || []).map(normalizeVehicleRow)
       } catch (error) {
         console.error('Search by registration failed:', error)
         throw error
@@ -109,7 +110,7 @@ export class VehicleRepository extends BaseRepository {
           .ilike('model', `%${model}%`)
 
         if (error) throw error
-        return data || []
+        return (data || []).map(normalizeVehicleRow)
       } catch (error) {
         console.error('Search by model failed:', error)
         throw error
@@ -135,7 +136,7 @@ export class VehicleRepository extends BaseRepository {
           .eq('status', status)
 
         if (error) throw error
-        return data || []
+        return (data || []).map(normalizeVehicleRow)
       } catch (error) {
         console.error('Get by status failed:', error)
         throw error
@@ -344,11 +345,11 @@ export class VehicleRepository extends BaseRepository {
     try {
       const { data, error } = await supabase
         .from('vehicles')
-        .select('id, vehicle_id, registration, vehicle_type, model, year, color, fuel_type, status, current_km, engine_number, imei, created_at, updated_at')
+        .select('id, vehicle_id, registration, vehicle_type, model, year, color, fuel_type, status, current_km, insurance_number, insurance_expiry, fitness_cert_expiry, pollution_cert_expiry, last_service_km, engine_number, imei, created_at, updated_at')
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      return data || []
+      return (data || []).map(normalizeVehicleRow)
     } catch (error) {
       console.error('Error fetching vehicles from Supabase:', error)
       throw error
@@ -359,7 +360,7 @@ export class VehicleRepository extends BaseRepository {
     try {
       const { data, error } = await supabase
         .from('vehicles')
-        .select('id, vehicle_id, registration, vehicle_type, model, year, color, fuel_type, status, current_km, engine_number, imei, created_at, updated_at')
+        .select('id, vehicle_id, registration, vehicle_type, model, year, color, fuel_type, status, current_km, insurance_number, insurance_expiry, fitness_cert_expiry, pollution_cert_expiry, last_service_km, engine_number, imei, created_at, updated_at')
         .eq(UUID_RE.test(String(id)) ? 'id' : 'vehicle_id', id)
         .single()
 
@@ -368,7 +369,7 @@ export class VehicleRepository extends BaseRepository {
       }
 
       if (error) throw error
-      return data || null
+      return data ? normalizeVehicleRow(data) : null
     } catch (error) {
       console.error('Error fetching vehicle from Supabase:', error)
       throw error
@@ -392,7 +393,7 @@ export class VehicleRepository extends BaseRepository {
 
       if (error) throw error
       cacheClear('vehicles')
-      return created
+      return normalizeVehicleRow(created)
     } catch (error) {
       console.error('Error creating vehicle in Supabase:', error)
       throw error
@@ -413,7 +414,7 @@ export class VehicleRepository extends BaseRepository {
 
       if (error) throw error
       cacheClear('vehicles')
-      return updated
+      return normalizeVehicleRow(updated)
     } catch (error) {
       console.error('Error updating vehicle in Supabase:', error)
       throw error

@@ -27,3 +27,35 @@ export function daysLabel(days) {
   if (days === 0) return 'Expires today'
   return `${days}d left`
 }
+
+// ─── Normalise a `vehicles` row for the UI ────────────────────
+// Supabase stores snake_case columns (registration, vehicle_type,
+// current_km, insurance_expiry…) while the pages read short aliases
+// (reg, type, km, insExpiry…). Normalising in the repository keeps the
+// list, the detail panel and the edit form on one shape, and leaves the
+// raw columns in place for anything that already reads them.
+//
+// `km` is the vehicle's odometer (`vehicles.current_km`). Trip distances
+// are relative, so they can never stand in for an absolute odometer.
+export function normalizeVehicleRow(row) {
+  if (!row || typeof row !== 'object') return row
+  const km = Number(row.current_km ?? row.km ?? 0)
+  const currentKm = Number.isFinite(km) ? km : 0
+
+  return {
+    ...row,
+    reg:          row.reg          ?? row.registration   ?? row.license_plate ?? '',
+    registration: row.registration ?? row.reg            ?? row.license_plate ?? '',
+    type:         row.type         ?? row.vehicle_type   ?? '',
+    vehicle_type: row.vehicle_type ?? row.type           ?? '',
+    km:           currentKm,
+    current_km:   currentKm,
+    fuel:         row.fuel         ?? row.fuel_type      ?? '',
+    fuelType:     row.fuelType     ?? row.fuel_type      ?? '',
+    lastServiceKm: row.lastServiceKm ?? row.last_service_km ?? '',
+    insNumber:    row.insNumber    ?? row.insurance_number      ?? '',
+    insExpiry:    row.insExpiry    ?? row.insurance_expiry      ?? '',
+    fcExpiry:     row.fcExpiry     ?? row.fitness_cert_expiry   ?? '',
+    pucExpiry:    row.pucExpiry    ?? row.pollution_cert_expiry ?? '',
+  }
+}

@@ -1061,6 +1061,12 @@ export default function Vehicles() {
               const assignment = getAssignment(v.reg)
               const driverName = assignment?.driverName || v.driver || '—'
               const vTrips = tripsOf(v.reg)
+              // Odometer = vehicles.current_km. Fall back to the GPS reading
+              // only when the stored value is missing, never the other way
+              // round: the vendor odometer is not trustworthy enough yet.
+              const storedKm = Number(v?.km) || 0
+              const liveKm   = Number(getVehicleStatusEntry(v.reg).km) || 0
+              const odo      = storedKm > 0 ? storedKm : liveKm
               return (
                 <Fragment key={v.id}>
                 <tr onClick={() => setExpanded(isOpen ? null : v.id)}
@@ -1081,7 +1087,10 @@ export default function Vehicles() {
                   <td className="px-4 py-2.5"><StatusBadge status={v.status} /></td>
                   <td className="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-300 truncate max-w-[130px]">{driverName}</td>
                   <td className="px-4 py-2.5 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap tabular-nums">{lastTripOf(v.reg) || '—'}</td>
-                  <td className="px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap tabular-nums">{(Number(v?.km) || 0).toLocaleString()} km</td>
+                  <td className="px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap tabular-nums"
+                      title={storedKm > 0 ? 'Odometer stored on the vehicle record' : (odo > 0 ? 'Odometer from the latest GPS reading' : 'No odometer recorded')}>
+                    {odo.toLocaleString()} km
+                  </td>
                   <td className="px-4 py-2.5">
                     <div className="flex gap-1.5">
                       <IconButton icon={Eye} label={`View ${v.reg}`} tone="brand" size={14}
