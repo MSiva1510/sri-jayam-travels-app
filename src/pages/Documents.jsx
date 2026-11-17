@@ -7,7 +7,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   FileText, Plus, Search, AlertTriangle,
   CheckCircle, Clock, Download, Trash2, X,
-  Car, User, FolderOpen, Eye, Columns3,
+  Car, User, FolderOpen, Eye, Columns3, Building2, LayoutGrid, List, Pencil,
 } from 'lucide-react'
 import PageHeader   from '../components/ui/PageHeader'
 import ModalOverlay from '../components/ui/ModalOverlay'
@@ -30,10 +30,12 @@ import { pageSizeFor } from '../utils/zoomPageSize'
 const DOC_TYPES = {
   driver: [
     { key:'license',     label:"Driver's Licence",   hasExpiry:true  },
+    { key:'aadhar',      label:'Aadhaar Card',        hasExpiry:false },
+    { key:'pan',         label:'PAN Card',            hasExpiry:false },
+    { key:'passport',    label:'Passport',            hasExpiry:true  },
     { key:'badge',       label:'Badge / ID',          hasExpiry:true  },
     { key:'medical',     label:'Medical Certificate', hasExpiry:true  },
     { key:'police_cert', label:'Police Certificate',  hasExpiry:true  },
-    { key:'aadhar',      label:'Aadhaar Card',        hasExpiry:false },
     { key:'bank',        label:'Bank Passbook',       hasExpiry:false },
     { key:'other',       label:'Other',               hasExpiry:false },
   ],
@@ -45,6 +47,12 @@ const DOC_TYPES = {
     { key:'fitness',   label:'Fitness Certificate', hasExpiry:true  },
     { key:'tax_token', label:'Tax Token',           hasExpiry:true  },
     { key:'other',     label:'Other',               hasExpiry:false },
+  ],
+  company: [
+    { key:'agreement',   label:'Agreement',        hasExpiry:true,  icon:'🤝' },
+    { key:'registration',label:'Registration',     hasExpiry:true,  icon:'🏢' },
+    { key:'tax',         label:'Tax Documents',    hasExpiry:false, icon:'🧾' },
+    { key:'other',       label:'Other',             hasExpiry:false, icon:'📎' },
   ],
   trip: [
     { key:'permit',       label:'Trip Permit',        hasExpiry:true,   icon:'📋' },
@@ -60,6 +68,7 @@ const CATEGORIES = [
   { key:'all',      label:'All Docs',  Icon:FolderOpen, color:'text-slate-500'  },
   { key:'driver',   label:'Drivers',   Icon:User,       color:'text-blue-500'   },
   { key:'vehicle',  label:'Vehicles',  Icon:Car,        color:'text-amber-500'   },
+  { key:'company',  label:'Company',   Icon:Building2, color:'text-violet-500'  },
 ]
 
 const STATUS_CFG = {
@@ -67,6 +76,7 @@ const STATUS_CFG = {
   expiring_soon: { label:'Expiring Soon',  badge:'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',         dot:'bg-amber-500 animate-pulse'   },
   expired:       { label:'Expired',        badge:'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',                  dot:'bg-red-500'                   },
   pending:       { label:'Pending',        badge:'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',             dot:'bg-slate-400'                 },
+  no_expiry:     { label:'No Expiry',      badge:'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',            dot:'bg-slate-400'                 },
 }
 
 // ── Column selection (desktop table; Actions always on) ──────
@@ -114,7 +124,7 @@ function fmtDate(d) {
 
 // ── Helpers ───────────────────────────────────────────────────
 function calcStatus(expiryDate) {
-  if (!expiryDate) return 'active'
+  if (!expiryDate) return 'no_expiry'
   const today  = new Date(); today.setHours(0,0,0,0)
   const expiry = new Date(expiryDate + 'T00:00:00')
   const diff   = Math.floor((expiry - today) / 86400000)
@@ -202,7 +212,7 @@ async function uploadDocFile(file, category) {
   return { url: data.signedUrl, name: file.name, size: file.size }
 }
 
-const STATUS_TONE = { active: 'green', expiring_soon: 'amber', expired: 'red', pending: 'gray' }
+const STATUS_TONE = { active: 'green', expiring_soon: 'amber', expired: 'red', pending: 'gray', no_expiry: 'gray' }
 
 // ── Status badge ──────────────────────────────────────────────
 function StatusBadge({ status }) {
@@ -211,11 +221,13 @@ function StatusBadge({ status }) {
 }
 
 // ── Add Document Modal ─────────────────────────────────────
-function AddDocModal({ onClose, onSave, drivers, vehicles }) {
+function AddDocModal({ onClose, onSave, drivers, vehicles, initial = null }) {
   const [form, setForm] = useState({
+    id: null,
     category:'driver', doc_type:'license', title:'',
     entity_id:'', expiry_date:'', reminder_date:'', notes:'',
-    fileUrl: null, fileName: ''
+    fileUrl: null, fileName: '',
+    _existingFileUrl: null,
   })
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState({})
@@ -224,6 +236,25 @@ function AddDocModal({ onClose, onSave, drivers, vehicles }) {
   const fileInputRef = useRef(null)
   const fileRef = useRef(null)          // the real File, uploaded on save
   const upd = patch => setForm(f => ({ ...f, ...patch }))
+
+  // Seed from an existing document when editing (Edit action).
+  useEffect(() => {
+    if (!initial) return
+    setForm({
+      id: initial.id || null,
+      category: initial.category || 'driver',
+      doc_type: initial.doc_type || 'license',
+      title: initial.title || '',
+      entity_id: initial.driver_id || initial.vehicle_id || initial.customer_id || '',
+      expiry_date: initial.expiry_date || '',
+      reminder_date: initial.reminder_date || '',
+      notes: initial.notes || '',
+      fileUrl: initial.file_url || null,
+      fileName: initial.file_name || '',
+      _existingFileUrl: initial.file_url || null,
+    })
+    setFileName(initial.file_name || '')
+  }, [initial])
 
   const ALLOWED_MIMES = [
     'image/jpeg', 'image/png', 'application/pdf',
@@ -282,8 +313,8 @@ function AddDocModal({ onClose, onSave, drivers, vehicles }) {
   const validate = () => {
     const e = {}
     if (!form.title.trim())                        e.title     = 'Required'
-    if (form.category !== 'trip' && !form.entity_id) e.entity_id = 'Select one'
-    if (!fileRef.current)                          e.file      = 'Attach the document file'
+    if (form.category !== 'trip' && form.category !== 'company' && !form.entity_id) e.entity_id = 'Select one'
+    if (!fileRef.current && !form._existingFileUrl) e.file      = 'Attach the document file'
     return e
   }
 
@@ -295,16 +326,18 @@ function AddDocModal({ onClose, onSave, drivers, vehicles }) {
     try {
       // Upload first so a failed upload never leaves a document row with a
       // dead link — and never stores a giant base64 string in the database.
-      const fileMeta = await uploadDocFile(fileRef.current, form.category)
+      // In edit mode an already-attached file is kept when no new file is chosen.
+      let fileMeta = null
+      if (fileRef.current) fileMeta = await uploadDocFile(fileRef.current, form.category)
       const payload = {
         ...form,
         title:       form.title.trim(),
         driver_id:   form.category === 'driver'   ? form.entity_id : null,
         vehicle_id:  form.category === 'vehicle'  ? form.entity_id : null,
         customer_id: form.category === 'customer' ? form.entity_id : null,
-        file_url:    fileMeta.url,
-        file_name:   fileMeta.name,
-        file_size:   fileMeta.size,
+        file_url:    fileMeta ? fileMeta.url : (form._existingFileUrl || null),
+        file_name:   fileMeta ? fileMeta.name : (form.fileName || ''),
+        file_size:   fileMeta ? fileMeta.size : (form.file_size ? Number(form.file_size) : null),
       }
       const saved = await upsertDoc(payload)
       onSave(saved)
@@ -474,6 +507,103 @@ function AddDocModal({ onClose, onSave, drivers, vehicles }) {
   )
 }
 
+// ── Document Detail Modal ───────────────────────────────────
+function DocDetailModal({ doc, owner, onClose, onEdit, onDelete, canManage }) {
+  const days = doc.daysLeft
+  const preview = doc.file_url
+  const isPdf = /\.pdf$/i.test(String(doc.file_name || ''))
+  const handlePrint = () => {
+    if (!doc.file_url) return
+    const w = window.open('', '_blank')
+    if (!w) return
+    w.document.write(`<!doctype html><html><body style="margin:0"><iframe src="${doc.file_url}" style="width:100vw;height:100vh;border:0" onload="setTimeout(()=>this.contentWindow.print(),400)"></iframe></body></html>`)
+    w.document.close()
+  }
+  const meta = [
+    { l:'Document No', v: doc.notes || doc.file_name || '—' },
+    { l:'Owner',       v: owner ? `${owner.name} (${owner.label})` : '—' },
+    { l:'Category',   v: doc.category ? doc.category.charAt(0).toUpperCase() + doc.category.slice(1) : '—' },
+    { l:'Type',        v: typeLabel(doc.doc_type || 'other') },
+    { l:'Issue Date', v: fmtDate((doc.created_at || '').slice(0,10)) },
+    { l:'Expiry Date',v: fmtDate(doc.expiry_date) },
+    { l:'Status',      v: (STATUS_CFG[doc.computedStatus] || STATUS_CFG.active).label },
+    { l:'Uploaded',    v: fmtDate((doc.created_at || '').slice(0,10)) },
+    { l:'Modified',    v: fmtDate((doc.updated_at || '').slice(0,10)) },
+    { l:'File Size',   v: doc.file_size ? `${(doc.file_size / 1024).toFixed(1)} KB` : '—' },
+  ]
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div role="dialog" aria-modal="true" aria-label={`Document — ${doc.title}`}
+        className="relative w-full sm:w-[560px] max-h-[92vh] sm:max-h-[88vh] ap-surface rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
+        <div className="w-10 h-1 bg-[var(--ap-border)] rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
+        <div className="flex items-start justify-between gap-3 px-5 pt-4 pb-3 flex-shrink-0">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Document</p>
+            <h3 className="font-sf font-semibold text-slate-800 dark:text-white text-base truncate">{doc.title}</h3>
+            <p className="text-xs text-slate-400">{typeLabel(doc.doc_type || 'other')} · {doc.category}</p>
+          </div>
+          <StatusBadge status={doc.computedStatus} />
+          <IconButton icon={X} label="Close" size={16} onClick={onClose} className="flex-shrink-0" />
+        </div>
+        <div className="overflow-y-auto flex-1 px-5 pb-5 space-y-4">
+          {/* Preview */}
+          <div className="rounded-xl overflow-hidden border border-[var(--ap-border)] bg-black/5 dark:bg-black/30 h-64 flex items-center justify-center">
+            {doc.file_url ? (
+              isPdf ? (
+                <iframe src={doc.file_url} title={doc.title} className="w-full h-full border-0 bg-white" />
+              ) : (
+                <img src={doc.file_url} alt={doc.title} className="w-full h-full object-contain" />
+              )
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-slate-400">
+                <FileText size={30} />
+                <p className="text-xs font-bold">No file attached</p>
+              </div>
+            )}
+          </div>
+          {/* Expiry countdown */}
+          {doc.expiry_date && (
+            <div className={`rounded-xl px-3 py-2.5 border text-[12px] font-medium ${
+              days < 0 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/40 text-red-700 dark:text-red-300'
+              : days <= 30 ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/40 text-amber-700 dark:text-amber-300'
+              : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-300'
+            }`}>
+              {days < 0 ? `Expired ${Math.abs(days)} day(s) ago` : days === 0 ? 'Expires today' : `Expires in ${days} day(s)`}
+            </div>
+          )}
+          {/* Metadata */}
+          <div className="grid grid-cols-2 gap-2">
+            {meta.map(m => (
+              <div key={m.l} className="bg-[var(--ap-surface-2)] rounded-xl px-3 py-2.5 border border-[var(--ap-border)]">
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">{m.l}</p>
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-200 break-words">{m.v}</p>
+              </div>
+            ))}
+          </div>
+          {/* Actions */}
+          <div className="flex flex-wrap gap-2">
+            {doc.file_url && (
+              <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
+                className="flex-1 min-w-[140px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--ap-surface-2)] border border-[var(--ap-border)] text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-[var(--ap-surface)] transition-colors">
+                <Download size={13} /> Download
+              </a>
+            )}
+            {canManage && (
+              <Button variant="secondary" className="flex-1 min-w-[140px]" icon={Pencil} onClick={() => onEdit(doc)}>Edit</Button>
+            )}
+            {doc.file_url && (
+              <Button variant="secondary" className="flex-1 min-w-[140px]" icon={Printer} onClick={handlePrint}>Print</Button>
+            )}
+            {canManage && (
+              <Button variant="danger" className="flex-1 min-w-[140px]" icon={Trash2} onClick={() => onDelete(doc.id)}>Delete</Button>
+            )}
+          </div>
+        </div>
+      </div>
+    </ModalOverlay>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────
 export default function Documents() {
   const { isAdmin, isManager } = useAuth()
@@ -496,6 +626,15 @@ export default function Documents() {
   const [visibleCols, setVisibleCols] = useState(loadDocCols)
   const [colsOpen, setColsOpen] = useState(false)
   const colsRef = useRef(null)
+  const [viewMode, setViewMode] = useState(() => {
+    try { return localStorage.getItem('sjt-docs-view') === 'list' ? 'list' : 'grid' } catch { return 'grid' }
+  })
+  const setView = (v) => {
+    setViewMode(v)
+    try { localStorage.setItem('sjt-docs-view', v) } catch { /* private mode */ }
+  }
+  const [docDetail, setDocDetail] = useState(null)
+  const [editingDoc, setEditingDoc] = useState(null)
 
   useEffect(() => {
     if (!colsOpen) return
@@ -548,6 +687,7 @@ export default function Documents() {
   }), [drivers, vehicles, customers])
 
   const ownerOf = useCallback((doc) => {
+    if (doc.category === 'company') return { kind:'company', label:'Company', name: doc.title || 'Company' }
     if (doc.category === 'driver' && doc.driver_id != null) {
       const name = ownerMaps.driver.get(String(doc.driver_id))
       if (name) return { kind:'driver', label:'Driver', name }
@@ -568,6 +708,7 @@ export default function Documents() {
     const opts = []
     drivers.forEach(d => opts.push({ value:`driver:${d.id}`, label:`${d.name} (Driver)` }))
     vehicles.forEach(v => opts.push({ value:`vehicle:${v.id}`, label:`${v.reg || v.registration || v.model || v.id} (Vehicle)` }))
+    opts.push({ value: 'company:company', label: 'Company' })
     return opts
   }, [drivers, vehicles, customers])
 
@@ -578,9 +719,10 @@ export default function Documents() {
       if (typeFilter !== 'all' && (doc.doc_type || 'other') !== typeFilter) return false
       if (ownerFilter !== 'all') {
         const [kind, id] = ownerFilter.split(':')
-        if (kind === 'driver' && String(doc.driver_id) !== id) return false
-        if (kind === 'vehicle' && String(doc.vehicle_id) !== id) return false
-        if (kind === 'customer' && String(doc.customer_id) !== id) return false
+        if (kind === 'driver') { if (String(doc.driver_id) !== id) return false }
+        if (kind === 'vehicle') { if (String(doc.vehicle_id) !== id) return false }
+        if (kind === 'customer') { if (String(doc.customer_id) !== id) return false }
+        if (kind === 'company') { if (doc.category !== 'company') return false }
       }
       if (search) {
         const q = search.toLowerCase()
@@ -622,6 +764,33 @@ export default function Documents() {
     })
     return out
   })()
+
+  // ── List-view sorting (click a column header) ───────────────
+  const SORTABLE = ['doc', 'type', 'owner', 'number', 'expiry', 'status', 'uploaded']
+  const [sort, setSort] = useState({ key: 'uploaded', dir: 'desc' })
+  const toggleSort = (k) => setSort(s => (s.key === k ? { key: k, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key: k, dir: 'asc' }))
+  const sortVal = (k, doc) => {
+    switch (k) {
+      case 'doc':     return String(doc.title || '')
+      case 'type':    return String(typeLabel(doc.doc_type || 'other') || '')
+      case 'owner':   return String(ownerOf(doc)?.name || '')
+      case 'number':  return String(doc.notes || doc.file_name || '')
+      case 'expiry':  return String(doc.expiry_date || '')
+      case 'status':  return String(doc.computedStatus || '')
+      case 'uploaded': return String((doc.created_at || '').slice(0,10))
+      default: return ''
+    }
+  }
+  const sortedPageRows = useMemo(() => {
+    if (!SORTABLE.includes(sort.key)) return pageRows
+    const dir = sort.dir === 'asc' ? 1 : -1
+    return [...pageRows].sort((a, b) => {
+      const av = sortVal(sort.key, a)
+      const bv = sortVal(sort.key, b)
+      const cmp = typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av).localeCompare(String(bv))
+      return cmp * dir
+    })
+  }, [pageRows, sort])
 
   // Shared pager body — rendered inside the desktop table footer and
   // below the mobile cards (same state, two placements).
@@ -753,6 +922,17 @@ export default function Documents() {
         <MetricCard label="Expired"            value={counts.expired}  icon={AlertTriangle} tone="red" onClick={() => setStatusFilter('expired')} />
       </div>
 
+      {/* Expiry alerts for managers — one-tap jump to the expiring bucket */}
+      {(isAdmin || isManager) && counts.expiring > 0 && (
+        <div className="ap-surface rounded-2xl px-4 py-3 flex items-center gap-3">
+          <AlertTriangle size={16} className="text-amber-500 flex-shrink-0" />
+          <p className="text-xs text-slate-600 dark:text-slate-300 flex-1 min-w-0">
+            <span className="font-bold">{counts.expiring}</span> document{counts.expiring !== 1 ? 's' : ''} expiring within 30 days.
+          </p>
+          <Button variant="ghost" size="sm" onClick={() => setStatusFilter('expiring_soon')}>Review</Button>
+        </div>
+      )}
+
       {/* 3. Category filter — drivers / vehicles / all */}
       <SegmentedControl
         ariaLabel="Filter by category"
@@ -794,6 +974,10 @@ export default function Documents() {
           <Button variant="ghost" size="sm" onClick={clearFilters}>Clear Filters</Button>
         )}
         <Button variant="outline" size="sm" icon={Download} onClick={exportCsv} className="whitespace-nowrap">Export</Button>
+        <SegmentedControl ariaLabel="Document view mode" value={viewMode} onChange={setView} options={[
+          { key: 'grid', label: 'Grid', icon: LayoutGrid },
+          { key: 'list', label: 'List', icon: List },
+        ]} />
         <div className="relative" ref={colsRef}>
           <Button variant="outline" size="sm" icon={Columns3} onClick={() => setColsOpen(v => !v)} className="whitespace-nowrap" aria-expanded={colsOpen} aria-haspopup="menu">Columns</Button>
           {colsOpen && (
@@ -855,6 +1039,68 @@ export default function Documents() {
             action={<Button variant="secondary" onClick={clearFilters}>Clear Filters</Button>}
           />
         )
+      ) : viewMode === 'grid' ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+          {pageRows.map(doc => {
+            const owner = ownerOf(doc)
+            const days = doc.daysLeft
+            return (
+              <div key={doc.id} className="ap-surface rounded-2xl p-3.5 flex flex-col gap-3">
+                <div className="relative h-32 rounded-xl overflow-hidden border border-[var(--ap-border)] bg-[var(--ap-surface-2)]">
+                  {doc.file_url ? (
+                    <img src={doc.file_url} alt={doc.title} loading="lazy" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <FileText size={26} className="text-slate-400 dark:text-slate-500" />
+                    </div>
+                  )}
+                  <div className="absolute top-2 right-2"><StatusBadge status={doc.computedStatus} /></div>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-bold text-slate-700 dark:text-slate-200 truncate">{doc.title}</p>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{typeLabel(doc.doc_type || 'other')}</p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="w-6 h-6 rounded-full bg-[var(--ap-border)] flex items-center justify-center text-[10px] font-semibold text-slate-600 dark:text-slate-300 flex-shrink-0">
+                      {(owner?.name || '?').charAt(0).toUpperCase()}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[12px] font-bold text-slate-700 dark:text-slate-200 truncate">{owner?.name || '—'}</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500">{owner?.label || doc.category}</p>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-2">
+                    {doc.expiry_date ? `Expires ${fmtDate(doc.expiry_date)}` : 'No expiry'}
+                    {doc.created_at ? ` · Uploaded ${fmtDate(String(doc.created_at || '').slice(0,10))}` : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 pt-2 border-t border-[var(--ap-border)]">
+                  {doc.file_url && (
+                    <a href={doc.file_url} target="_blank" rel="noopener noreferrer" title="View document" aria-label={`View ${doc.title}`}
+                      className="w-8 h-8 rounded-lg inline-flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)] hover:text-slate-800 dark:hover:text-white transition-colors">
+                      <Eye size={14} />
+                    </a>
+                  )}
+                  {doc.file_url && (
+                    <a href={doc.file_url} download={doc.file_name || 'document'} title="Download document" aria-label={`Download ${doc.title}`}
+                      className="w-8 h-8 rounded-lg inline-flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)] hover:text-slate-800 dark:hover:text-white transition-colors">
+                      <Download size={14} />
+                    </a>
+                  )}
+                  {canManage && (
+                    <button type="button" onClick={() => { setEditingDoc(doc); setShowAdd(true); }} aria-label={`Edit ${doc.title}`}
+                      className="w-8 h-8 rounded-lg inline-flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)] hover:text-slate-800 dark:hover:text-white transition-colors">
+                      <Pencil size={14} />
+                    </button>
+                  )}
+                  {canManage && (
+                    <IconButton icon={Trash2} size={14} tone="danger" label={`Delete ${doc.title}`}
+                      onClick={() => handleDelete(doc.id)} />
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
       ) : (
         <>
         {/* Desktop table */}
@@ -863,13 +1109,18 @@ export default function Documents() {
             <thead>
               <tr className="border-b border-[var(--ap-border)] bg-[var(--ap-surface-2)]">
                 {visibleCols.map(k => (
-                  <th key={k} className="px-3 py-2.5 text-left text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">{colLabel(k)}</th>
+                  <th key={k}
+                    className={`px-3 py-2.5 text-left text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap ${SORTABLE.includes(k) ? 'cursor-pointer select-none' : ''}`}
+                    onClick={SORTABLE.includes(k) ? () => toggleSort(k) : undefined}
+                    aria-sort={sort.key === k ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}>
+                    {colLabel(k)}{sort.key === k ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''}
+                  </th>
                 ))}
                 <th className="px-3 py-2.5 text-right text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {pageRows.map(doc => {
+              {sortedPageRows.map(doc => {
                 const owner = ownerOf(doc)
                 const ref = doc.notes || doc.file_name || '—'
                 const days = doc.daysLeft
@@ -1047,10 +1298,21 @@ export default function Documents() {
       {/* 7. Add document modal */}
       {showAdd && (
         <AddDocModal
-          onClose={() => setShowAdd(false)}
+          onClose={() => { setShowAdd(false); setEditingDoc(null) }}
           onSave={handleSave}
           drivers={drivers}
           vehicles={vehicles}
+          initial={editingDoc}
+        />
+      )}
+      {docDetail && (
+        <DocDetailModal
+          doc={docDetail}
+          owner={ownerOf(docDetail)}
+          onClose={() => setDocDetail(null)}
+          canManage={canManage}
+          onEdit={() => { setEditingDoc(docDetail); setDocDetail(null); setShowAdd(true) }}
+          onDelete={async (id) => { await handleDelete(id); setDocDetail(null) }}
         />
       )}
     </div>
