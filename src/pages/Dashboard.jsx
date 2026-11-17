@@ -199,7 +199,7 @@ export default function Dashboard() {
 
   // ── Attendance derived ────────────────────────────────────
   const presentCount = todayAttendance.filter(a => a.status === 'present' || a.status === 'half-day').length
-  const absentCount  = todayAttendance.filter(a => a.status === 'absent').length
+  const leaveCount = todayAttendance.filter(a => a.status === 'leave').length
 
   // ── Booking derived ───────────────────────────────────────
   // Cancelled trips never earned a fare — they are excluded from every
@@ -857,8 +857,7 @@ export default function Dashboard() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {[
               { label: 'Present',  value: presentCount, dot: 'bg-emerald-500' },
-              { label: 'Absent',   value: absentCount,  dot: 'bg-red-500' },
-              { label: 'On Leave', value: todayAttendance.filter(a => a.status === 'leave').length,    dot: 'bg-amber-500' },
+              { label: 'On Leave', value: leaveCount,   dot: 'bg-amber-500' },
               { label: 'Half Day', value: todayAttendance.filter(a => a.status === 'half-day').length, dot: 'bg-blue-500' },
             ].map(s => (
               <div key={s.label} className="bg-slate-500/5 dark:bg-white/5 rounded-xl p-3 text-center">

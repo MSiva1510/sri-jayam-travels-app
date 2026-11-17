@@ -5,7 +5,7 @@
 // Rule set:
 //   • a completed / closed trip on a date      → Present (worked that day)
 //   • an assigned trip that was never completed
-//     and whose date is already past            → Absent (no-show)
+//     and whose date is already past            → Leave / Off (no trip taken)
 //   • a past date with no trip assigned         → Leave / Off
 //   • a manual attendance row always wins over any trip-derived value
 //
@@ -14,7 +14,6 @@
 
 export const ATTENDANCE_STATUS = {
   PRESENT: 'present',
-  ABSENT: 'absent',
   LEAVE: 'leave',
   UNKNOWN: 'unknown',
 }
@@ -169,7 +168,10 @@ export function buildDayStatus({
 
   // 1. Manual attendance always wins.
   if (record) {
-    const status = String(record.status || 'present').toLowerCase()
+    // Absences are retired from the model — a stored "absent" mark is treated
+    // as a leave / off day so the status space stays clean.
+    const rawStatus = String(record.status || 'present').toLowerCase()
+    const status = ['absent', 'no-show', 'noshow'].includes(rawStatus) ? ATTENDANCE_STATUS.LEAVE : rawStatus
     return {
       ...base,
       status,
@@ -191,12 +193,12 @@ export function buildDayStatus({
   }
 
   // 3. Assigned but not completed. On/after today they are still on duty;
-  //    once the date is past it becomes a no-show.
+  //    once the date is past it counts as an off day (leave).
   if (pending.length > 0) {
     const isPast = date < today
     return {
       ...base,
-      status: isPast ? ATTENDANCE_STATUS.ABSENT : ATTENDANCE_STATUS.PRESENT,
+      status: isPast ? ATTENDANCE_STATUS.LEAVE : ATTENDANCE_STATUS.PRESENT,
       source: isPast ? 'trip-missed' : 'trip-scheduled',
       note: isPast
         ? `${pending.length} assigned trip${pending.length !== 1 ? 's' : ''} not completed`
@@ -251,7 +253,6 @@ export function buildMonthSummary({
   }
 
   const presentDays = days.filter(d => d.status === ATTENDANCE_STATUS.PRESENT || d.status === 'half-day').length
-  const absentDays = days.filter(d => d.status === ATTENDANCE_STATUS.ABSENT).length
   const leaveDays = days.filter(d => d.status === ATTENDANCE_STATUS.LEAVE).length
   const tripDays = days.filter(d => d.source === 'trip').length
 
@@ -261,11 +262,9 @@ export function buildMonthSummary({
     monthKey,
     days,
     presentDays,
-    absentDays,
     leaveDays,
     tripDays,
     totalDays: days.length,
-    absentDates: days.filter(d => d.status === ATTENDANCE_STATUS.ABSENT).map(d => d.date),
     leaveDates: days.filter(d => d.status === ATTENDANCE_STATUS.LEAVE).map(d => d.date),
   }
 }

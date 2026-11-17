@@ -301,7 +301,6 @@ function TripPayrollPayslipView({ payroll: P, onClose }) {
     <table><tbody>
     <tr><td style="padding:6px 4px">Total Trips</td><td style="padding:6px 4px;text-align:right;font-weight:700">${P.tripCount}</td></tr>
     <tr><td style="padding:6px 4px">Days Worked (present)</td><td style="padding:6px 4px;text-align:right;font-weight:700">${P.presentDays ?? P.daysWorked}</td></tr>
-    <tr><td style="padding:6px 4px">Absent Days</td><td style="padding:6px 4px;text-align:right;font-weight:700">${P.absentDays ?? 0}</td></tr>
     <tr><td style="padding:6px 4px">Leave / Off Days</td><td style="padding:6px 4px;text-align:right;font-weight:700">${P.leaveDays ?? 0}</td></tr>
     </tbody></table>
     <table style="margin-top:12px"><thead><tr><th>Earnings</th><th></th></tr></thead><tbody>
@@ -361,10 +360,9 @@ function TripPayrollPayslipView({ payroll: P, onClose }) {
               <span className="font-bold text-slate-700 dark:text-slate-200">Balance Rs. {P.balance.toLocaleString('en-IN')}</span>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {[
               { l:'Present', v:P.presentDays ?? P.daysWorked, c:'text-emerald-600 dark:text-emerald-400' },
-              { l:'Absent',  v:P.absentDays  ?? 0,            c:'text-red-600 dark:text-red-400' },
               { l:'Leave / Off', v:P.leaveDays ?? 0,          c:'text-amber-600 dark:text-amber-400' },
             ].map(r => (
               <div key={r.l} className="bg-[var(--ap-surface-2)] rounded-xl px-3 py-2 border border-[var(--ap-border)] text-center">
@@ -919,7 +917,7 @@ export default function Payroll() {
   )
   // ── Attendance per driver for the payroll month ───────────────
   // Derived from trips by the same rules the Attendance page uses:
-  // completed trip = present, missed assignment = absent, no trip = leave.
+  // completed trip = present, missed assignment / no trip = leave/off.
   // A manual attendance row always overrides the derived value.
   const todayISO = localDateISO()
   const attendanceSummaries = useMemo(() => {
@@ -955,10 +953,9 @@ export default function Payroll() {
         (b.startDate || '').startsWith(monthKey) &&
         ['completed', 'closed'].includes(String(b.status || '').toLowerCase())
       )
-      const hasAbsence = (summary?.absentDays || 0) > 0
       const hasManualDay = (summary?.presentDays || 0) > 0
       const hasSettlement = monthSettlements.some(s => s.driver === name)
-      return hasTrip || hasAbsence || hasManualDay || hasSettlement
+      return hasTrip || hasManualDay || hasSettlement
     }).sort((a, b) => a.localeCompare(b)).map(name => {
       const d = drivers.find(x => x.name === name)
       const settlement = monthSettlements.find(s => s.driver === name) || null
@@ -1097,9 +1094,9 @@ export default function Payroll() {
     showToast(`Generated ${done} draft payslip${done === 1 ? '' : 's'}`)
   }
   const exportCsv = () => {
-    const rows = [['Driver', 'Trips', 'Present', 'Absent', 'Leave', 'Salary - Allowance (Rs)', 'Bata Extra (Rs)', 'Deductions (Rs)', 'Net Pay (Rs)', 'Paid (Rs)', 'Balance (Rs)', 'Status']]
+    const rows = [['Driver', 'Trips', 'Present', 'Leave', 'Salary - Allowance (Rs)', 'Bata Extra (Rs)', 'Deductions (Rs)', 'Net Pay (Rs)', 'Paid (Rs)', 'Balance (Rs)', 'Status']]
     filtered.forEach(p => rows.push([
-      p.driver, p.tripCount, p.presentDays, p.absentDays, p.leaveDays, p.salaryTotal,
+      p.driver, p.tripCount, p.presentDays, p.leaveDays, p.salaryTotal,
       p.bataExtra, p.totalDeductions, p.net, p.paidAmount, p.balance, p.status,
     ]))
     const csv = rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')
@@ -1253,7 +1250,7 @@ export default function Payroll() {
                     <td className="px-3 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 tabular-nums">{p.tripCount}</td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{p.presentDays}P</span>
-                      <span className="text-[10px] text-slate-400 tabular-nums"> · {p.absentDays}A · {p.leaveDays}L</span>
+                      <span className="text-[10px] text-slate-400 tabular-nums"> · {p.leaveDays}L</span>
                     </td>
                     <td className="px-3 py-2.5 text-xs text-slate-600 dark:text-slate-300 tabular-nums whitespace-nowrap">{money(p.salaryTotal)}</td>
                     <td className="px-3 py-2.5 text-xs text-teal-600 dark:text-teal-400 tabular-nums whitespace-nowrap">{money(p.bataExtra)}</td>
@@ -1299,7 +1296,6 @@ export default function Payroll() {
               </div>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 tabular-nums mt-2">
                 Attendance: <span className="font-bold text-emerald-600 dark:text-emerald-400">{p.presentDays} present</span>
-                {p.absentDays > 0 && <> · <span className="font-bold text-red-600 dark:text-red-400">{p.absentDays} absent</span></>}
                 {p.leaveDays > 0 && <> · <span className="font-bold text-amber-600 dark:text-amber-400">{p.leaveDays} leave</span></>}
               </p>
             </div>
@@ -1355,15 +1351,9 @@ export default function Payroll() {
                   </p>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
                     <span className="text-emerald-600 dark:text-emerald-400 font-bold tabular-nums">{p.presentDays} present</span>
-                    <span className="text-red-600 dark:text-red-400 font-bold tabular-nums">{p.absentDays} absent</span>
                     <span className="text-amber-600 dark:text-amber-400 font-bold tabular-nums">{p.leaveDays} leave / off</span>
                   </div>
-                  {p.attendance?.absentDates?.length > 0 && (
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
-                      Absent: {p.attendance.absentDates.map(d => d.slice(8, 10)).join(', ')}
-                    </p>
-                  )}
-                  <p className="text-[10px] text-slate-400 mt-1">Derived from trips · completed trip = present, missed assignment = absent.</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Derived from trips · completed trip = present, no trip = leave.</p>
                 </div>
                 {/* Trips */}
                 <div>

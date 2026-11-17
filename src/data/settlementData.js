@@ -236,10 +236,8 @@ export function buildDriverMonthlyPayroll({
   const balance = Math.max(0, net - paidAmount)
   const attendanceSummary = attendance ? {
     presentDays: Number(attendance.presentDays) || 0,
-    absentDays:  Number(attendance.absentDays)  || 0,
     leaveDays:   Number(attendance.leaveDays)   || 0,
     totalDays:   Number(attendance.totalDays)   || 0,
-    absentDates: attendance.absentDates || [],
     leaveDates:  attendance.leaveDates  || [],
   } : null
   return {
@@ -247,7 +245,6 @@ export function buildDriverMonthlyPayroll({
     trips, tripCount, salaryTotal, bataExtra, daysWorked,
     attendance: attendanceSummary,
     presentDays: attendanceSummary?.presentDays ?? daysWorked,
-    absentDays:  attendanceSummary?.absentDays  ?? 0,
     leaveDays:   attendanceSummary?.leaveDays   ?? 0,
     gross, deductions, totalDeductions, net, netAmount: net,
     paidAmount, balance,

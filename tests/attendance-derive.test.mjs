@@ -1,7 +1,7 @@
 // Pins the trip-derived attendance rules shared by the Attendance page and
 // payroll/payslips:
 //   • completed / closed trip  → present
-//   • assigned trip, past date → absent (no-show)
+//   • assigned trip, past date → leave / off
 //   • past date, no trip       → leave / off
 //   • a manual attendance row always overrides the derived value
 // One trip counts for its start date only ("one trip = one day").
@@ -105,17 +105,17 @@ test('closed trip also counts as present, cancelled trips never do', () => {
   assert.equal(cancelled.status, ATTENDANCE_STATUS.LEAVE)
 })
 
-test('assigned trip that was never completed, past date → absent', () => {
+test('assigned trip that was never completed, past date → leave / off', () => {
   const day = buildDayStatus({
     driverName: 'Babu', date: '2026-11-05',
     records: [], bookings: [trip({ startDate: '2026-11-05', status: 'approved' })],
     drivers: DRIVERS, today: TODAY,
   })
-  assert.equal(day.status, ATTENDANCE_STATUS.ABSENT)
+  assert.equal(day.status, ATTENDANCE_STATUS.LEAVE)
   assert.equal(day.source, 'trip-missed')
 })
 
-test('assigned trip on/after today is "on duty", not absent', () => {
+test('assigned trip on/after today is "on duty", not leave', () => {
   const day = buildDayStatus({
     driverName: 'Babu', date: TODAY,
     records: [], bookings: [trip({ startDate: TODAY, status: 'approved' })],
@@ -156,6 +156,18 @@ test('a manual attendance row always overrides the derived value', () => {
   assert.equal(day.source, 'manual')
 })
 
+test('a legacy manual "absent" mark is treated as leave / off', () => {
+  const records = [normalizeAttendanceRow({
+    driver_name: 'Babu', attendance_date: '2026-11-04', status: 'absent',
+  })]
+  const day = buildDayStatus({
+    driverName: 'Babu', driverId: 'd-babu', date: '2026-11-04',
+    records, bookings: [], drivers: DRIVERS, today: TODAY,
+  })
+  assert.equal(day.status, ATTENDANCE_STATUS.LEAVE)
+  assert.equal(day.source, 'manual')
+})
+
 test('manual row is found by driver id even when the stored name differs', () => {
   const records = [normalizeAttendanceRow({
     driver_id: 'd-babu', driver_name: 'babu', attendance_date: '2026-11-02', status: 'present',
@@ -179,10 +191,10 @@ test('trip names resolve before matching the driver', () => {
   assert.equal(day.tripCount, 1)
 })
 
-test('buildMonthSummary counts present / absent / leave for elapsed days', () => {
+test('buildMonthSummary counts present / leave for elapsed days', () => {
   const bookings = [
     trip({ id: 't1', driver: 'Babu', startDate: '2026-11-02', status: 'completed' }),
-    trip({ id: 't2', driver: 'Babu', startDate: '2026-11-04', status: 'approved' }), // no-show
+    trip({ id: 't2', driver: 'Babu', startDate: '2026-11-04', status: 'approved' }), // no trip taken
   ]
   const summary = buildMonthSummary({
     driverName: 'Babu', driverId: 'd-babu', monthKey: '2026-11',
@@ -191,10 +203,10 @@ test('buildMonthSummary counts present / absent / leave for elapsed days', () =>
   // Nov 1..16 = 16 elapsed days
   assert.equal(summary.totalDays, 16)
   assert.equal(summary.presentDays, 1)
-  assert.equal(summary.absentDays, 1)
-  assert.equal(summary.leaveDays, 14)
-  assert.deepEqual(summary.absentDates, ['2026-11-04'])
-  assert.ok(summary.leaveDates.includes('2026-11-06'))
+  assert.equal(summary.leaveDays, 15)
+  assert.equal(summary.absentDays, undefined)
+  assert.deepEqual(summary.absentDates, undefined)
+  assert.ok(summary.leaveDates.includes('2026-11-04'))
 })
 
 test('buildMonthSummary never reaches beyond today', () => {

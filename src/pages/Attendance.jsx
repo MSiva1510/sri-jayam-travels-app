@@ -28,7 +28,7 @@ import {
 import { loadRecentActivity, fmtAuditTime } from '../data/auditLogData'
 
 // ── Attendance status badge ────────────────────────────────────
-const ATTENDANCE_TONE = { present: 'green', absent: 'red', leave: 'amber', 'half-day': 'blue' }
+const ATTENDANCE_TONE = { present: 'green', leave: 'amber', 'half-day': 'blue' }
 function AttBadge({ status }) {
   const cfg = getAttendanceCfg(status)
   return <StatusPill tone={ATTENDANCE_TONE[status] || 'gray'}>{cfg.label}</StatusPill>
@@ -53,12 +53,11 @@ function HoursBar({ hours }) {
 }
 
 // ── Status buckets (driver-page scoped) ──────────────────────────
-// Attendance is derived from trips: completed trip = present, missed
-// assignment = absent, no trip = leave/off. A manual row overrides all.
+// Attendance is derived from trips: completed trip = present, assigned-but-
+// not-completed / no trip = leave/off. A manual row overrides all.
 const DRIVER_STATUS_PILL = {
   present: { label: 'Present', tone: 'green' },
   leave:   { label: 'On Leave', tone: 'amber' },
-  absent:  { label: 'Absent',  tone: 'red' },
   unknown: { label: 'Not Marked', tone: 'gray' },
 }
 const SOURCE_LABEL = {
@@ -69,11 +68,10 @@ const SOURCE_LABEL = {
   'no-trip':      'No trip',
   future:         'Upcoming',
 }
-const MARK_VARIANT = { present: 'teal', absent: 'danger', leave: 'amber', 'half-day': 'primary' }
+const MARK_VARIANT = { present: 'teal', leave: 'amber', 'half-day': 'primary' }
 function bucketOf(record) {
   if (!record) return 'unknown'
   if (record.status === 'leave') return 'leave'
-  if (record.status === 'absent') return 'absent'
   return 'present'
 }
 function bucketOfDay(day) {
@@ -90,7 +88,6 @@ function DriverAttDetail({ day, record, onMark }) {
       {day && (
         <div className={`rounded-xl px-3 py-2 border text-[11px] font-medium ${
           day.status === 'present' ? 'bg-emerald-50 dark:bg-emerald-900/15 border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-400'
-          : day.status === 'absent' ? 'bg-red-50 dark:bg-red-900/15 border-red-200 dark:border-red-800/40 text-red-700 dark:text-red-400'
           : day.status === 'leave' ? 'bg-amber-50 dark:bg-amber-900/15 border-amber-200 dark:border-amber-800/40 text-amber-700 dark:text-amber-400'
           : 'bg-[var(--ap-surface-2)] border-[var(--ap-border)] text-slate-500 dark:text-slate-400'
         }`}>
@@ -173,7 +170,7 @@ function DriverAttendanceView({ user }) {
   const monthKey   = today.slice(0, 7)
 
   // Attendance comes from trips: a completed trip is a worked day, a missed
-  // assignment is absent, a day without a trip is leave. Manual rows win.
+  // assignment / a day without a trip is leave/off. Manual rows win.
   const summary = useMemo(() => buildMonthSummary({
     driverName, driverId, monthKey,
     records: all, bookings, drivers, today,
@@ -192,7 +189,6 @@ function DriverAttendanceView({ user }) {
   ), [all, monthKey, driverId, driverName])
 
   const presentDays = summary.presentDays
-  const absentDays  = summary.absentDays
   const leaveDays   = summary.leaveDays
 
   const totalHoursMin = myMonthManual.reduce((s, r) => {
@@ -255,12 +251,11 @@ function DriverAttendanceView({ user }) {
         </p>
         <div className="grid grid-cols-2 gap-3 mb-3">
           <MetricCard label="Present Days" value={presentDays} icon={UserCheck} tone="green" />
-          <MetricCard label="Absent Days"  value={absentDays}  icon={UserX} tone="red" />
           <MetricCard label="Leave / Off"  value={leaveDays}   icon={Zap} tone="amber" />
           <MetricCard label="Total Hours"  value={totalHoursStr} icon={Clock} tone="blue" />
         </div>
         <p className="text-[10px] text-slate-400">
-          Derived from trips · completed trip = present, missed assignment = absent, no trip = leave.
+          Derived from trips · completed trip = present, missed assignment / no trip = leave.
         </p>
       </div>
 
@@ -309,7 +304,7 @@ function AdminAttendanceView({ isAdmin }) {
   const [selectedDate, setSelectedDate] = useState(localDateISO())
   const [expandedDriver, setExpandedDriver] = useState(null)
   const [search, setSearch] = useState('')
-  const [driverTab, setDriverTab] = useState('all') // all | present | leave | absent | unknown
+  const [driverTab, setDriverTab] = useState('all') // all | present | leave | unknown
 
   const [allRecords, setAllRecords] = useState([])
   const [drivers, setDrivers] = useState([])
@@ -385,7 +380,6 @@ function AdminAttendanceView({ isAdmin }) {
     total:    drivers.length,
     present:  driverRows.filter(d => d.bucket === 'present').length,
     leave:    driverRows.filter(d => d.bucket === 'leave').length,
-    absent:   driverRows.filter(d => d.bucket === 'absent').length,
     unknown:  driverRows.filter(d => d.bucket === 'unknown').length,
   }
 
@@ -447,7 +441,7 @@ function AdminAttendanceView({ isAdmin }) {
             {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' })}
           </p>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
-            {dateRecords.length} manual mark{dateRecords.length !== 1 ? 's' : ''} · {counts.present} present · {counts.absent} absent · {counts.leave} off
+            {dateRecords.length} manual mark{dateRecords.length !== 1 ? 's' : ''} · {counts.present} present · {counts.leave} on leave
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -463,7 +457,7 @@ function AdminAttendanceView({ isAdmin }) {
         <MetricCard label="Total Drivers" value={counts.total}   icon={Users}     tone="blue" />
         <MetricCard label="Present"       value={counts.present} icon={UserCheck} tone="green" />
         <MetricCard label="On Leave"      value={counts.leave}   icon={Zap}       tone="amber" />
-        <MetricCard label="Absent"        value={counts.absent}  icon={UserX}     tone="red" />
+        <MetricCard label="Not Marked"    value={counts.unknown} icon={UserX}    tone="red" />
       </div>
 
       {/* Main grid: management panel + side panel */}
@@ -487,7 +481,6 @@ function AdminAttendanceView({ isAdmin }) {
               { key: 'all', label: 'All' },
               { key: 'present', label: 'Present' },
               { key: 'leave', label: 'On Leave' },
-              { key: 'absent', label: 'Absent' },
               { key: 'unknown', label: 'Not Marked' },
             ]}
           />
@@ -638,7 +631,6 @@ function AdminAttendanceView({ isAdmin }) {
               {[
                 { label: 'Present', value: counts.present, dot: 'bg-emerald-500' },
                 { label: 'On Leave', value: counts.leave, dot: 'bg-amber-500' },
-                { label: 'Absent', value: counts.absent, dot: 'bg-red-500' },
                 { label: 'Not Marked', value: counts.unknown, dot: 'bg-slate-400' },
               ].map(r => (
                 <div key={r.label} className="flex items-center gap-2 text-[13px]">
@@ -713,7 +705,6 @@ function AdminAttendanceView({ isAdmin }) {
               today,
             })
             const p = summary.presentDays
-            const a = summary.absentDays
             const l = summary.leaveDays
             const denom = Math.max(summary.totalDays, 1)
             const pct = (n) => `${(n / denom) * 100}%`
@@ -727,10 +718,9 @@ function AdminAttendanceView({ isAdmin }) {
                 <div className="h-2 bg-[var(--ap-border)] rounded-full overflow-hidden flex">
                   <div className="h-full bg-emerald-500" style={{ width: pct(p) }} />
                   <div className="h-full bg-amber-400"   style={{ width: pct(l) }} />
-                  <div className="h-full bg-red-400"     style={{ width: pct(a) }} />
                 </div>
                 <div className="flex gap-3 mt-1">
-                  {[['Present',p,'text-emerald-600 dark:text-emerald-400'],['Leave',l,'text-amber-600 dark:text-amber-400'],['Absent',a,'text-red-600 dark:text-red-400']].map(([lbl,val,cls]) => (
+                  {[['Present',p,'text-emerald-600 dark:text-emerald-400'],['Leave',l,'text-amber-600 dark:text-amber-400']].map(([lbl,val,cls]) => (
                     <span key={lbl} className={`text-[10px] font-bold ${cls}`}>{val} {lbl}</span>
                   ))}
                 </div>
