@@ -29,7 +29,6 @@ export const VEHICLE_ASSIGNMENT_KEY = 'vehicle_assignments'
 export const ATTENDANCE_TYPES = [
   { key:'present',  label:'Present',  color:'emerald', dot:'bg-emerald-500', bg:'bg-emerald-100 dark:bg-emerald-900/30', text:'text-emerald-700 dark:text-emerald-300' },
   { key:'leave',    label:'Leave',    color:'amber',   dot:'bg-amber-500',   bg:'bg-amber-100 dark:bg-amber-900/30',     text:'text-amber-700 dark:text-amber-300'     },
-  { key:'half-day', label:'Half Day', color:'blue',    dot:'bg-blue-500',    bg:'bg-blue-100 dark:bg-blue-900/30',       text:'text-blue-700 dark:text-blue-300'       },
 ]
 
 export const getAttendanceCfg = key => ATTENDANCE_TYPES.find(t => t.key === key) || ATTENDANCE_TYPES[0]

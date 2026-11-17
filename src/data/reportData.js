@@ -101,7 +101,7 @@ export async function getDriverPerformance() {
     const completed   = dTrips.filter(b=>b.status==='completed').length
     const revenue     = dTrips.reduce((s,b)=>s+(b.fare||0),0)
     const myAtt       = attendance.filter(a=>a.driver===d.name&&a.date?.startsWith(monthKey))
-    const presentDays = myAtt.filter(a=>['present','half-day'].includes(a.status)).length
+    const presentDays = myAtt.filter(a=>a.status==='present').length
     const totalMin    = myAtt.reduce((s,a)=>{
       if(!a.workingHours) return s
       const m=a.workingHours.match(/(\d+)h\s*(\d+)m/)

@@ -156,7 +156,7 @@ test('a manual attendance row always overrides the derived value', () => {
   assert.equal(day.source, 'manual')
 })
 
-test('a legacy manual "absent" mark is treated as leave / off', () => {
+test('a legacy manual status other than leave settles to present', () => {
   const records = [normalizeAttendanceRow({
     driver_name: 'Babu', attendance_date: '2026-11-04', status: 'absent',
   })]
@@ -164,7 +164,7 @@ test('a legacy manual "absent" mark is treated as leave / off', () => {
     driverName: 'Babu', driverId: 'd-babu', date: '2026-11-04',
     records, bookings: [], drivers: DRIVERS, today: TODAY,
   })
-  assert.equal(day.status, ATTENDANCE_STATUS.LEAVE)
+  assert.equal(day.status, ATTENDANCE_STATUS.PRESENT)
   assert.equal(day.source, 'manual')
 })
 

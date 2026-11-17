@@ -166,12 +166,11 @@ export function buildDayStatus({
     tripSessions: record?.tripSessions ?? [],
   }
 
-  // 1. Manual attendance always wins.
+  // 1. Manual attendance always wins. The status space is present | leave —
+  //    anything else (incl. a legacy "half-day" / "absent" mark) settles to present.
   if (record) {
-    // Absences are retired from the model — a stored "absent" mark is treated
-    // as a leave / off day so the status space stays clean.
     const rawStatus = String(record.status || 'present').toLowerCase()
-    const status = ['absent', 'no-show', 'noshow'].includes(rawStatus) ? ATTENDANCE_STATUS.LEAVE : rawStatus
+    const status = rawStatus === ATTENDANCE_STATUS.LEAVE ? ATTENDANCE_STATUS.LEAVE : ATTENDANCE_STATUS.PRESENT
     return {
       ...base,
       status,
@@ -252,7 +251,7 @@ export function buildMonthSummary({
     }
   }
 
-  const presentDays = days.filter(d => d.status === ATTENDANCE_STATUS.PRESENT || d.status === 'half-day').length
+  const presentDays = days.filter(d => d.status === ATTENDANCE_STATUS.PRESENT).length
   const leaveDays = days.filter(d => d.status === ATTENDANCE_STATUS.LEAVE).length
   const tripDays = days.filter(d => d.source === 'trip').length
 

@@ -28,7 +28,7 @@ import {
 import { loadRecentActivity, fmtAuditTime } from '../data/auditLogData'
 
 // ── Attendance status badge ────────────────────────────────────
-const ATTENDANCE_TONE = { present: 'green', leave: 'amber', 'half-day': 'blue' }
+const ATTENDANCE_TONE = { present: 'green', leave: 'amber' }
 function AttBadge({ status }) {
   const cfg = getAttendanceCfg(status)
   return <StatusPill tone={ATTENDANCE_TONE[status] || 'gray'}>{cfg.label}</StatusPill>
@@ -58,7 +58,6 @@ function HoursBar({ hours }) {
 const DRIVER_STATUS_PILL = {
   present: { label: 'Present', tone: 'green' },
   leave:   { label: 'On Leave', tone: 'amber' },
-  unknown: { label: 'Not Marked', tone: 'gray' },
 }
 const SOURCE_LABEL = {
   manual:         'Manual',
@@ -68,14 +67,13 @@ const SOURCE_LABEL = {
   'no-trip':      'No trip',
   future:         'Upcoming',
 }
-const MARK_VARIANT = { present: 'teal', leave: 'amber', 'half-day': 'primary' }
+const MARK_VARIANT = { present: 'teal', leave: 'amber' }
 function bucketOf(record) {
-  if (!record) return 'unknown'
-  if (record.status === 'leave') return 'leave'
-  return 'present'
+  if (!record) return 'leave'
+  return record.status === 'leave' ? 'leave' : 'present'
 }
 function bucketOfDay(day) {
-  if (!day) return 'unknown'
+  if (!day) return 'leave'
   return bucketOf({ status: day.status })
 }
 // ── Expanded driver detail (shared by desktop row + mobile card) ─
@@ -304,7 +302,7 @@ function AdminAttendanceView({ isAdmin }) {
   const [selectedDate, setSelectedDate] = useState(localDateISO())
   const [expandedDriver, setExpandedDriver] = useState(null)
   const [search, setSearch] = useState('')
-  const [driverTab, setDriverTab] = useState('all') // all | present | leave | unknown
+  const [driverTab, setDriverTab] = useState('all') // all | present | leave
 
   const [allRecords, setAllRecords] = useState([])
   const [drivers, setDrivers] = useState([])
@@ -380,7 +378,6 @@ function AdminAttendanceView({ isAdmin }) {
     total:    drivers.length,
     present:  driverRows.filter(d => d.bucket === 'present').length,
     leave:    driverRows.filter(d => d.bucket === 'leave').length,
-    unknown:  driverRows.filter(d => d.bucket === 'unknown').length,
   }
 
   const filteredRows = driverRows.filter(d => {
@@ -453,11 +450,10 @@ function AdminAttendanceView({ isAdmin }) {
       </div>
 
       {/* Summary cards (real data) */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">
         <MetricCard label="Total Drivers" value={counts.total}   icon={Users}     tone="blue" />
         <MetricCard label="Present"       value={counts.present} icon={UserCheck} tone="green" />
         <MetricCard label="On Leave"      value={counts.leave}   icon={Zap}       tone="amber" />
-        <MetricCard label="Not Marked"    value={counts.unknown} icon={UserX}    tone="red" />
       </div>
 
       {/* Main grid: management panel + side panel */}
@@ -481,7 +477,6 @@ function AdminAttendanceView({ isAdmin }) {
               { key: 'all', label: 'All' },
               { key: 'present', label: 'Present' },
               { key: 'leave', label: 'On Leave' },
-              { key: 'unknown', label: 'Not Marked' },
             ]}
           />
 
@@ -512,7 +507,7 @@ function AdminAttendanceView({ isAdmin }) {
                     </td>
                   </tr>
                 ) : filteredRows.map((d) => {
-                  const st = DRIVER_STATUS_PILL[d.bucket] || DRIVER_STATUS_PILL.unknown
+                  const st = DRIVER_STATUS_PILL[d.bucket] || DRIVER_STATUS_PILL.present
                   const isOpen = expandedDriver === d.name
                   return (
                   <Fragment key={d.id || d.name}>
@@ -583,7 +578,7 @@ function AdminAttendanceView({ isAdmin }) {
             {filteredRows.length === 0 ? (
               <EmptyState icon={Search} title="No drivers found" description="Try a different search or filter." className="border border-[var(--ap-border)] rounded-[20px]" />
             ) : filteredRows.map((d) => {
-              const st = DRIVER_STATUS_PILL[d.bucket] || DRIVER_STATUS_PILL.unknown
+              const st = DRIVER_STATUS_PILL[d.bucket] || DRIVER_STATUS_PILL.present
               const isOpen = expandedDriver === d.name
               return (
               <div key={d.id || d.name} className="rounded-2xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] p-3.5">
@@ -631,7 +626,6 @@ function AdminAttendanceView({ isAdmin }) {
               {[
                 { label: 'Present', value: counts.present, dot: 'bg-emerald-500' },
                 { label: 'On Leave', value: counts.leave, dot: 'bg-amber-500' },
-                { label: 'Not Marked', value: counts.unknown, dot: 'bg-slate-400' },
               ].map(r => (
                 <div key={r.label} className="flex items-center gap-2 text-[13px]">
                   <span className={`w-2 h-2 rounded-full flex-shrink-0 ${r.dot}`} />

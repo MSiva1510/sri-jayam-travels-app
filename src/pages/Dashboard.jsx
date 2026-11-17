@@ -198,7 +198,7 @@ export default function Dashboard() {
   }, [reloadAlerts])
 
   // ── Attendance derived ────────────────────────────────────
-  const presentCount = todayAttendance.filter(a => a.status === 'present' || a.status === 'half-day').length
+  const presentCount = todayAttendance.filter(a => a.status === 'present').length
   const leaveCount = todayAttendance.filter(a => a.status === 'leave').length
 
   // ── Booking derived ───────────────────────────────────────
@@ -858,7 +858,6 @@ export default function Dashboard() {
             {[
               { label: 'Present',  value: presentCount, dot: 'bg-emerald-500' },
               { label: 'On Leave', value: leaveCount,   dot: 'bg-amber-500' },
-              { label: 'Half Day', value: todayAttendance.filter(a => a.status === 'half-day').length, dot: 'bg-blue-500' },
             ].map(s => (
               <div key={s.label} className="bg-slate-500/5 dark:bg-white/5 rounded-xl p-3 text-center">
                 <div className="flex items-center justify-center mb-1"><span className={`w-2 h-2 rounded-full ${s.dot}`} /></div>
