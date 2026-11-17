@@ -7,7 +7,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   FileText, Plus, Search, AlertTriangle,
   CheckCircle, Clock, Download, Trash2, X,
-  Car, User, FolderOpen, Eye, Columns3, Building2, LayoutGrid, List, Pencil,
+  Car, User, FolderOpen, Eye, Columns3, Building2, LayoutGrid, List, Pencil, ScanLine,
 } from 'lucide-react'
 import PageHeader   from '../components/ui/PageHeader'
 import ModalOverlay from '../components/ui/ModalOverlay'
@@ -25,6 +25,7 @@ import { loadDrivers } from '../data/driverData'
 import { loadVehicles } from '../data/vehicleData'
 import { loadCustomers } from '../data/customerData'
 import { pageSizeFor } from '../utils/zoomPageSize'
+import { runOcrWorkflow, OCR_STEPS } from '../services/ocrService'
 
 // ── Document type catalogue per category ─────────────────────
 const DOC_TYPES = {
@@ -233,9 +234,34 @@ function AddDocModal({ onClose, onSave, drivers, vehicles, initial = null }) {
   const [errors, setErrors] = useState({})
   const [preview, setPreview] = useState(null)
   const [fileName, setFileName] = useState('')
+  const [step, setStep] = useState('upload')           // upload → scan → review → save
+  const [ocr, setOcr] = useState(null)                 // { ok, error, fields, confidence }
+  const [ocrRunning, setOcrRunning] = useState(false)
   const fileInputRef = useRef(null)
   const fileRef = useRef(null)          // the real File, uploaded on save
   const upd = patch => setForm(f => ({ ...f, ...patch }))
+
+  const runScan = async () => {
+    if (!fileRef.current) { setErrors({ file: 'Attach the document file first' }); setStep('upload'); return }
+    setOcrRunning(true)
+    setOcr({ ok: false, error: null, fields: null, confidence: null })
+    const res = await runOcrWorkflow({ file: fileRef.current })
+    setOcr(res)
+    setOcrRunning(false)
+    if (res.ok && res.fields) {
+      const f = res.fields || {}
+      const typeLabelNow = typeLabel(f.docType || form.doc_type)
+      setForm(prev => ({
+        ...prev,
+        title: f.holderName ? `${f.holderName} — ${typeLabelNow}`.trim() : prev.title,
+        doc_type: f.docType || prev.doc_type,
+        expiry_date: f.expiryDate || prev.expiry_date,
+        notes: f.documentNumber || prev.notes,
+        ...(f.vehicleNumber ? { entity_id: (vehicles || []).find(v => `${v.reg || v.registration}` === f.vehicleNumber)?.id || prev.entity_id } : {}),
+      }))
+      setStep('review')
+    }
+  }
 
   // Seed from an existing document when editing (Edit action).
   useEffect(() => {
@@ -261,6 +287,12 @@ function AddDocModal({ onClose, onSave, drivers, vehicles, initial = null }) {
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   ]
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    const f = e.dataTransfer?.files?.[0]
+    if (f) handleFileChange({ target: { files: [f] } })
+  }
 
   const clearFile = () => {
     fileRef.current = null
@@ -289,6 +321,7 @@ function AddDocModal({ onClose, onSave, drivers, vehicles, initial = null }) {
     fileRef.current = file
     setFileName(file.name)
     setForm(f => ({ ...f, fileName: file.name }))
+    setStep('scan')
 
     // Local preview only — the uploaded file is the one sent to storage.
     if (file.type === 'image/jpeg' || file.type === 'image/png') {
@@ -453,7 +486,12 @@ function AddDocModal({ onClose, onSave, drivers, vehicles, initial = null }) {
             <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wide">
               File <span className="text-red-500">*</span>
             </label>
-            <div className="flex flex-col items-start">
+            <div className="flex flex-col items-start" onDragOver={e => e.preventDefault()} onDrop={handleDrop}>
+              {step === 'scan' && (
+                <Button variant="primary" className="w-full mb-3" icon={ScanLine} disabled={ocrRunning} onClick={runScan}>
+                  {ocrRunning ? 'Scanning…' : 'Scan Document'}
+                </Button>
+              )}
               <input
                 ref={fileInputRef}
                 type="file"
