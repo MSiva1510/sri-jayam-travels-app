@@ -6,6 +6,21 @@ import { attendanceRepository } from '../repositories/attendanceRepository'
 import { vehicleRepository }    from '../repositories/vehicleRepository'
 import supabase                  from '../lib/supabase'
 import { withCache, cacheClear } from '../utils/dataCache'
+import { normalizeAttendanceRow, localDateISO } from './attendanceDerive'
+
+// Attendance is derived from trips (completed = present, missed assignment =
+// absent, no trip = leave). These helpers live in a pure module so the same
+// rules drive the Attendance page and the payslips.
+export {
+  normalizeAttendanceRow,
+  buildDayStatus,
+  buildMonthSummary,
+  buildRecentDays,
+  driverNamesForMonth,
+  resolveDriverName,
+  localDateISO,
+  ATTENDANCE_STATUS,
+} from './attendanceDerive'
 
 // ── Keep key constants (used for column reference in helpers) ─
 export const ATTENDANCE_KEY         = 'attendance'
@@ -24,7 +39,8 @@ export const getAttendanceCfg = key => ATTENDANCE_TYPES.find(t => t.key === key)
 
 async function _loadAttendance() {
   try {
-    return await attendanceRepository.getAll()
+    const rows = await attendanceRepository.getAll()
+    return (Array.isArray(rows) ? rows : []).map(normalizeAttendanceRow)
   } catch (err) {
     console.error('[attendanceData] loadAttendance failed:', err)
     throw err
@@ -36,7 +52,7 @@ export const loadAttendance = withCache('attendance', _loadAttendance)
 export async function saveAttendanceRecord(record) {
   try {
     const { id, ...rest } = record
-    const today = new Date().toISOString().slice(0, 10)
+    const today = localDateISO()
     // Check for existing record by driver + date
     const existing = id ? await attendanceRepository.getById(id) : null
     let result
@@ -44,7 +60,8 @@ export async function saveAttendanceRecord(record) {
       result = await attendanceRepository.update(id, rest)
     } else {
       // Try to find by driver name + date to avoid duplicates
-      const todayRecs = await attendanceRepository.getByDate(rest.date || today)
+      const todayRecs = (await attendanceRepository.getByDate(rest.date || rest.attendance_date || today))
+        .map(normalizeAttendanceRow)
       const match = todayRecs.find(r =>
         r.driver === rest.driver || r.driver_name === rest.driver
       )
@@ -53,7 +70,7 @@ export async function saveAttendanceRecord(record) {
         : await attendanceRepository.create(rest)
     }
     cacheClear('attendance')
-    return result
+    return result ? normalizeAttendanceRow(result) : null
   } catch (err) {
     console.error('[attendanceData] saveAttendanceRecord failed:', err)
     return null
@@ -62,9 +79,10 @@ export async function saveAttendanceRecord(record) {
 
 // ── Auto check-in ─────────────────────────────────────────────
 export async function autoCheckIn(driverName, vehicleReg) {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = localDateISO()
   try {
     const existing = (await attendanceRepository.getByDate(today))
+      .map(normalizeAttendanceRow)
       .find(a => a.driver === driverName || a.driver_name === driverName)
 
     if (existing?.checkIn || existing?.check_in) return existing
@@ -92,9 +110,10 @@ export async function autoCheckIn(driverName, vehicleReg) {
 
 // ── Auto check-out ────────────────────────────────────────────
 export async function autoCheckOut(driverName) {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = localDateISO()
   try {
     const existing = (await attendanceRepository.getByDate(today))
+      .map(normalizeAttendanceRow)
       .find(a => a.driver === driverName || a.driver_name === driverName)
 
     if (!existing) return null
@@ -130,9 +149,10 @@ export async function autoCheckOut(driverName) {
 // ── Trip session tracking ─────────────────────────────────────
 export async function startTripSession(driverName, tripId) {
   if (!driverName) return null
-  const today = new Date().toISOString().slice(0, 10)
+  const today = localDateISO()
   try {
     const existing = (await attendanceRepository.getByDate(today))
+      .map(normalizeAttendanceRow)
       .find(a => a.driver === driverName || a.driver_name === driverName)
     const now = new Date().toISOString()
 
@@ -172,9 +192,10 @@ export async function startTripSession(driverName, tripId) {
 
 export async function endTripSession(driverName, tripId) {
   if (!driverName) return null
-  const today = new Date().toISOString().slice(0, 10)
+  const today = localDateISO()
   try {
     const existing = (await attendanceRepository.getByDate(today))
+      .map(normalizeAttendanceRow)
       .find(a => a.driver === driverName || a.driver_name === driverName)
     if (!existing) return null
 
@@ -201,9 +222,10 @@ export async function endTripSession(driverName, tripId) {
 
 // ── Today's attendance ────────────────────────────────────────
 export async function loadAttendanceToday() {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = localDateISO()
   try {
-    return await attendanceRepository.getByDate(today)
+    const rows = await attendanceRepository.getByDate(today)
+    return (Array.isArray(rows) ? rows : []).map(normalizeAttendanceRow)
   } catch (err) {
     console.error('[attendanceData] loadAttendanceToday failed:', err)
     return []

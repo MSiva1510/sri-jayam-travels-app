@@ -21,6 +21,8 @@ import { loadBookings } from '../data/tripTypes'
 import { loadVehicles } from '../data/vehicleData'
 import {
   loadAttendance, saveAttendanceRecord,
+  buildDayStatus, buildMonthSummary, buildRecentDays,
+  resolveDriverName, localDateISO,
   ATTENDANCE_TYPES, getAttendanceCfg,
 } from '../data/attendanceData'
 import { loadRecentActivity, fmtAuditTime } from '../data/auditLogData'
@@ -51,12 +53,21 @@ function HoursBar({ hours }) {
 }
 
 // ── Status buckets (driver-page scoped) ──────────────────────────
-// present bucket includes half-day (matches the summary chips).
+// Attendance is derived from trips: completed trip = present, missed
+// assignment = absent, no trip = leave/off. A manual row overrides all.
 const DRIVER_STATUS_PILL = {
   present: { label: 'Present', tone: 'green' },
   leave:   { label: 'On Leave', tone: 'amber' },
   absent:  { label: 'Absent',  tone: 'red' },
   unknown: { label: 'Not Marked', tone: 'gray' },
+}
+const SOURCE_LABEL = {
+  manual:         'Manual',
+  trip:           'From trip',
+  'trip-missed':  'Trip missed',
+  'trip-scheduled': 'On duty',
+  'no-trip':      'No trip',
+  future:         'Upcoming',
 }
 const MARK_VARIANT = { present: 'teal', absent: 'danger', leave: 'amber', 'half-day': 'primary' }
 function bucketOf(record) {
@@ -65,38 +76,62 @@ function bucketOf(record) {
   if (record.status === 'absent') return 'absent'
   return 'present'
 }
+function bucketOfDay(day) {
+  if (!day) return 'unknown'
+  return bucketOf({ status: day.status })
+}
 // ── Expanded driver detail (shared by desktop row + mobile card) ─
 // Same existing mark-attendance actions, only presentation lives here.
-function DriverAttDetail({ record, onMark }) {
+function DriverAttDetail({ day, record, onMark }) {
+  const source = day?.source
+  const trips = day?.trips || []
   return (
     <div className="space-y-3">
-      {record && (
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { label:'Check In',       value: record.checkIn       || '—' },
-            { label:'Check Out',      value: record.checkOut      || '—' },
-            { label:'Vehicle',        value: record.vehicle       || '—' },
-            { label:'Working Hours',  value: record.workingHours  || '—' },
-            ...(record.tripWorkingMinutes != null ? [{
-              label: 'Trip Driving Time',
-              value: record.tripWorkingMinutes > 0
-                ? `${Math.floor(record.tripWorkingMinutes/60)}h ${record.tripWorkingMinutes%60}m`
-                : '—',
-            }] : []),
-            ...(record.tripSessions?.length ? [{
-              label: 'Trips Today',
-              value: `${record.tripSessions.length}`,
-            }] : []),
-          ].map(d => (
-            <div key={d.label} className="bg-[var(--ap-surface-2)] rounded-xl p-2.5 border border-[var(--ap-border)]">
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">{d.label}</p>
-              <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{d.value}</p>
+      {day && (
+        <div className={`rounded-xl px-3 py-2 border text-[11px] font-medium ${
+          day.status === 'present' ? 'bg-emerald-50 dark:bg-emerald-900/15 border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-400'
+          : day.status === 'absent' ? 'bg-red-50 dark:bg-red-900/15 border-red-200 dark:border-red-800/40 text-red-700 dark:text-red-400'
+          : day.status === 'leave' ? 'bg-amber-50 dark:bg-amber-900/15 border-amber-200 dark:border-amber-800/40 text-amber-700 dark:text-amber-400'
+          : 'bg-[var(--ap-surface-2)] border-[var(--ap-border)] text-slate-500 dark:text-slate-400'
+        }`}>
+          {SOURCE_LABEL[source] || 'Not marked'} · {day.note}
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-2">
+        {[
+          { label:'Check In',       value: day?.checkIn       || record?.checkIn       || '—' },
+          { label:'Check Out',      value: day?.checkOut      || record?.checkOut      || '—' },
+          { label:'Vehicle',        value: day?.vehicle || record?.vehicle || '—' },
+          { label:'Working Hours',  value: record?.workingHours  || '—' },
+          ...(record?.tripWorkingMinutes != null ? [{
+            label: 'Trip Driving Time',
+            value: record.tripWorkingMinutes > 0
+              ? `${Math.floor(record.tripWorkingMinutes/60)}h ${record.tripWorkingMinutes%60}m`
+              : '—',
+          }] : []),
+          ...(trips.length ? [{ label: 'Trips On Date', value: `${trips.length}` }] : []),
+        ].map(d => (
+          <div key={d.label} className="bg-[var(--ap-surface-2)] rounded-xl p-2.5 border border-[var(--ap-border)]">
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">{d.label}</p>
+            <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{d.value}</p>
+          </div>
+        ))}
+      </div>
+      {trips.length > 0 && (
+        <div className="space-y-1">
+          {trips.map(t => (
+            <div key={t.id || t.bookingNo || t.booking_number} className="flex items-center gap-2 text-[11px] bg-[var(--ap-surface-2)] rounded-lg px-2.5 py-1.5 border border-[var(--ap-border)]">
+              <span className="font-mono text-slate-400 flex-shrink-0">{t.bookingNo || t.booking_number || '—'}</span>
+              <span className="flex-1 min-w-0 truncate text-slate-600 dark:text-slate-300">{t.pickup || '—'} → {t.drop || '—'}</span>
+              <span className="font-bold text-slate-500 dark:text-slate-400 flex-shrink-0">{t.status}</span>
             </div>
           ))}
         </div>
       )}
       <div>
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Mark Attendance</p>
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+          {record ? 'Change Mark' : 'Override Attendance'}
+        </p>
         <div className="flex gap-2 flex-wrap">
           {ATTENDANCE_TYPES.map(t => (
             <Button key={t.key} size="sm"
@@ -104,6 +139,9 @@ function DriverAttDetail({ record, onMark }) {
               onClick={() => onMark(t.key)}>{t.label}</Button>
           ))}
         </div>
+        <p className="text-[10px] text-slate-400 mt-1.5">
+          Manual marks always win over the value derived from trips.
+        </p>
       </div>
     </div>
   )
@@ -114,24 +152,50 @@ function DriverAttDetail({ record, onMark }) {
 // ─────────────────────────────────────────────────────────────
 function DriverAttendanceView({ user }) {
   const [all, setAll] = useState([])
+  const [drivers, setDrivers] = useState([])
+  const [bookings, setBookings] = useState([])
   const [loadError, setLoadError] = useState(null)
+  const today = localDateISO()
+
   useEffect(() => {
-    loadAttendance()
-      .then(d => { setAll(Array.isArray(d) ? d : []); setLoadError(null) })
+    Promise.all([loadAttendance(), loadDrivers(), loadBookings()])
+      .then(([a, d, b]) => {
+        setAll(Array.isArray(a) ? a : [])
+        setDrivers(Array.isArray(d) ? d : [])
+        setBookings(Array.isArray(b) ? b : [])
+        setLoadError(null)
+      })
       .catch(err => { console.error('[Attendance] load failed:', err); setLoadError('Could not load your attendance history.') })
   }, [])
-  const myRecords  = all.filter(a => a.driverId === user.id || a.driver === user.name)
-                       .sort((a,b) => (b.date || '').localeCompare(a.date || ''))
-  const today      = new Date().toISOString().slice(0,10)
-  const todayRec   = myRecords.find(r => r.date === today)
 
-  // Monthly summary
-  const thisMonth  = myRecords.filter(r => r.date?.startsWith(today.slice(0,7)))
-  const presentDays = thisMonth.filter(r => r.status === 'present' || r.status === 'half-day').length
-  const absentDays  = thisMonth.filter(r => r.status === 'absent').length
-  const leaveDays   = thisMonth.filter(r => r.status === 'leave').length
+  const driverName = useMemo(() => resolveDriverName(user?.name, drivers) || user?.name || '', [user, drivers])
+  const driverId   = useMemo(() => drivers.find(d => d.name === driverName)?.id || user?.id || null, [drivers, driverName, user])
+  const monthKey   = today.slice(0, 7)
 
-  const totalHoursMin = thisMonth.reduce((s, r) => {
+  // Attendance comes from trips: a completed trip is a worked day, a missed
+  // assignment is absent, a day without a trip is leave. Manual rows win.
+  const summary = useMemo(() => buildMonthSummary({
+    driverName, driverId, monthKey,
+    records: all, bookings, drivers, today,
+  }), [driverName, driverId, monthKey, all, bookings, drivers, today])
+
+  const recent = useMemo(() => buildRecentDays({
+    driverName, driverId, count: 21,
+    records: all, bookings, drivers, today,
+  }), [driverName, driverId, all, bookings, drivers, today])
+
+  const todayDay = recent.find(d => d.date === today) || null
+
+  const myMonthManual = useMemo(() => all.filter(r =>
+    String(r.date || '').startsWith(monthKey) &&
+    ((driverId && r.driverId === driverId) || r.driver === driverName)
+  ), [all, monthKey, driverId, driverName])
+
+  const presentDays = summary.presentDays
+  const absentDays  = summary.absentDays
+  const leaveDays   = summary.leaveDays
+
+  const totalHoursMin = myMonthManual.reduce((s, r) => {
     if (!r.workingHours) return s
     const m = r.workingHours.match(/(\d+)h\s*(\d+)m/)
     return m ? s + parseInt(m[1]) * 60 + parseInt(m[2]) : s
@@ -152,29 +216,34 @@ function DriverAttendanceView({ user }) {
               {new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' })}
             </h2>
           </div>
-          {todayRec ? <AttBadge status={todayRec.status} /> : <span className="text-xs text-slate-400">Not recorded</span>}
+          {todayDay ? <AttBadge status={todayDay.status} /> : <span className="text-xs text-slate-400">Not recorded</span>}
         </div>
-        {todayRec ? (
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { label:'Check In',  value: todayRec.checkIn  || '—', icon: UserCheck },
-              { label:'Check Out', value: todayRec.checkOut || 'Active',  icon: UserX   },
-              { label:'Vehicle',   value: todayRec.vehicle  || '—', icon: Car      },
-              { label:'Working',   value: todayRec.workingHours || (todayRec.checkIn ? 'In progress' : '—'), icon: Clock },
-            ].map(d => (
-              <div key={d.label} className="bg-[var(--ap-surface-2)] rounded-xl p-3 flex items-start gap-2">
-                <d.icon size={13} className="text-slate-500 dark:text-slate-400 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{d.label}</p>
-                  <p className="text-xs font-bold text-slate-700 dark:text-slate-200 mt-0.5">{d.value}</p>
+        {todayDay ? (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label:'Check In',  value: todayDay.checkIn  || '—', icon: UserCheck },
+                { label:'Check Out', value: todayDay.checkOut || (todayDay.checkIn ? 'Active' : '—'), icon: UserX },
+                { label:'Vehicle',   value: todayDay.vehicle  || '—', icon: Car },
+                { label:'Working',   value: todayDay.workingHours || (todayDay.checkIn ? 'In progress' : '—'), icon: Clock },
+              ].map(d => (
+                <div key={d.label} className="bg-[var(--ap-surface-2)] rounded-xl p-3 flex items-start gap-2">
+                  <d.icon size={13} className="text-slate-500 dark:text-slate-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{d.label}</p>
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200 mt-0.5">{d.value}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-3">
+              {SOURCE_LABEL[todayDay.source] || 'Not marked'} · {todayDay.note}
+            </p>
+          </>
         ) : (
           <div className="text-center py-4 text-sm text-slate-500 dark:text-slate-400">
             No attendance record for today yet.<br />
-            <span className="text-xs">Auto check-in happens when you start your first ride.</span>
+            <span className="text-xs">A completed trip marks the day as present automatically.</span>
           </div>
         )}
       </div>
@@ -187,9 +256,12 @@ function DriverAttendanceView({ user }) {
         <div className="grid grid-cols-2 gap-3 mb-3">
           <MetricCard label="Present Days" value={presentDays} icon={UserCheck} tone="green" />
           <MetricCard label="Absent Days"  value={absentDays}  icon={UserX} tone="red" />
-          <MetricCard label="Leave Days"   value={leaveDays}   icon={Zap} tone="amber" />
+          <MetricCard label="Leave / Off"  value={leaveDays}   icon={Zap} tone="amber" />
           <MetricCard label="Total Hours"  value={totalHoursStr} icon={Clock} tone="blue" />
         </div>
+        <p className="text-[10px] text-slate-400">
+          Derived from trips · completed trip = present, missed assignment = absent, no trip = leave.
+        </p>
       </div>
 
       {/* History list */}
@@ -198,7 +270,7 @@ function DriverAttendanceView({ user }) {
           Attendance History
         </p>
         <div className="space-y-2">
-          {myRecords.slice(0, 14).map((r, i) => (
+          {recent.map((r, i) => (
             <div key={i} className="ap-surface rounded-xl px-4 py-3 flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-[var(--ap-text-1)] flex flex-col items-center justify-center flex-shrink-0">
                 <span className="text-[8px] font-bold text-blue-400 uppercase leading-none">{r.date ? `${r.date.slice(5,7)}/${r.date.slice(8,10)}` : '—'}</span>
@@ -208,13 +280,16 @@ function DriverAttendanceView({ user }) {
               </div>
               <div className="flex-1 min-w-0">
                 <AttBadge status={r.status} />
-                {r.checkIn && (
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                    {r.checkIn}{r.checkOut ? ` – ${r.checkOut}` : ' (no checkout)'}
-                  </p>
-                )}
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                  {SOURCE_LABEL[r.source] || 'Not marked'} · {r.note}
+                </p>
               </div>
               <div className="text-right flex-shrink-0">
+                {r.checkIn && (
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 tabular-nums">
+                    {r.checkIn}{r.checkOut ? ` – ${r.checkOut}` : ''}
+                  </p>
+                )}
                 {r.workingHours && <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{r.workingHours}</p>}
                 {r.vehicle && <p className="text-[10px] font-mono text-slate-400">{r.vehicle}</p>}
               </div>
@@ -231,7 +306,7 @@ function DriverAttendanceView({ user }) {
 // ─────────────────────────────────────────────────────────────
 function AdminAttendanceView({ isAdmin }) {
   const navigate = useNavigate()
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0,10))
+  const [selectedDate, setSelectedDate] = useState(localDateISO())
   const [expandedDriver, setExpandedDriver] = useState(null)
   const [search, setSearch] = useState('')
   const [driverTab, setDriverTab] = useState('all') // all | present | leave | absent | unknown
@@ -260,33 +335,51 @@ function AdminAttendanceView({ isAdmin }) {
   }, [])
   useEffect(() => { reload() }, [reload])
 
+  const today = localDateISO()
+  const monthKey = selectedDate.slice(0, 7)
   const dateRecords = allRecords.filter(r => r.date === selectedDate)
 
-  // Vehicle per driver from the existing vehicles table (driver column).
-  const vehicleOf = (name) => vehicles.find(v => v.driver === name)?.reg || null
-  // Today's assignment on the selected date from existing bookings.
+  // Vehicle per driver from the vehicles table; manual rows store a UUID.
+  const vehicleOf = (name, record) => {
+    if (record?.vehicleId) {
+      const byId = vehicles.find(v => v.id === record.vehicleId)
+      if (byId?.reg) return byId.reg
+    }
+    if (record?.vehicle) return record.vehicle
+    return vehicles.find(v => v.driver === name)?.reg || null
+  }
+  // Assignment on the selected date, matched through the canonical driver
+  // name because trips store free-text names ("babu" / "Rajasekhara").
+  const nameOfTrip = (b) => resolveDriverName(b.driver, drivers)
   const assignOf = (name) => bookings.find(b =>
-    b.driver === name &&
+    nameOfTrip(b) === name &&
     (b.startDate || '').slice(0, 10) === selectedDate &&
     !['cancelled', 'closed'].includes(b.status)
   ) || null
+  // Completed trips in the selected month (the payroll window).
   const tripsOf = (name) => bookings.filter(b =>
-    b.driver === name && !['cancelled'].includes(b.status)
+    nameOfTrip(b) === name &&
+    (b.startDate || '').startsWith(monthKey) &&
+    ['completed', 'closed'].includes(String(b.status).toLowerCase())
   ).length
 
-  const driverRows = drivers.map(d => {
-    const record = dateRecords.find(r => r.driver === d.name) || null
+  const driverRows = useMemo(() => drivers.map(d => {
+    const day = buildDayStatus({
+      driverName: d.name, driverId: d.id, date: selectedDate,
+      records: allRecords, bookings, drivers, today,
+    })
     return {
       name: d.name,
       id: d.id,
       mobile: d.mobile || d.phone || '',
-      record,
-      bucket: bucketOf(record),
-      vehicle: vehicleOf(d.name) || d.vehicle || '',
+      record: day.record,
+      day,
+      bucket: bucketOfDay(day),
+      vehicle: vehicleOf(d.name, day.record) || d.vehicle || day.vehicle || '',
       assign: assignOf(d.name),
       trips: tripsOf(d.name),
     }
-  })
+  }), [drivers, allRecords, bookings, selectedDate, today, vehicles])
 
   const counts = {
     total:    drivers.length,
@@ -315,7 +408,8 @@ function AdminAttendanceView({ isAdmin }) {
   }, [drivers.length, allRecords.length])
 
   const handleMarkAttendance = async (driverName, status) => {
-    const existing = dateRecords.find(r => r.driver === driverName)
+    const existing = driverRows.find(d => d.name === driverName)?.record
+      || dateRecords.find(r => r.driver === driverName)
     const driverMeta = drivers.find(d => d.name === driverName)
     const record = {
       id:           existing?.id || Date.now(),
@@ -353,13 +447,13 @@ function AdminAttendanceView({ isAdmin }) {
             {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' })}
           </p>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
-            {dateRecords.length} of {drivers.length} marked
+            {dateRecords.length} manual mark{dateRecords.length !== 1 ? 's' : ''} · {counts.present} present · {counts.absent} absent · {counts.leave} off
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setSelectedDate(new Date().toISOString().slice(0,10))}>Today</Button>
+          <Button variant="outline" size="sm" onClick={() => setSelectedDate(localDateISO())}>Today</Button>
           <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
-            max={new Date().toISOString().slice(0,10)} aria-label="Select date"
+            max={localDateISO()} aria-label="Select date"
             className={`${fieldCls} w-auto h-10`} />
         </div>
       </div>
@@ -452,6 +546,9 @@ function AdminAttendanceView({ isAdmin }) {
                     </td>
                     <td className="px-4 py-3">
                       <StatusPill tone={st.tone} className="whitespace-nowrap">{st.label}</StatusPill>
+                      <p className="text-[10px] text-slate-400 mt-0.5 max-w-[140px] truncate">
+                        {SOURCE_LABEL[d.day?.source] || 'Not marked'}
+                      </p>
                     </td>
                     <td className="px-4 py-3 text-[13px] font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">{d.vehicle || '—'}</td>
                     <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300 max-w-[190px] truncate">
@@ -464,7 +561,7 @@ function AdminAttendanceView({ isAdmin }) {
                           label={isOpen ? `Collapse ${d.name}` : `View ${d.name}`}
                           aria-expanded={isOpen}
                           onClick={() => setExpandedDriver(isOpen ? null : d.name)} />
-                        {!d.record && (
+                        {!d.record && d.bucket !== 'present' && (
                           <IconButton icon={Check} size={15}
                             label={`Mark ${d.name} present`}
                             onClick={() => handleMarkAttendance(d.name, 'present')} />
@@ -476,7 +573,7 @@ function AdminAttendanceView({ isAdmin }) {
                     <tr>
                       <td colSpan={7} className="!p-0 !border-0">
                         <div className="border-t border-[var(--ap-border)] bg-[var(--ap-surface-2)]/30 px-4 py-4">
-                          <DriverAttDetail record={d.record} onMark={(status) => handleMarkAttendance(d.name, status)} />
+                          <DriverAttDetail day={d.day} record={d.record} onMark={(status) => handleMarkAttendance(d.name, status)} />
                         </div>
                       </td>
                     </tr>
@@ -515,7 +612,7 @@ function AdminAttendanceView({ isAdmin }) {
                       label={isOpen ? `Collapse ${d.name}` : `View ${d.name}`}
                       aria-expanded={isOpen}
                       onClick={() => setExpandedDriver(isOpen ? null : d.name)} />
-                    {!d.record && (
+                    {!d.record && d.bucket !== 'present' && (
                       <IconButton icon={Check} size={15}
                         label={`Mark ${d.name} present`}
                         onClick={() => handleMarkAttendance(d.name, 'present')} />
@@ -524,7 +621,7 @@ function AdminAttendanceView({ isAdmin }) {
                 </div>
                 {isOpen && (
                   <div className="mt-2.5 pt-2.5 border-t border-[var(--ap-border)]">
-                    <DriverAttDetail record={d.record} onMark={(status) => handleMarkAttendance(d.name, status)} />
+                    <DriverAttDetail day={d.day} record={d.record} onMark={(status) => handleMarkAttendance(d.name, status)} />
                   </div>
                 )}
               </div>
@@ -555,7 +652,7 @@ function AdminAttendanceView({ isAdmin }) {
           <div>
             <h2 className="text-[16px] font-sf font-semibold text-slate-800 dark:text-white leading-tight mb-3">Quick Actions</h2>
             <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => setSelectedDate(new Date().toISOString().slice(0,10))}
+              <button onClick={() => setSelectedDate(localDateISO())}
                 className="flex flex-col items-start gap-2 p-3 rounded-2xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] hover:shadow-md active:scale-[0.98] transition-all text-left min-h-[76px]">
                 <span className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center flex-shrink-0"><Calendar size={15} className="text-white" /></span>
                 <span className="text-xs font-bold text-slate-700 dark:text-slate-200 leading-tight">Today</span>
@@ -602,27 +699,35 @@ function AdminAttendanceView({ isAdmin }) {
             <p className="text-xs text-slate-500 dark:text-slate-400 py-2">No drivers found.</p>
           )}
           {driverRows.map(d => d.name).map(name => {
-            const dRecords = allRecords.filter(r => r.driver === name)
-            const thisMonth = dRecords.filter(r => r.date?.startsWith(new Date().toISOString().slice(0,7)))
-            const p = thisMonth.filter(r => ['present','half-day'].includes(r.status)).length
-            const a = thisMonth.filter(r => r.status === 'absent').length
-            const l = thisMonth.filter(r => r.status === 'leave').length
-            const totalMin = thisMonth.reduce((s, r) => {
-              if (!r.workingHours) return s
-              const m = r.workingHours.match(/(\d+)h\s*(\d+)m/)
-              return m ? s + parseInt(m[1]) * 60 + parseInt(m[2]) : s
-            }, 0)
+            // Same derivation as the day view — month counts come from trips,
+            // manual records override. Denominator is elapsed days, not a
+            // hard-coded 7, so the bar is always a real percentage.
+            const meta = drivers.find(x => x.name === name)
+            const summary = buildMonthSummary({
+              driverName: name,
+              driverId: meta?.id || null,
+              monthKey: today.slice(0, 7),
+              records: allRecords,
+              bookings,
+              drivers,
+              today,
+            })
+            const p = summary.presentDays
+            const a = summary.absentDays
+            const l = summary.leaveDays
+            const denom = Math.max(summary.totalDays, 1)
+            const pct = (n) => `${(n / denom) * 100}%`
             return (
               <div key={name} className="mb-4 last:mb-0">
                 <div className="flex items-center gap-2.5 mb-2">
                   <Avatar name={name} size={26} />
                   <span className="text-xs font-bold text-slate-700 dark:text-slate-200 flex-1">{name}</span>
-                  <span className="text-[10px] text-slate-400">{Math.floor(totalMin/60)}h total</span>
+                  <span className="text-[10px] text-slate-400">{summary.totalDays} days</span>
                 </div>
                 <div className="h-2 bg-[var(--ap-border)] rounded-full overflow-hidden flex">
-                  <div className="h-full bg-emerald-500" style={{ width:`${(p/7)*100}%` }} />
-                  <div className="h-full bg-amber-400"   style={{ width:`${(l/7)*100}%` }} />
-                  <div className="h-full bg-red-400"     style={{ width:`${(a/7)*100}%` }} />
+                  <div className="h-full bg-emerald-500" style={{ width: pct(p) }} />
+                  <div className="h-full bg-amber-400"   style={{ width: pct(l) }} />
+                  <div className="h-full bg-red-400"     style={{ width: pct(a) }} />
                 </div>
                 <div className="flex gap-3 mt-1">
                   {[['Present',p,'text-emerald-600 dark:text-emerald-400'],['Leave',l,'text-amber-600 dark:text-amber-400'],['Absent',a,'text-red-600 dark:text-red-400']].map(([lbl,val,cls]) => (

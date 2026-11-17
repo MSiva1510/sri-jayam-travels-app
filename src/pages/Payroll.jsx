@@ -32,6 +32,7 @@ import {
 import { loadBookings } from '../data/tripTypes'
 import { loadExpenses } from '../data/expenseData'
 import { loadDrivers } from '../data/driverData'
+import { loadAttendance, buildMonthSummary, driverNamesForMonth, resolveDriverName, localDateISO } from '../data/attendanceData'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import { addAuditEvent } from '../data/auditLogData'
 
@@ -299,7 +300,9 @@ function TripPayrollPayslipView({ payroll: P, onClose }) {
     <div style="border:1px solid #e2e8f0;border-top:none;padding:16px;border-radius:0 0 8px 8px">
     <table><tbody>
     <tr><td style="padding:6px 4px">Total Trips</td><td style="padding:6px 4px;text-align:right;font-weight:700">${P.tripCount}</td></tr>
-    <tr><td style="padding:6px 4px">Days Worked</td><td style="padding:6px 4px;text-align:right;font-weight:700">${P.daysWorked}</td></tr>
+    <tr><td style="padding:6px 4px">Days Worked (present)</td><td style="padding:6px 4px;text-align:right;font-weight:700">${P.presentDays ?? P.daysWorked}</td></tr>
+    <tr><td style="padding:6px 4px">Absent Days</td><td style="padding:6px 4px;text-align:right;font-weight:700">${P.absentDays ?? 0}</td></tr>
+    <tr><td style="padding:6px 4px">Leave / Off Days</td><td style="padding:6px 4px;text-align:right;font-weight:700">${P.leaveDays ?? 0}</td></tr>
     </tbody></table>
     <table style="margin-top:12px"><thead><tr><th>Earnings</th><th></th></tr></thead><tbody>
     ${row('Salary (trip allowances)', P.salaryTotal)}
@@ -337,7 +340,7 @@ function TripPayrollPayslipView({ payroll: P, onClose }) {
           </div>
           <div className="flex items-center gap-3">
             <Avatar name={P.driver} size={36} />
-            <div><p className="font-bold text-white">{P.driver}</p><p className="text-white/50 text-xs">{P.tripCount} trips · {P.daysWorked} days worked</p></div>
+            <div><p className="font-bold text-white">{P.driver}</p><p className="text-white/50 text-xs">{P.tripCount} trips · {P.presentDays ?? P.daysWorked} present</p></div>
             <div className="ml-auto"><StatusBadge status={P.status} /></div>
           </div>
         </div>
@@ -357,6 +360,18 @@ function TripPayrollPayslipView({ payroll: P, onClose }) {
               <span className="text-slate-500 dark:text-slate-400">Paid Rs. {P.paidAmount.toLocaleString('en-IN')}</span>
               <span className="font-bold text-slate-700 dark:text-slate-200">Balance Rs. {P.balance.toLocaleString('en-IN')}</span>
             </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { l:'Present', v:P.presentDays ?? P.daysWorked, c:'text-emerald-600 dark:text-emerald-400' },
+              { l:'Absent',  v:P.absentDays  ?? 0,            c:'text-red-600 dark:text-red-400' },
+              { l:'Leave / Off', v:P.leaveDays ?? 0,          c:'text-amber-600 dark:text-amber-400' },
+            ].map(r => (
+              <div key={r.l} className="bg-[var(--ap-surface-2)] rounded-xl px-3 py-2 border border-[var(--ap-border)] text-center">
+                <p className={`text-sm font-semibold tabular-nums ${r.c}`}>{r.v}</p>
+                <p className="text-[9px] text-slate-400 uppercase tracking-wide font-bold">{r.l}</p>
+              </div>
+            ))}
           </div>
           <div>
             <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Trip Details ({P.tripCount})</p>
@@ -855,6 +870,7 @@ export default function Payroll() {
   const [drawerDriver, setDrawerDriver] = useState(null)
   const [payslipDriver, setPayslipDriver] = useState(null)
   const [drivers,      setDrivers]      = useState([])
+  const [attendance,   setAttendance]   = useState([])
   const [loadError,    setLoadError]    = useState(null)
 
   const navigate = useNavigate()
@@ -868,14 +884,15 @@ export default function Payroll() {
   const reload = useCallback(async () => {
     setLoading(true)
     try {
-      const [s, p, d, b] = await Promise.allSettled([loadSettlements(), loadTripPayslips(), loadDrivers(), loadBookings()])
+      const [s, p, d, b, a] = await Promise.allSettled([loadSettlements(), loadTripPayslips(), loadDrivers(), loadBookings(), loadAttendance()])
       setSettlements( s.status === 'fulfilled' && Array.isArray(s.value) ? s.value : [])
       setTripPayslips(p.status === 'fulfilled' && Array.isArray(p.value) ? p.value : [])
       setDrivers(     d.status === 'fulfilled' && Array.isArray(d.value) ? d.value : [])
       setBookings(    b.status === 'fulfilled' && Array.isArray(b.value) ? b.value : [])
-      const failed = [s, p, d, b].some(r => r.status === 'rejected')
+      setAttendance(  a.status === 'fulfilled' && Array.isArray(a.value) ? a.value : [])
+      const failed = [s, p, d, b, a].some(r => r.status === 'rejected')
       if (failed) {
-        [s, p, d, b].forEach(r => { if (r.status === 'rejected') console.error('[Payroll] load failed:', r.reason) })
+        [s, p, d, b, a].forEach(r => { if (r.status === 'rejected') console.error('[Payroll] load failed:', r.reason) })
         setLoadError('Some payroll data failed to load. Try refreshing.')
       } else {
         setLoadError(null)
@@ -900,23 +917,59 @@ export default function Payroll() {
     () => settlements.filter(s => Number(s.month) === Number(month) && Number(s.year) === Number(year)),
     [settlements, month, year]
   )
-  const payrolls = useMemo(() => {
-    const byDriver = new Map()
-    bookings.forEach(b => {
-      if ((b.startDate || '').startsWith(monthKey) && ['completed', 'closed'].includes(b.status) && b.driver) {
-        if (!byDriver.has(b.driver)) byDriver.set(b.driver, [])
-        byDriver.get(b.driver).push(b)
-      }
+  // ── Attendance per driver for the payroll month ───────────────
+  // Derived from trips by the same rules the Attendance page uses:
+  // completed trip = present, missed assignment = absent, no trip = leave.
+  // A manual attendance row always overrides the derived value.
+  const todayISO = localDateISO()
+  const attendanceSummaries = useMemo(() => {
+    const map = new Map()
+    const names = driverNamesForMonth({ drivers, bookings, records: attendance, monthKey })
+    names.forEach(name => {
+      const meta = drivers.find(d => d.name === name)
+      map.set(name, buildMonthSummary({
+        driverName: name, driverId: meta?.id ?? null, monthKey,
+        records: attendance, bookings, drivers, today: todayISO,
+        joinedDate: meta?.joinedDate ?? meta?.joining_date ?? null,
+      }))
     })
-    return [...byDriver.keys()].sort((a, b) => a.localeCompare(b)).map(name => {
+    return map
+  }, [drivers, bookings, attendance, monthKey, todayISO])
+
+  // ── One payroll row per driver with something to settle ──
+  // Single source of truth: buildDriverMonthlyPayroll. Drivers with
+  // absences but no trips are included so the month's attendance is
+  // visible (and can be settled) instead of silently disappearing.
+  const payrolls = useMemo(() => {
+    const tripOwnerDriverId = (b, driverId) => {
+      const did = b.driver_id ?? b.driverId ?? null
+      return driverId != null && did === driverId ? driverId : null
+    }
+    const names = new Set(driverNamesForMonth({ drivers, bookings, records: attendance, monthKey }))
+    return [...names].filter(name => {
+      const meta = drivers.find(x => x.name === name)
+      const driverId = meta?.id ?? null
+      const summary = attendanceSummaries.get(name)
+      const hasTrip = bookings.some(b =>
+        ((b.driver && resolveDriverName(b.driver, drivers) === name) || tripOwnerDriverId(b, driverId)) &&
+        (b.startDate || '').startsWith(monthKey) &&
+        ['completed', 'closed'].includes(String(b.status || '').toLowerCase())
+      )
+      const hasAbsence = (summary?.absentDays || 0) > 0
+      const hasManualDay = (summary?.presentDays || 0) > 0
+      const hasSettlement = monthSettlements.some(s => s.driver === name)
+      return hasTrip || hasAbsence || hasManualDay || hasSettlement
+    }).sort((a, b) => a.localeCompare(b)).map(name => {
       const d = drivers.find(x => x.name === name)
       const settlement = monthSettlements.find(s => s.driver === name) || null
       return buildDriverMonthlyPayroll({
         driver: name, driverId: d?.id ?? null, monthKey,
         bookings, tripPayslips, settlement,
+        drivers,
+        attendance: attendanceSummaries.get(name) || null,
       })
     })
-  }, [bookings, monthKey, monthSettlements, tripPayslips, drivers])
+  }, [bookings, monthKey, monthSettlements, tripPayslips, drivers, attendance, attendanceSummaries])
 
   // Completed trips in month with no driver — accuracy warning, not payroll.
   const orphanTrips = useMemo(() => bookings.filter(b =>
@@ -1044,9 +1097,9 @@ export default function Payroll() {
     showToast(`Generated ${done} draft payslip${done === 1 ? '' : 's'}`)
   }
   const exportCsv = () => {
-    const rows = [['Driver', 'Trips', 'Salary - Allowance (Rs)', 'Bata Extra (Rs)', 'Deductions (Rs)', 'Net Pay (Rs)', 'Paid (Rs)', 'Balance (Rs)', 'Status']]
+    const rows = [['Driver', 'Trips', 'Present', 'Absent', 'Leave', 'Salary - Allowance (Rs)', 'Bata Extra (Rs)', 'Deductions (Rs)', 'Net Pay (Rs)', 'Paid (Rs)', 'Balance (Rs)', 'Status']]
     filtered.forEach(p => rows.push([
-      p.driver, p.tripCount, p.salaryTotal,
+      p.driver, p.tripCount, p.presentDays, p.absentDays, p.leaveDays, p.salaryTotal,
       p.bataExtra, p.totalDeductions, p.net, p.paidAmount, p.balance, p.status,
     ]))
     const csv = rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')
@@ -1182,7 +1235,7 @@ export default function Payroll() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-[var(--ap-surface-2)] border-b border-[var(--ap-border)]">
-                  {['Driver','Trips','Salary','Bata Extra','Deductions','Net Pay','Paid','Balance','Status',''].map(h => (
+                  {['Driver','Trips','Attendance','Salary','Bata Extra','Deductions','Net Pay','Paid','Balance','Status',''].map(h => (
                     <th key={h} className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -1198,6 +1251,10 @@ export default function Payroll() {
                       </div>
                     </td>
                     <td className="px-3 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 tabular-nums">{p.tripCount}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{p.presentDays}P</span>
+                      <span className="text-[10px] text-slate-400 tabular-nums"> · {p.absentDays}A · {p.leaveDays}L</span>
+                    </td>
                     <td className="px-3 py-2.5 text-xs text-slate-600 dark:text-slate-300 tabular-nums whitespace-nowrap">{money(p.salaryTotal)}</td>
                     <td className="px-3 py-2.5 text-xs text-teal-600 dark:text-teal-400 tabular-nums whitespace-nowrap">{money(p.bataExtra)}</td>
                     <td className="px-3 py-2.5 text-xs text-red-600 dark:text-red-400 tabular-nums whitespace-nowrap">{p.totalDeductions > 0 ? money(p.totalDeductions) : '—'}</td>
@@ -1240,6 +1297,11 @@ export default function Payroll() {
                   <p className="text-[9px] text-slate-400">Balance</p>
                 </div>
               </div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 tabular-nums mt-2">
+                Attendance: <span className="font-bold text-emerald-600 dark:text-emerald-400">{p.presentDays} present</span>
+                {p.absentDays > 0 && <> · <span className="font-bold text-red-600 dark:text-red-400">{p.absentDays} absent</span></>}
+                {p.leaveDays > 0 && <> · <span className="font-bold text-amber-600 dark:text-amber-400">{p.leaveDays} leave</span></>}
+              </p>
             </div>
           ))}
         </div>
@@ -1266,7 +1328,7 @@ export default function Payroll() {
                 <Avatar name={p.driver} size={40} />
                 <div className="flex-1 min-w-0">
                   <h3 className="font-sf font-semibold text-slate-800 dark:text-white truncate">{p.driver}</h3>
-                  <p className="text-xs text-slate-400">{monthLabel(month, year)} · {p.tripCount} trips · {p.daysWorked} days</p>
+                  <p className="text-xs text-slate-400">{monthLabel(month, year)} · {p.tripCount} trips · {p.presentDays} present</p>
                 </div>
                 <StatusBadge status={p.status} />
                 <IconButton icon={X} label="Close details" size={16} onClick={() => setDrawerDriver(null)} className="flex-shrink-0" />
@@ -1285,6 +1347,23 @@ export default function Payroll() {
                       <p className={`text-sm font-semibold tabular-nums ${r.c}`}>{r.v}</p>
                     </div>
                   ))}
+                </div>
+                {/* Attendance for this month — same derivation as Attendance page */}
+                <div className="bg-[var(--ap-surface-2)] rounded-xl px-3 py-2.5 border border-[var(--ap-border)]">
+                  <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+                    Attendance — {monthLabel(month, year)}
+                  </p>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                    <span className="text-emerald-600 dark:text-emerald-400 font-bold tabular-nums">{p.presentDays} present</span>
+                    <span className="text-red-600 dark:text-red-400 font-bold tabular-nums">{p.absentDays} absent</span>
+                    <span className="text-amber-600 dark:text-amber-400 font-bold tabular-nums">{p.leaveDays} leave / off</span>
+                  </div>
+                  {p.attendance?.absentDates?.length > 0 && (
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+                      Absent: {p.attendance.absentDates.map(d => d.slice(8, 10)).join(', ')}
+                    </p>
+                  )}
+                  <p className="text-[10px] text-slate-400 mt-1">Derived from trips · completed trip = present, missed assignment = absent.</p>
                 </div>
                 {/* Trips */}
                 <div>

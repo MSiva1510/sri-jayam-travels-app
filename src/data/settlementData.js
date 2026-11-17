@@ -7,6 +7,7 @@ import supabase               from '../lib/supabase'
 import { loadSettingValue, saveSettingValue } from './settingsStore'
 import { translateDbError } from './errorUtils'
 import { withCache, cacheClear } from '../utils/dataCache'
+import { resolveDriverName, normalizeName } from './attendanceDerive'
 
 // ── Settlement status config ──────────────────────────────────
 export const SETTLEMENT_STATUSES = [
@@ -191,21 +192,38 @@ export function buildSettlement({
 // Bata on each trip is the driver's earning (straight to driver);
 // the settlement contributes bonus + deductions + workflow status.
 // Table, drawer, payslip and print ALL read this one object.
-export function buildDriverMonthlyPayroll({ driver, driverId, monthKey, bookings = [], tripPayslips = [], settlement = null }) {
+export function buildDriverMonthlyPayroll({
+  driver, driverId, monthKey,
+  bookings = [], tripPayslips = [], settlement = null,
+  drivers = [], attendance = null,
+}) {
+  // Trip drivers are free-text ("babu", "Rajasekhara"), so match through the
+  // canonical driver name — otherwise a spelling variant silently loses pay.
+  const target = normalizeName(driver)
+  const nameOf = (b) => resolveDriverName(b.driver ?? b.driver_name ?? '', drivers)
+  const matchesDriver = (b) => {
+    const name = b.driver ?? b.driver_name ?? ''
+    if (name && normalizeName(resolveDriverName(name, drivers)) === target) return true
+    return driverId != null && (b.driver_id === driverId || b.driverId === driverId)
+  }
   const trips = bookings
     .filter(b =>
-      (b.driver === driver || (driverId != null && (b.driver_id === driverId || b.driverId === driverId))) &&
-      (b.startDate || '').startsWith(monthKey) &&
-      ['completed', 'closed'].includes(b.status)
+      matchesDriver(b) &&
+      (b.startDate || b.start_date || '').startsWith(monthKey) &&
+      ['completed', 'closed'].includes(String(b.status || '').toLowerCase())
     )
-    .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''))
+    .sort((a, b) => String(a.startDate || '').localeCompare(String(b.startDate || '')))
   const tripCount = trips.length
   // Salary = collected per-trip allowances (manager-set at approval).
   // Bata = customer extra (before/after trip), added on top of salary.
   // No incentives, no bonus, no deductions.
   const salaryTotal = trips.reduce((s, t) => s + tripAllowance(t), 0)
   const bataExtra = trips.reduce((s, t) => s + (Number(t.bata) || 0), 0)
-  const daysWorked = new Set(trips.map(t => (t.startDate || '').slice(0, 10)).filter(Boolean)).size
+  // Days worked follows attendance (completed trip = present, manual marks
+  // override). Falls back to distinct trip dates when no summary is passed.
+  const daysWorked = attendance
+    ? Number(attendance.presentDays) || 0
+    : new Set(trips.map(t => (t.startDate || '').slice(0, 10)).filter(Boolean)).size
   const gross = salaryTotal + bataExtra
   // Deductions come from the settlement, once, through the canonical list.
   const deductions = normalizeDeductions(settlement || {})
@@ -216,9 +234,21 @@ export function buildDriverMonthlyPayroll({ driver, driverId, monthKey, bookings
     .reduce((s, p) => s + tripDriverAmount(p), 0)
   const paidAmount = settlement?.status === 'paid' ? Number(settlement.netAmount ?? net) : paidTrip
   const balance = Math.max(0, net - paidAmount)
+  const attendanceSummary = attendance ? {
+    presentDays: Number(attendance.presentDays) || 0,
+    absentDays:  Number(attendance.absentDays)  || 0,
+    leaveDays:   Number(attendance.leaveDays)   || 0,
+    totalDays:   Number(attendance.totalDays)   || 0,
+    absentDates: attendance.absentDates || [],
+    leaveDates:  attendance.leaveDates  || [],
+  } : null
   return {
     driver, driverId: driverId ?? null, monthKey,
     trips, tripCount, salaryTotal, bataExtra, daysWorked,
+    attendance: attendanceSummary,
+    presentDays: attendanceSummary?.presentDays ?? daysWorked,
+    absentDays:  attendanceSummary?.absentDays  ?? 0,
+    leaveDays:   attendanceSummary?.leaveDays   ?? 0,
     gross, deductions, totalDeductions, net, netAmount: net,
     paidAmount, balance,
     status: settlement?.status ?? 'draft',
