@@ -753,7 +753,7 @@ export default function Documents() {
         <MetricCard label="Expired"            value={counts.expired}  icon={AlertTriangle} tone="red" onClick={() => setStatusFilter('expired')} />
       </div>
 
-      {/* Category tabs (existing filter) */}
+      {/* 3. Category filter — drivers / vehicles / all */}
       <SegmentedControl
         ariaLabel="Filter by category"
         value={category}
@@ -762,8 +762,8 @@ export default function Documents() {
         options={CATEGORIES.map(cat => ({ key: cat.key, label: cat.label, icon: cat.Icon }))}
       />
 
-      {/* 3. Search + filters + export toolbar — one row, wraps */}
-      <div className="flex items-center gap-2 flex-wrap ap-surface px-3 py-2">
+      {/* 4. Toolbar — search, type, owner, status, clear, export, columns */}
+      <div className="ap-surface rounded-2xl px-3 py-2 flex items-center gap-2 flex-wrap">
         <div className="flex items-center gap-2 flex-1 min-w-[180px]">
           <Search size={14} className="text-slate-400 flex-shrink-0" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search documents, owner, number…"
@@ -818,9 +818,9 @@ export default function Documents() {
         </div>
       </div>
 
-      {/* 4. Main data table */}
+      {/* 5. Main data table — loading / empty / rows + desktop pager */}
       {loading ? (
-        <div className="rounded-xl border border-[var(--ap-border)] ap-surface overflow-hidden" role="status" aria-busy="true" aria-label="Loading documents">
+        <div className="rounded-2xl border border-[var(--ap-border)] ap-surface overflow-hidden" role="status" aria-busy="true" aria-label="Loading documents">
           <span className="sr-only">Loading documents…</span>
           <div className="hidden md:grid px-4 py-2.5 gap-3 border-b border-[var(--ap-border)]" style={{ gridTemplateColumns: `repeat(${visibleCols.length}, minmax(0,1fr)) 120px` }} aria-hidden="true">
             {visibleCols.map(k => <div key={k} className="skeleton h-3 rounded" />)}
@@ -858,7 +858,7 @@ export default function Documents() {
       ) : (
         <>
         {/* Desktop table */}
-        <div className="rounded-xl border border-[var(--ap-border)] ap-surface overflow-hidden hidden md:block">
+        <div className="rounded-2xl border border-[var(--ap-border)] ap-surface overflow-hidden hidden md:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[var(--ap-border)] bg-[var(--ap-surface-2)]">
@@ -970,7 +970,7 @@ export default function Documents() {
               })}
             </tbody>
           </table>
-          {/* 5. Pagination — footer inside the table card (desktop) */}
+          {/* 6. Pagination — footer inside the table card (desktop) */}
           {totalPages > 1 && (
             <div className="hidden md:flex items-center justify-between gap-3 px-3 py-2 border-t border-[var(--ap-border)] bg-[var(--ap-surface-2)]/50">
               {pagerBody()}
@@ -984,7 +984,7 @@ export default function Documents() {
             const owner = ownerOf(doc)
             const days = doc.daysLeft
             return (
-              <div key={doc.id} className="rounded-xl border border-[var(--ap-border)] ap-surface p-3.5">
+              <div key={doc.id} className="rounded-2xl border border-[var(--ap-border)] ap-surface p-3.5">
                 <div className="flex items-center gap-2.5">
                   <span className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
                     doc.computedStatus === 'expired' ? 'bg-red-100 dark:bg-red-900/30' :
@@ -1035,7 +1035,7 @@ export default function Documents() {
           })}
         </div>
 
-        {/* 5. Pagination — below the cards (mobile) */}
+        {/* 6. Pagination — below the cards (mobile) */}
         {totalPages > 1 && (
           <div className="md:hidden ap-surface rounded-2xl px-3 py-2 mt-2 flex items-center justify-between gap-3">
             {pagerBody()}
@@ -1044,6 +1044,7 @@ export default function Documents() {
         </>
       )}
 
+      {/* 7. Add document modal */}
       {showAdd && (
         <AddDocModal
           onClose={() => setShowAdd(false)}
