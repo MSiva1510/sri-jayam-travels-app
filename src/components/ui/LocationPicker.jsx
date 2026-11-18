@@ -189,9 +189,9 @@ export function LocationPicker({ label, value, onChange, error, required = true 
             placeholder="Share location, paste maps link, or type place name (e.g. Puducherry Bus Stand)"
             onChange={handleTextChange}
             onBlur={handleBlur}
-            className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 transition-all dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:ring-teal-400/40 dark:focus:border-teal-500"
+            className="w-full pl-10 pr-3.5 py-2.5 text-sm rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 transition-all dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:ring-teal-400/40 dark:focus:border-teal-500"
           />
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
         </div>
       )}
 
