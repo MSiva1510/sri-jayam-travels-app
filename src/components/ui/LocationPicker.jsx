@@ -10,6 +10,15 @@ import { useState, useCallback } from 'react'
 import { MapPin, Link, Search } from 'lucide-react'
 import { forwardGeocode, parseLocation } from '../../utils/locationUtils'
 
+function Label({ children, required }) {
+  return (
+    <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wide">
+      {children}
+      {required && <span className="text-red-500 ml-1">*</span>}
+    </label>
+  )
+}
+
 export function LocationPicker({ label, value, onChange, error, required = true }) {
   const [locating, setLocating] = useState(false)
   const [parsed, setParsed] = useState(null) // { lat, lng, label, raw }
