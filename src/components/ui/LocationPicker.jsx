@@ -51,6 +51,9 @@ export function LocationPicker({ label, value, onChange, error, required = true 
   const [locating, setLocating] = useState(false)
   const [parsed, setParsed] = useState(null) // { lat, lng, label, raw }
   const [mode, setMode] = useState('search') // 'search' | 'map' — pick-up / drop via map marker + popup
+  const [text, setText] = useState(value || '') // what the user typed — kept separate from the resolved value
+
+  useEffect(() => { setText(value || '') }, [value])
 
   const handleMapPick = useCallback(async ({ lat, lng }) => {
     const la = Number(lat)
@@ -82,6 +85,7 @@ export function LocationPicker({ label, value, onChange, error, required = true 
       })
       const { latitude, longitude } = pos.coords
       const raw = `${latitude.toFixed(6)},${longitude.toFixed(6)}`
+      setText(raw)
       setParsed({ lat: Number(latitude.toFixed(6)), lng: Number(longitude.toFixed(6)), label: raw, raw })
       onChange(raw)
     } catch {
@@ -93,6 +97,7 @@ export function LocationPicker({ label, value, onChange, error, required = true 
 
   const handleTextChange = (e) => {
     const raw = e.target.value
+    setText(raw)
     onChange(raw)
     const loc = parseLocation(raw)
     if (loc) setParsed(loc)
@@ -103,6 +108,7 @@ export function LocationPicker({ label, value, onChange, error, required = true 
     try {
       const hit = await forwardGeocode(raw)
       if (hit) {
+        setText(hit.label || raw)
         setParsed({ lat: hit.lat, lng: hit.lng, label: hit.label, raw: hit.label || raw })
         onChange(hit.label || raw)
       }
@@ -179,7 +185,7 @@ export function LocationPicker({ label, value, onChange, error, required = true 
         <div className="relative">
           <input
             type="text"
-            value={value || ''}
+            value={text}
             placeholder="Share location, paste maps link, or type place name (e.g. Puducherry Bus Stand)"
             onChange={handleTextChange}
             onBlur={handleBlur}
