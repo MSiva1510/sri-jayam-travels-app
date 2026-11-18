@@ -6,9 +6,10 @@
 //   4. Typed place name ("Puducherry Bus Stand")
 // Returns { lat, lng, label, raw } resolved via forwardGeocode/parseLocation.
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import { MapPin, Link, Search } from 'lucide-react'
-import { forwardGeocode, parseLocation } from '../../utils/locationUtils'
+import { forwardGeocode, parseLocation, reverseGeocode } from '../../utils/locationUtils'
 
 function Label({ children, required }) {
   return (
@@ -19,9 +20,37 @@ function Label({ children, required }) {
   )
 }
 
+const MAP_DEFAULT_CENTER = [11.9416, 79.8083] // Puducherry
+
+function MapClickHandler({ onPick }) {
+  const map = useMap()
+  useEffect(() => {
+    if (!map) return
+    const handler = (e) => {
+      const lat = e?.latlng?.lat ?? e?.latlng?.Lat
+      const lng = e?.latlng?.lng ?? e?.latlng?.Lng
+      if (typeof lat !== 'number' || typeof lng !== 'number') return
+      onPick({ lat, lng })
+    }
+    map.on('click', handler)
+    return () => map.off('click', handler)
+  }, [map, onPick])
+  return null
+}
+
 export function LocationPicker({ label, value, onChange, error, required = true }) {
   const [locating, setLocating] = useState(false)
   const [parsed, setParsed] = useState(null) // { lat, lng, label, raw }
+  const [mode, setMode] = useState('search') // 'search' | 'map' — pick-up / drop via map marker + popup
+
+  const handleMapPick = useCallback(async ({ lat, lng }) => {
+    const la = Number(lat)
+    const ln = Number(lng)
+    const resolvedLabel = await reverseGeocode(la, ln)
+    const raw = `${la.toFixed(6)},${ln.toFixed(6)}`
+    setParsed({ lat: la, lng: ln, label: resolvedLabel || `${la.toFixed(4)}, ${ln.toFixed(4)}`, raw })
+    onChange(resolvedLabel || raw)
+  }, [onChange])
 
   const handleLiveLocation = async () => {
     if (!navigator.geolocation) {
@@ -97,18 +126,51 @@ export function LocationPicker({ label, value, onChange, error, required = true 
         )}
       </div>
 
-      {/* Text input for maps link / coordinates / place name */}
-      <div className="relative">
-        <input
-          type="text"
-          value={value || ''}
-          placeholder="Share location, paste maps link, or type place name (e.g. Puducherry Bus Stand)"
-          onChange={handleTextChange}
-          onBlur={handleBlur}
-          className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 transition-all"
-        />
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+      {/* Mode toggle: typed / searched location vs. picking on the map */}
+      <div className="flex gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800/60" role="group" aria-label={`${label} input mode`}>
+        <button type="button" onClick={() => setMode('search')}
+          className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wide transition-all ${mode === 'search' ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}>
+          Search / Type
+        </button>
+        <button type="button" onClick={() => setMode('map')}
+          className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wide transition-all ${mode === 'map' ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}>
+          Pick on Map
+        </button>
       </div>
+
+      {mode === 'map' ? (
+        <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700" style={{ height: '260px', width: '100%' }}>
+          <MapContainer center={parsed ? [parsed.lat, parsed.lng] : MAP_DEFAULT_CENTER} zoom={12} scrollWheelZoom style={{ height: '100%', width: '100%' }}>
+            <TileLayer
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            />
+            <MapClickHandler onPick={handleMapPick} />
+            {parsed && (
+              <Marker position={[parsed.lat, parsed.lng]}>
+                <Popup>
+                  <div className="text-xs">
+                    <p className="font-bold text-slate-700 dark:text-slate-200">{parsed.label}</p>
+                    <p className="text-slate-500 dark:text-slate-400">{Number(parsed.lat).toFixed(4)}°N, {Number(parsed.lng).toFixed(4)}°E</p>
+                  </div>
+                </Popup>
+              </Marker>
+            )}
+          </MapContainer>
+        </div>
+      ) : (
+        <div className="relative">
+          <input
+            type="text"
+            value={value || ''}
+            placeholder="Share location, paste maps link, or type place name (e.g. Puducherry Bus Stand)"
+            onChange={handleTextChange}
+            onBlur={handleBlur}
+            className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 transition-all"
+          />
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        </div>
+      )}
 
       {parsed && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30">
