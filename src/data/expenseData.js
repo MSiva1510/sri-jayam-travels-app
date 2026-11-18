@@ -3,6 +3,9 @@
 
 import { expenseRepository } from '../repositories/expenseRepository'
 import { withCache, cacheClear } from '../utils/dataCache'
+import { normalizeExpense } from '../utils/expenseMapping'
+
+export { normalizeExpense }
 
 export const EXPENSE_TYPES = [
   { key:'fuel',        label:'Fuel',          icon:'⛽', color:'from-orange-500 to-amber-500',  badge:'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',  dot:'bg-orange-500'  },
@@ -64,35 +67,6 @@ async function _loadExpenses() {
 }
 export const loadExpenses = withCache('expenses', _loadExpenses)
 export const getExpenses = loadExpenses
-
-export function normalizeExpense(row = {}) {
-  return {
-    ...row,
-    id: row.id || row.expense_id,
-    expenseNo: row.expense_no ?? row.expenseNo ?? '',
-    date: row.date ?? row.expense_date ?? '',
-    amount: Number(row.amount ?? 0),
-    description: row.description ?? row.notes ?? row.location ?? '',
-    tripRef: row.trip_ref ?? row.tripRef ?? row.booking_id ?? '',
-    bookingId: row.bookingId ?? row.booking_id ?? '',
-    driver: row.driver ?? row.driver_name ?? '',
-    vehicle: row.vehicle_reg ?? row.vehicle ?? row.vehicle_registration ?? row.vehicle_id ?? '',
-    addedBy: row.addedBy ?? row.created_by ?? '',
-    receiptName: row.receiptName ?? row.receipt_name ?? row.bill_image_url ?? '',
-    receiptUrl: row.receiptUrl ?? row.receipt_url ?? row.bill_image_url ?? '',
-    receiptDate: row.receiptDate ?? row.expense_date ?? '',
-    status: !row.status || ['draft', 'submitted'].includes(row.status) ? 'pending' : row.status,
-    createdAt: row.createdAt ?? row.created_at ?? '',
-    updatedAt: row.updatedAt ?? row.updated_at ?? row.created_at ?? '',
-    // Fuel-specific fields
-    odometerKm: row.odometer_km || row.odometerKm || 0,
-    litresFilled: row.litres_filled || row.litresFilled || 0,
-    fuelStation: row.fuel_station || row.fuelStation || '',
-    fuelRate: row.fuel_rate || row.fuelRate || 0,
-  }
-}
-
-
 
 export async function saveExpense(expense) {
   const { id, ...rest } = expense

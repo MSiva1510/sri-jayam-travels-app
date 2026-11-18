@@ -14,3 +14,5 @@ mobile/android/key.properties
 
 tunnels.json
 .opencode/
+playwright-report/
+test-results/

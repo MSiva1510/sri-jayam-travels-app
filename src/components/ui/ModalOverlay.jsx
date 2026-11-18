@@ -23,7 +23,7 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 
-export default function ModalOverlay({ onClose, center = false, children }) {
+export default function ModalOverlay({ onClose, center = false, closing = false, children }) {
   const align = center
     ? 'items-center justify-center'
     : 'items-end sm:items-center justify-center'
@@ -45,7 +45,7 @@ export default function ModalOverlay({ onClose, center = false, children }) {
       <div
         aria-hidden="true"
         className={`fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm transition-opacity duration-200 ease-out ${
-          entered ? 'opacity-100' : 'opacity-0'
+          entered && !closing ? 'opacity-100' : 'opacity-0'
         }`}
         onClick={onClose}
       />
@@ -57,8 +57,10 @@ export default function ModalOverlay({ onClose, center = false, children }) {
       <div
         className={`fixed inset-0 z-[101] flex pointer-events-none ${align}`}
       >
-        {/* Re-enable pointer events only for the panel itself */}
-        <div className="pointer-events-auto">
+        {/* Re-enable pointer events only for the panel itself.
+            w-full lets children using w-full become true full-screen
+            sheets on mobile while fixed-width dialogs stay centered. */}
+        <div className="pointer-events-auto w-full max-w-full">
           {children}
         </div>
       </div>

@@ -10,40 +10,19 @@ import { dataService } from '../services/dataService'
 
 const EXPENSES_STORAGE_KEY = 'sjt_expenses'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-export const EXPENSE_SELECT = 'id, expense_no, booking_id, driver_id, driver_name, vehicle_reg, trip_ref, amount, expense_date, description, created_by, status, type, odometer_km, litres_filled, fuel_station, fuel_rate, receipt_url, receipt_name, created_at, updated_at'
 
-export function toDbExpense(data = {}) {
-  const bookingId = [data.booking_id, data.bookingId, data.tripRef]
-    .find(v => UUID_RE.test(String(v || '')))
-  const uiType = data.type === 'misc' ? 'other' : data.type
-  // DB check constraint only allows pending / approved / rejected.
-  const status = ['pending', 'approved', 'rejected'].includes(data.status)
-    ? data.status
-    : (['draft', 'submitted'].includes(data.status) ? 'pending' : data.status)
-  const payload = {
-    expense_no: data.expense_no ?? data.expenseNo,
-    expense_type: data.expense_type ?? (['fuel', 'toll'].includes(uiType) ? uiType : 'other'),
-    booking_id: bookingId ?? null,
-    trip_ref: data.trip_ref ?? (UUID_RE.test(String(data.tripRef || '')) ? undefined : data.tripRef),
-    driver_id: UUID_RE.test(String(data.driver_id || '')) ? data.driver_id : undefined,
-    driver_name: data.driver_name ?? data.driver,
-    vehicle_reg: data.vehicle_reg ?? data.vehicle,
-    amount: data.amount,
-    expense_date: data.expense_date ?? data.date ?? data.receiptDate,
-    description: data.description ?? data.notes ?? data.location,
-    created_by: UUID_RE.test(String(data.created_by || '')) ? data.created_by : undefined,
-    status,
-    approval_status: data.approval_status ?? status,
-    type: uiType,
-    odometer_km: data.odometerKm,
-    litres_filled: data.litresFilled,
-    fuel_station: data.fuelStation,
-    fuel_rate: data.fuelRate,
-    receipt_url: data.receipt_url ?? data.receiptUrl ?? undefined,
-    receipt_name: data.receipt_name ?? data.receiptName ?? undefined,
-  }
-  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined))
-}
+// Detail-column aliases and SELECT strings live in a pure module so they can
+// be unit-tested without the Supabase/browser dependency chain.
+import {
+  BASE_EXPENSE_SELECT, DETAIL_COLUMNS, DETAIL_COLUMN_RE,
+  EXPENSE_SELECT, toDbExpense,
+} from '../utils/expenseMapping'
+
+export { EXPENSE_SELECT, toDbExpense }
+
+// Reads retry without the detail columns if 20261118_expense_type_details.sql
+// has not been applied yet; the verdict is remembered per session.
+let detailColumnsSupported = null
 
 /**
  * ExpenseRepository - Manages expense data
@@ -51,6 +30,46 @@ export function toDbExpense(data = {}) {
 export class ExpenseRepository extends BaseRepository {
   constructor() {
     super('expenses', 'id')
+  }
+
+  _expenseSelect(withDetails = true) {
+    return withDetails ? EXPENSE_SELECT : BASE_EXPENSE_SELECT
+  }
+
+  _isMissingDetailColumnRead(error) {
+    const msg = String(error?.message || '')
+    return /column .* does not exist|Could not find the '.*' column/i.test(msg) &&
+      DETAIL_COLUMN_RE.test(msg)
+  }
+
+  _isMissingDetailColumnError(error) {
+    return this._isMissingDetailColumnRead(error)
+  }
+
+  _withoutDetailColumns(obj = {}) {
+    return Object.fromEntries(Object.entries(obj).filter(([key]) => !DETAIL_COLUMNS.includes(key)))
+  }
+
+  // Runs an expenses read with detail columns, falling back to the base
+  // column set once per session if the migration has not been applied.
+  async _readExpenses(build, fallback = []) {
+    if (detailColumnsSupported === false) {
+      const result = await build(false)
+      if (result.error) throw result.error
+      return result.data ?? fallback
+    }
+    const first = await build(true)
+    if (!first.error) {
+      detailColumnsSupported = true
+      return first.data ?? fallback
+    }
+    if (this._isMissingDetailColumnRead(first.error)) {
+      detailColumnsSupported = false
+      const retry = await build(false)
+      if (retry.error) throw retry.error
+      return retry.data ?? fallback
+    }
+    throw first.error
   }
 
   async getAll() {
@@ -73,12 +92,10 @@ export class ExpenseRepository extends BaseRepository {
     const provider = getDatabaseProvider()
     if (provider === DATABASE_PROVIDERS.SUPABASE) {
       try {
-        const { data, error } = await supabase
+        return await this._readExpenses(withDetails => supabase
           .from('expenses')
-          .select(EXPENSE_SELECT)
-          .eq('driver_id', driverId)
-        if (error) throw error
-        return data || []
+          .select(this._expenseSelect(withDetails))
+          .eq('driver_id', driverId))
       } catch (error) {
         console.error(error)
         throw error
@@ -91,12 +108,10 @@ export class ExpenseRepository extends BaseRepository {
     const provider = getDatabaseProvider()
     if (provider === DATABASE_PROVIDERS.SUPABASE) {
       try {
-        const { data, error } = await supabase
+        return await this._readExpenses(withDetails => supabase
           .from('expenses')
-          .select(EXPENSE_SELECT)
-          .eq('booking_id', tripId)
-        if (error) throw error
-        return data || []
+          .select(this._expenseSelect(withDetails))
+          .eq('booking_id', tripId))
       } catch (error) {
         console.error(error)
         throw error
@@ -109,12 +124,10 @@ export class ExpenseRepository extends BaseRepository {
     const provider = getDatabaseProvider()
     if (provider === DATABASE_PROVIDERS.SUPABASE) {
       try {
-        const { data, error } = await supabase
+        return await this._readExpenses(withDetails => supabase
           .from('expenses')
-          .select(EXPENSE_SELECT)
-          .eq('status', status)
-        if (error) throw error
-        return data || []
+          .select(this._expenseSelect(withDetails))
+          .eq('status', status))
       } catch (error) {
         console.error(error)
         throw error
@@ -206,12 +219,10 @@ export class ExpenseRepository extends BaseRepository {
 
   async _getAllFromSupabase() {
     try {
-      const { data, error } = await supabase
+      return await this._readExpenses(withDetails => supabase
         .from('expenses')
-        .select(EXPENSE_SELECT)
-        .order('created_at', { ascending: false })
-      if (error) throw error
-      return data || []
+        .select(this._expenseSelect(withDetails))
+        .order('created_at', { ascending: false }))
     } catch (error) {
       console.error(error)
       throw error
@@ -221,14 +232,15 @@ export class ExpenseRepository extends BaseRepository {
   async _getByIdFromSupabase(id) {
     if (!UUID_RE.test(String(id))) return null
     try {
-      const { data, error } = await supabase
-        .from('expenses')
-        .select(EXPENSE_SELECT)
-        .eq('id', id)
-        .single()
-      if (error && error.code === 'PGRST116') return null
-      if (error) throw error
-      return data || null
+      return await this._readExpenses(async withDetails => {
+        const { data, error } = await supabase
+          .from('expenses')
+          .select(this._expenseSelect(withDetails))
+          .eq('id', id)
+          .single()
+        if (error?.code === 'PGRST116') return { data: null, error: null }
+        return { data, error }
+      }, null)
     } catch (error) {
       console.error(error)
       throw error
@@ -243,13 +255,25 @@ export class ExpenseRepository extends BaseRepository {
         created_at: data.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }
-      const { data: created, error } = await supabase
-        .from('expenses')
-        .insert([expense])
-        .select()
-        .single()
-      if (error) throw error
-      return created
+      try {
+        const { data: created, error } = await supabase
+          .from('expenses')
+          .insert([expense])
+          .select()
+          .single()
+        if (error) throw error
+        return created
+      } catch (error) {
+        if (!this._isMissingDetailColumnError(error)) throw error
+        console.warn('[expenseRepository] type detail columns missing — saving expense without parking/toll/bata/maintenance details. Apply migration 20261118_expense_type_details.')
+        const { data: created, error: retryError } = await supabase
+          .from('expenses')
+          .insert([this._withoutDetailColumns(expense)])
+          .select()
+          .single()
+        if (retryError) throw retryError
+        return created
+      }
     } catch (error) {
       console.error(error)
       throw error
@@ -261,14 +285,28 @@ export class ExpenseRepository extends BaseRepository {
       throw new Error(`Cannot update expense ${id}: Supabase expense id must be a UUID`)
     }
     try {
-      const { data: updated, error } = await supabase
-        .from('expenses')
-        .update({ ...toDbExpense(data), updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .select()
-        .single()
-      if (error) throw error
-      return updated
+      const expense = { ...toDbExpense(data), updated_at: new Date().toISOString() }
+      try {
+        const { data: updated, error } = await supabase
+          .from('expenses')
+          .update(expense)
+          .eq('id', id)
+          .select()
+          .single()
+        if (error) throw error
+        return updated
+      } catch (error) {
+        if (!this._isMissingDetailColumnError(error)) throw error
+        console.warn('[expenseRepository] type detail columns missing — updating expense without parking/toll/bata/maintenance details. Apply migration 20261118_expense_type_details.')
+        const { data: updated, error: retryError } = await supabase
+          .from('expenses')
+          .update(this._withoutDetailColumns(expense))
+          .eq('id', id)
+          .select()
+          .single()
+        if (retryError) throw retryError
+        return updated
+      }
     } catch (error) {
       console.error(error)
       throw error
