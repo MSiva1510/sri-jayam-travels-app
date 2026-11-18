@@ -47,7 +47,7 @@ function MapClickHandler({ onPickRef }) {
   return null
 }
 
-export function LocationPicker({ label, value, onChange, error, required = true }) {
+export function LocationPicker({ label, value, onChange, error, required = true, showLabel = true }) {
   const [locating, setLocating] = useState(false)
   const [parsed, setParsed] = useState(null) // { lat, lng, label, raw }
   const [mode, setMode] = useState('search') // 'search' | 'map' — pick-up / drop via map marker + popup
@@ -126,7 +126,7 @@ export function LocationPicker({ label, value, onChange, error, required = true 
 
   return (
     <div className="space-y-2">
-      <Label required>{label}{required && <span className="text-red-500 ml-0.5">*</span>}</Label>
+      {showLabel && <Label required={required}>{label}</Label>}
 
       {/* Live location share button */}
       <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-sm text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-all">

@@ -177,12 +177,12 @@ function BookingModal({ booking, onClose, onSave, userName }) {
           </div>
           <div>
             <FieldLabel required>Pickup Location</FieldLabel>
-            <LocationPicker value={form.pickup} onChange={e => upd({ pickup: e })} error={errors.pickup} required label="Pickup Location" />
+            <LocationPicker value={form.pickup} onChange={e => upd({ pickup: e })} error={errors.pickup} required label="Pickup Location" showLabel={false} />
             {errors.pickup && <p className="text-xs text-red-500 mt-1">{errors.pickup}</p>}
           </div>
           <div>
             <FieldLabel>Drop / Destination</FieldLabel>
-            <LocationPicker value={form.drop} onChange={e => upd({ drop: e })} error={errors.drop} label="Drop / Destination" />
+            <LocationPicker value={form.drop} onChange={e => upd({ drop: e })} error={errors.drop} label="Drop / Destination" required={false} showLabel={false} />
             {errors.drop && <p className="text-xs text-red-500 mt-1">{errors.drop}</p>}
           </div>
           <Grid2>

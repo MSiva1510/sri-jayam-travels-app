@@ -336,12 +336,12 @@ export default function PublicBooking() {
                   <>
                     <div>
                       <Label required>Pickup Location</Label>
-                      <LocationPicker value={pickup} onChange={e => setPickup(e)} error={errors.pickup} label="Pickup Location" />
+                      <LocationPicker value={pickup} onChange={e => setPickup(e)} error={errors.pickup} label="Pickup Location" showLabel={false} />
                       {errors.pickup && <p className="text-xs text-red-500 mt-1">{errors.pickup}</p>}
                     </div>
                     <div>
                       <Label required>Drop Location</Label>
-                      <LocationPicker value={drop} onChange={e => setDrop(e)} error={errors.drop} label="Drop Location" />
+                      <LocationPicker value={drop} onChange={e => setDrop(e)} error={errors.drop} label="Drop Location" showLabel={false} />
                       {errors.drop && <p className="text-xs text-red-500 mt-1">{errors.drop}</p>}
                     </div>
                   </>
@@ -351,12 +351,12 @@ export default function PublicBooking() {
                   <>
                     <div>
                       <Label required>Pickup Location</Label>
-                      <LocationPicker value={pickup} onChange={e => setPickup(e)} error={errors.pickup} label="Pickup Location" />
+                      <LocationPicker value={pickup} onChange={e => setPickup(e)} error={errors.pickup} label="Pickup Location" showLabel={false} />
                       {errors.pickup && <p className="text-xs text-red-500 mt-1">{errors.pickup}</p>}
                     </div>
                     <div>
                       <Label required>Destination</Label>
-                      <LocationPicker value={drop} onChange={e => setDrop(e)} error={errors.drop} label="Drop Location" />
+                      <LocationPicker value={drop} onChange={e => setDrop(e)} error={errors.drop} label="Drop Location" showLabel={false} />
                       {errors.drop && <p className="text-xs text-red-500 mt-1">{errors.drop}</p>}
                     </div>
                     <div>
