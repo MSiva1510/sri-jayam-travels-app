@@ -7,6 +7,7 @@
 | `/api/whatsapp/webhook` | Vercel Function | Meta Cloud API callback; bundled from `vercel/functions/whatsapp-webhook.js` |
 | `/api/whatsapp/notify` | Vercel Function | trip template messages; bundled from `vercel/functions/whatsapp-notify.js` |
 | `/api/whatsapp/send` | Vercel Function | inbox replies / bot resume; bundled from `vercel/functions/whatsapp-send.js` |
+| `/api/ocr/extract` | Vercel Function | document OCR scan; bundled from `vercel/functions/ocr-extract.js` → `_lib/ocrProvider.js` (OpenAI Vision) |
 | Database / Auth / Storage | Supabase project `qxirmjvbufxxlkogelfj` | SQL migrations in `supabase/migrations/`, applied by hand in the SQL editor |
 | Driver app (Flutter) | Android APK | `flutter build apk --release` (see Mobile) |
 
@@ -24,6 +25,9 @@
 | `WHATSAPP_NOTIFY_SECRET` | Vercel (server only) | Shared secret for booking triggers calling `/api/whatsapp/notify` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Vercel (server only) | Functions' DB access (bypasses RLS — never ship to the browser) |
 | `VITE_GPS_MOCK` | local only | `true` → fleet page uses 3 mock vehicles, never hits the vendor |
+| `VITE_OCR_PROVIDER` | Vercel build env / `.env.local` | Frontend scan switch — `openai` (or any real provider id) enables the backend `/api/ocr/extract` flow; `stub`/unset → scan returns "not configured" |
+| `OPENAI_API_KEY` | Vercel (server only) | OpenAI secret key powering the OCR provider (never ship as `VITE_`) |
+| `OPENAI_OCR_MODEL` | Vercel (server only, optional) | OCR model — default `gpt-4o-mini` |
 
 Never put the **service-role** key anywhere in this repo or in `VITE_*` variables — it bypasses RLS.
 
