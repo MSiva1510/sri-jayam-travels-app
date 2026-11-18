@@ -69,7 +69,10 @@ function AvailDot({ avail, cfgMap }) {
   return <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.badge}`}><span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />{cfg.label}</span>
 }
 function FieldLabel({ children, required }) {
-  return <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5 uppercase tracking-wide">{children}{required && <span className="text-red-500 ml-1">*</span>}</label>
+  return <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5 uppercase tracking-wide leading-tight">{children}{required && <span className="text-red-500 ml-1">*</span>}</label>
+}
+function FieldHint({ children }) {
+  return <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-1">{children}</p>
 }
 function Input({ value, onChange, placeholder, type = 'text', required, field }) {
   const handleChange = e => {
@@ -201,16 +204,19 @@ function BookingModal({ booking, onClose, onSave, userName }) {
           )}
           <Grid2>
             <div>
-              <FieldLabel>Fare (Rs. — company)</FieldLabel>
+              <FieldLabel>Fare</FieldLabel>
               <Input type="number" value={form.fare} onChange={e=>upd({fare:e.target.value})} placeholder="0" field="fare" />
+              <FieldHint>Rs. — company</FieldHint>
             </div>
             <div>
-              <FieldLabel>Driver Allowance (Rs. — salary)</FieldLabel>
+              <FieldLabel>Driver Allowance</FieldLabel>
               <Input type="number" value={form.driverAllowance ?? ''} onChange={e=>upd({driverAllowance:e.target.value})} placeholder="e.g. 1000" field="fare" />
+              <FieldHint>Rs. — salary</FieldHint>
             </div>
             <div>
-              <FieldLabel>Bata (Rs. — customer extra)</FieldLabel>
+              <FieldLabel>Bata</FieldLabel>
               <Input type="number" value={form.bata ?? ''} onChange={e=>upd({bata:e.target.value})} placeholder="0" field="fare" />
+              <FieldHint>Rs. — customer extra</FieldHint>
             </div>
             <div className="col-span-2">
               <FieldLabel>Status</FieldLabel>
