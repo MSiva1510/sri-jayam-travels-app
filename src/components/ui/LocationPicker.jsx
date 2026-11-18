@@ -63,8 +63,8 @@ export function LocationPicker({ label, value, onChange, error, required = true 
 
   // Keep the latest picker callback in a ref so the Leaflet click handler
   // never needs re-registering (stable handler → reliable repeat picking).
-  const onPickRef = useRef(onPick)
-  useEffect(() => { onPickRef.current = onPick }, [onPick])
+  const onPickRef = useRef(handleMapPick)
+  useEffect(() => { onPickRef.current = handleMapPick }, [handleMapPick])
 
   const handleLiveLocation = async () => {
     if (!navigator.geolocation) {
