@@ -47,13 +47,17 @@ function MapClickHandler({ onPickRef }) {
   return null
 }
 
-export function LocationPicker({ label, value, onChange, error, required = true, showLabel = true }) {
+export function LocationPicker({ label, value, onChange, error, required = true, showLabel = true, placeholder = 'Share location, paste maps link, or type place name (e.g. Puducherry Bus Stand)' }) {
   const [locating, setLocating] = useState(false)
   const [parsed, setParsed] = useState(null) // { lat, lng, label, raw }
   const [mode, setMode] = useState('search') // 'search' | 'map' — pick-up / drop via map marker + popup
   const [text, setText] = useState(value || '') // what the user typed — kept separate from the resolved value
 
-  useEffect(() => { setText(value || '') }, [value])
+  useEffect(() => {
+    setText(value || '')
+    // A cleared route must also drop the pin / resolved-location badge.
+    if (!value) setParsed(null)
+  }, [value])
 
   const handleMapPick = useCallback(async ({ lat, lng }) => {
     const la = Number(lat)
@@ -186,7 +190,7 @@ export function LocationPicker({ label, value, onChange, error, required = true,
           <input
             type="text"
             value={text}
-            placeholder="Share location, paste maps link, or type place name (e.g. Puducherry Bus Stand)"
+            placeholder={placeholder}
             onChange={handleTextChange}
             onBlur={handleBlur}
             className="w-full pl-10 pr-3.5 py-2.5 text-sm rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 transition-all dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:ring-teal-400/40 dark:focus:border-teal-500"

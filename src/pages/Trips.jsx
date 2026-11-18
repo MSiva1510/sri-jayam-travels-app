@@ -5,9 +5,9 @@ import {
   Calendar, CalendarDays, List, Car,
   CheckCircle, X, Edit2, Trash2, UserCheck,
   ChevronLeft, ChevronRight, AlertTriangle, Navigation, Clock,
-  MessageCircle, IndianRupee,
+  MessageCircle,
 } from 'lucide-react'
-import LocationPicker from '../components/ui/LocationPicker'
+import BookingModal from '../components/booking/BookingModal'
 import PageHeader   from '../components/ui/PageHeader'
 import Avatar       from '../components/ui/Avatar'
 import ModalOverlay from '../components/ui/ModalOverlay'
@@ -19,13 +19,13 @@ import StatusPill   from '../components/ui/StatusPill'
 import Callout      from '../components/ui/Callout'
 import EmptyState   from '../components/ui/EmptyState'
 import IconButton   from '../components/ui/IconButton'
-import { fieldCls, Select as FieldSelect, Textarea as FieldTextarea } from '../components/ui/Field'
+import { Select as FieldSelect, Textarea as FieldTextarea } from '../components/ui/Field'
 import { useAuth }  from '../context/AuthContext'
 import {
-  TRIP_TYPE_CONFIG, TRIP_TYPE_LIST, BOOKING_STATUSES,
+  TRIP_TYPE_CONFIG, TRIP_TYPE_LIST,
   DRIVER_AVAIL_CFG, VEHICLE_AVAIL_CFG,
   getStatusCfg, getDriverAvailability, getVehicleAvailability,
-  generateBookingNumber, loadBookings, saveBooking, deleteBooking,
+  loadBookings, saveBooking, deleteBooking,
   getWorkflowTransitions,
 } from '../data/tripTypes'
 import { loadDrivers } from '../data/driverData'
@@ -34,7 +34,6 @@ import { addAuditEvent }    from '../data/auditLogData'
 import { loadTripRoute, calcRouteDistanceKm } from '../data/gpsHistoryData'
 import { loadGPSHistory }   from '../hooks/useGPS'
 import { loadTimeline, addTimelineEvent, fmtTimelineTime, getEventCfg } from '../data/tripTimelineData'
-import { upsertCustomerFromBooking, findCustomerByMobile, loadCustomers } from '../data/customerData'
 import { notify } from '../services/notificationService'
 import { pageSizeFor } from '../utils/zoomPageSize'
 
@@ -68,178 +67,7 @@ function AvailDot({ avail, cfgMap }) {
   const cfg = cfgMap[avail] || cfgMap.available
   return <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.badge}`}><span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />{cfg.label}</span>
 }
-function FieldLabel({ children, required }) {
-  return <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5 uppercase tracking-wide leading-tight">{children}{required && <span className="text-red-500 ml-1">*</span>}</label>
-}
-function FieldHint({ children }) {
-  return <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-1">{children}</p>
-}
-function Input({ value, onChange, placeholder, type = 'text', required, field }) {
-  const handleChange = e => {
-    let v = e.target.value
-    if (field === 'contact') v = v.replace(/\D/g,'').slice(0,10)
-    if (field === 'customer') { v = v.slice(0,60); if (v.length > 0 && !/^[a-zA-Z0-9\s\-'.&()]*$/.test(v)) v = v.slice(0,-1) }
-    if (type === 'number' && field === 'fare' && Number(v) < 0) v = '0'
-    onChange({ target: { value: v } })
-  }
-  return <input type={type} value={value} onChange={handleChange} placeholder={placeholder} required={required}
-    className={fieldCls} />
-}
-function Select({ value, onChange, children, required }) {
-  return <FieldSelect value={value} onChange={onChange} required={required}>{children}</FieldSelect>
-}
-function Grid2({ children }) { return <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{children}</div> }
-
-// ── Create / Edit Modal ───────────────────────────────────────
-function BookingModal({ booking, onClose, onSave, userName }) {
-  const isEdit = !!booking?.bookingNo
-  const [form, setForm] = useState(() => booking || {
-    customer:'', contact:'', type:'one_way',
-    pickup:'', drop:'', startDate:'', startTime:'',
-    returnDate:'', returnTime:'', notes:'', fare:'', bata:'', driverAllowance:'', status:'draft',
-  })
-  const [errors, setErrors] = useState({})
-  const [suggestions, setSuggestions] = useState([])
-  const [showSugg, setShowSugg] = useState(false)
-  const [allCustomers, setAllCustomers] = useState([])
-  useEffect(() => { loadCustomers().then(cs => setAllCustomers(Array.isArray(cs) ? cs.filter(x=>!x._deleted) : [])) }, [])
-  const upd = patch => setForm(f => ({ ...f, ...patch }))
-
-  const handleCustomerChange = val => {
-    upd({ customer: val })
-    if (val.length >= 2) {
-      const matches = allCustomers.filter(c => (c.name??'').toLowerCase().includes(val.toLowerCase()) || (c.mobile&&c.mobile.includes(val))).slice(0,5)
-      setSuggestions(matches); setShowSugg(matches.length > 0)
-    } else setShowSugg(false)
-  }
-  const handleContactChange = val => {
-    const digits = val.replace(/\D/g,'').slice(0,10)
-    upd({ contact: digits })
-    if (digits.length === 10) { const m = findCustomerByMobile(digits); if (m) { upd({ customer:m.name, contact:digits }); setShowSugg(false) } }
-  }
-  const selectCustomer = c => { upd({ customer:c.name, contact:c.mobile||form.contact }); setShowSugg(false) }
-
-  const validate = () => {
-    const e = {}
-    if (!form.customer.trim()) e.customer  = 'Required'
-    if (!form.type)            e.type      = 'Required'
-    if (!form.pickup.trim())   e.pickup    = 'Required'
-    if (!form.startDate)       e.startDate = 'Required'
-    return e
-  }
-  const handleSave = () => {
-    const e = validate(); if (Object.keys(e).length) { setErrors(e); return }
-    const now = new Date().toISOString()
-    const saved = { ...form, id:form.id||generateBookingNumber(), bookingNo:form.bookingNo||generateBookingNumber(),
-      fare:Number(form.fare)||0, bata:Number(form.bata)||0, driverAllowance:Number(form.driverAllowance)||0, createdAt:form.createdAt||now, updatedAt:now,
-      createdBy:form.createdBy||userName||'manager', driver:form.driver||null, vehicle:form.vehicle||null }
-    upsertCustomerFromBooking({ name:form.customer, mobile:form.contact })
-    onSave(saved)
-  }
-
-  return (
-    <ModalOverlay onClose={onClose}>
-      <div className="relative w-full sm:w-[520px] max-h-[92vh] sm:max-h-[85vh] ap-surface rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
-        <div className="w-10 h-1 bg-slate-500/20 rounded-full mx-auto mt-3 mb-1 sm:hidden flex-shrink-0" />
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--ap-border)] flex-shrink-0">
-          <div>
-            <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{isEdit ? 'Edit Booking' : 'New Booking'}</p>
-            <h3 className="font-sf font-semibold text-slate-900 dark:text-white text-base tracking-tight">{isEdit ? form.bookingNo : 'Create Booking'}</h3>
-          </div>
-          <IconButton icon={X} label="Close booking form" size={16} onClick={onClose} className="w-9 h-9 rounded-xl bg-slate-500/10" />
-        </div>
-        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
-          <Grid2>
-            <div className="relative">
-              <FieldLabel required>Customer Name</FieldLabel>
-              <Input value={form.customer} onChange={e=>handleCustomerChange(e.target.value)} placeholder="Full name or company" required field="customer" />
-              {errors.customer && <p className="text-xs text-red-500 mt-1">{errors.customer}</p>}
-              {showSugg && (
-                <div className="absolute z-50 top-full left-0 right-0 mt-1 ap-surface-elevated border border-[var(--ap-border)] rounded-xl shadow-xl overflow-hidden">
-                  {suggestions.map(c => (
-                    <button key={c.id} type="button" onClick={() => selectCustomer(c)}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-[var(--ap-surface-2)] transition-colors text-left">
-                      <div className="w-7 h-7 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0 text-xs font-semibold text-blue-600 dark:text-blue-400">{(c.name??'').charAt(0)}</div>
-                      <div className="min-w-0"><p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{c.name}</p><p className="text-[10px] text-slate-500 dark:text-slate-400">{c.mobile||'—'}</p></div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div>
-              <FieldLabel>Contact</FieldLabel>
-              <Input type="tel" value={form.contact} onChange={e=>handleContactChange(e.target.value)} placeholder="10-digit mobile" field="contact" />
-            </div>
-          </Grid2>
-          <div>
-            <FieldLabel required>Trip Type</FieldLabel>
-            <Select value={form.type} onChange={e=>upd({type:e.target.value})} required>
-              {TRIP_TYPE_LIST.map(t => <option key={t.id} value={t.id}>{t.icon} {t.label}</option>)}
-            </Select>
-            {errors.type && <p className="text-xs text-red-500 mt-1">{errors.type}</p>}
-          </div>
-          <div>
-            <FieldLabel required>Pickup Location</FieldLabel>
-            <LocationPicker value={form.pickup} onChange={e => upd({ pickup: e })} error={errors.pickup} required label="Pickup Location" showLabel={false} />
-            {errors.pickup && <p className="text-xs text-red-500 mt-1">{errors.pickup}</p>}
-          </div>
-          <div>
-            <FieldLabel>Drop / Destination</FieldLabel>
-            <LocationPicker value={form.drop} onChange={e => upd({ drop: e })} error={errors.drop} label="Drop / Destination" required={false} showLabel={false} />
-            {errors.drop && <p className="text-xs text-red-500 mt-1">{errors.drop}</p>}
-          </div>
-          <Grid2>
-            <div>
-              <FieldLabel required>Pickup Date</FieldLabel>
-              <Input type="date" value={form.startDate} onChange={e=>upd({startDate:e.target.value})} required />
-              {errors.startDate && <p className="text-xs text-red-500 mt-1">{errors.startDate}</p>}
-            </div>
-            <div><FieldLabel>Pickup Time</FieldLabel><Input type="time" value={form.startTime} onChange={e=>upd({startTime:e.target.value})} /></div>
-          </Grid2>
-          {form.type === 'round_trip' && (
-            <Grid2>
-              <div><FieldLabel>Return Date</FieldLabel><Input type="date" value={form.returnDate||''} onChange={e=>upd({returnDate:e.target.value})} /></div>
-              <div><FieldLabel>Return Time</FieldLabel><Input type="time" value={form.returnTime||''} onChange={e=>upd({returnTime:e.target.value})} /></div>
-            </Grid2>
-          )}
-          <Grid2>
-            <div>
-              <FieldLabel>Fare</FieldLabel>
-              <Input type="number" value={form.fare} onChange={e=>upd({fare:e.target.value})} placeholder="0" field="fare" />
-              <FieldHint>Rs. — company</FieldHint>
-            </div>
-            <div>
-              <FieldLabel>Driver Allowance</FieldLabel>
-              <Input type="number" value={form.driverAllowance ?? ''} onChange={e=>upd({driverAllowance:e.target.value})} placeholder="e.g. 1000" field="fare" />
-              <FieldHint>Rs. — salary</FieldHint>
-            </div>
-            <div>
-              <FieldLabel>Bata</FieldLabel>
-              <Input type="number" value={form.bata ?? ''} onChange={e=>upd({bata:e.target.value})} placeholder="0" field="fare" />
-              <FieldHint>Rs. — customer extra</FieldHint>
-            </div>
-            <div className="col-span-2">
-              <FieldLabel>Status</FieldLabel>
-              <Select value={form.status} onChange={e=>upd({status:e.target.value})}>
-                {BOOKING_STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-              </Select>
-            </div>
-          </Grid2>
-          <div>
-            <FieldLabel>Notes</FieldLabel>
-            <FieldTextarea value={form.notes} onChange={e=>upd({notes:e.target.value})} placeholder="Special instructions, passenger count…" rows={2} />
-          </div>
-        </div>
-        <div className="px-5 py-4 border-t border-[var(--ap-border)] flex gap-2 flex-shrink-0">
-          <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" className="flex-1" onClick={handleSave}>
-            {isEdit ? 'Save Changes' : 'Create Booking'}
-          </Button>
-        </div>
-      </div>
-    </ModalOverlay>
-  )
-}
+// Booking form lives in src/components/booking/BookingModal.jsx
 
 // ── Assign Modal ──────────────────────────────────────────────
 function AssignModal({ booking, bookings, drivers, vehicles, onClose, onAssign }) {
