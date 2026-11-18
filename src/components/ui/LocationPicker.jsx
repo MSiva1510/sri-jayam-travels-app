@@ -6,8 +6,9 @@
 //   4. Typed place name ("Puducherry Bus Stand")
 // Returns { lat, lng, label, raw } resolved via forwardGeocode/parseLocation.
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
+import L from 'leaflet'
 import { MapPin, Link, Search } from 'lucide-react'
 import { forwardGeocode, parseLocation, reverseGeocode } from '../../utils/locationUtils'
 
@@ -22,7 +23,15 @@ function Label({ children, required }) {
 
 const MAP_DEFAULT_CENTER = [11.9416, 79.8083] // Puducherry
 
-function MapClickHandler({ onPick }) {
+const PIN_ICON = new L.divIcon({
+  className: 'sjt-location-pin',
+  html: `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="42" viewBox="0 0 30 42"><path d="M15 0C6.7 0 0 6.7 0 15c0 11.5 15 27 15 27s15-15.5 15-15.5C30 6.7 23.3 0 15 0z" fill="#2563eb" stroke="#ffffff" stroke-width="1.6"/><circle cx="15" cy="15" r="6.5" fill="#ffffff"/></svg>`,
+  iconSize: [30, 42],
+  iconAnchor: [15, 42],
+  popupAnchor: [0, -42],
+})
+
+function MapClickHandler({ onPickRef }) {
   const map = useMap()
   useEffect(() => {
     if (!map) return
@@ -30,11 +39,11 @@ function MapClickHandler({ onPick }) {
       const lat = e?.latlng?.lat ?? e?.latlng?.Lat
       const lng = e?.latlng?.lng ?? e?.latlng?.Lng
       if (typeof lat !== 'number' || typeof lng !== 'number') return
-      onPick({ lat, lng })
+      onPickRef.current({ lat, lng })
     }
     map.on('click', handler)
     return () => map.off('click', handler)
-  }, [map, onPick])
+  }, [map, onPickRef])
   return null
 }
 
@@ -51,6 +60,11 @@ export function LocationPicker({ label, value, onChange, error, required = true 
     setParsed({ lat: la, lng: ln, label: resolvedLabel || `${la.toFixed(4)}, ${ln.toFixed(4)}`, raw })
     onChange(resolvedLabel || raw)
   }, [onChange])
+
+  // Keep the latest picker callback in a ref so the Leaflet click handler
+  // never needs re-registering (stable handler → reliable repeat picking).
+  const onPickRef = useRef(onPick)
+  useEffect(() => { onPickRef.current = onPick }, [onPick])
 
   const handleLiveLocation = async () => {
     if (!navigator.geolocation) {
@@ -145,9 +159,9 @@ export function LocationPicker({ label, value, onChange, error, required = true 
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             />
-            <MapClickHandler onPick={handleMapPick} />
+            <MapClickHandler onPickRef={onPickRef} />
             {parsed && (
-              <Marker position={[parsed.lat, parsed.lng]}>
+              <Marker position={[parsed.lat, parsed.lng]} icon={PIN_ICON}>
                 <Popup>
                   <div className="text-xs">
                     <p className="font-bold text-slate-700 dark:text-slate-200">{parsed.label}</p>
@@ -157,6 +171,9 @@ export function LocationPicker({ label, value, onChange, error, required = true 
               </Marker>
             )}
           </MapContainer>
+          <p className="absolute bottom-2 left-0 right-0 px-2 text-[10px] text-slate-500 dark:text-slate-400 pointer-events-none">
+            Click anywhere on the map to drop a pin · the popup shows the resolved area
+          </p>
         </div>
       ) : (
         <div className="relative">
@@ -166,9 +183,9 @@ export function LocationPicker({ label, value, onChange, error, required = true 
             placeholder="Share location, paste maps link, or type place name (e.g. Puducherry Bus Stand)"
             onChange={handleTextChange}
             onBlur={handleBlur}
-            className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 transition-all"
+            className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 transition-all dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:ring-teal-400/40 dark:focus:border-teal-500"
           />
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
         </div>
       )}
 
