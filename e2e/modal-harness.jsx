@@ -7,10 +7,11 @@ import '../src/index.css'
 import CustomerModal from '../src/components/customers/CustomerModal'
 import ExpenseModal from '../src/components/expenses/ExpenseModal'
 import AddDriverModal from '../src/components/drivers/AddDriverModal'
+import VehicleModal from '../src/components/vehicles/VehicleModal'
 
 const params = new URLSearchParams(window.location.search)
 const requested = params.get('modal')
-const modal = requested === 'expense' || requested === 'driver' ? requested : 'customer'
+const modal = ['customer', 'expense', 'driver', 'vehicle'].includes(requested) ? requested : 'customer'
 const dark = params.get('theme') === 'dark'
 const editing = params.get('mode') === 'edit'
 const driverMode = params.get('driver') === '1'
@@ -76,10 +77,50 @@ const driver = editing ? {
   medical_expiry: '2027-01-01',
 } : null
 
-// Seed the local driver store so the edit path can update an existing row.
-if (driver) {
-  window.localStorage.setItem('sjt_drivers', JSON.stringify([driver]))
+const dayStamp = offset => {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() + offset)
+  const pad = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
+
+// Relative dates keep the edit-mode assertions stable as time passes.
+const vehicleDates = {
+  insExpiry: dayStamp(200),
+  fcExpiry: dayStamp(900),
+  pucExpiry: dayStamp(45),
+  nextServiceDate: dayStamp(12),
+}
+harness.vehicleDates = vehicleDates
+
+// Edit-mode vehicle uses the DB snake_case columns the repository returns.
+const vehicle = editing ? {
+  id: 'vehicle-1',
+  vehicle_id: 'VEH-1001',
+  registration: 'PY01CY1255',
+  vehicle_type: '7+1 SUV',
+  model: 'Innova Crysta',
+  year: 2022,
+  color: 'Silver',
+  fuel_type: 'Diesel',
+  status: 'active',
+  current_km: 150734,
+  insurance_number: 'TATA-AIG-PY01CY1255',
+  insurance_expiry: vehicleDates.insExpiry,
+  fitness_cert_expiry: vehicleDates.fcExpiry,
+  pollution_cert_expiry: vehicleDates.pucExpiry,
+  last_service_km: 145000,
+  driver: 'Ravi Kumar',
+  // Local-only rows can carry the service dates the web form edits.
+  lastServiceDate: '2026-09-01',
+  nextServiceDate: vehicleDates.nextServiceDate,
+  nextServiceKm: 155000,
+} : null
+
+// Seed local stores so the edit paths can update existing rows.
+if (driver) window.localStorage.setItem('sjt_drivers', JSON.stringify([driver]))
+if (vehicle) window.localStorage.setItem('sjt_vehicles', JSON.stringify([vehicle]))
 
 const drivers = [
   { id: 'driver-1', name: 'Ravi Kumar', mobile: '9000000001', license: 'DL-001' },
@@ -118,6 +159,9 @@ function Harness() {
     }
     if (modal === 'driver') {
       return <AddDriverModal driver={driver} onClose={handleClose} onSaved={handleSave} />
+    }
+    if (modal === 'vehicle') {
+      return <VehicleModal vehicle={vehicle} onClose={handleClose} onSave={handleSave} />
     }
     return (
       <ExpenseModal

@@ -447,3 +447,224 @@ test('driver modal: mobile full-screen sheet, dark theme and Escape close', asyn
   await waitForClose(page)
   await expect(dialog).toHaveCount(0)
 })
+
+// ── Vehicle modal ────────────────────────────────────────────────
+
+const isoDay = offset => {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() + offset)
+  const pad = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+const vehicleSection = (dialog, title) =>
+  dialog.locator('section').filter({ hasText: title })
+
+test('vehicle modal: desktop layout, sections, formatting and save payload', async ({ page }) => {
+  await page.goto(harnessURL('modal=vehicle'))
+
+  const dialog = page.getByRole('dialog', { name: 'Add Vehicle' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByText('Fleet Management')).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Vehicle Information', exact: true })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Service Tracking', exact: true })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Insurance Details', exact: true })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Permit Details', exact: true })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Fitness Certificate (FC)', exact: true })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Pollution Certificate (PUC)', exact: true })).toBeVisible()
+
+  const box = await dialog.boundingBox()
+  expect(box.width).toBeGreaterThanOrEqual(850)
+  expect(box.width).toBeLessThanOrEqual(950)
+  expectHorizontallyCentered(page, box)
+
+  // macOS-style geometry: 22px panel radius, 46–48px controls.
+  const panelRadius = await dialog.evaluate(el => getComputedStyle(el).borderRadius)
+  expect(panelRadius).toBe('22px')
+  const regBox = await dialog.locator('#veh-reg').boundingBox()
+  expect(regBox.height).toBeGreaterThanOrEqual(46)
+  expect(regBox.height).toBeLessThanOrEqual(48)
+
+  // Header and footer stay pinned while the form body scrolls.
+  await dialog.locator('div.overflow-y-auto').evaluate(el => { el.scrollTop = el.scrollHeight })
+  await expect(dialog.getByRole('button', { name: 'Close vehicle form' })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Add Vehicle' })).toBeVisible()
+
+  const submit = dialog.getByRole('button', { name: 'Add Vehicle' })
+  await expect(submit).toBeDisabled()
+
+  // Registration is uppercased and stripped of separators; model is required too.
+  await dialog.locator('#veh-reg').fill('py 01-ab!1234extra')
+  await expect(dialog.locator('#veh-reg')).toHaveValue('PY01AB1234EX')
+  await expect(submit).toBeDisabled()
+
+  await dialog.locator('#veh-model').fill('Innova Crysta')
+  await expect(submit).toBeEnabled()
+
+  await expect(dialog.locator('#veh-year')).toHaveValue(String(new Date().getFullYear()))
+  await dialog.locator('#veh-year').fill('2022')
+  await dialog.locator('#veh-type').selectOption('7+1 SUV')
+  await dialog.locator('#veh-km').fill('150734')
+  await dialog.locator('#veh-fuelType').selectOption('Diesel')
+  await dialog.locator('#veh-color').fill('Silver')
+  await dialog.locator('#veh-status').selectOption('maintenance')
+
+  // Service Tracking: numeric-only odometers and an overdue indicator.
+  await dialog.locator('#veh-lastServiceDate').fill('2026-09-01')
+  await dialog.locator('#veh-lastServiceKm').fill('145000')
+  await dialog.locator('#veh-nextServiceDate').fill(isoDay(-5))
+  await dialog.locator('#veh-nextServiceKm').fill('155000')
+  await expect(vehicleSection(dialog, 'Service Tracking').getByText(/Service due/)).toBeVisible()
+
+  // Documents: numbers are uppercased, expiry chips derive from the dates.
+  await dialog.locator('#veh-insProvider').fill('TATA AIG')
+  await dialog.locator('#veh-insNumber').fill('tata/aig-1234')
+  await expect(dialog.locator('#veh-insNumber')).toHaveValue('TATA/AIG-1234')
+  await dialog.locator('#veh-insExpiry').fill(isoDay(120))
+  await expect(vehicleSection(dialog, 'Insurance Details').getByText('Valid')).toBeVisible()
+
+  await dialog.locator('#veh-permitNumber').fill('kl/permit/0099')
+  await dialog.locator('#veh-permitExpiry').fill(isoDay(12))
+  await expect(vehicleSection(dialog, 'Permit Details').getByText(/Expiring Soon/)).toBeVisible()
+
+  await dialog.locator('#veh-fcNumber').fill('fc-7788')
+  await dialog.locator('#veh-fcExpiry').fill(isoDay(-4))
+  await expect(vehicleSection(dialog, 'Fitness Certificate (FC)').getByText(/Expired/)).toBeVisible()
+
+  await dialog.locator('#veh-pucNumber').fill('puc-4455')
+  // No PUC expiry yet: the section must not invent a status.
+  await expect(vehicleSection(dialog, 'Pollution Certificate (PUC)').getByText(/Valid|Expired|Expiring/)).toHaveCount(0)
+
+  await submit.click()
+  await expect.poll(() => page.evaluate(() => window.__modalHarness.saves.length)).toBe(1)
+  await waitForClose(page)
+
+  const payload = await getSave(page)
+  expect(payload.id).toMatch(/^VEH-/)
+  expect(payload).toMatchObject({
+    reg: 'PY01AB1234EX',
+    type: '7+1 SUV',
+    model: 'Innova Crysta',
+    year: '2022',
+    km: '150734',
+    fuelType: 'Diesel',
+    color: 'Silver',
+    status: 'maintenance',
+    lastServiceDate: '2026-09-01',
+    lastServiceKm: '145000',
+    nextServiceDate: isoDay(-5),
+    nextServiceKm: '155000',
+    insProvider: 'TATA AIG',
+    insNumber: 'TATA/AIG-1234',
+    insExpiry: isoDay(120),
+    permitNumber: 'KL/PERMIT/0099',
+    permitExpiry: isoDay(12),
+    fcNumber: 'FC-7788',
+    fcExpiry: isoDay(-4),
+    pucNumber: 'PUC-4455',
+  })
+  expect(payload.pucExpiry).toBe('')
+})
+
+test('vehicle modal: required messages and submit guard', async ({ page }) => {
+  await page.goto(harnessURL('modal=vehicle'))
+
+  const dialog = page.getByRole('dialog', { name: 'Add Vehicle' })
+  const submit = dialog.getByRole('button', { name: 'Add Vehicle' })
+  await expect(submit).toBeDisabled()
+
+  await dialog.locator('#veh-reg').click()
+  await dialog.locator('#veh-model').click()
+  await expect(dialog.getByText('Required', { exact: true })).toHaveCount(1)
+  await dialog.locator('#veh-reg').click()
+  await expect(dialog.getByText('Required', { exact: true })).toHaveCount(2)
+
+  await dialog.locator('#veh-reg').fill('PY01AB1234')
+  await expect(dialog.getByText('Required', { exact: true })).toHaveCount(1)
+  await expect(submit).toBeDisabled()
+
+  await dialog.locator('#veh-model').fill('Dzire')
+  await expect(dialog.getByText('Required', { exact: true })).toHaveCount(0)
+  await expect(submit).toBeEnabled()
+
+  // Cancel goes through the shared close animation.
+  await dialog.getByRole('button', { name: 'Cancel' }).click()
+  await waitForClose(page)
+  await expect(dialog).toHaveCount(0)
+})
+
+test('vehicle modal: edit flow keeps the existing vehicle id and snake_case values', async ({ page }) => {
+  await page.goto(harnessURL('modal=vehicle&mode=edit'))
+
+  const dialog = page.getByRole('dialog', { name: 'Edit Vehicle' })
+  await expect(dialog).toBeVisible()
+
+  await expect(dialog.locator('#veh-reg')).toHaveValue('PY01CY1255')
+  await expect(dialog.locator('#veh-type')).toHaveValue('7+1 SUV')
+  await expect(dialog.locator('#veh-model')).toHaveValue('Innova Crysta')
+  await expect(dialog.locator('#veh-year')).toHaveValue('2022')
+  await expect(dialog.locator('#veh-km')).toHaveValue('150734')
+  await expect(dialog.locator('#veh-fuelType')).toHaveValue('Diesel')
+  await expect(dialog.locator('#veh-color')).toHaveValue('Silver')
+  await expect(dialog.locator('#veh-status')).toHaveValue('active')
+  await expect(dialog.locator('#veh-insNumber')).toHaveValue('TATA-AIG-PY01CY1255')
+  const dates = await page.evaluate(() => window.__modalHarness.vehicleDates)
+  await expect(dialog.locator('#veh-insExpiry')).toHaveValue(dates.insExpiry)
+  await expect(dialog.locator('#veh-fcExpiry')).toHaveValue(dates.fcExpiry)
+  await expect(dialog.locator('#veh-pucExpiry')).toHaveValue(dates.pucExpiry)
+  await expect(dialog.locator('#veh-lastServiceKm')).toHaveValue('145000')
+  await expect(dialog.locator('#veh-nextServiceDate')).toHaveValue(dates.nextServiceDate)
+
+  // Read-only indicators come from the saved dates.
+  await expect(vehicleSection(dialog, 'Insurance Details').getByText('Valid')).toBeVisible()
+  await expect(vehicleSection(dialog, 'Service Tracking').getByText(/Due in \d+d/)).toBeVisible()
+
+  await dialog.locator('#veh-model').fill('Innova Hycross')
+  await dialog.getByRole('button', { name: 'Save Changes' }).click()
+  await expect.poll(() => page.evaluate(() => window.__modalHarness.saves.length)).toBe(1)
+  await waitForClose(page)
+
+  const payload = await getSave(page)
+  expect(payload).toMatchObject({
+    id: 'vehicle-1',
+    reg: 'PY01CY1255',
+    model: 'Innova Hycross',
+    type: '7+1 SUV',
+    km: 150734,
+  })
+})
+
+test('vehicle modal: mobile full-screen sheet, dark theme and Escape close', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto(harnessURL('modal=vehicle&theme=dark'))
+
+  const dialog = page.getByRole('dialog', { name: 'Add Vehicle' })
+  await expect(dialog).toBeVisible()
+  const box = await dialog.boundingBox()
+  expect(box.width).toBeGreaterThanOrEqual(385)
+  expect(box.width).toBeLessThanOrEqual(395)
+  expect(box.height).toBeGreaterThanOrEqual(840)
+  expect(box.height).toBeLessThanOrEqual(850)
+  expectHorizontallyCentered(page, box)
+
+  expect(await page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(true)
+  const surface = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue('--ap-surface').trim()
+  )
+  expect(surface).toBe('#121a26')
+
+  // Inputs stack to a single column on mobile and nothing overflows.
+  const regBox = await dialog.locator('#veh-reg').boundingBox()
+  const modelBox = await dialog.locator('#veh-model').boundingBox()
+  expect(modelBox.y).toBeGreaterThan(regBox.y + regBox.height)
+
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+  )
+  expect(overflow).toBeLessThanOrEqual(0)
+
+  await page.keyboard.press('Escape')
+  await waitForClose(page)
+  await expect(dialog).toHaveCount(0)
+})

@@ -16,6 +16,7 @@ import SegmentedControl from '../components/ui/SegmentedControl'
 import { fieldCls, Select as FieldSelect } from '../components/ui/Field'
 import { useToast } from '../components/ui/Toast'
 import ModalOverlay from '../components/ui/ModalOverlay'
+import VehicleModal from '../components/vehicles/VehicleModal'
 import { useAuth }  from '../context/AuthContext'
 import { vehicleRepository }                       from '../repositories/vehicleRepository'
 import { driverRepository }                        from '../repositories/driverRepository'
@@ -69,54 +70,9 @@ function DocRow({ icon: Icon, label, number, expiry }) {
 
 // ─────────────────────────────────────────────────────────────
 //  Add / Edit Vehicle Modal
-//  Field helpers defined OUTSIDE modal — prevents remount on keystroke
+//  Component + field helpers now live in
+//  src/components/vehicles/VehicleModal.jsx
 // ─────────────────────────────────────────────────────────────
-const EMPTY_VEHICLE = {
-  id: null, reg:'', type:'4+1 Sedan', model:'', year: new Date().getFullYear(),
-  km:0, status:'active', fuelType:'Petrol', color:'White', driver:'',
-  lastServiceDate:'', lastServiceKm:'', nextServiceDate:'', nextServiceKm:'',
-  insProvider:'', insNumber:'', insExpiry:'',
-  permitNumber:'', permitExpiry:'',
-  fcNumber:'', fcExpiry:'',
-  pucNumber:'', pucExpiry:'',
-}
-
-function VField({ label, field, type='text', required, value, onChange }) {
-  const handleChange = (e) => {
-    let v = e.target.value
-    if (field === 'reg')          { v = v.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12) }
-    if (field === 'model')        { v = v.slice(0, 40) }
-    if (field === 'color')        { v = v.replace(/[^a-zA-Z\s]/g, '').slice(0, 20) }
-    if (field === 'year')         { v = v.replace(/\D/g, '').slice(0, 4) }
-    if (['lastServiceKm','nextServiceKm','km'].includes(field)) {
-      v = v.replace(/\D/g, '').slice(0, 7)
-    }
-    if (['insNumber','permitNumber','fcNumber','pucNumber'].includes(field)) {
-      v = v.toUpperCase().replace(/[^A-Z0-9\-/]/g, '').slice(0, 20)
-    }
-    onChange(field, v)
-  }
-  return (
-    <div>
-      <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-        {label}{required && <span className="text-red-500 ml-1">*</span>}
-      </label>
-      <input type={type} value={value || ''} onChange={handleChange} required={required}
-        className={fieldCls} />
-    </div>
-  )
-}
-
-function VSelectField({ label, field, options, value, onChange }) {
-  return (
-    <div>
-      <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">{label}</label>
-      <FieldSelect value={value || ''} onChange={e => onChange(field, e.target.value)}>
-        {options.map(o => <option key={o}>{o}</option>)}
-      </FieldSelect>
-    </div>
-  )
-}
 
 // ── Vehicle Service Panel (Module 8) ─────────────────────────
 const SVC_TYPES = [
@@ -289,97 +245,6 @@ function VehicleServicePanel({ vehicle: v }) {
         </div>
       )}
     </div>
-  )
-}
-
-function VSectionHead({ title }) {
-  return <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest pt-2 pb-1 border-t border-[var(--ap-border)] mt-2">{title}</p>
-}
-
-function VehicleModal({ vehicle, onClose, onSave }) {
-  const [form,   setForm]   = useState(() => vehicle ? { ...vehicle } : { ...EMPTY_VEHICLE, id: `VEH-${Date.now()}` })
-  const [saving, setSaving] = useState(false)
-  const upd = (field, value) => setForm(f => ({ ...f, [field]: value }))
-
-  const handleSave = async () => {
-    if (!form.reg) return
-    setSaving(true)
-    try {
-      let result
-      if (vehicle?.id) {
-        result = await vehicleRepository.update(vehicle.id, form)
-      } else {
-        result = await vehicleRepository.create(form)
-      }
-      onSave(result || form)
-    } catch (err) {
-      console.error('VehicleModal save failed:', err)
-      alert('Failed to save. Please try again.')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <ModalOverlay onClose={onClose}>
-      <div className="relative w-full sm:w-[500px] max-h-[92vh] sm:max-h-[85vh] ap-surface rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
-        <div className="w-10 h-1 bg-slate-500/20 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--ap-border)] flex-shrink-0">
-          <h3 className="font-sf font-semibold text-slate-900 dark:text-white text-base tracking-tight">
-            {vehicle ? 'Edit Vehicle' : 'Add Vehicle'}
-          </h3>
-          <IconButton icon={X} label="Close vehicle form" size={16} onClick={onClose} className="w-9 h-9 rounded-xl bg-slate-500/10" />
-        </div>
-
-        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <VField label="Reg. Number" field="reg" required value={form.reg} onChange={upd} />
-            <VSelectField label="Type" field="type" options={['4+1 Sedan','7+1 SUV','Tempo Traveller','Mini Van']} value={form.type} onChange={upd} />
-            <VField label="Model" field="model" required value={form.model} onChange={upd} />
-            <VField label="Year" field="year" type="number" value={form.year} onChange={upd} />
-            <VField label="Current KM" field="km" type="number" value={form.km} onChange={upd} />
-            <VSelectField label="Fuel Type" field="fuelType" options={['Petrol','Diesel','CNG','Electric']} value={form.fuelType} onChange={upd} />
-            <VField label="Color" field="color" value={form.color} onChange={upd} />
-            <VSelectField label="Status" field="status" options={['active','maintenance','offline']} value={form.status} onChange={upd} />
-          </div>
-          <VSectionHead title="Service Tracking" />
-          <div className="grid grid-cols-2 gap-3">
-            <VField label="Last Service Date" field="lastServiceDate" type="date" value={form.lastServiceDate} onChange={upd} />
-            <VField label="Last Service KM"   field="lastServiceKm"   type="number" value={form.lastServiceKm} onChange={upd} />
-            <VField label="Next Service Date" field="nextServiceDate" type="date" value={form.nextServiceDate} onChange={upd} />
-            <VField label="Next Service KM"   field="nextServiceKm"   type="number" value={form.nextServiceKm} onChange={upd} />
-          </div>
-          <VSectionHead title="Insurance" />
-          <div className="grid grid-cols-2 gap-3">
-            <VField label="Provider"   field="insProvider" value={form.insProvider} onChange={upd} />
-            <VField label="Policy No." field="insNumber"   value={form.insNumber}   onChange={upd} />
-            <div className="col-span-2"><VField label="Expiry Date" field="insExpiry" type="date" value={form.insExpiry} onChange={upd} /></div>
-          </div>
-          <VSectionHead title="Permit" />
-          <div className="grid grid-cols-2 gap-3">
-            <VField label="Permit No." field="permitNumber" value={form.permitNumber} onChange={upd} />
-            <VField label="Expiry"     field="permitExpiry" type="date" value={form.permitExpiry} onChange={upd} />
-          </div>
-          <VSectionHead title="Fitness Certificate (FC)" />
-          <div className="grid grid-cols-2 gap-3">
-            <VField label="FC No." field="fcNumber" value={form.fcNumber} onChange={upd} />
-            <VField label="Expiry" field="fcExpiry"  type="date" value={form.fcExpiry} onChange={upd} />
-          </div>
-          <VSectionHead title="Pollution Certificate (PUC)" />
-          <div className="grid grid-cols-2 gap-3">
-            <VField label="PUC No." field="pucNumber" value={form.pucNumber} onChange={upd} />
-            <VField label="Expiry"  field="pucExpiry" type="date" value={form.pucExpiry} onChange={upd} />
-          </div>
-        </div>
-
-        <div className="px-5 py-4 border-t border-[var(--ap-border)] flex gap-2 flex-shrink-0">
-          <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" className="flex-1" onClick={handleSave} disabled={!form.reg || saving}>
-            {saving ? 'Saving…' : (vehicle ? 'Save Changes' : 'Add Vehicle')}
-          </Button>
-        </div>
-      </div>
-    </ModalOverlay>
   )
 }
 
