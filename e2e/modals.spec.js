@@ -265,3 +265,185 @@ test('expense modal: mobile full-screen sheet, dark theme and driver restriction
   await waitForClose(page)
   await expect(dialog).toHaveCount(0)
 })
+
+test('driver modal: desktop layout, sections, validation and save payload', async ({ page }) => {
+  await page.goto(harnessURL('modal=driver'))
+
+  const dialog = page.getByRole('dialog', { name: 'New Driver' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByText('Driver Management')).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Personal Information', exact: true })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Driver Login', exact: true })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Bank Details', exact: true })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Emergency Contact', exact: true })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Driving Licence', exact: true })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Notes', exact: true })).toBeVisible()
+
+  const box = await dialog.boundingBox()
+  expect(box.width).toBeGreaterThanOrEqual(850)
+  expect(box.width).toBeLessThanOrEqual(950)
+  expectHorizontallyCentered(page, box)
+
+  // Header and footer stay pinned while the form body scrolls.
+  await dialog.locator('div.overflow-y-auto').evaluate(el => { el.scrollTop = el.scrollHeight })
+  await expect(dialog.getByRole('button', { name: 'Close driver form' })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Add Driver' })).toBeVisible()
+
+  // Submit stays disabled until the required fields are filled.
+  const submit = dialog.getByRole('button', { name: 'Add Driver' })
+  await expect(submit).toBeDisabled()
+
+  await dialog.locator('#drv-name').fill('Ravi Kumar')
+  await dialog.locator('#drv-mobile').fill('9000000001')
+  await expect(dialog.getByText('10/10')).toBeVisible()
+  await dialog.locator('#drv-license').fill('TN1234567890')
+
+  // Login fields show only while the toggle is on.
+  await expect(dialog.locator('#drv-email')).toBeVisible()
+  await dialog.getByRole('switch', { name: 'Create login' }).click()
+  await expect(dialog.locator('#drv-email')).toHaveCount(0)
+  await expect(dialog.locator('#drv-password')).toHaveCount(0)
+  await expect(submit).toBeEnabled()
+
+  // Licence upload rejects non-image/PDF, then accepts an image.
+  await dialog.locator('input[type="file"]').setInputFiles({
+    name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('nope'),
+  })
+  await expect(dialog.getByText('Only image or PDF files are allowed.')).toBeVisible()
+
+  await dialog.locator('input[type="file"]').setInputFiles({
+    name: 'licence.png', mimeType: 'image/png', buffer: Buffer.from('fake png payload'),
+  })
+  await expect(dialog.getByText('licence.png')).toBeVisible()
+  await expect(dialog.getByText('16 B · Image')).toBeVisible()
+
+  await dialog.locator('#drv-notes').fill('Weekend shifts only')
+  await submit.click()
+  await expect.poll(() => page.evaluate(() => window.__modalHarness.saves.length)).toBe(1)
+  await waitForClose(page)
+
+  const payload = await getSave(page)
+  expect(payload).toMatchObject({
+    name: 'Ravi Kumar',
+    mobile: '9000000001',
+    license: 'TN1234567890',
+    notes: 'Weekend shifts only',
+  })
+  expect(payload.id).toMatch(/^DRV-/)
+  expect(payload.license_photo_url).toMatch(/^data:image\/png;base64,/)
+  expect(payload).not.toHaveProperty('email')
+  expect(payload).not.toHaveProperty('password')
+  expect(payload).not.toHaveProperty('createLogin')
+})
+
+test('driver modal: required-field messages match the original form', async ({ page }) => {
+  await page.goto(harnessURL('modal=driver'))
+
+  const dialog = page.getByRole('dialog', { name: 'New Driver' })
+  await dialog.locator('#drv-name').click()
+  await dialog.locator('#drv-mobile').click()
+  await expect(dialog.getByText('Required', { exact: true })).toBeVisible()
+
+  await dialog.locator('#drv-mobile').fill('12345')
+  await dialog.locator('#drv-name').click()
+  await expect(dialog.getByText('10 digits required')).toBeVisible()
+
+  await dialog.locator('#drv-email').fill('not-an-email')
+  await dialog.locator('#drv-name').click()
+  await expect(dialog.getByText('Valid email required for login')).toBeVisible()
+
+  await dialog.locator('#drv-password').fill('123')
+  await dialog.locator('#drv-name').click()
+  await expect(dialog.getByText('Min 6 characters')).toBeVisible()
+})
+
+test('driver modal: create-login path never leaks credentials into the payload', async ({ page }) => {
+  await page.goto(harnessURL('modal=driver'))
+
+  const dialog = page.getByRole('dialog', { name: 'New Driver' })
+  await dialog.locator('#drv-name').fill('Suresh Babu')
+  await dialog.locator('#drv-mobile').fill('9000000002')
+  await dialog.locator('#drv-license').fill('TN0987654321')
+  await dialog.locator('#drv-email').fill('suresh@example.com')
+  await dialog.locator('#drv-password').fill('secret123')
+
+  // Password stays masked until the eye toggle is used.
+  await expect(dialog.locator('#drv-password')).toHaveAttribute('type', 'password')
+  await dialog.getByRole('button', { name: 'Show password' }).click()
+  await expect(dialog.locator('#drv-password')).toHaveAttribute('type', 'text')
+
+  // Offline harness: the auth call fails, but the driver must still save.
+  let alertText = ''
+  page.once('dialog', alert => { alertText = alert.message(); alert.accept() })
+  await dialog.getByRole('button', { name: 'Add Driver' }).click()
+  await expect.poll(() => page.evaluate(() => window.__modalHarness.saves.length)).toBe(1)
+  await waitForClose(page)
+
+  expect(alertText).toContain('login creation failed')
+  const payload = await getSave(page)
+  expect(payload).toMatchObject({ name: 'Suresh Babu', mobile: '9000000002' })
+  expect(payload).not.toHaveProperty('email')
+  expect(payload).not.toHaveProperty('password')
+})
+
+test('driver modal: edit flow keeps the existing driver id and snake_case values', async ({ page }) => {
+  await page.goto(harnessURL('modal=driver&mode=edit'))
+
+  const dialog = page.getByRole('dialog', { name: 'Ravi Kumar' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.locator('#drv-name')).toHaveValue('Ravi Kumar')
+  await expect(dialog.locator('#drv-mobile')).toHaveValue('9000000001')
+  await expect(dialog.locator('#drv-license')).toHaveValue('TN1234567890')
+  await expect(dialog.locator('#drv-licenseExpiry')).toHaveValue('2027-05-01')
+  await expect(dialog.locator('#drv-medicalExpiry')).toHaveValue('2027-01-01')
+  await expect(dialog.locator('#drv-bankName')).toHaveValue('State Bank of India')
+  await expect(dialog.locator('#drv-emergencyContact')).toHaveValue('9000000099')
+
+  // Login is create-only: no toggle and no credential fields on edit.
+  await expect(dialog.getByRole('switch')).toHaveCount(0)
+  await expect(dialog.locator('#drv-email')).toHaveCount(0)
+
+  await dialog.locator('#drv-vehicle').fill('TN09ZZ0009')
+  await dialog.getByRole('button', { name: 'Save Changes' }).click()
+  await expect.poll(() => page.evaluate(() => window.__modalHarness.saves.length)).toBe(1)
+  await waitForClose(page)
+
+  const payload = await getSave(page)
+  expect(payload).toMatchObject({ id: 'driver-1', name: 'Ravi Kumar', vehicle: 'TN09ZZ0009' })
+  expect(payload).not.toHaveProperty('license_photo_url')
+})
+
+test('driver modal: reset restores the initial values', async ({ page }) => {
+  await page.goto(harnessURL('modal=driver'))
+
+  const dialog = page.getByRole('dialog', { name: 'New Driver' })
+  await dialog.locator('#drv-name').fill('Temp Name')
+  await dialog.locator('#drv-notes').fill('temp note')
+  await dialog.getByRole('button', { name: 'Reset' }).click()
+  await expect(dialog.locator('#drv-name')).toHaveValue('')
+  await expect(dialog.locator('#drv-notes')).toHaveValue('')
+})
+
+test('driver modal: mobile full-screen sheet, dark theme and Escape close', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto(harnessURL('modal=driver&theme=dark'))
+
+  const dialog = page.getByRole('dialog', { name: 'New Driver' })
+  await expect(dialog).toBeVisible()
+  const box = await dialog.boundingBox()
+  expect(box.width).toBeGreaterThanOrEqual(385)
+  expect(box.width).toBeLessThanOrEqual(395)
+  expect(box.height).toBeGreaterThanOrEqual(840)
+  expect(box.height).toBeLessThanOrEqual(850)
+  expectHorizontallyCentered(page, box)
+
+  expect(await page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(true)
+  const surface = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue('--ap-surface').trim()
+  )
+  expect(surface).toBe('#121a26')
+
+  await page.keyboard.press('Escape')
+  await waitForClose(page)
+  await expect(dialog).toHaveCount(0)
+})

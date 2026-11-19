@@ -6,9 +6,11 @@ import { createRoot } from 'react-dom/client'
 import '../src/index.css'
 import CustomerModal from '../src/components/customers/CustomerModal'
 import ExpenseModal from '../src/components/expenses/ExpenseModal'
+import AddDriverModal from '../src/components/drivers/AddDriverModal'
 
 const params = new URLSearchParams(window.location.search)
-const modal = params.get('modal') === 'expense' ? 'expense' : 'customer'
+const requested = params.get('modal')
+const modal = requested === 'expense' || requested === 'driver' ? requested : 'customer'
 const dark = params.get('theme') === 'dark'
 const editing = params.get('mode') === 'edit'
 const driverMode = params.get('driver') === '1'
@@ -56,6 +58,29 @@ const expense = editing ? {
   notes: 'Existing toll note',
 } : null
 
+// Edit-mode driver uses the DB snake_case shape (as loaded from Supabase) so
+// the harness proves the modal still reads both aliases.
+const driver = editing ? {
+  id: 'driver-1',
+  driver_id: 'DRV-1001',
+  name: 'Ravi Kumar',
+  phone: '9000000001',
+  license_number: 'TN1234567890',
+  status: 'active',
+  joined_date: '2024-05-01',
+  license_expiry: '2027-05-01',
+  bank_name: 'State Bank of India',
+  emergency_contact: '9000000099',
+  vehicle: 'PY01XX1234',
+  badge: 'BADGE-77',
+  medical_expiry: '2027-01-01',
+} : null
+
+// Seed the local driver store so the edit path can update an existing row.
+if (driver) {
+  window.localStorage.setItem('sjt_drivers', JSON.stringify([driver]))
+}
+
 const drivers = [
   { id: 'driver-1', name: 'Ravi Kumar', mobile: '9000000001', license: 'DL-001' },
   { id: 'driver-2', name: 'Suresh Babu', mobile: '9000000002', license: 'DL-002' },
@@ -87,26 +112,32 @@ function Harness() {
     }
   }
 
+  const renderModal = () => {
+    if (modal === 'customer') {
+      return <CustomerModal customer={customer} onClose={handleClose} onSave={handleSave} />
+    }
+    if (modal === 'driver') {
+      return <AddDriverModal driver={driver} onClose={handleClose} onSaved={handleSave} />
+    }
+    return (
+      <ExpenseModal
+        expense={expense}
+        drivers={drivers}
+        vehicles={vehicles}
+        existingExpenses={[{ expenseNo: 'EXP-2611-0007' }]}
+        onClose={handleClose}
+        onSave={handleSave}
+        currentUser={{ name: 'Office Staff' }}
+        isDriver={driverMode}
+        uploadReceipt={uploadReceipt}
+      />
+    )
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--ap-bg)', color: 'var(--ap-text-1)', padding: 24 }}>
       <p id="harness-status">Harness ready: {modal}{dark ? ' / dark' : ' / light'}</p>
-      {open ? (
-        modal === 'customer' ? (
-          <CustomerModal customer={customer} onClose={handleClose} onSave={handleSave} />
-        ) : (
-          <ExpenseModal
-            expense={expense}
-            drivers={drivers}
-            vehicles={vehicles}
-            existingExpenses={[{ expenseNo: 'EXP-2611-0007' }]}
-            onClose={handleClose}
-            onSave={handleSave}
-            currentUser={{ name: 'Office Staff' }}
-            isDriver={driverMode}
-            uploadReceipt={uploadReceipt}
-          />
-        )
-      ) : (
+      {open ? renderModal() : (
         <button id="reopen" type="button" onClick={() => setOpen(true)}>Reopen modal</button>
       )}
     </div>
