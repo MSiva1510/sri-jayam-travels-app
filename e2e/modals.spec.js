@@ -126,6 +126,14 @@ test('expense modal: desktop layout, categories, dropdowns, receipt and save pay
     'maintenance', 'repair', 'permit', 'insurance', 'misc',
   ])
 
+  const typeLabels = await dialog.locator('#exp-type option').evaluateAll(
+    options => options.map(option => option.textContent.trim()).filter(Boolean)
+  )
+  expect(typeLabels).toEqual([
+    '— Select type —', 'Fuel', 'Toll', 'Parking', 'Driver Bata', 'Food',
+    'Maintenance', 'Repair', 'Permit', 'Insurance', 'Miscellaneous',
+  ])
+
   const dropdowns = dialog.locator('button[aria-haspopup="listbox"]')
   await dropdowns.nth(0).click()
   await dialog.locator('input[role="combobox"]').fill('Ravi')

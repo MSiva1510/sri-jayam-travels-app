@@ -587,7 +587,7 @@ export default function ExpenseModal({
               >
                 <option value="">— Select type —</option>
                 {allowedTypes.map(t => (
-                  <option key={t.key} value={t.key}>{t.icon} {t.label}</option>
+                  <option key={t.key} value={t.key}>{t.label}</option>
                 ))}
               </SelectField>
               <TextField
