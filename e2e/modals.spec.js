@@ -8,6 +8,12 @@ const waitForClose = page => expect.poll(
 
 const getSave = page => page.evaluate(() => window.__modalHarness.saves[0])
 
+const expectHorizontallyCentered = (page, box) => {
+  const viewport = page.viewportSize()
+  const dialogCenter = box.x + box.width / 2
+  expect(Math.abs(dialogCenter - viewport.width / 2)).toBeLessThan(2)
+}
+
 test('customer modal: desktop layout, sections, validation and save payload', async ({ page }) => {
   await page.goto(harnessURL('modal=customer'))
   await expect(page.locator('#harness-status')).toContainText('Harness ready')
@@ -23,6 +29,7 @@ test('customer modal: desktop layout, sections, validation and save payload', as
   expect(box.width).toBeGreaterThanOrEqual(650)
   expect(box.width).toBeLessThanOrEqual(720)
   expect(box.height).toBeLessThanOrEqual(900)
+  expectHorizontallyCentered(page, box)
 
   // Header and footer remain visible while the form body scrolls.
   await dialog.locator('div.overflow-y-auto').evaluate(el => { el.scrollTop = el.scrollHeight })
@@ -64,6 +71,7 @@ test('customer modal: mobile full-screen sheet, dark theme and Escape close', as
   expect(box.width).toBeLessThanOrEqual(395)
   expect(box.height).toBeGreaterThanOrEqual(840)
   expect(box.height).toBeLessThanOrEqual(850)
+  expectHorizontallyCentered(page, box)
 
   expect(await page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(true)
   const surface = await page.evaluate(() =>
@@ -81,6 +89,7 @@ test('customer modal: edit flow keeps the existing customer id', async ({ page }
 
   const dialog = page.getByRole('dialog', { name: 'Edit Customer' })
   await expect(dialog).toBeVisible()
+  expectHorizontallyCentered(page, await dialog.boundingBox())
   await expect(dialog.locator('#cus-name')).toHaveValue('Asha Traders')
   await expect(dialog.getByRole('radio', { name: 'Corporate' })).toHaveAttribute('aria-checked', 'true')
 
@@ -107,6 +116,7 @@ test('expense modal: desktop layout, categories, dropdowns, receipt and save pay
   const box = await dialog.boundingBox()
   expect(box.width).toBeGreaterThanOrEqual(850)
   expect(box.width).toBeLessThanOrEqual(950)
+  expectHorizontallyCentered(page, box)
 
   const typeValues = await dialog.locator('#exp-type option').evaluateAll(
     options => options.map(option => option.value).filter(Boolean)

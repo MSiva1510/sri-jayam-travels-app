@@ -58,9 +58,10 @@ export default function ModalOverlay({ onClose, center = false, closing = false,
         className={`fixed inset-0 z-[101] flex pointer-events-none ${align}`}
       >
         {/* Re-enable pointer events only for the panel itself.
-            w-full lets children using w-full become true full-screen
-            sheets on mobile while fixed-width dialogs stay centered. */}
-        <div className="pointer-events-auto w-full max-w-full">
+            The wrapper fills the viewport so w-full children become true
+            full-screen sheets on mobile; flex justify-center keeps
+            fixed-width dialogs centered on desktop. */}
+        <div className="pointer-events-auto flex w-full max-w-full justify-center">
           {children}
         </div>
       </div>
