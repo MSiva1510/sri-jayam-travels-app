@@ -44,11 +44,16 @@ test('booking conversation: menu → trip type → pickup → drop → date → 
   let s = botStep(null, { text: 'Hi', contactName: 'Mani Kumar' }, TODAY)
   assert.equal(s.replies[0].kind, 'buttons')
   assert.equal(s.welcome, true)
-  assert.match(s.replies[0].body, /Vanakkam Mani!/)
+  assert.match(s.replies[0].body, /^Vanakkam!/)
+  assert.doesNotMatch(s.replies[0].body, /Mani/, 'the unverified WhatsApp profile name is never displayed')
   assert.deepEqual(s.replies[0].buttons.map(b => b.id), ['book', 'status', 'staff'])
 
   s = botStep(s, { text: 'Book a trip', replyId: 'book' }, TODAY)
+  assert.equal(s.state, 'book_name', 'the name is the first booking question')
+  assert.match(s.replies.at(-1).body, /What name should we use/)
+  s = botStep(s, { text: 'Mani Kumar' }, TODAY)
   assert.equal(s.state, 'book_type')
+  assert.equal(s.data.customer_name, 'Mani Kumar')
   assert.deepEqual(s.replies.at(-1).buttons.map(b => b.id), ['one_way', 'round_trip', 'self_drive'])
 
   const badType = botStep(s, { text: 'someday' }, TODAY)
@@ -67,14 +72,40 @@ test('booking conversation: menu → trip type → pickup → drop → date → 
   s = botStep(s, { text: 'tomorrow' }, TODAY)
   s = botStep(s, { text: '5:30 am' }, TODAY)
   assert.equal(s.state, 'book_confirm')
-  assert.match(s.replies[0].body, /Trip: One way\nPickup: Ariyakuppam\nDrop: Chennai airport\nDate: 31 Oct 2026\nTime: 05:30/)
+  assert.match(s.replies[0].body, /Trip: One way\nPickup: Ariyakuppam\nDrop: Chennai airport\nDate: 31 Oct 2026\nTime: 05:30\nName: Mani Kumar/)
 
   const done = botStep(s, { text: 'Confirm', replyId: 'confirm' }, TODAY)
   assert.equal(done.state, null)
   assert.deepEqual(done.action, {
     type: 'create_booking',
-    booking: { type: 'one_way', pickup: 'Ariyakuppam', drop: 'Chennai airport', date: '2026-10-31', time: '05:30' },
+    booking: { customer_name: 'Mani Kumar', type: 'one_way', pickup: 'Ariyakuppam', drop: 'Chennai airport', date: '2026-10-31', time: '05:30' },
   })
+})
+
+test('name is asked first, validated, and carried into the booking', () => {
+  let s = botStep(null, { text: 'book cab', contactName: 'Wrong Profile' }, TODAY)
+  assert.equal(s.state, 'book_name')
+  assert.doesNotMatch(s.replies[0].body, /Wrong Profile/, 'never trust the WhatsApp profile name')
+  assert.match(s.replies.at(-1).body, /name should we use/)
+
+  for (const bad of ['', '   ', 'a'.repeat(81)]) {
+    const again = botStep(s, { text: bad }, TODAY)
+    assert.equal(again.state, 'book_name', bad)
+    assert.equal(again.data.customer_name, undefined)
+    assert.match(again.replies[0].body, /Please type the name/)
+  }
+
+  s = botStep(s, { text: '  Selvaraj   Kumar  ' }, TODAY)
+  assert.equal(s.state, 'book_type')
+  assert.equal(s.data.customer_name, 'Selvaraj Kumar')
+  assert.match(s.replies[0].body, /Which type of trip/)
+
+  // Cancel / back / menu still work from the name step.
+  for (const [text, expected] of [['cancel', /Cancelled/], ['back', /How can we help/], ['menu', /How can we help/]]) {
+    const out = botStep({ state: 'book_name', data: {} }, { text }, TODAY)
+    assert.equal(out.state, null, text)
+    assert.match(out.replies[0].body, expected, text)
+  }
 })
 
 test('trip type: one way, round trip (return date) and self drive (ID + licence)', () => {
@@ -88,6 +119,7 @@ test('trip type: one way, round trip (return date) and self drive (ID + licence)
 
   // Round trip asks for the return date and keeps it with the booking.
   let s = botStep(null, { text: 'book cab' }, TODAY)
+  s = botStep(s, { text: 'Mani Kumar' }, TODAY)
   assert.equal(s.state, 'book_type')
   s = botStep(s, { text: 'Round trip', replyId: 'round_trip' }, TODAY)
   s = botStep(s, { text: 'Ariyakuppam' }, TODAY)
@@ -107,6 +139,7 @@ test('trip type: one way, round trip (return date) and self drive (ID + licence)
 
   // Self drive collects the ID and licence once, then books.
   s = botStep(null, { text: 'Book a trip', replyId: 'book' }, TODAY)
+  s = botStep(s, { text: 'Mani Kumar' }, TODAY)
   s = botStep(s, { text: 'Self drive', replyId: 'self_drive' }, TODAY)
   assert.equal(s.data.self_drive, true)
   s = botStep(s, { text: 'Ariyakuppam' }, TODAY)
@@ -129,7 +162,8 @@ test('trip type: one way, round trip (return date) and self drive (ID + licence)
 
 test('Vanakkam is only sent for the first message when it is exactly Hi', () => {
   const firstHi = botStep(null, { text: 'Hi', contactName: 'Mani Kumar' }, TODAY)
-  assert.match(firstHi.replies[0].body, /^Vanakkam Mani!/)
+  assert.match(firstHi.replies[0].body, /^Vanakkam!/)
+  assert.doesNotMatch(firstHi.replies[0].body, /Mani/)
 
   const firstHello = botStep(null, { text: 'Hello', contactName: 'Mani Kumar' }, TODAY)
   assert.doesNotMatch(firstHello.replies[0].body, /Vanakkam/)
@@ -174,6 +208,7 @@ test('locations: WhatsApp shares, maps links and typed coordinates are understoo
 
 test('booking conversation: location request button, location share and maps link', () => {
   let s = botStep(null, { text: 'Book a trip', replyId: 'book' }, TODAY)
+  s = botStep(s, { text: 'Mani Kumar' }, TODAY)
   s = botStep(s, { text: 'One way', replyId: 'one_way' }, TODAY)
   assert.equal(s.state, 'book_pickup')
   const locReply = s.replies.find(r => r.kind === 'location')
@@ -199,9 +234,12 @@ test('booking conversation: location request button, location share and maps lin
 
 test('bot starts with the welcome message before any flow reply', () => {
   const s = botStep(null, { text: 'Book a trip', replyId: 'book', contactName: 'Mani Kumar' }, TODAY)
-  assert.match(s.replies[0].body, /Vanakkam Mani!/)
-  assert.equal(s.state, 'book_type')
-  assert.match(s.replies[1].body, /Which type of trip do you need/)
+  assert.match(s.replies[0].body, /^Vanakkam!/)
+  assert.equal(s.state, 'book_name')
+  assert.match(s.replies[1].body, /What name should we use/)
+  const named = botStep(s, { text: 'Mani Kumar' }, TODAY)
+  assert.equal(named.state, 'book_type')
+  assert.match(named.replies[0].body, /Which type of trip do you need/)
 
   const later = botStep({ state: 'book_pickup', data: {}, welcome_checked_at: '2026-10-30T12:00:00.000Z' }, { text: 'Ariyakuppam' }, TODAY)
   assert.equal(later.replies.length, 1, 'no second welcome for returning conversations')
@@ -222,8 +260,8 @@ test('cancel, status, staff, booking intents and unknown text', () => {
   // "book cab"/"cab"/"taxi" … start the booking flow without the menu.
   for (const text of ['book cab', 'Book a Cab', 'cab', 'taxi', 'I want to book a cab', 'need a car']) {
     const r = botStep(null, { text }, TODAY)
-    assert.equal(r.state, 'book_type', text)
-    assert.deepEqual(r.replies.at(-1).buttons.map(b => b.id), ['one_way', 'round_trip', 'self_drive'], text)
+    assert.equal(r.state, 'book_name', text)
+    assert.match(r.replies.at(-1).body, /name should we use/, text)
   }
   assert.equal(botStep(null, { text: 'what is the fare?' }, TODAY).replies[0].kind, 'buttons')
   assert.equal(botStep(null, { text: 'what is the fare?' }, TODAY).state, null)
@@ -411,21 +449,21 @@ function fakeWorld({ staffRole = 'manager', failBookings = false } = {}) {
 }
 
 const sign = body => 'sha256=' + crypto.createHmac('sha256', ENV.WHATSAPP_APP_SECRET).update(body).digest('hex')
-function signed(message) {
+function signed(message, profileName = 'Mani Kumar') {
   const body = JSON.stringify({
     object: 'whatsapp_business_account',
     entry: [{ changes: [{ field: 'messages', value: {
       metadata: { phone_number_id: 'PNID' },
-      contacts: [{ wa_id: PHONE, profile: { name: 'Mani Kumar' } }],
+      contacts: [{ wa_id: PHONE, profile: { name: profileName } }],
       messages: [message],
     } }] }],
   })
   return { httpMethod: 'POST', headers: { 'x-hub-signature-256': sign(body) }, body }
 }
-function incoming(text, { id = crypto.randomUUID(), replyId } = {}) {
+function incoming(text, { id = crypto.randomUUID(), replyId, profileName } = {}) {
   return signed(replyId
     ? { from: PHONE, id, timestamp: '1793100000', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: replyId, title: text } } }
-    : { from: PHONE, id, timestamp: '1793100000', type: 'text', text: { body: text } })
+    : { from: PHONE, id, timestamp: '1793100000', type: 'text', text: { body: text } }, profileName)
 }
 function incomingLocation(location) {
   return signed({ from: PHONE, id: crypto.randomUUID(), timestamp: '1793100000', type: 'location', location })
@@ -441,7 +479,7 @@ test('webhook: a customer books a trip end to end, and a retried message is not 
   res = await webhook(hi, {}, ENV, fetch, NOW) // Meta retry
   assert.equal(JSON.parse(res.body).replied, 0)
 
-  for (const [text, replyId] of [['book cab', null], ['One way', 'one_way'], ['Ariyakuppam'], ['Chennai'], ['5/11'], ['skip'], ['Confirm', 'confirm']]) {
+  for (const [text, replyId] of [['book cab', null], ['Mani Kumar'], ['One way', 'one_way'], ['Ariyakuppam'], ['Chennai'], ['5/11'], ['skip'], ['Confirm', 'confirm']]) {
     await webhook(incoming(text, { replyId }), {}, ENV, fetch, NOW)
   }
   const booking = db.bookings.at(-1)
@@ -455,10 +493,34 @@ test('webhook: a customer books a trip end to end, and a retried message is not 
   assert.equal(db.conversations.get(PHONE).state, null)
 })
 
+test('webhook: the typed name overrides a wrong WhatsApp profile and customer record', async () => {
+  const { db, sent } = fakeWorld()
+  db.customers.push({ id: 'c1', name: 'Official Customer Name', is_vip: false, is_frequent_traveller: false })
+  const wrong = 'Wrong WhatsApp Name'
+
+  await webhook(incoming('Hi', { profileName: wrong }), {}, ENV, fetch, NOW)
+  assert.match(sent[0].interactive.body.text, /^Vanakkam!/)
+  assert.doesNotMatch(sent[0].interactive.body.text, /Wrong WhatsApp/)
+
+  for (const [text, replyId] of [
+    ['book cab', null], ['Selvaraj'], ['One way', 'one_way'], ['Ariyakuppam'], ['Chennai'],
+    ['5/11'], ['skip'], ['Confirm', 'confirm'],
+  ]) {
+    await webhook(incoming(text, { replyId, profileName: wrong }), {}, ENV, fetch, NOW)
+  }
+
+  const booking = db.bookings.at(-1)
+  assert.equal(booking.customer_name, 'Selvaraj')
+  assert.equal(db.conversations.get(PHONE).contact_name, 'Selvaraj', 'the inbox keeps the asked name')
+  assert.match(sent.at(-1).text.body, /Name: Selvaraj/)
+  // The approved templates read booking.customer_name — no template text changed.
+  assert.equal(dueMessages({ ...booking, status: 'approved' }, null, TODAY)[0].params[0], 'Selvaraj')
+})
+
 test('webhook: a round trip saves type and return date', async () => {
   const { db, sent } = fakeWorld()
   for (const [text, replyId] of [
-    ['book cab', null], ['Round trip', 'round_trip'], ['Ariyakuppam'], ['Chennai'],
+    ['book cab', null], ['Mani Kumar'], ['Round trip', 'round_trip'], ['Ariyakuppam'], ['Chennai'],
     ['5/11'], ['7/11'], ['skip'], ['Confirm', 'confirm'],
   ]) {
     await webhook(incoming(text, { replyId }), {}, ENV, fetch, NOW)
@@ -474,7 +536,7 @@ test('webhook: a round trip saves type and return date', async () => {
 test('webhook: a self drive saves the type and ID details', async () => {
   const { db, sent } = fakeWorld()
   for (const [text, replyId] of [
-    ['book cab', null], ['Self drive', 'self_drive'], ['Ariyakuppam'], ['Chennai'],
+    ['book cab', null], ['Mani Kumar'], ['Self drive', 'self_drive'], ['Ariyakuppam'], ['Chennai'],
     ['5/11'], ['skip'], ['Confirm', 'confirm'],
     ['1'], ['1234 5678 9012'], ['TN01-20200012345'], ['31/12/2030'], ['Confirm', 'confirm'],
   ]) {
@@ -497,6 +559,8 @@ test('webhook: a self drive saves the type and ID details', async () => {
 test('webhook: a customer books by sharing their live location and a maps link', async () => {
   const { db, sent } = fakeWorld()
   await webhook(incoming('Book a trip', { replyId: 'book' }), {}, ENV, fetch, NOW)
+  assert.match(sent.at(-1).text.body, /What name should we use/)
+  await webhook(incoming('Mani Kumar'), {}, ENV, fetch, NOW)
   assert.equal(sent.at(-1).type, 'interactive')
   assert.equal(sent.at(-1).interactive.type, 'button')
   await webhook(incoming('One way', { replyId: 'one_way' }), {}, ENV, fetch, NOW)
@@ -543,7 +607,7 @@ test('webhook: "Talk to staff" pauses the bot for 6 hours, then resumes it', asy
 
 test('webhook: a failed booking pauses the bot for 5 minutes only', async () => {
   const { db, sent } = fakeWorld({ failBookings: true })
-  for (const [text, replyId] of [['book cab', null], ['One way', 'one_way'], ['Ariyakuppam'], ['Chennai'], ['5/11'], ['skip'], ['Confirm', 'confirm']]) {
+  for (const [text, replyId] of [['book cab', null], ['Mani Kumar'], ['One way', 'one_way'], ['Ariyakuppam'], ['Chennai'], ['5/11'], ['skip'], ['Confirm', 'confirm']]) {
     await webhook(incoming(text, { replyId }), {}, ENV, fetch, NOW)
   }
   const conv = db.conversations.get(PHONE)
@@ -554,7 +618,7 @@ test('webhook: a failed booking pauses the bot for 5 minutes only', async () => 
   const before = sent.length
   await webhook(incoming('Hi'), {}, ENV, fetch, NOW + 4 * 60_000)
   assert.equal(sent.length, before, 'still paused after 4 minutes')
-  assert.equal(db.inbound.length, 8, 'the message is still stored for the inbox')
+  assert.equal(db.inbound.length, 9, 'the message is still stored for the inbox')
 
   await webhook(incoming('Hi'), {}, ENV, fetch, NOW + 5 * 60_000)
   assert.equal(sent.length, before + 1, 'bot resumes after 5 minutes')

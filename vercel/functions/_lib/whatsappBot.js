@@ -34,6 +34,7 @@ const TRIP_TYPE_LABEL = {
 
 const RESET_WORDS = ['hi', 'hii', 'hello', 'hey', 'menu', 'start', 'vanakkam', '0']
 const CANCEL_WORDS = ['cancel', 'stop', 'exit']
+const NAME_MAX_LENGTH = 80
 
 const BOOK_VERBS = /\b(?:book|booking|reserve|need|want|hire)\b/
 const BOOK_NOUNS = /\b(?:cab|taxi|car|trip|ride|vehicle)\b/
@@ -77,6 +78,12 @@ function norm(s) {
 function firstName(name) {
   const n = String(name ?? '').trim().split(/\s+/)[0]
   return n ? ` ${n}` : ''
+}
+
+/** Free-text name answer: strip control characters, collapse whitespace. */
+function cleanName(raw) {
+  const name = String(raw ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim()
+  return name && name.length <= NAME_MAX_LENGTH ? name : null
 }
 
 export function prettyDate(iso) {
@@ -200,10 +207,12 @@ export function locationText(raw) {
   return (loc.label ? `${loc.label} (${at})` : at).slice(0, 200)
 }
 
-function menu(contactName, welcome = false) {
+// `name` must already be an answer the customer typed. Meta's profile name is
+// frequently a nickname or a saved contact name, so it is never interpolated.
+function menu(name, welcome = false) {
   return buttons(
     `${welcome
-      ? `Vanakkam${firstName(contactName)}! Welcome to Sri Jayam Travels 🚖\n`
+      ? `Vanakkam${firstName(name)}! Welcome to Sri Jayam Travels 🚖\n`
       : ''}How can we help you?`,
     MENU_BUTTONS,
   )
@@ -218,6 +227,7 @@ function bookingSummary(d) {
   )
   if (d.return_date) rows.push(`Return: ${prettyDate(d.return_date)}`)
   rows.push(`Time: ${d.time ?? 'Not given'}`)
+  if (d.customer_name) rows.push(`Name: ${d.customer_name}`)
   return rows.join('\n')
 }
 
@@ -240,7 +250,44 @@ export function botStep(conv, msg, today) {
   // place, status ask … all get the "Vanakkam … Welcome" start of the chat).
   const greetFirst = (replies) => {
     if (conv?.welcome_checked_at || state) return replies
-    return [menu(msg.contactName, true), ...replies]
+    return [menu(data.customer_name, true), ...replies]
+  }
+
+  // Ask the customer for their own name before any trip detail. This step is
+  // handled before the global reset/cancel guards so an ordinary name such as
+  // "Hi" or "Stop" is not swallowed as a command.
+  if (state === 'book_name') {
+    if (CANCEL_WORDS.includes(input)) {
+      return done([buttons('Cancelled — no booking was made. What would you like to do?', MENU_BUTTONS)])
+    }
+    if (input === 'back' || RESET_WORDS.includes(input)) {
+      return done([menu(data.customer_name)], null, {})
+    }
+    const name = cleanName(raw)
+    if (!name) {
+      return done([text('Please type the name you would like us to use for this booking.')], state, data)
+    }
+    const answered = { ...data, customer_name: name }
+    // A conversation started before this step existed can reach Confirm with
+    // no name. Send it back to the summary with the typed name, never create
+    // a booking from a WhatsApp profile name.
+    if (data.name_return_state === 'book_confirm') {
+      const { name_return_state: _flag, ...next } = answered
+      return done(
+        [buttons(`Please check your trip:\n${bookingSummary(next)}`, [
+          { id: 'confirm', title: 'Confirm' },
+          { id: 'cancel', title: 'Cancel' },
+          { id: 'back', title: 'Back to menu' },
+        ])],
+        'book_confirm',
+        next,
+      )
+    }
+    return done(
+      [buttons('Which type of trip do you need?', TRIP_TYPE_BUTTONS)],
+      'book_type',
+      answered,
+    )
   }
 
   if (CANCEL_WORDS.includes(input) && state) {
@@ -248,7 +295,7 @@ export function botStep(conv, msg, today) {
   }
   if (RESET_WORDS.includes(input)) {
     return {
-      ...done([menu(msg.contactName, isFirstHi)]),
+      ...done([menu(data.customer_name, isFirstHi)]),
       welcome: isFirstHi,
     }
   }
@@ -256,7 +303,7 @@ export function botStep(conv, msg, today) {
   // "back" — from any booking step the customer can ask to go back to the
   // menu (the typed back button); the menu buttons restart the flow.
   if (input === 'back') {
-    return done([menu(msg.contactName)], null, {})
+    return done([menu(data.customer_name)], null, {})
   }
 
   switch (state) {
@@ -327,6 +374,13 @@ export function botStep(conv, msg, today) {
 
     case 'book_confirm':
       if (input === 'confirm' || input === 'yes' || input === 'ok') {
+        if (!data.customer_name) {
+          return done(
+            [text('What name should we use for your booking?')],
+            'book_name',
+            { ...data, name_return_state: 'book_confirm' },
+          )
+        }
         if (data.self_drive && !data.dlNum) {
           // Self-drive needs the ID details once, before the final confirm.
           return done(
@@ -419,12 +473,12 @@ export function botStep(conv, msg, today) {
   }
   if (isBookIntent(input)) {
     return done(
-      [...greetFirst([buttons('Which type of trip do you need?', TRIP_TYPE_BUTTONS)])],
-      'book_type',
+      [...greetFirst([text('What name should we use for your booking?')])],
+      'book_name',
       {},
     )
   }
-  return done(greetFirst([menu(msg.contactName)]))
+  return done(greetFirst([menu(data.customer_name)]))
 }
 
 /** Reply after create_booking succeeded. */

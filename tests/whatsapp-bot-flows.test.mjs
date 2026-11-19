@@ -43,8 +43,8 @@ test('menu: reset words, status, staff, booking and unknown messages', () => {
     'car', 'trip', 'need a car', 'I want to book a cab', 'hire a vehicle',
   ]) {
     const s = step(IDLE, { text })
-    assert.equal(s.state, 'book_type', text)
-    assert.deepEqual(s.replies.at(-1).buttons.map(b => b.id), TYPE_IDS, text)
+    assert.equal(s.state, 'book_name', text)
+    assert.match(s.replies.at(-1).body, /name should we use/, text)
     assert.equal(s.action, null, text)
   }
 
@@ -55,6 +55,53 @@ test('menu: reset words, status, staff, booking and unknown messages', () => {
     assert.equal(s.action, null, text)
     assert.deepEqual(s.replies[0].buttons.map(b => b.id), MENU_IDS, text)
   }
+})
+
+test('name: first booking question, validation, back and cancel', () => {
+  let s = step(IDLE, { text: 'book', replyId: 'book' })
+  assert.equal(s.state, 'book_name')
+  assert.match(s.replies.at(-1).body, /What name should we use/)
+  assert.equal(s.replies.at(-1).kind, 'text', 'a name is free text, not a button choice')
+
+  for (const bad of ['', '  ', 'x'.repeat(81)]) {
+    const again = step(s, { text: bad })
+    assert.equal(again.state, 'book_name', bad)
+    assert.equal(again.data.customer_name, undefined, bad)
+    assert.match(again.replies[0].body, /Please type the name/, bad)
+  }
+
+  s = step(s, { text: '  Ravi  Shankar ' })
+  assert.equal(s.state, 'book_type')
+  assert.equal(s.data.customer_name, 'Ravi Shankar')
+  assert.deepEqual(s.replies[0].buttons.map(b => b.id), TYPE_IDS)
+
+  for (const text of ['cancel', 'back', 'menu']) {
+    const out = step({ state: 'book_name', data: {} }, { text })
+    assert.equal(out.state, null, text)
+    assert.deepEqual(out.replies[0].buttons.map(b => b.id), MENU_IDS, text)
+  }
+})
+
+test('an in-flight booking without a name is never booked from the WhatsApp profile', () => {
+  // A conversation started before the name step existed reaches Confirm with
+  // all trip details but no explicit name. It must be asked before insert.
+  const data = { type: 'one_way', pickup: 'A', drop: 'B', date: '2026-11-05', time: null }
+  let s = step({ state: 'book_confirm', data }, { text: 'Confirm', replyId: 'confirm' })
+  assert.equal(s.state, 'book_name')
+  assert.equal(s.action, null)
+  assert.equal(s.data.name_return_state, 'book_confirm')
+  assert.match(s.replies[0].body, /What name should we use/)
+
+  s = step(s, { text: 'Ravi Shankar' })
+  assert.equal(s.state, 'book_confirm')
+  assert.equal(s.data.customer_name, 'Ravi Shankar')
+  assert.equal(s.data.name_return_state, undefined)
+  assert.match(s.replies[0].body, /Name: Ravi Shankar/)
+
+  const done = step(s, { text: 'Confirm', replyId: 'confirm' })
+  assert.equal(done.action.type, 'create_booking')
+  assert.equal(done.action.booking.customer_name, 'Ravi Shankar')
+  assert.equal(done.action.booking.name_return_state, undefined)
 })
 
 test('trip type: every button and typed alias maps to the DB value', () => {
@@ -90,6 +137,7 @@ test('trip type: every button and typed alias maps to the DB value', () => {
 
 test('one way: pickup → drop → date → time → confirm, with every guard', () => {
   let s = step(IDLE, { text: 'book cab' })
+  s = step(s, { text: 'Mani Kumar' })
   assert.equal(s.state, 'book_type')
 
   s = step(s, { text: 'One way', replyId: 'one_way' })
@@ -150,12 +198,14 @@ test('one way: pickup → drop → date → time → confirm, with every guard',
       drop: '13.08270, 80.27070',
       date: '2026-10-31',
       time: null,
+      customer_name: 'Mani Kumar',
     },
   })
 })
 
 test('round trip: asks for a return date and validates it', () => {
   let s = step(IDLE, { text: 'Book a trip', replyId: 'book' })
+  s = step(s, { text: 'Mani Kumar' })
   s = step(s, { text: 'Round trip', replyId: 'round_trip' })
   assert.equal(s.data.type, 'round_trip')
   assert.equal(s.data.self_drive, undefined)
@@ -193,6 +243,7 @@ test('self drive: ID type → ID number → licence → expiry → confirm (no l
   assert.equal(s.state, null)
 
   s = step(IDLE, { text: 'book a self drive cab' })
+  s = step(s, { text: 'Mani Kumar' })
   assert.equal(s.state, 'book_type')
   s = step(s, { text: 'self driving' })
   assert.equal(s.state, 'book_pickup')
@@ -260,12 +311,13 @@ test('self drive: ID type → ID number → licence → expiry → confirm (no l
     idNum: '1234 5678 9012',
     dlNum: 'TN01-20200012345',
     dlExpiry: '31/12/2030',
+    customer_name: 'Mani Kumar',
   })
 })
 
 test('cancel and menu work from every booking state', () => {
   const states = [
-    'book_type', 'book_pickup', 'book_drop', 'book_date', 'book_return_date', 'book_time',
+    'book_name', 'book_type', 'book_pickup', 'book_drop', 'book_date', 'book_return_date', 'book_time',
     'book_confirm', 'book_selfdrive_id_type', 'book_selfdrive_id_num',
     'book_selfdrive_dl_num', 'book_selfdrive_dl_expiry',
   ]

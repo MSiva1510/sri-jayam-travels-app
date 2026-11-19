@@ -19,6 +19,7 @@
 - `normalizeBooking()` in `src/data/tripTypes.js` is the canonical camelCase booking view. Keep both camelCase and DB `snake_case` aliases when changing booking fields.
 - Booking statuses are constrained in `supabase/migrations/20260820_fix_bookings_status_constraint.sql`; workflow transitions live in `WORKFLOW_TRANSITIONS` in `src/data/tripTypes.js`.
 - Public booking writes through the `public.public_create_booking` RPC, which validates type/time and rejects past dates. Do not replace it with a direct table insert.
+- WhatsApp booking bot asks for the customer's name first (`book_name` state in `vercel/functions/_lib/whatsappBot.js`) and stores it in `whatsapp_conversations.data.customer_name` / `bookings.customer_name`. Meta's profile name is never used for greetings, summaries or trip templates; keep that precedence when changing the flow.
 
 ## Environment & deploy
 - Copy `.env.example` → `.env.local`. Never commit `.env*`, the service-role key, or JWT-like secrets; CI greps `src`, `vercel`, and `mobile/lib`.

@@ -57,6 +57,9 @@ export async function sendAndRecord(db, config, { to, msg, kind, bookingId = nul
 
 async function createBotBooking(db, phone, contactName, data) {
   const local = localPhone(phone)
+  // The name the customer typed in the bot wins over Meta's profile name and
+  // the customers table — a saved WhatsApp display name is often wrong.
+  const explicitName = String(data?.customer_name ?? '').trim()
   let customerId = null
   let customer = null
   try {
@@ -65,7 +68,7 @@ async function createBotBooking(db, phone, contactName, data) {
     )
     customerId = found?.[0]?.id ?? null
     customer = found?.[0] ?? null
-    if (found?.[0]?.name) contactName = found[0].name
+    if (found?.[0]?.name && !explicitName) contactName = found[0].name
   } catch {
     // Older customers table without these columns: book without the link.
   }
@@ -82,7 +85,7 @@ async function createBotBooking(db, phone, contactName, data) {
         booking_number: bookingNumber,
         type,
         status: 'pending',
-        customer_name: contactName || 'WhatsApp customer',
+        customer_name: explicitName || contactName || 'WhatsApp customer',
         customer_contact: local,
         customer_id: customerId,
         pickup_location: data.pickup,
@@ -195,6 +198,10 @@ export async function handleInbound(db, config, message, now = Date.now()) {
   const replies = [...step.replies]
   const patch = { state: step.state, data: step.data }
   if (!conv?.welcome_checked_at) patch.welcome_checked_at = new Date(now).toISOString()
+  // Keep the explicitly asked name on the conversation: Meta sends its profile
+  // name again with every inbound message, and the inbox should not flip back.
+  const askedName = String(conv?.data?.customer_name || step.data?.customer_name || step.action?.booking?.customer_name || '').trim()
+  if (askedName) patch.contact_name = askedName
 
   if (step.action?.type === 'create_booking') {
     try {
