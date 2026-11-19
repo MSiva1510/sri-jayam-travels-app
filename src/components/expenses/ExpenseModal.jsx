@@ -185,22 +185,35 @@ function SelectField({ field, label, value, onChange, onBlur, children, required
   )
 }
 
-function SearchableSelect({ field, label, value, options, onChange, onBlur, placeholder = '— None —', icon: Icon, error }) {
+function SearchableSelect({
+  field, label, value, options, onChange, onBlur,
+  placeholder = '— None —', icon: Icon, error, searchable = true,
+}) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const wrapRef = useRef(null)
   const inputRef = useRef(null)
+  const optionRefs = useRef([])
   const listId = `exp-${field}-listbox`
+  const triggerId = `exp-${field}`
 
   const selected = options.find(o => o.value === value)
-  const filtered = options.filter(o =>
+  const SelectedIcon = selected?.icon || Icon
+  const filtered = !searchable ? options : options.filter(o =>
     `${o.label} ${o.sublabel || ''}`.toLowerCase().includes(query.trim().toLowerCase())
   )
 
   useEffect(() => {
-    if (open) requestAnimationFrame(() => inputRef.current?.focus())
-  }, [open])
+    if (!open) return undefined
+    const frame = requestAnimationFrame(() => {
+      if (searchable) inputRef.current?.focus()
+      else optionRefs.current[active]?.focus()
+    })
+    return () => cancelAnimationFrame(frame)
+    // Focus only when the list opens; keyboard handlers move focus afterwards.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, searchable])
 
   useEffect(() => {
     const onDown = e => {
@@ -220,13 +233,18 @@ function SearchableSelect({ field, label, value, options, onChange, onBlur, plac
     setQuery('')
   }
 
-  const onInputKeyDown = e => {
+  const focusOption = index => {
+    setActive(index)
+    optionRefs.current[index]?.focus()
+  }
+
+  const onListKeyDown = e => {
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setActive(i => Math.min(i + 1, filtered.length - 1))
+      focusOption(Math.min(active + 1, filtered.length - 1))
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
-      setActive(i => Math.max(i - 1, 0))
+      focusOption(Math.max(active - 1, 0))
     } else if (e.key === 'Enter' && filtered[active]) {
       e.preventDefault()
       choose(filtered[active])
@@ -238,12 +256,26 @@ function SearchableSelect({ field, label, value, options, onChange, onBlur, plac
     }
   }
 
+  const onTriggerKeyDown = e => {
+    if (open) {
+      onListKeyDown(e)
+      return
+    }
+    if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(e.key)) {
+      e.preventDefault()
+      setOpen(true)
+      setQuery('')
+      setActive(Math.max(0, options.findIndex(o => o.value === value)))
+    }
+  }
+
   return (
     <div ref={wrapRef} className="relative min-w-0">
       <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5 uppercase tracking-wide">
         {label}
       </label>
       <button
+        id={triggerId}
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -254,10 +286,11 @@ function SearchableSelect({ field, label, value, options, onChange, onBlur, plac
           setQuery('')
           setActive(Math.max(0, options.findIndex(o => o.value === value)))
         }}
+        onKeyDown={onTriggerKeyDown}
         className={`${fieldCls} flex items-center justify-between gap-2 text-left ${error ? '!border-red-400 dark:!border-red-500' : ''}`}
       >
         <span className="flex items-center gap-2 min-w-0">
-          {Icon && <Icon size={14} className="text-slate-400 flex-shrink-0" />}
+          {SelectedIcon && <SelectedIcon size={14} className="text-slate-400 flex-shrink-0" />}
           <span className={`truncate ${selected?.value ? 'text-[var(--ap-text-1)]' : 'text-[var(--ap-text-3)]'}`}>
             {selected?.label || placeholder}
           </span>
@@ -267,42 +300,52 @@ function SearchableSelect({ field, label, value, options, onChange, onBlur, plac
 
       {open && (
         <div className="absolute z-30 mt-1.5 w-full ap-surface rounded-2xl border border-[var(--ap-border)] shadow-2xl overflow-hidden animate-fade-up">
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--ap-border)]">
-            <Search size={13} className="text-slate-400 flex-shrink-0" />
-            <input
-              ref={inputRef}
-              role="combobox"
-              aria-controls={listId}
-              aria-expanded="true"
-              value={query}
-              onChange={e => { setQuery(e.target.value); setActive(0) }}
-              onKeyDown={onInputKeyDown}
-              placeholder="Search…"
-              className="flex-1 min-w-0 bg-transparent text-xs text-[var(--ap-text-1)] placeholder-[var(--ap-text-3)] outline-none"
-            />
-          </div>
+          {searchable && (
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--ap-border)]">
+              <Search size={13} className="text-slate-400 flex-shrink-0" />
+              <input
+                ref={inputRef}
+                role="combobox"
+                aria-controls={listId}
+                aria-expanded="true"
+                value={query}
+                onChange={e => { setQuery(e.target.value); setActive(0) }}
+                onKeyDown={onListKeyDown}
+                placeholder="Search…"
+                className="flex-1 min-w-0 bg-transparent text-xs text-[var(--ap-text-1)] placeholder-[var(--ap-text-3)] outline-none"
+              />
+            </div>
+          )}
           <div id={listId} role="listbox" className="max-h-56 overflow-y-auto p-1">
-            {filtered.length ? filtered.map((option, i) => (
-              <button
-                key={`${option.value || 'none'}-${i}`}
-                type="button"
-                role="option"
-                aria-selected={option.value === value}
-                onMouseEnter={() => setActive(i)}
-                onClick={() => choose(option)}
-                className={`w-full flex items-center gap-2 rounded-xl px-2.5 py-2 text-left transition-colors ${
-                  i === active ? 'bg-[var(--ap-surface-2)]' : ''
-                }`}
-              >
-                <span className="flex-1 min-w-0">
-                  <span className="block text-xs font-semibold text-[var(--ap-text-1)] truncate">{option.label}</span>
-                  {option.sublabel && (
-                    <span className="block text-[10px] text-[var(--ap-text-3)] truncate">{option.sublabel}</span>
-                  )}
-                </span>
-                {option.value === value && <CheckCircle2 size={13} className="text-[var(--ap-accent)] flex-shrink-0" />}
-              </button>
-            )) : (
+            {filtered.length ? filtered.map((option, i) => {
+              const OptionIcon = option.icon
+              return (
+                <button
+                  ref={el => { optionRefs.current[i] = el }}
+                  key={`${option.value || 'none'}-${i}`}
+                  type="button"
+                  role="option"
+                  aria-selected={option.value === value}
+                  onMouseEnter={() => setActive(i)}
+                  onClick={() => choose(option)}
+                  onKeyDown={onListKeyDown}
+                  className={`w-full flex items-center gap-2 rounded-xl px-2.5 py-2 text-left transition-colors ${
+                    i === active ? 'bg-[var(--ap-surface-2)]' : ''
+                  }`}
+                >
+                  {OptionIcon
+                    ? <OptionIcon size={14} className="text-slate-400 flex-shrink-0" />
+                    : <span className="w-[14px] flex-shrink-0" aria-hidden="true" />}
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-xs font-semibold text-[var(--ap-text-1)] truncate">{option.label}</span>
+                    {option.sublabel && (
+                      <span className="block text-[10px] text-[var(--ap-text-3)] truncate">{option.sublabel}</span>
+                    )}
+                  </span>
+                  {option.value === value && <CheckCircle2 size={13} className="text-[var(--ap-accent)] flex-shrink-0" />}
+                </button>
+              )
+            }) : (
               <p className="px-3 py-4 text-center text-[11px] text-[var(--ap-text-3)]">No matches</p>
             )}
           </div>
@@ -514,6 +557,11 @@ export default function ExpenseModal({
   const allowedTypes = isDrv
     ? EXPENSE_TYPES.filter(t => DRIVER_ALLOWED_TYPES.includes(t.key))
     : EXPENSE_TYPES
+  const typeOptions = allowedTypes.map(t => ({
+    value: t.key,
+    label: t.label,
+    icon: TYPE_ICONS[t.key] || ReceiptText,
+  }))
   const panel = TYPE_PANELS[form.type]
 
   const driverOptions = [
@@ -579,17 +627,13 @@ export default function ExpenseModal({
         <div className="overflow-y-auto scroll-smooth flex-1 px-4 sm:px-6 py-5 space-y-6">
           <Section icon={ReceiptText} title="Expense Details" subtitle="What was spent and when.">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <SelectField
+              <SearchableSelect
                 field="type" label="Expense Type" required
-                value={form.type} error={errors.type}
+                value={form.type} options={typeOptions}
                 onChange={handleFieldChange} onBlur={() => markTouched('type')}
-                icon={TYPE_ICONS[form.type] || ReceiptText}
-              >
-                <option value="">— Select type —</option>
-                {allowedTypes.map(t => (
-                  <option key={t.key} value={t.key}>{t.label}</option>
-                ))}
-              </SelectField>
+                placeholder="— Select type —" error={errors.type}
+                searchable={false}
+              />
               <TextField
                 field="date" label="Date" type="date" required
                 value={form.date} error={errors.date} max={today}

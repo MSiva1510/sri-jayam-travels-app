@@ -14,6 +14,11 @@ const expectHorizontallyCentered = (page, box) => {
   expect(Math.abs(dialogCenter - viewport.width / 2)).toBeLessThan(2)
 }
 
+const selectExpenseType = async (dialog, label) => {
+  await dialog.locator('#exp-type').click()
+  await dialog.getByRole('option', { name: label, exact: true }).click()
+}
+
 test('customer modal: desktop layout, sections, validation and save payload', async ({ page }) => {
   await page.goto(harnessURL('modal=customer'))
   await expect(page.locator('#harness-status')).toContainText('Harness ready')
@@ -118,34 +123,36 @@ test('expense modal: desktop layout, categories, dropdowns, receipt and save pay
   expect(box.width).toBeLessThanOrEqual(950)
   expectHorizontallyCentered(page, box)
 
-  const typeValues = await dialog.locator('#exp-type option').evaluateAll(
-    options => options.map(option => option.value).filter(Boolean)
-  )
-  expect(typeValues).toEqual([
-    'fuel', 'toll', 'parking', 'bata', 'food',
-    'maintenance', 'repair', 'permit', 'insurance', 'misc',
-  ])
-
-  const typeLabels = await dialog.locator('#exp-type option').evaluateAll(
-    options => options.map(option => option.textContent.trim()).filter(Boolean)
+  await dialog.locator('#exp-type').click()
+  const typeOptions = dialog.locator('#exp-type-listbox [role="option"]')
+  await expect(typeOptions).toHaveCount(10)
+  const typeLabels = await typeOptions.evaluateAll(
+    options => options.map(option => option.textContent.trim())
   )
   expect(typeLabels).toEqual([
-    '— Select type —', 'Fuel', 'Toll', 'Parking', 'Driver Bata', 'Food',
+    'Fuel', 'Toll', 'Parking', 'Driver Bata', 'Food',
     'Maintenance', 'Repair', 'Permit', 'Insurance', 'Miscellaneous',
   ])
+  const typeIconCount = await typeOptions.evaluateAll(
+    options => options.filter(option => option.querySelector('svg')).length
+  )
+  expect(typeIconCount).toBe(10)
+  await dialog.getByRole('option', { name: 'Fuel' }).click()
+  await expect(dialog.locator('#exp-type > span > svg')).toBeVisible()
 
   const dropdowns = dialog.locator('button[aria-haspopup="listbox"]')
-  await dropdowns.nth(0).click()
+  await dropdowns.nth(1).click()
   await dialog.locator('input[role="combobox"]').fill('Ravi')
   await dialog.getByRole('option', { name: /Ravi Kumar/ }).click()
-  await expect(dropdowns.nth(0)).toContainText('Ravi Kumar')
+  await expect(dropdowns.nth(1)).toContainText('Ravi Kumar')
 
-  await dropdowns.nth(1).click()
+  await dropdowns.nth(2).click()
   await dialog.locator('input[role="combobox"]').fill('TN01')
   await dialog.getByRole('option', { name: /TN01AB1234/ }).click()
-  await expect(dropdowns.nth(1)).toContainText('TN01AB1234')
+  await expect(dropdowns.nth(2)).toContainText('TN01AB1234')
 
-  await dialog.locator('#exp-type').selectOption('parking')
+  await dialog.locator('#exp-type').click()
+  await dialog.getByRole('option', { name: 'Parking' }).click()
   await expect(dialog.getByText('Parking Details')).toBeVisible()
   await dialog.locator('#exp-amount').fill('120')
   await dialog.locator('#exp-description').fill('Airport parking')
@@ -187,21 +194,21 @@ test('expense modal: every expense type shows the correct conditional panel', as
   const dialog = page.getByRole('dialog', { name: 'New Expense' })
 
   const panels = {
-    fuel: 'Fuel Information',
-    parking: 'Parking Details',
-    toll: 'Toll Details',
-    bata: 'Driver Bata Details',
-    maintenance: 'Maintenance Details',
+    fuel: ['Fuel', 'Fuel Information'],
+    parking: ['Parking', 'Parking Details'],
+    toll: ['Toll', 'Toll Details'],
+    bata: ['Driver Bata', 'Driver Bata Details'],
+    maintenance: ['Maintenance', 'Maintenance Details'],
   }
 
-  for (const [type, title] of Object.entries(panels)) {
-    await dialog.locator('#exp-type').selectOption(type)
+  for (const [label, title] of Object.values(panels)) {
+    await selectExpenseType(dialog, label)
     await expect(dialog.getByText(title, { exact: true })).toBeVisible()
   }
 
-  for (const type of ['food', 'repair', 'permit', 'insurance', 'misc']) {
-    await dialog.locator('#exp-type').selectOption(type)
-    for (const title of Object.values(panels)) {
+  for (const label of ['Food', 'Repair', 'Permit', 'Insurance', 'Miscellaneous']) {
+    await selectExpenseType(dialog, label)
+    for (const [, title] of Object.values(panels)) {
       await expect(dialog.getByText(title, { exact: true })).toHaveCount(0)
     }
   }
@@ -244,10 +251,12 @@ test('expense modal: mobile full-screen sheet, dark theme and driver restriction
   expect(box.height).toBeLessThanOrEqual(850)
 
   expect(await page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(true)
-  const typeValues = await dialog.locator('#exp-type option').evaluateAll(
-    options => options.map(option => option.value).filter(Boolean)
+  await dialog.locator('#exp-type').click()
+  const typeLabels = await dialog.locator('#exp-type-listbox [role="option"]').evaluateAll(
+    options => options.map(option => option.textContent.trim())
   )
-  expect(typeValues).toEqual(['toll', 'parking', 'bata', 'food'])
+  expect(typeLabels).toEqual(['Toll', 'Parking', 'Driver Bata', 'Food'])
+  await page.keyboard.press('Escape')
   await expect(dialog.locator('#exp-status')).toHaveCount(0)
   await expect(dialog.locator('#exp-driver')).toHaveValue('Office Staff')
   await expect(dialog.getByRole('button', { name: 'Submit Expense' })).toBeVisible()
