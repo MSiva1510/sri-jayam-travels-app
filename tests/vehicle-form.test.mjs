@@ -7,11 +7,15 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   createEmptyVehicle, vehicleToForm, sanitizeVehicleField, validateVehicleForm,
-  isVehicleFormReady, buildVehicleInput, serviceStatus,
+  isVehicleFormReady, buildVehicleInput, serviceStatus, statusOptionsFor,
   VEHICLE_TYPES, FUEL_TYPES, VEHICLE_STATUSES, STATUS_LABELS,
   REGISTRATION_MAX_LENGTH, MODEL_MAX_LENGTH, DOC_NUMBER_MAX_LENGTH,
 } from '../src/utils/vehicleForm.js'
-import { docStatus, daysUntil, daysLabel, parseDateOnly, EXPIRY_SOON_DAYS } from '../src/utils/vehicleUtils.js'
+import {
+  docStatus, daysUntil, daysLabel, parseDateOnly, EXPIRY_SOON_DAYS,
+  toDbVehicle, withoutComplianceColumns, isMissingColumnError,
+  VEHICLE_COMPLIANCE_COLUMNS, VEHICLE_SELECT_COLUMNS, LEGACY_VEHICLE_SELECT_COLUMNS,
+} from '../src/utils/vehicleUtils.js'
 
 const YEAR = 2026
 
@@ -219,4 +223,105 @@ test('docStatus only reports a status when a real date is present', () => {
   assert.equal(daysLabel(0), 'Expires today')
   assert.equal(daysLabel(7), '7d left')
   assert.equal(daysLabel(null), '')
+})
+
+test('statusOptionsFor keeps the normal dropdown unchanged except for legacy statuses', () => {
+  assert.deepEqual(statusOptionsFor('active'), [
+    { value: 'active', label: 'Active' },
+    { value: 'maintenance', label: 'Maintenance' },
+    { value: 'offline', label: 'Offline' },
+  ])
+  assert.deepEqual(statusOptionsFor(''), statusOptionsFor('active'))
+  assert.deepEqual(statusOptionsFor(null), statusOptionsFor('active'))
+
+  const legacy = statusOptionsFor('inactive')
+  assert.deepEqual(legacy[0], { value: 'inactive', label: 'Inactive', disabled: true })
+  assert.deepEqual(legacy.slice(1), statusOptionsFor('active'))
+  assert.equal(statusOptionsFor('retired')[0].label, 'Retired')
+})
+
+test('toDbVehicle persists every compliance field and coerces blank numbers/dates', () => {
+  const payload = toDbVehicle({
+    id: 'VEH-1700000000000',
+    reg: 'PY01AB1234',
+    type: '7+1 SUV',
+    model: 'Innova',
+    year: '',                 // cleared year must not be sent as '' to an integer column
+    km: 0,                    // a real zero must survive
+    fuelType: 'Diesel',       // the form's field name, previously dropped on writes
+    color: 'White',
+    status: 'active',
+    insProvider: 'TATA AIG',
+    insNumber: 'POL-1',
+    insExpiry: '2027-03-15',
+    permitNumber: 'KL/1',
+    permitExpiry: '2027-06-30',
+    fcNumber: 'FC-1',
+    fcExpiry: '2029-06-10',
+    pucNumber: 'PUC-1',
+    pucExpiry: '',
+    lastServiceDate: '2026-09-01',
+    lastServiceKm: 48000,
+    nextServiceDate: '',
+    nextServiceKm: '',
+  })
+
+  assert.equal(payload.vehicle_id, 'VEH-1700000000000')
+  assert.equal(payload.registration, 'PY01AB1234')
+  assert.equal(payload.vehicle_type, '7+1 SUV')
+  assert.equal(payload.fuel_type, 'Diesel')
+  assert.equal(payload.year, null)
+  assert.equal(payload.current_km, 0)
+  assert.equal(payload.insurance_provider, 'TATA AIG')
+  assert.equal(payload.insurance_number, 'POL-1')
+  assert.equal(payload.insurance_expiry, '2027-03-15')
+  assert.equal(payload.permit_number, 'KL/1')
+  assert.equal(payload.permit_expiry, '2027-06-30')
+  assert.equal(payload.fitness_cert_number, 'FC-1')
+  assert.equal(payload.fitness_cert_expiry, '2029-06-10')
+  assert.equal(payload.pollution_cert_number, 'PUC-1')
+  assert.equal(payload.pollution_cert_expiry, null)
+  assert.equal(payload.last_service_date, '2026-09-01')
+  assert.equal(payload.last_service_km, 48000)
+  assert.equal(payload.next_service_date, null)
+  assert.equal(payload.next_service_km, null)
+  assert.ok(!('engine_number' in payload))
+})
+
+test('legacy write fallback keeps every pre-migration column', () => {
+  const full = toDbVehicle({
+    reg: 'PY01AB1234', registration: 'PY01AB1234', current_km: 100,
+    insProvider: 'TATA AIG', insurance_number: 'POL-1', insurance_expiry: '2027-03-15',
+    permit_number: 'KL/1', permit_expiry: '2027-06-30',
+    fitness_cert_number: 'FC-1', fitness_cert_expiry: '2029-06-10',
+    pollution_cert_number: 'PUC-1', pollution_cert_expiry: '2026-12-20',
+    last_service_date: '2026-09-01', last_service_km: 90,
+    next_service_date: '2026-12-01', next_service_km: 150,
+  })
+  const legacy = withoutComplianceColumns(full)
+
+  for (const column of VEHICLE_COMPLIANCE_COLUMNS) {
+    assert.ok(column in full, `full payload missing ${column}`)
+    assert.ok(!(column in legacy), `legacy payload still has ${column}`)
+  }
+  for (const column of ['registration', 'current_km', 'insurance_number', 'insurance_expiry',
+    'fitness_cert_expiry', 'pollution_cert_expiry', 'last_service_km']) {
+    assert.ok(column in legacy, `legacy payload dropped ${column}`)
+  }
+})
+
+test('missing-column detection never swallows unrelated errors', () => {
+  assert.equal(isMissingColumnError({ code: '42703', message: 'column "permit_number" does not exist' }), true)
+  assert.equal(isMissingColumnError({ code: 'PGRST204', message: "Could not find the 'permit_number' column of 'vehicles' in the schema cache" }), true)
+  assert.equal(isMissingColumnError({ code: 'PGRST204', message: 'No content' }), false)
+  assert.equal(isMissingColumnError({ code: '23505', message: 'duplicate key value' }), false)
+  assert.equal(isMissingColumnError(null), false)
+})
+
+test('read select lists stay in sync with the migration', () => {
+  assert.equal(LEGACY_VEHICLE_SELECT_COLUMNS, 'id, vehicle_id, registration, vehicle_type, model, year, color, fuel_type, status, current_km, insurance_number, insurance_expiry, fitness_cert_expiry, pollution_cert_expiry, last_service_km, engine_number, imei, created_at, updated_at')
+  for (const column of VEHICLE_COMPLIANCE_COLUMNS) {
+    assert.ok(VEHICLE_SELECT_COLUMNS.includes(column), `select missing ${column}`)
+  }
+  assert.ok(!LEGACY_VEHICLE_SELECT_COLUMNS.includes('permit_number'))
 })

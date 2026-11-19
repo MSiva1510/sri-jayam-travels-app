@@ -26,6 +26,7 @@
 - Deploy is Vercel-only: push `main` → `npm run build` → `dist`. Watch function bundling for `gps-proxy` and `whatsapp-*`.
 - Supabase migrations in `supabase/migrations/` are applied manually in the SQL editor; apply them before the web build when RPCs are involved. There is no rollback script by design.
 - `20261118_expense_type_details.sql` must be applied before Parking/Toll/Bata/Maintenance detail fields persist; reads/writes fall back safely until then.
+- `20261119_vehicle_compliance_fields.sql` must be applied before vehicle insurance provider, permit, FC/PUC numbers and service dates/KMs persist; `vehicleRepository` retries with the legacy column set until then. Blank numeric/date fields are written as `NULL`.
 - `VITE_OCR_PROVIDER` must be set at build time to enable `/api/ocr/extract`; `OPENAI_API_KEY` is server-only. `VITE_GPS_MOCK` is local-only.
 - Flutter app lives in `mobile/`; release APK still uses the debug keystore until `android/key.properties` is added.
 

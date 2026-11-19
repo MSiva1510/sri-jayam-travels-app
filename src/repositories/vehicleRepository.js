@@ -8,28 +8,13 @@ import supabase from '../lib/supabase'
 import { getDatabaseProvider, DATABASE_PROVIDERS } from '../config/database'
 import { dataService } from '../services/dataService'
 import { cacheClear } from '../utils/dataCache'
-import { normalizeVehicleRow } from '../utils/vehicleUtils'
+import {
+  normalizeVehicleRow, toDbVehicle, withoutComplianceColumns, isMissingColumnError,
+  VEHICLE_SELECT_COLUMNS, LEGACY_VEHICLE_SELECT_COLUMNS,
+  VEHICLE_UUID_RE as UUID_RE,
+} from '../utils/vehicleUtils'
 
 const VEHICLES_STORAGE_KEY = 'sjt_vehicles'
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-
-function toDbVehicle(data = {}) {
-  const payload = {
-    vehicle_id: data.vehicle_id || (!UUID_RE.test(String(data.id || '')) ? data.id : undefined),
-    registration: data.registration ?? data.reg,
-    vehicle_type: data.vehicle_type ?? data.type,
-    model: data.model,
-    year: data.year,
-    color: data.color,
-    fuel_type: data.fuel_type ?? data.fuel,
-    status: data.status,
-    current_km: data.current_km ?? data.km,
-    engine_number: data.engine_number,
-    imei: data.imei,
-    updated_at: data.updated_at ?? data.updatedAt,
-  }
-  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined))
-}
 
 /**
  * VehicleRepository - Manages vehicle data
@@ -343,10 +328,16 @@ export class VehicleRepository extends BaseRepository {
 
   async _getAllFromSupabase() {
     try {
-      const { data, error } = await supabase
+      const load = columns => supabase
         .from('vehicles')
-        .select('id, vehicle_id, registration, vehicle_type, model, year, color, fuel_type, status, current_km, insurance_number, insurance_expiry, fitness_cert_expiry, pollution_cert_expiry, last_service_km, engine_number, imei, created_at, updated_at')
+        .select(columns)
         .order('created_at', { ascending: false })
+
+      let result = await load(VEHICLE_SELECT_COLUMNS)
+      if (isMissingColumnError(result.error)) {
+        result = await load(LEGACY_VEHICLE_SELECT_COLUMNS)
+      }
+      const { data, error } = result
 
       if (error) throw error
       return (data || []).map(normalizeVehicleRow)
@@ -358,11 +349,18 @@ export class VehicleRepository extends BaseRepository {
 
   async _getByIdFromSupabase(id) {
     try {
-      const { data, error } = await supabase
+      const matchColumn = UUID_RE.test(String(id)) ? 'id' : 'vehicle_id'
+      const load = columns => supabase
         .from('vehicles')
-        .select('id, vehicle_id, registration, vehicle_type, model, year, color, fuel_type, status, current_km, insurance_number, insurance_expiry, fitness_cert_expiry, pollution_cert_expiry, last_service_km, engine_number, imei, created_at, updated_at')
-        .eq(UUID_RE.test(String(id)) ? 'id' : 'vehicle_id', id)
+        .select(columns)
+        .eq(matchColumn, id)
         .single()
+
+      let result = await load(VEHICLE_SELECT_COLUMNS)
+      if (isMissingColumnError(result.error)) {
+        result = await load(LEGACY_VEHICLE_SELECT_COLUMNS)
+      }
+      const { data, error } = result
 
       if (error && error.code === 'PGRST116') {
         return null
@@ -385,11 +383,17 @@ export class VehicleRepository extends BaseRepository {
         updated_at: new Date().toISOString(),
       }
 
-      const { data: created, error } = await supabase
+      const insert = payload => supabase
         .from('vehicles')
-        .insert([vehicle])
+        .insert([payload])
         .select()
         .single()
+
+      let result = await insert(vehicle)
+      if (isMissingColumnError(result.error)) {
+        result = await insert(withoutComplianceColumns(vehicle))
+      }
+      const { data: created, error } = result
 
       if (error) throw error
       cacheClear('vehicles')
@@ -402,15 +406,22 @@ export class VehicleRepository extends BaseRepository {
 
   async _updateInSupabase(id, data) {
     try {
-      const { data: updated, error } = await supabase
+      const changes = {
+        ...toDbVehicle(data),
+        updated_at: new Date().toISOString(),
+      }
+      const update = payload => supabase
         .from('vehicles')
-        .update({
-          ...toDbVehicle(data),
-          updated_at: new Date().toISOString(),
-        })
+        .update(payload)
         .eq(UUID_RE.test(String(id)) ? 'id' : 'vehicle_id', id)
         .select()
         .single()
+
+      let result = await update(changes)
+      if (isMissingColumnError(result.error)) {
+        result = await update(withoutComplianceColumns(changes))
+      }
+      const { data: updated, error } = result
 
       if (error) throw error
       cacheClear('vehicles')

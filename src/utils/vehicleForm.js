@@ -21,6 +21,17 @@ export const STATUS_LABELS = {
   offline: 'Offline',
 }
 
+// `softDelete()` stores `inactive`, which is not a choice for new vehicles.
+// Show it as a disabled selected option when editing a legacy/inactive row so
+// the value is not silently displayed as "Active" or changed on save.
+export function statusOptionsFor(status) {
+  const options = VEHICLE_STATUSES.map(s => ({ value: s, label: STATUS_LABELS[s] || s }))
+  const value = String(status || '')
+  if (!value || VEHICLE_STATUSES.includes(value)) return options
+  const label = STATUS_LABELS[value] || `${value.charAt(0).toUpperCase()}${value.slice(1)}`
+  return [{ value, label, disabled: true }, ...options]
+}
+
 export const REGISTRATION_MAX_LENGTH = 12
 export const MODEL_MAX_LENGTH = 40
 export const COLOR_MAX_LENGTH = 20

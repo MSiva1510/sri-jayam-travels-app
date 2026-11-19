@@ -57,6 +57,27 @@ test('existing camelCase values win over column defaults', () => {
   assert.equal(v.registration, 'AA01AA0001')
 })
 
+test('compliance columns from the 20261119 migration gain form aliases', () => {
+  const v = normalizeVehicleRow({
+    insurance_provider: 'TATA AIG',
+    permit_number: 'KL/1',
+    permit_expiry: '2027-06-30',
+    fitness_cert_number: 'FC-1',
+    pollution_cert_number: 'PUC-1',
+    last_service_date: '2026-09-01',
+    next_service_date: '2026-12-01',
+    next_service_km: 55000,
+  })
+  assert.equal(v.insProvider, 'TATA AIG')
+  assert.equal(v.permitNumber, 'KL/1')
+  assert.equal(v.permitExpiry, '2027-06-30')
+  assert.equal(v.fcNumber, 'FC-1')
+  assert.equal(v.pucNumber, 'PUC-1')
+  assert.equal(v.lastServiceDate, '2026-09-01')
+  assert.equal(v.nextServiceDate, '2026-12-01')
+  assert.equal(v.nextServiceKm, 55000)
+})
+
 test('null / undefined rows pass through untouched', () => {
   assert.equal(normalizeVehicleRow(null), null)
   assert.equal(normalizeVehicleRow(undefined), undefined)

@@ -15,6 +15,9 @@ const modal = ['customer', 'expense', 'driver', 'vehicle'].includes(requested) ?
 const dark = params.get('theme') === 'dark'
 const editing = params.get('mode') === 'edit'
 const driverMode = params.get('driver') === '1'
+// Legacy rows can carry `inactive` from softDelete(), which is not a normal
+// dropdown option but must still display correctly when editing.
+const vehicleStatus = params.get('status') || 'active'
 
 document.documentElement.classList.toggle('dark', dark)
 document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
@@ -104,7 +107,7 @@ const vehicle = editing ? {
   year: 2022,
   color: 'Silver',
   fuel_type: 'Diesel',
-  status: 'active',
+  status: vehicleStatus,
   current_km: 150734,
   insurance_number: 'TATA-AIG-PY01CY1255',
   insurance_expiry: vehicleDates.insExpiry,

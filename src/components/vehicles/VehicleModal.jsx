@@ -21,7 +21,7 @@ import { docStatus, daysLabel } from '../../utils/vehicleUtils'
 import {
   createEmptyVehicle, vehicleToForm, sanitizeVehicleField, validateVehicleForm,
   isVehicleFormReady, buildVehicleInput, serviceStatus,
-  VEHICLE_TYPES, FUEL_TYPES, VEHICLE_STATUSES, STATUS_LABELS,
+  VEHICLE_TYPES, FUEL_TYPES, statusOptionsFor,
   MODEL_MAX_LENGTH, COLOR_MAX_LENGTH,
 } from '../../utils/vehicleForm'
 
@@ -150,7 +150,7 @@ function SelectField({ field, label, value, options, onChange, icon: Icon, hint,
         >
           {options.map(o => {
             const optValue = o.value ?? o
-            return <option key={optValue} value={optValue}>{o.label ?? o}</option>
+            return <option key={optValue} value={optValue} disabled={!!o.disabled}>{o.label ?? o}</option>
           })}
         </select>
         <ChevronDown size={14} strokeWidth={2.5}
@@ -317,6 +317,7 @@ export default function VehicleModal({ vehicle, onClose, onSave }) {
 
   const ready = isVehicleFormReady(form)
   const colourSwatch = swatchFor(form.color)
+  const statusOptions = useMemo(() => statusOptionsFor(form.status), [form.status])
 
   return (
     <ModalOverlay onClose={requestClose} closing={closing}>
@@ -416,7 +417,7 @@ export default function VehicleModal({ vehicle, onClose, onSave }) {
               <SelectField
                 field="status" label="Vehicle Status"
                 value={form.status}
-                options={VEHICLE_STATUSES.map(s => ({ value: s, label: STATUS_LABELS[s] || s }))}
+                options={statusOptions}
                 onChange={upd}
               />
             </div>

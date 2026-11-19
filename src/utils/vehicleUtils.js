@@ -84,10 +84,113 @@ export function normalizeVehicleRow(row) {
     current_km:   currentKm,
     fuel:         row.fuel         ?? row.fuel_type      ?? '',
     fuelType:     row.fuelType     ?? row.fuel_type      ?? '',
+    lastServiceDate: row.lastServiceDate ?? row.last_service_date ?? '',
     lastServiceKm: row.lastServiceKm ?? row.last_service_km ?? '',
-    insNumber:    row.insNumber    ?? row.insurance_number      ?? '',
-    insExpiry:    row.insExpiry    ?? row.insurance_expiry      ?? '',
-    fcExpiry:     row.fcExpiry     ?? row.fitness_cert_expiry   ?? '',
-    pucExpiry:    row.pucExpiry    ?? row.pollution_cert_expiry ?? '',
+    nextServiceDate: row.nextServiceDate ?? row.next_service_date ?? '',
+    nextServiceKm: row.nextServiceKm ?? row.next_service_km ?? '',
+    insProvider:  row.insProvider  ?? row.insurance_provider     ?? '',
+    insNumber:    row.insNumber    ?? row.insurance_number       ?? '',
+    insExpiry:    row.insExpiry    ?? row.insurance_expiry       ?? '',
+    permitNumber: row.permitNumber ?? row.permit_number          ?? '',
+    permitExpiry: row.permitExpiry ?? row.permit_expiry          ?? '',
+    fcNumber:     row.fcNumber     ?? row.fitness_cert_number    ?? '',
+    fcExpiry:     row.fcExpiry     ?? row.fitness_cert_expiry    ?? '',
+    pucNumber:    row.pucNumber    ?? row.pollution_cert_number  ?? '',
+    pucExpiry:    row.pucExpiry    ?? row.pollution_cert_expiry  ?? '',
   }
+}
+
+// ─── Build a `vehicles` write payload ─────────────────────────
+// The form speaks camelCase, the table speaks snake_case. Before this
+// existed the repository only mapped a handful of columns, so insurance,
+// permit, FC, PUC and service-tracking values were silently dropped on
+// Supabase saves. Keep the aliases here so every field the form edits has
+// exactly one write path.
+
+export const VEHICLE_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+// Columns added by supabase/migrations/20261119_vehicle_compliance_fields.sql.
+// Used to retry a read/write without them when the migration has not been
+// applied yet, so an un-migrated database keeps working exactly as before.
+export const VEHICLE_COMPLIANCE_COLUMNS = [
+  'insurance_provider', 'permit_number', 'permit_expiry',
+  'fitness_cert_number', 'pollution_cert_number',
+  'last_service_date', 'next_service_date', 'next_service_km',
+]
+
+// Keep the two select lists in one place so the fallback cannot drift from
+// the migration. The legacy list is byte-for-byte the query used before the
+// compliance redesign.
+export const LEGACY_VEHICLE_SELECT_COLUMNS = 'id, vehicle_id, registration, vehicle_type, model, year, color, fuel_type, status, current_km, insurance_number, insurance_expiry, fitness_cert_expiry, pollution_cert_expiry, last_service_km, engine_number, imei, created_at, updated_at'
+export const VEHICLE_SELECT_COLUMNS = 'id, vehicle_id, registration, vehicle_type, model, year, color, fuel_type, status, current_km, insurance_provider, insurance_number, insurance_expiry, permit_number, permit_expiry, fitness_cert_number, fitness_cert_expiry, pollution_cert_number, pollution_cert_expiry, last_service_date, last_service_km, next_service_date, next_service_km, engine_number, imei, created_at, updated_at'
+
+// Supabase numeric columns reject ''; keep a real 0, drop blank/NaN input.
+function toDbNumber(value) {
+  if (value === undefined) return undefined
+  if (value === null) return null
+  if (typeof value === 'string' && value.trim() === '') return null
+  const num = Number(value)
+  return Number.isFinite(num) ? num : null
+}
+
+// Supabase date columns reject ''; a cleared date should clear the column.
+function toDbDate(value) {
+  if (value === undefined) return undefined
+  if (value === null) return null
+  const text = String(value).trim()
+  return text === '' ? null : text
+}
+
+// camelCase (form/local) and snake_case (Supabase row) both accepted.
+export function toDbVehicle(data = {}) {
+  const payload = {
+    vehicle_id: data.vehicle_id || (!VEHICLE_UUID_RE.test(String(data.id || '')) ? data.id : undefined),
+    registration: data.registration ?? data.reg,
+    vehicle_type: data.vehicle_type ?? data.type,
+    model: data.model,
+    year: toDbNumber(data.year),
+    color: data.color,
+    fuel_type: data.fuel_type ?? data.fuel ?? data.fuelType,
+    status: data.status,
+    current_km: toDbNumber(data.current_km ?? data.km),
+    engine_number: data.engine_number,
+    imei: data.imei,
+    last_service_date: toDbDate(data.last_service_date ?? data.lastServiceDate),
+    last_service_km: toDbNumber(data.last_service_km ?? data.lastServiceKm),
+    next_service_date: toDbDate(data.next_service_date ?? data.nextServiceDate),
+    next_service_km: toDbNumber(data.next_service_km ?? data.nextServiceKm),
+    insurance_provider: data.insurance_provider ?? data.insProvider,
+    insurance_number: data.insurance_number ?? data.insNumber,
+    insurance_expiry: toDbDate(data.insurance_expiry ?? data.insExpiry),
+    permit_number: data.permit_number ?? data.permitNumber,
+    permit_expiry: toDbDate(data.permit_expiry ?? data.permitExpiry),
+    fitness_cert_number: data.fitness_cert_number ?? data.fcNumber,
+    fitness_cert_expiry: toDbDate(data.fitness_cert_expiry ?? data.fcExpiry),
+    pollution_cert_number: data.pollution_cert_number ?? data.pucNumber,
+    pollution_cert_expiry: toDbDate(data.pollution_cert_expiry ?? data.pucExpiry),
+    updated_at: data.updated_at ?? data.updatedAt,
+  }
+  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined))
+}
+
+// Drop the columns from the 20261119 migration so a write can still succeed
+// on a database where it has not been applied yet.
+export function withoutComplianceColumns(payload = {}) {
+  const next = { ...payload }
+  for (const column of VEHICLE_COMPLIANCE_COLUMNS) delete next[column]
+  return next
+}
+
+// Postgres 42703 = undefined column. PostgREST uses PGRST204 for the same
+// problem when a column is missing from its schema cache; require a column
+// message so an unrelated PGRST204 (e.g. empty update result) is not treated
+// as a missing column and silently retried.
+export function isMissingColumnError(error) {
+  if (!error) return false
+  const code = String(error.code || '')
+  const message = String(error.message || '')
+  const mentionsColumn = /column|schema cache/i.test(message)
+  return code === '42703'
+    || (code === 'PGRST204' && mentionsColumn)
+    || /column\s+.*\s+does not exist/i.test(message)
 }

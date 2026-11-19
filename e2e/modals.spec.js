@@ -668,3 +668,24 @@ test('vehicle modal: mobile full-screen sheet, dark theme and Escape close', asy
   await waitForClose(page)
   await expect(dialog).toHaveCount(0)
 })
+
+test('vehicle modal: legacy inactive status stays selected and is preserved', async ({ page }) => {
+  await page.goto(harnessURL('modal=vehicle&mode=edit&status=inactive'))
+
+  const dialog = page.getByRole('dialog', { name: 'Edit Vehicle' })
+  await expect(dialog).toBeVisible()
+
+  const status = dialog.locator('#veh-status')
+  await expect(status).toHaveValue('inactive')
+  const inactiveOption = status.locator('option[value="inactive"]')
+  await expect(inactiveOption).toHaveText('Inactive')
+  await expect(inactiveOption).toBeDisabled()
+
+  // Saving without touching the status must not change it to "active".
+  await dialog.getByRole('button', { name: 'Save Changes' }).click()
+  await expect.poll(() => page.evaluate(() => window.__modalHarness.saves.length)).toBe(1)
+  await waitForClose(page)
+
+  const payload = await getSave(page)
+  expect(payload.status).toBe('inactive')
+})
