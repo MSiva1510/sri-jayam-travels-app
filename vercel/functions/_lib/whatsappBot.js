@@ -265,7 +265,7 @@ export function botStep(conv, msg, today) {
     }
     const name = cleanName(raw)
     if (!name) {
-      return done([text('Please type the name you would like us to use for this booking.')], state, data)
+      return done([text('Kindly type your name so we can continue with your booking.')], state, data)
     }
     const answered = { ...data, customer_name: name }
     // A conversation started before this step existed can reach Confirm with
@@ -376,7 +376,7 @@ export function botStep(conv, msg, today) {
       if (input === 'confirm' || input === 'yes' || input === 'ok') {
         if (!data.customer_name) {
           return done(
-            [text('What name should we use for your booking?')],
+            [text('Could you kindly share the name you would like us to use for your booking?')],
             'book_name',
             { ...data, name_return_state: 'book_confirm' },
           )
@@ -473,7 +473,7 @@ export function botStep(conv, msg, today) {
   }
   if (isBookIntent(input)) {
     return done(
-      [...greetFirst([text('What name should we use for your booking?')])],
+      [...greetFirst([text('Could you kindly share the name you would like us to use for your booking?')])],
       'book_name',
       {},
     )

@@ -44,7 +44,7 @@ test('menu: reset words, status, staff, booking and unknown messages', () => {
   ]) {
     const s = step(IDLE, { text })
     assert.equal(s.state, 'book_name', text)
-    assert.match(s.replies.at(-1).body, /name should we use/, text)
+    assert.match(s.replies.at(-1).body, /kindly share the name/, text)
     assert.equal(s.action, null, text)
   }
 
@@ -60,14 +60,14 @@ test('menu: reset words, status, staff, booking and unknown messages', () => {
 test('name: first booking question, validation, back and cancel', () => {
   let s = step(IDLE, { text: 'book', replyId: 'book' })
   assert.equal(s.state, 'book_name')
-  assert.match(s.replies.at(-1).body, /What name should we use/)
+  assert.match(s.replies.at(-1).body, /Could you kindly share the name/)
   assert.equal(s.replies.at(-1).kind, 'text', 'a name is free text, not a button choice')
 
   for (const bad of ['', '  ', 'x'.repeat(81)]) {
     const again = step(s, { text: bad })
     assert.equal(again.state, 'book_name', bad)
     assert.equal(again.data.customer_name, undefined, bad)
-    assert.match(again.replies[0].body, /Please type the name/, bad)
+    assert.match(again.replies[0].body, /Kindly type your name/, bad)
   }
 
   s = step(s, { text: '  Ravi  Shankar ' })
@@ -90,7 +90,7 @@ test('an in-flight booking without a name is never booked from the WhatsApp prof
   assert.equal(s.state, 'book_name')
   assert.equal(s.action, null)
   assert.equal(s.data.name_return_state, 'book_confirm')
-  assert.match(s.replies[0].body, /What name should we use/)
+  assert.match(s.replies[0].body, /Could you kindly share the name/)
 
   s = step(s, { text: 'Ravi Shankar' })
   assert.equal(s.state, 'book_confirm')

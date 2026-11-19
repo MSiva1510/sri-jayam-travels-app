@@ -50,7 +50,7 @@ test('booking conversation: menu → trip type → pickup → drop → date → 
 
   s = botStep(s, { text: 'Book a trip', replyId: 'book' }, TODAY)
   assert.equal(s.state, 'book_name', 'the name is the first booking question')
-  assert.match(s.replies.at(-1).body, /What name should we use/)
+  assert.match(s.replies.at(-1).body, /Could you kindly share the name/)
   s = botStep(s, { text: 'Mani Kumar' }, TODAY)
   assert.equal(s.state, 'book_type')
   assert.equal(s.data.customer_name, 'Mani Kumar')
@@ -86,13 +86,13 @@ test('name is asked first, validated, and carried into the booking', () => {
   let s = botStep(null, { text: 'book cab', contactName: 'Wrong Profile' }, TODAY)
   assert.equal(s.state, 'book_name')
   assert.doesNotMatch(s.replies[0].body, /Wrong Profile/, 'never trust the WhatsApp profile name')
-  assert.match(s.replies.at(-1).body, /name should we use/)
+  assert.match(s.replies.at(-1).body, /kindly share the name/)
 
   for (const bad of ['', '   ', 'a'.repeat(81)]) {
     const again = botStep(s, { text: bad }, TODAY)
     assert.equal(again.state, 'book_name', bad)
     assert.equal(again.data.customer_name, undefined)
-    assert.match(again.replies[0].body, /Please type the name/)
+    assert.match(again.replies[0].body, /Kindly type your name/)
   }
 
   s = botStep(s, { text: '  Selvaraj   Kumar  ' }, TODAY)
@@ -236,7 +236,7 @@ test('bot starts with the welcome message before any flow reply', () => {
   const s = botStep(null, { text: 'Book a trip', replyId: 'book', contactName: 'Mani Kumar' }, TODAY)
   assert.match(s.replies[0].body, /^Vanakkam!/)
   assert.equal(s.state, 'book_name')
-  assert.match(s.replies[1].body, /What name should we use/)
+  assert.match(s.replies[1].body, /Could you kindly share the name/)
   const named = botStep(s, { text: 'Mani Kumar' }, TODAY)
   assert.equal(named.state, 'book_type')
   assert.match(named.replies[0].body, /Which type of trip do you need/)
@@ -261,7 +261,7 @@ test('cancel, status, staff, booking intents and unknown text', () => {
   for (const text of ['book cab', 'Book a Cab', 'cab', 'taxi', 'I want to book a cab', 'need a car']) {
     const r = botStep(null, { text }, TODAY)
     assert.equal(r.state, 'book_name', text)
-    assert.match(r.replies.at(-1).body, /name should we use/, text)
+    assert.match(r.replies.at(-1).body, /kindly share the name/, text)
   }
   assert.equal(botStep(null, { text: 'what is the fare?' }, TODAY).replies[0].kind, 'buttons')
   assert.equal(botStep(null, { text: 'what is the fare?' }, TODAY).state, null)
@@ -559,7 +559,7 @@ test('webhook: a self drive saves the type and ID details', async () => {
 test('webhook: a customer books by sharing their live location and a maps link', async () => {
   const { db, sent } = fakeWorld()
   await webhook(incoming('Book a trip', { replyId: 'book' }), {}, ENV, fetch, NOW)
-  assert.match(sent.at(-1).text.body, /What name should we use/)
+  assert.match(sent.at(-1).text.body, /Could you kindly share the name/)
   await webhook(incoming('Mani Kumar'), {}, ENV, fetch, NOW)
   assert.equal(sent.at(-1).type, 'interactive')
   assert.equal(sent.at(-1).interactive.type, 'button')
