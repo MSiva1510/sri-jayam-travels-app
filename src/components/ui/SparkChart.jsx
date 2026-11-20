@@ -107,7 +107,7 @@ export default function SparkChart({
           {format(pts[hover].v)}
         </div>
       )}
-      <div className="mt-1.5 flex justify-between text-[10px] font-medium text-slate-400 dark:text-slate-500" aria-hidden="true">
+      <div className="mt-1.5 flex justify-between text-[10px] font-medium text-slate-500 dark:text-slate-400" aria-hidden="true">
         {data.map((d, i) => (
           (i % labelEvery === 0 || i === data.length - 1)
             ? <span key={i} className="tabular-nums truncate">{d?.[labelKey]}</span>

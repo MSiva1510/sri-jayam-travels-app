@@ -80,26 +80,34 @@ export default function GlobalSearch() {
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
   const [selIdx,  setSelIdx]  = useState(0)
-  const wrapRef  = useRef()
-  const inputRef = useRef()
+  const wrapRef    = useRef()
+  const inputRef   = useRef()
+  const triggerRef = useRef()
   const navigate = useNavigate()
+
+  const close = useCallback(() => {
+    setOpen(false)
+    setQuery('')
+    setResults([])
+    setTimeout(() => triggerRef.current?.focus(), 0)
+  }, [])
 
   // Click outside
   useEffect(() => {
-    const fn = e => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false) }
+    const fn = e => { if (wrapRef.current && !wrapRef.current.contains(e.target)) close() }
     document.addEventListener('mousedown', fn)
     return () => document.removeEventListener('mousedown', fn)
-  }, [])
+  }, [close])
 
   // ⌘K / Ctrl+K
   useEffect(() => {
     const fn = e => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); setOpen(true); setTimeout(() => inputRef.current?.focus(), 50) }
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Escape') close()
     }
     document.addEventListener('keydown', fn)
     return () => document.removeEventListener('keydown', fn)
-  }, [])
+  }, [close])
 
   const runSearch = useCallback(async q => {
     if (!q.trim()) { setResults([]); return }
@@ -118,7 +126,7 @@ export default function GlobalSearch() {
     return () => clearTimeout(t)
   }, [query, runSearch])
 
-  const handleSelect = item => { navigate(ENTITY_CFG[item.type]?.path || '/'); setOpen(false); setQuery(''); setResults([]) }
+  const handleSelect = item => { navigate(ENTITY_CFG[item.type]?.path || '/'); close() }
   const handleKeyDown = e => {
     if (e.key === 'ArrowDown') { e.preventDefault(); setSelIdx(i => Math.min(i+1, results.length-1)) }
     if (e.key === 'ArrowUp')   { e.preventDefault(); setSelIdx(i => Math.max(i-1, 0)) }
@@ -130,9 +138,10 @@ export default function GlobalSearch() {
   return (
     <div ref={wrapRef} className="relative">
       <button
+        ref={triggerRef}
         onClick={() => { setOpen(true); setTimeout(() => inputRef.current?.focus(), 50) }}
         aria-label="Search records"
-        className="flex items-center gap-2 p-2 sm:px-3 sm:py-2 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-400 dark:text-slate-500 hover:bg-[var(--ap-surface-2)] transition-all text-xs sm:min-w-[200px]">
+        className="flex items-center gap-2 h-9 sm:h-10 px-2.5 sm:px-3 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-slate-500 dark:text-slate-400 hover:border-blue-500/30 hover:text-blue-500 transition-all text-xs sm:min-w-[220px] shadow-sm">
         <Search size={13} />
         <span className="flex-1 text-left hidden sm:block">Search…</span>
         <kbd className="hidden sm:inline text-[9px] font-bold bg-[var(--ap-border)] text-slate-400 px-1.5 py-0.5 rounded border border-[var(--ap-border)]">⌘K</kbd>
@@ -140,7 +149,12 @@ export default function GlobalSearch() {
 
       {open && (
         <div className="fixed inset-0 bg-black/30 dark:bg-black/50 z-50 flex items-start justify-center pt-[10vh] px-4">
-          <div className="w-full max-w-lg ap-surface rounded-2xl shadow-2xl border border-[var(--ap-border)] overflow-hidden animate-fade-up">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Search records"
+            className="w-full max-w-lg ap-surface rounded-2xl shadow-2xl border border-[var(--ap-border)] overflow-hidden animate-fade-up"
+          >
             {/* Input */}
             <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--ap-border)]">
               <Search size={16} className="text-slate-400 flex-shrink-0" />
@@ -155,11 +169,16 @@ export default function GlobalSearch() {
               />
               {loading && <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />}
               {query && !loading && (
-                <button onClick={() => { setQuery(''); setResults([]) }} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <button
+                  type="button"
+                  onClick={() => { setQuery(''); setResults([]) }}
+                  aria-label="Clear search"
+                  className="ap-focus min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                >
                   <X size={14} />
                 </button>
               )}
-              <button onClick={() => setOpen(false)}
+              <button onClick={close}
                 aria-label="Close search"
                 className="text-[10px] bg-[var(--ap-surface-2)] text-slate-400 px-1.5 py-0.5 rounded border border-[var(--ap-border)] hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
                 Esc
@@ -171,7 +190,7 @@ export default function GlobalSearch() {
               {!query && (
                 <div className="px-4 py-8 text-center">
                   <Search size={28} className="mx-auto text-slate-300 dark:text-slate-600 mb-2" />
-                  <p className="text-sm text-slate-400 dark:text-slate-500">Start typing to search all records</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Start typing to search all records</p>
                   <div className="flex items-center justify-center gap-3 mt-4 flex-wrap">
                     {Object.entries(ENTITY_CFG).map(([key, cfg]) => {
                       const { Icon } = cfg
@@ -187,7 +206,7 @@ export default function GlobalSearch() {
 
               {query && results.length === 0 && !loading && (
                 <div className="px-4 py-8 text-center">
-                  <p className="text-sm text-slate-400 dark:text-slate-500">No results for "<strong>{query}</strong>"</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">No results for "<strong>{query}</strong>"</p>
                 </div>
               )}
 
@@ -232,7 +251,7 @@ export default function GlobalSearch() {
             </div>
 
             {results.length > 0 && (
-              <div className="px-4 py-2 border-t border-[var(--ap-border)] bg-slate-50/50 dark:bg-[var(--ap-surface-2)]/30 flex items-center gap-3 text-[10px] text-slate-400 dark:text-slate-500">
+              <div className="px-4 py-2 border-t border-[var(--ap-border)] bg-slate-50/50 dark:bg-[var(--ap-surface-2)]/30 flex items-center gap-3 text-[10px] text-slate-500 dark:text-slate-400">
                 <span>↑↓ Navigate</span><span>↵ Open</span><span>Esc Close</span>
                 <span className="ml-auto">{results.length} results</span>
               </div>

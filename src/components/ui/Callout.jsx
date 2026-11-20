@@ -14,7 +14,10 @@ export default function Callout({
 }) {
   const t = TONES[tone] || TONES.blue
   return (
-    <div className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 flex-wrap ${t.wrap} ${className}`}>
+    <div
+      role={tone === 'red' ? 'alert' : 'status'}
+      className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 flex-wrap ${t.wrap} ${className}`}
+    >
       <div className="flex items-center gap-2.5 min-w-[200px] flex-1">
         {Icon && (
           <span className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${t.text}`} aria-hidden="true">
@@ -29,7 +32,7 @@ export default function Callout({
       </div>
       {actionLabel && (
         <button onClick={onAction} disabled={actionDisabled}
-          className={`px-3 py-1.5 rounded-xl text-white text-xs font-semibold transition-all active:scale-95 shadow-sm flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${t.btn}`}>
+          className={`min-h-[44px] px-3 py-1.5 rounded-xl text-white text-xs font-semibold transition-all active:scale-95 shadow-sm flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${t.btn}`}>
           {actionLabel}
         </button>
       )}

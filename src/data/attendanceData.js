@@ -225,8 +225,10 @@ export async function loadAttendanceToday() {
     const rows = await attendanceRepository.getByDate(today)
     return (Array.isArray(rows) ? rows : []).map(normalizeAttendanceRow)
   } catch (err) {
+    // Throw so the dashboard can distinguish "no records" ([]) from a failed
+    // attendance query. Never turn an unavailable feed into a zero count.
     console.error('[attendanceData] loadAttendanceToday failed:', err)
-    return []
+    throw err
   }
 }
 

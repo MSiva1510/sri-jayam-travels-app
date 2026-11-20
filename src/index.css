@@ -81,7 +81,6 @@
      primary accents — tabs, tiles, buttons, selected states. */
   .bg-blue-600 { background-color: var(--sjt-brand) !important; }
   .border-blue-600 { border-color: var(--sjt-brand) !important; }
-  .text-blue-600 { color: var(--sjt-brand) !important; }
   html, body, #root {
     height: 100%;
     margin: 0;
@@ -350,6 +349,7 @@
   }
   .dark .ap-seg { background: rgba(120,120,128,0.26); }
   .ap-seg-btn {
+    min-height: 44px;
     padding: 0.55rem 1.1rem;
     border-radius: 8px;
     font-size: 0.875rem;
@@ -526,4 +526,21 @@
     text-shadow: 0 1px 0 rgba(255,255,255,0.6);
   }
   .dark .apple-timer-digits { color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+}
+
+/* Unlayered on purpose: Tailwind utilities live in @layer utilities, so a
+   base-layer override cannot win without !important. This keeps the brand
+   blue in light mode and swaps to a readable link blue in dark mode. */
+.text-blue-600 { color: var(--sjt-brand); }
+/* Tailwind's dark: utility has equal specificity and is emitted later, so
+   scope the readable override to html.dark to win without !important. */
+html.dark .text-blue-600 { color: #93c5fd; }
+html.dark .text-blue-600:hover { color: #bfdbfe; }
+
+/* Comfortable touch targets for compact text actions. */
+.ap-action-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding-inline: 0.25rem;
 }

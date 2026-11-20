@@ -59,7 +59,7 @@ export default function Topbar() {
   const homeRoute    = '/'
 
   return (
-    <header className="glass-topbar h-[60px] flex items-center px-4 gap-3 flex-shrink-0 sticky top-0 z-30">
+    <header className="glass-topbar h-[60px] lg:h-[64px] flex items-center px-4 sm:px-5 xl:px-6 gap-3 flex-shrink-0 sticky top-0 z-30">
 
       {/* Hamburger — mobile (also desktop when sidebar is minimal/hidden) */}
       <button
@@ -72,17 +72,18 @@ export default function Topbar() {
 
       {/* Page title */}
       <div className="flex items-center gap-2 min-w-0 flex-1">
-        <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
-          <span>SJT</span><ChevronRight size={12} />
+        <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+          <span className="inline-flex h-5 items-center rounded-md bg-blue-500/10 px-1.5 text-[10px] font-bold tracking-wide text-blue-600 dark:text-blue-400">SJT</span>
+          <ChevronRight size={12} />
         </div>
         <div className="min-w-0">
-          <h2 className="font-sf font-semibold text-slate-800 dark:text-white text-base leading-tight truncate">{info.label}</h2>
+          <h2 className="font-sf font-semibold text-slate-800 dark:text-white text-[15px] leading-tight truncate">{info.label}</h2>
           {/* subtitle intentionally not repeated here — the page header carries it */}
         </div>
       </div>
 
       {/* Right controls */}
-      <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="flex items-center gap-2 sm:gap-2.5 flex-shrink-0">
 
         {/* Global Search */}
         <GlobalSearch />
@@ -91,7 +92,7 @@ export default function Topbar() {
         <button onClick={() => setDarkMode(!darkMode)}
           aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
           aria-pressed={darkMode}
-          className="w-9 h-9 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-navy-900 dark:hover:text-white hover:bg-[var(--ap-surface-2)] transition-all"
+          className="w-9 h-9 rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-[var(--ap-surface-2)] active:scale-95 transition-all"
           title={darkMode ? 'Light mode' : 'Dark mode'}>
           {darkMode ? <Sun size={16} /> : <Moon size={16} />}
         </button>
@@ -106,7 +107,7 @@ export default function Topbar() {
               aria-label="Account menu"
               aria-expanded={dropOpen}
               aria-haspopup="menu"
-              className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl hover:bg-[var(--ap-surface-2)] transition-colors">
+              className="flex items-center gap-2 h-10 pl-1.5 pr-2 py-1.5 rounded-xl hover:bg-[var(--ap-surface-2)] transition-colors">
               <Avatar name={user.name} size={30} />
               <div className="hidden sm:block text-left">
                 <p className="text-xs font-bold text-slate-700 dark:text-slate-200 leading-tight">{user.name}</p>

@@ -26,7 +26,7 @@ export default function MetricCard({
       type={interactive ? 'button' : undefined}
       onClick={onClick}
       aria-label={interactive ? `${label}: ${value}${sub ? `, ${sub}` : ''}` : undefined}
-      className={`ap-surface ap-focus text-left w-full p-4 transition-transform duration-150 ${interactive ? 'ios-press cursor-pointer' : ''} ${className}`}
+      className={`ap-surface ap-focus text-left w-full min-w-0 overflow-hidden p-4 transition-transform duration-150 ${interactive ? 'ios-press cursor-pointer' : ''} ${className}`}
     >
       <div className="flex items-start justify-between gap-2 mb-3">
         {Icon && (
@@ -47,7 +47,10 @@ export default function MetricCard({
       <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 dark:text-slate-400 mb-0.5">
         {label}
       </p>
-      <p className="font-sf text-[26px] font-semibold tracking-tight text-slate-900 dark:text-white leading-none tabular-nums">
+      <p
+        className="font-sf text-lg sm:text-[26px] font-semibold tracking-tight text-slate-900 dark:text-white leading-none tabular-nums truncate"
+        title={String(value)}
+      >
         {value}
       </p>
       {sub && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5">{sub}</p>}

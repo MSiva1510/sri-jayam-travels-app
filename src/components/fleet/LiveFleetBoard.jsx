@@ -10,6 +10,7 @@ import { useGpsHistory } from '../../context/GpsHistoryContext'
 import { loadDrivers } from '../../data/driverData'
 import { loadVehicles } from '../../data/vehicleData'
 import { loadBookings } from '../../data/tripTypes'
+import { deriveGpsStatus, toLocalDateStr } from '../../utils/dashboardData'
 
 const norm = (r) => String(r ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
 
@@ -49,7 +50,8 @@ function formatDuration(isoStart) {
 }
 
 export default function LiveFleetBoard() {
-  const { snapshots } = useGpsHistory()
+  const { snapshots, settings, health, running, error: gpsError } = useGpsHistory()
+  const gps = deriveGpsStatus({ snapshots, settings, health, running, error: gpsError })
   const [bookings, setBookings] = useState([])
   const [drivers,  setDrivers]  = useState([])
   const [vehicles, setVehicles] = useState([])
@@ -80,7 +82,7 @@ export default function LiveFleetBoard() {
     return () => clearInterval(id)
   }, [fetchRegistry])
 
-  const todayISO = new Date().toISOString().slice(0, 10)
+  const todayISO = toLocalDateStr()
 
   // One row per fleet vehicle: registry rows joined with their live fix,
   // plus any GPS-reporting reg not in the registry.
@@ -136,14 +138,16 @@ export default function LiveFleetBoard() {
           </div>
           <div>
             <h3 className="font-sf font-semibold text-slate-800 dark:text-white text-sm">Live Fleet Board</h3>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums">{onlineCount} online · {movingCount} moving</p>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 tabular-nums">
+              {gps.label} · last fix {gps.lastUpdate} · {onlineCount} online · {movingCount} moving
+            </p>
           </div>
         </div>
-        <StatusPill tone={onlineCount > 0 ? 'green' : 'amber'} pulse={onlineCount > 0}>Live GPS</StatusPill>
+        <StatusPill tone={gps.tone} pulse={gps.isLive}>{gps.label}</StatusPill>
       </div>
 
       {/* Table header — desktop only */}
-      <div className="hidden sm:grid grid-cols-6 gap-2 px-4 py-2 bg-[var(--ap-surface-2)] text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+      <div className="hidden sm:grid grid-cols-6 gap-2 px-4 py-2 bg-[var(--ap-surface-2)] text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
         <span>Vehicle</span>
         <span>Driver</span>
         <span>Current Area</span>
@@ -155,7 +159,7 @@ export default function LiveFleetBoard() {
       {/* Rows */}
       <div className="divide-y divide-[var(--ap-border)]/60">
         {rows.length === 0 && (
-          <p className="px-4 py-6 text-center text-xs text-slate-400 dark:text-slate-500">No vehicles in the fleet yet.</p>
+          <p className="px-4 py-6 text-center text-xs text-slate-500 dark:text-slate-400">No vehicles in the fleet yet.</p>
         )}
         {rows.map(({ key, reg, model, vtype, driverName, activeBooking, status, snapshot, area }) => {
           const pill = GPS_PILL[status]
@@ -184,7 +188,7 @@ export default function LiveFleetBoard() {
                       <span className="mx-1">·</span>
                       <MapPin size={9} /><span className="truncate">{area}</span>
                     </div>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 tabular-nums">{speedTxt} · {ago(snapshot?.timestamp)}</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 tabular-nums">{speedTxt} · {ago(snapshot?.timestamp)}</p>
                   </div>
                 </div>
               </div>
@@ -241,8 +245,10 @@ export default function LiveFleetBoard() {
       </div>
 
       <div className="px-4 py-2 border-t border-[var(--ap-border)] bg-slate-50/50 dark:bg-[var(--ap-surface-2)]/30">
-        <p className="text-[9px] text-slate-400 dark:text-slate-500">
-          Auto-syncs with live GPS · fixes older than 10 min show as Offline
+        <p className="text-[10px] text-slate-500 dark:text-slate-400">
+          {gps.isLive
+            ? 'Auto-syncs with live GPS · fixes older than 10 min show as Offline'
+            : `${gps.label} · stored fixes are not live positions`}
         </p>
       </div>
     </div>

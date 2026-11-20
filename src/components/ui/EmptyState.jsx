@@ -3,12 +3,12 @@ export default function EmptyState({ icon: Icon, title, description, action, cla
   return (
     <div className={`flex flex-col items-center justify-center text-center gap-2 py-10 px-6 ${className}`}>
       {Icon && (
-        <span className="w-11 h-11 rounded-2xl bg-slate-500/10 text-slate-400 dark:text-slate-500 flex items-center justify-center mb-1" aria-hidden="true">
+        <span className="w-11 h-11 rounded-2xl bg-slate-500/10 text-slate-500 dark:text-slate-400 flex items-center justify-center mb-1" aria-hidden="true">
           <Icon size={20} strokeWidth={2} />
         </span>
       )}
       {title && <p className="font-sf text-sm font-semibold text-slate-700 dark:text-slate-200">{title}</p>}
-      {description && <p className="text-xs text-slate-400 dark:text-slate-500 max-w-xs">{description}</p>}
+      {description && <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs">{description}</p>}
       {action && <div className="mt-2">{action}</div>}
     </div>
   )
