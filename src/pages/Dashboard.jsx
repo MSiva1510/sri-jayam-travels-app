@@ -184,7 +184,17 @@ export default function Dashboard() {
         unavailable={unavailable}
       />
 
-      {/* 3. Today's operations */}
+      {/* 3. Revenue and expense analytics — finance is the top priority */}
+      <FinancialAnalytics
+        canRevenue={canViewReports}
+        canProfit={can('profitReports')}
+        canExpenses={can('expenses')}
+        data={data}
+        onNavigate={go}
+        unavailable={unavailable}
+      />
+
+      {/* 4. Today's operations */}
       {(can('revenueDashboard') || can('trips')) && (
         <OperationsOverview
           counts={data.todayCounts}
@@ -200,7 +210,7 @@ export default function Dashboard() {
         />
       )}
 
-      {/* 4. Priority alerts and reminders */}
+      {/* 5. Priority alerts and reminders */}
       <PriorityAlerts
         alerts={data.documents.alerts}
         expiredCount={data.documents.expiredCount}
@@ -221,12 +231,13 @@ export default function Dashboard() {
         />
       )}
 
-      {/* 5. Fleet status and GPS overview */}
+      {/* 6. Fleet status and GPS overview */}
       {(can('vehicles') || isAdmin || isManager) && (
         <>
           <FleetOverview
             vehicleCounts={data.vehicleCounts}
             gps={data.gps}
+            snapshots={liveSnapshots}
             vehiclesUnavailable={unavailable.vehicles}
             onVehicles={() => go('/vehicles')}
             onGps={() => go('/fleet')}
@@ -234,16 +245,6 @@ export default function Dashboard() {
           {(isAdmin || isManager) && <LiveFleetBoard />}
         </>
       )}
-
-      {/* 6. Revenue and expense analytics */}
-      <FinancialAnalytics
-        canRevenue={canViewReports}
-        canProfit={can('profitReports')}
-        canExpenses={can('expenses')}
-        data={data}
-        onNavigate={go}
-        unavailable={unavailable}
-      />
 
       {/* 7. Upcoming and recent trips */}
       <TripActivity

@@ -31,6 +31,7 @@ for (const width of [1440, 1280, 768, 390]) {
     for (const label of [
       'Total Fare', 'Net Income', 'Kilometres Travelled', 'Total Expenses',
       "Today's operations", 'Priority alerts & reminders', 'Fleet & GPS',
+      'Live fleet map', 'Moving', 'Idle', 'Stopped', 'Offline',
       'Revenue & expenses', 'Upcoming & recent trips', 'Driver performance',
       'Trip contribution', 'Settlement summary', 'Customers', "Today's attendance",
     ]) {
@@ -86,7 +87,7 @@ test('dashboard actions navigate to their matching pages', async ({ page }) => {
   await expectNav(page.getByRole('button', { name: 'Create Trip' }), '/create-trip')
   await expectNav(page.getByRole('button', { name: /^Total Fare:/ }), '/reports')
   await expectNav(page.getByRole('button', { name: /^Net Income:/ }), '/reports')
-  await expectNav(page.getByRole('button', { name: /^Kilometres Travelled:/ }), '/trips')
+  await expectNav(page.getByRole('button', { name: /^Kilometres Travelled:/ }), '/vehicles')
   await expectNav(page.getByRole('button', { name: /^Total Expenses:/ }), '/expenses')
 
   const operations = page.getByRole('region', { name: "Today's operations" })
@@ -126,8 +127,50 @@ test('manager KPI cards navigate to their matching pages', async ({ page }) => {
 
   await expectNav(page.getByRole('button', { name: /^Total Trips:/ }), '/trips')
   await expectNav(page.getByRole('button', { name: /^Completed Trips:/ }), '/trips')
-  await expectNav(page.getByRole('button', { name: /^Total KM:/ }), '/trips')
+  await expectNav(page.getByRole('button', { name: /^Total KM:/ }), '/vehicles')
   await expectNav(page.getByRole('button', { name: /^Pending Bills:/ }), '/invoices')
+})
+
+test('dashboard orders finance ahead of operations and routine widgets', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const y = async label => page.getByText(label, { exact: false }).first()
+    .evaluate(el => el.getBoundingClientRect().top + window.scrollY)
+
+  const [finance, operations, alerts, fleet, trips] = await Promise.all([
+    y('Revenue & expenses'), y("Today's operations"), y('Priority alerts & reminders'),
+    y('Fleet & GPS'), y('Upcoming & recent trips'),
+  ])
+  expect(finance).toBeLessThan(operations)
+  expect(operations).toBeLessThan(alerts)
+  expect(alerts).toBeLessThan(fleet)
+  expect(fleet).toBeLessThan(trips)
+})
+
+test('payroll summary lists every driver', async ({ page }) => {
+  const payroll = page.getByRole('region', { name: 'Payroll summary' })
+  await expect(payroll.getByText('All drivers')).toBeVisible()
+  await expect(payroll.getByRole('button', { name: 'Open payroll for Ravi' })).toBeVisible()
+  await expect(payroll.getByRole('button', { name: 'Open payroll for Kumar' })).toBeVisible()
+})
+
+test('live fleet map card shows GPS states, opens fleet and follows the theme', async ({ page }) => {
+  const mapCard = page.getByRole('region', { name: 'Live fleet map' })
+  await expect(mapCard).toBeVisible()
+  for (const name of [
+    'Moving vehicles: 0', 'Idle vehicles: 0',
+    'Stopped vehicles: 0', 'Offline vehicles: 1',
+  ]) {
+    await expect(mapCard.getByRole('button', { name })).toBeVisible()
+  }
+
+  await mapCard.getByRole('button', { name: 'Moving vehicles: 0' }).click()
+  await expect(page.locator('#last-nav')).toHaveText('/fleet')
+
+  const light = await mapCard.evaluate(el => getComputedStyle(el).backgroundColor)
+  await page.locator('#theme-toggle').click()
+  await expect(page.locator('html')).toHaveClass(/dark/)
+  const dark = await mapCard.evaluate(el => getComputedStyle(el).backgroundColor)
+  expect(dark).not.toBe(light)
 })
 
 test('light and dark themes both render readable links', async ({ page }) => {

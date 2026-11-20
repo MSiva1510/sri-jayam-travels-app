@@ -1,12 +1,11 @@
 // ─── Fleet Map (MapLibre) ───────────────────────────────────────
-// Plain OSM raster tiles (no API key, no vector style that can fail as
-// a unit): street → OSM standard · satellite → keyless Esri imagery.
-// If OSM never finishes loading, fall back to Esri street map.
-// One small car marker per vehicle (rotated to bearing, white reg
-// label), click → detail panel. Markers ease toward live fixes via
-// rAF so motion looks continuous instead of jumpy.
+// Keyless Esri raster tiles. The basemap follows the app theme:
+// light → street map, dark → dark grey canvas. One small car marker
+// per vehicle (rotated to bearing, white reg label), click → detail
+// panel. Markers ease toward live fixes via rAF so motion looks
+// continuous instead of jumpy.
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Maximize2 } from 'lucide-react'
@@ -14,43 +13,40 @@ import { useApp } from '../../context/AppContext'
 import { snapPoint } from '../../utils/snapToRoad'
 import { carSvg, carStatusOf, CAR_STATUS_COLORS } from './carIcon'
 
-const OSM_STYLE = {
+const LIGHT_STYLE = {
   version: 8,
   sources: {
-    osm: {
-      type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      maxzoom: 19,
-      attribution: '© OpenStreetMap contributors',
-    },
-  },
-  layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
-}
-const ESRI_STREET_FALLBACK = {
-  version: 8,
-  sources: {
-    esri: {
+    esriStreet: {
       type: 'raster',
       tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'],
       tileSize: 256,
       maxzoom: 19,
-      attribution: '© Esri · © OpenStreetMap contributors',
+      attribution: '© Esri',
     },
   },
-  layers: [{ id: 'esri', type: 'raster', source: 'esri' }],
+  layers: [{ id: 'esri-street', type: 'raster', source: 'esriStreet' }],
 }
-const SAT_STYLE = {
+const DARK_STYLE = {
   version: 8,
   sources: {
-    esri: {
+    esriDark: {
       type: 'raster',
-      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'],
       tileSize: 256,
-      attribution: 'Imagery © Esri',
+      maxzoom: 16,
+      attribution: '© Esri',
+    },
+    esriDarkLabels: {
+      type: 'raster',
+      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}'],
+      tileSize: 256,
+      maxzoom: 16,
     },
   },
-  layers: [{ id: 'esri', type: 'raster', source: 'esri' }],
+  layers: [
+    { id: 'esri-dark', type: 'raster', source: 'esriDark' },
+    { id: 'esri-dark-labels', type: 'raster', source: 'esriDarkLabels' },
+  ],
 }
 
 const statusOf = carStatusOf
@@ -68,8 +64,8 @@ function popupHtml(s, status) {
   </div>`
 }
 
-export default function FleetMap({ snapshots = [], onSelect, layer = 'map', locateTarget, height = 500, snapToRoad = false }) {
-  const { darkMode } = useApp()
+export default function FleetMap({ snapshots = [], onSelect, locateTarget, height = 500, snapToRoad = false }) {
+  const { darkMode } = useApp() || {}
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const markersRef = useRef(new Map()) // id -> { marker, el, carEl, spdEl, status, cur, target }
@@ -77,10 +73,8 @@ export default function FleetMap({ snapshots = [], onSelect, layer = 'map', loca
   const latestRef = useRef(new Map())
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
-  const [styleFailed, setStyleFailed] = useState(false)
-  const loadedRef = useRef(false) // true once a style has fully loaded
-
-  const styleSpec = layer === 'satellite' ? SAT_STYLE : OSM_STYLE
+  const styleSpec = darkMode ? DARK_STYLE : LIGHT_STYLE
+  const activeStyleRef = useRef(styleSpec)
 
   const centre = useMemo(() => {
     const pts = snapshots
@@ -100,14 +94,9 @@ export default function FleetMap({ snapshots = [], onSelect, layer = 'map', loca
       style: styleSpec,
       center: centre,
       zoom: 11,
-      attributionControl: { compact: true },
+      attributionControl: false,
     })
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left')
-    map.on('load', () => { loadedRef.current = true })
-    map.on('styledata', () => { try { if (map.isStyleLoaded()) loadedRef.current = true } catch {} })
-    // A style that never finishes loading (blocked tile host, offline)
-    // falls back to Esri street — but one bad tile must NOT flip the style.
-    map.on('error', () => { if (!loadedRef.current) setStyleFailed(true) })
     mapRef.current = map
     return () => {
       markersRef.current.forEach(m => m.marker.remove())
@@ -118,23 +107,13 @@ export default function FleetMap({ snapshots = [], onSelect, layer = 'map', loca
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Fallback to Esri street if the OSM style never finishes loading
-  const fellBack = useRef(false)
+  // Follow the app theme. Markers are DOM overlays, so setStyle keeps them.
   useEffect(() => {
-    if (styleFailed && !fellBack.current && mapRef.current) {
-      fellBack.current = true
-      try { mapRef.current.setStyle(ESRI_STREET_FALLBACK) } catch {}
-    }
-  }, [styleFailed])
-
-  // Switch street / satellite styles (markers persist)
-  useEffect(() => {
-    if (mapRef.current && !fellBack.current) {
-      loadedRef.current = false
-      try { mapRef.current.setStyle(styleSpec) } catch {}
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layer, darkMode])
+    const map = mapRef.current
+    if (!map || activeStyleRef.current === styleSpec) return
+    activeStyleRef.current = styleSpec
+    try { map.setStyle(styleSpec) } catch {}
+  }, [styleSpec])
 
   // Sync markers with snapshots (create / update targets, never jump)
   useEffect(() => {
@@ -263,7 +242,7 @@ export default function FleetMap({ snapshots = [], onSelect, layer = 'map', loca
       >
         <Maximize2 size={12} /> Show all ({snapshots.filter(s => Number.isFinite(s.latitude) && Number.isFinite(s.longitude)).length})
       </button>
-      <div className="absolute bottom-3 left-3 z-10 flex gap-3 rounded-xl bg-white/95 dark:bg-[var(--ap-surface)]/95 backdrop-blur-md px-3.5 py-2.5 text-[11px] font-semibold text-slate-600 dark:text-slate-200 shadow-lg border border-[var(--ap-border)]">
+      <div className="absolute bottom-3 left-3 z-10 flex flex-wrap gap-x-3 gap-y-1 rounded-xl bg-[var(--ap-surface)]/95 backdrop-blur-md px-3.5 py-2.5 text-[11px] font-semibold text-slate-600 dark:text-slate-200 shadow-lg border border-[var(--ap-border)]">
         {Object.entries(CAR_STATUS_COLORS).map(([k, c]) => (
           <span key={k} className="flex items-center gap-1.5">
             <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: c.body }} />

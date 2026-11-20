@@ -145,6 +145,28 @@ test('attention queue keeps the original permission gates', () => {
   assert.deepEqual(manager.attentionItems.map(item => item.to), ['/trips', '/expenses', '/vehicles', '/payroll'])
 })
 
+test('payroll list covers every driver, including drivers without settlements', () => {
+  const data = buildDashboardData({
+    drivers: [
+      { id: 'd1', name: 'Ravi' },
+      { id: 'd2', name: 'Kumar' },
+      { id: 'd3', name: 'Selvan' },
+    ],
+    settlements: [
+      { driver: 'Ravi', status: 'paid', netAmount: 8400 },
+      { driver: 'Kumar', status: 'pending', netAmount: 3200 },
+    ],
+    now, nowMs,
+  })
+
+  assert.deepEqual(data.payroll.drivers, [
+    { id: 'd1', name: 'Ravi', status: 'paid', amount: 8400 },
+    { id: 'd2', name: 'Kumar', status: 'pending', amount: 3200 },
+    { id: 'd3', name: 'Selvan', status: 'none', amount: 0 },
+  ])
+  assert.equal(data.payroll.total, 2, 'settlement count must not include driver rows')
+})
+
 test('losses keep a negative margin and today counters stay local', () => {
   const data = buildDashboardData({
     bookings: [booking({ id: 'b1', fare: 100, type: 'outstation', startDate: `${monthKey}-20` })],

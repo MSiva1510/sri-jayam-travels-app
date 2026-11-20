@@ -48,9 +48,9 @@ const fixture = {
     { id: 'e2', date: `${monthKey}-09`, amount: 900, type: 'toll', status: 'submitted' },
   ],
   settlements: [
-    { id: 's1', status: 'paid', netAmount: 8400 },
-    { id: 's2', status: 'pending', netAmount: 3200 },
-    { id: 's3', status: 'approved', netAmount: 2100 },
+    { id: 's1', driver: 'Ravi', status: 'paid', netAmount: 8400 },
+    { id: 's2', driver: 'Kumar', status: 'pending', netAmount: 3200 },
+    { id: 's3', driver: 'Ravi', status: 'approved', netAmount: 2100 },
   ],
   todayAttendance: [{ status: 'present' }, { status: 'present' }, { status: 'leave' }],
   drivers: [
@@ -128,6 +128,7 @@ function Harness() {
           rangeLabel={rangeLabel}
         />
         <DashboardKpiGrid canRevenue={!managerKpis} data={data} onNavigate={nav} />
+        <FinancialAnalytics canRevenue canProfit canExpenses data={data} onNavigate={nav} />
         <OperationsOverview
           counts={data.todayCounts}
           allTime={data.allTime}
@@ -154,8 +155,7 @@ function Harness() {
           unavailable={!alertsAvailable}
           onViewAll={() => nav('/fleet')}
         />
-        <FleetOverview vehicleCounts={data.vehicleCounts} gps={data.gps} onVehicles={() => nav('/vehicles')} onGps={() => nav('/fleet')} />
-        <FinancialAnalytics canRevenue canProfit canExpenses data={data} onNavigate={nav} />
+        <FleetOverview vehicleCounts={data.vehicleCounts} gps={data.gps} snapshots={fixture.gps.snapshots} onVehicles={() => nav('/vehicles')} onGps={() => nav('/fleet')} />
         <TripActivity
           bookingToday={data.bookingToday}
           recentTrips={data.recentTrips}

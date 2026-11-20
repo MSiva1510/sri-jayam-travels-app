@@ -176,7 +176,6 @@ export default function Fleet() {
   const [statusSel, setStatusSel] = useState('all')
   const [selected, setSelected] = useState(null)
   const [locateTarget, setLocateTarget] = useState(null)
-  const [layer, setLayer] = useState('map')
   const [snapToRoad, setSnapToRoad] = useState(false)
   const [mapFocus, setMapFocus] = useState(false)
   const [tick, setTick] = useState(0)
@@ -384,7 +383,7 @@ export default function Fleet() {
           snapshots={filtered} total={total} counts={counts}
           selected={selected} setSelected={setSelected}
           locateTarget={locateTarget} setLocateTarget={setLocateTarget}
-          layer={layer} setLayer={setLayer} mapFocus={mapFocus}
+          mapFocus={mapFocus}
           snapToRoad={snapToRoad} setSnapToRoad={setSnapToRoad}
           movement={movement} hourly={hourly} todayKm={todayKm} distDelta={distDelta}
         />
@@ -403,33 +402,27 @@ export default function Fleet() {
 }
 
 // ── Live Map view ─────────────────────────────────────────────
-function MapView({ snapshots, total, counts, selected, setSelected, locateTarget, setLocateTarget, layer, setLayer, mapFocus, movement, hourly, todayKm, distDelta, snapToRoad, setSnapToRoad }) {
+function MapView({ snapshots, total, counts, selected, setSelected, locateTarget, setLocateTarget, mapFocus, movement, hourly, todayKm, distDelta, snapToRoad, setSnapToRoad }) {
   return (
     <div className="space-y-4">
       <div className={`grid grid-cols-1 gap-4 ${mapFocus ? '' : 'lg:grid-cols-3'}`}>
         <div className={mapFocus ? '' : 'lg:col-span-2'}>
           <div className="relative">
-            <FleetMap snapshots={snapshots} onSelect={setSelected} layer={layer} locateTarget={locateTarget} height={mapFocus ? 560 : 460} snapToRoad={snapToRoad} />
-            <div className="absolute right-3 bottom-3 z-[400] flex items-center gap-2">
+            <FleetMap snapshots={snapshots} onSelect={setSelected} locateTarget={locateTarget} height={mapFocus ? 560 : 460} snapToRoad={snapToRoad} />
+            <div className="absolute right-3 bottom-3 z-[400]">
               <button
+                type="button"
                 onClick={() => setSnapToRoad(v => !v)}
                 title="Snap car markers to the nearest road (display only — GPS data unchanged)"
                 aria-pressed={snapToRoad}
-                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-[5px] shadow-lg ring-1 ring-black/5 backdrop-blur transition-colors active:scale-95 ${
+                className={`ap-focus flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold shadow-lg transition-colors active:scale-95 ${
                   snapToRoad
-                    ? 'bg-[var(--ap-accent)] text-white'
-                    : 'bg-[var(--ap-surface)]/90 text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-elevated)]'
+                    ? 'border-transparent bg-[var(--ap-accent)] text-white'
+                    : 'border-[var(--ap-border)] bg-[var(--ap-surface)] text-slate-700 dark:text-slate-200 hover:bg-[var(--ap-surface-2)]'
                 }`}
               >
                 <Route size={12} /> Snap to road
               </button>
-              <SegmentedControl
-                ariaLabel="Map layer"
-                value={layer}
-                onChange={setLayer}
-                className="bg-[var(--ap-surface)]/90 shadow-lg ring-1 ring-black/5"
-                options={[{ key: 'map', label: 'Map' }, { key: 'satellite', label: 'Satellite' }]}
-              />
             </div>
           </div>
         </div>

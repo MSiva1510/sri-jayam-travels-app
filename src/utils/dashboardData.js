@@ -228,6 +228,20 @@ export function buildDashboardData({
     .reduce((total, settlement) => total + (settlement.netAmount || 0), 0)
   const settledPending = settlements.filter(settlement => settlement.status === 'pending').length
   const settledApproved = settlements.filter(settlement => settlement.status === 'approved').length
+  // Payroll dashboard lists the whole driver registry, not only drivers who
+  // already have a settlement row. Settlement matching is by display name,
+  // which is how the Payroll page keys its records too.
+  const payrollDrivers = drivers.map(driver => {
+    const name = driver.name || driver.full_name || ''
+    const settlement = settlements.find(item =>
+      String(item.driver || '').trim().toLowerCase() === name.trim().toLowerCase())
+    return {
+      id: driver.id,
+      name,
+      status: settlement?.status || 'none',
+      amount: Number(settlement?.netAmount || 0),
+    }
+  })
 
   const totalFare = sumAmount(revenueBookings, 'fare')
   const totalKm = sumAmount(revenueBookings, 'km')
@@ -381,7 +395,10 @@ export function buildDashboardData({
     expense: { entries: periodExpenses.length, pendingApprovals, categories: expByCategory },
     trend: { data: trendData, title: trendTitle, monthlyExp, monthlyNet, monthlyTrips, tripTotal, margin: periodFare > 0 ? Math.min(100, Math.round((periodNet / periodFare) * 100)) : 0 },
     // payroll + people
-    payroll: { totalPaid: totalPayrollPaid, pending: settledPending, approved: settledApproved, total: settlements.length },
+    payroll: {
+      totalPaid: totalPayrollPaid, pending: settledPending, approved: settledApproved,
+      total: settlements.length, drivers: payrollDrivers,
+    },
     attendance: { present: todayAttendance.filter(row => row.status === 'present').length, leave: todayAttendance.filter(row => row.status === 'leave').length },
     driverStats,
     driverCounts: { total: drivers.length },

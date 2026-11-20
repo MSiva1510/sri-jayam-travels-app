@@ -2,13 +2,13 @@
 // Neutral value (near-black / white), a single-hue translucent icon
 // chip, optional trend pill. Press feedback instead of hover lift.
 export const METRIC_TONES = {
-  blue:   'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-  green:  'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-  teal:   'bg-teal-500/10 text-teal-600 dark:text-teal-400',
-  violet: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
-  amber:  'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-  red:    'bg-red-500/10 text-red-600 dark:text-red-400',
-  gray:   'bg-slate-500/10 text-slate-500 dark:text-slate-300',
+  blue:   'bg-blue-500/10 text-blue-600 dark:bg-blue-400/10 dark:text-blue-300',
+  green:  'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-400/10 dark:text-emerald-300',
+  teal:   'bg-teal-500/10 text-teal-600 dark:bg-teal-400/10 dark:text-teal-300',
+  violet: 'bg-violet-500/10 text-violet-600 dark:bg-violet-400/10 dark:text-violet-300',
+  amber:  'bg-amber-500/10 text-amber-600 dark:bg-amber-400/10 dark:text-amber-300',
+  red:    'bg-red-500/10 text-red-600 dark:bg-red-400/10 dark:text-red-300',
+  gray:   'bg-slate-500/10 text-slate-500 dark:bg-white/10 dark:text-slate-300',
 }
 
 export default function MetricCard({
