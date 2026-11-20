@@ -3,82 +3,55 @@
 // categories. Metadata lives in the Supabase `documents` table and the
 // actual files in the private `trip-documents` storage bucket.
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
-  FileText, Plus, Search, AlertTriangle,
-  CheckCircle, Clock, Download, Trash2, X,
-  Car, User, FolderOpen, Eye, Columns3, Building2, LayoutGrid, List, Pencil, ScanLine,
+  FileText, Plus, AlertTriangle,
+  Download, Trash2, X,
+  Car, User, FolderOpen, Eye, Building2, Pencil, Printer,
 } from 'lucide-react'
 import PageHeader   from '../components/ui/PageHeader'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import Button       from '../components/ui/Button'
 import IconButton   from '../components/ui/IconButton'
-import MetricCard   from '../components/ui/MetricCard'
 import StatusPill   from '../components/ui/StatusPill'
 import Callout      from '../components/ui/Callout'
 import EmptyState   from '../components/ui/EmptyState'
-import SegmentedControl from '../components/ui/SegmentedControl'
-import { fieldCls, Select as FieldSelect } from '../components/ui/Field'
 import { useAuth }  from '../context/AuthContext'
-import supabase     from '../lib/supabase'
+import DocumentModal from '../components/documents/DocumentModal'
+import DocumentFilters from '../components/documents/DocumentFilters'
+import DocumentStatusCards from '../components/documents/DocumentStatusCards'
 import { loadDrivers } from '../data/driverData'
 import { loadVehicles } from '../data/vehicleData'
 import { loadCustomers } from '../data/customerData'
+import {
+  fetchDocuments, uploadDocumentFile, saveDocument, deleteDocument,
+  deleteDocumentFiles, getDocumentFileUrl,
+} from '../data/documentData'
+import { runOcrWorkflow } from '../services/ocrService'
+import {
+  DOCUMENT_TYPES as DOC_TYPES,
+  STATUS_CFG,
+  documentStatus,
+  formatTypeLabel as typeLabel,
+} from '../utils/documentForm.js'
+import { daysUntil as daysLeft } from '../utils/vehicleUtils.js'
 import { pageSizeFor } from '../utils/zoomPageSize'
-import { runOcrWorkflow, OCR_STEPS } from '../services/ocrService'
-
-// ── Document type catalogue per category ─────────────────────
-const DOC_TYPES = {
-  driver: [
-    { key:'license',     label:"Driver's Licence",   hasExpiry:true  },
-    { key:'aadhar',      label:'Aadhaar Card',        hasExpiry:false },
-    { key:'pan',         label:'PAN Card',            hasExpiry:false },
-    { key:'passport',    label:'Passport',            hasExpiry:true  },
-    { key:'badge',       label:'Badge / ID',          hasExpiry:true  },
-    { key:'medical',     label:'Medical Certificate', hasExpiry:true  },
-    { key:'police_cert', label:'Police Certificate',  hasExpiry:true  },
-    { key:'bank',        label:'Bank Passbook',       hasExpiry:false },
-    { key:'other',       label:'Other',               hasExpiry:false },
-  ],
-  vehicle: [
-    { key:'rc_book',   label:'RC Book',             hasExpiry:false },
-    { key:'insurance', label:'Insurance',           hasExpiry:true  },
-    { key:'permit',    label:'Permit',              hasExpiry:true  },
-    { key:'puc',       label:'Pollution (PUC)',     hasExpiry:true  },
-    { key:'fitness',   label:'Fitness Certificate', hasExpiry:true  },
-    { key:'tax_token', label:'Tax Token',           hasExpiry:true  },
-    { key:'other',     label:'Other',               hasExpiry:false },
-  ],
-  company: [
-    { key:'agreement',   label:'Agreement',        hasExpiry:true,  icon:'🤝' },
-    { key:'registration',label:'Registration',     hasExpiry:true,  icon:'🏢' },
-    { key:'tax',         label:'Tax Documents',    hasExpiry:false, icon:'🧾' },
-    { key:'other',       label:'Other',             hasExpiry:false, icon:'📎' },
-  ],
-  trip: [
-    { key:'permit',       label:'Trip Permit',        hasExpiry:true,   icon:'📋' },
-    { key:'authorization',label:'Trip Authorization', hasExpiry:true,   icon:'📑' },
-    { key:'itinerary',    label:'Trip Itinerary',     hasExpiry:false,  icon:'🗺' },
-    { key:'manifest',     label:'Trip Manifest',      hasExpiry:false,  icon:'📄' },
-    { key:'inspection',   label:'Vehicle Inspection', hasExpiry:true,   icon:'🔍' },
-    { key:'other',        label:'Other',              hasExpiry:false,  icon:'📎' },
-  ],
-}
 
 const CATEGORIES = [
   { key:'all',      label:'All Docs',  Icon:FolderOpen, color:'text-slate-500'  },
   { key:'driver',   label:'Drivers',   Icon:User,       color:'text-blue-500'   },
-  { key:'vehicle',  label:'Vehicles',  Icon:Car,        color:'text-amber-500'   },
+  { key:'vehicle',  label:'Vehicles',  Icon:Car,        color:'text-amber-500'  },
   { key:'company',  label:'Company',   Icon:Building2, color:'text-violet-500'  },
 ]
 
-const STATUS_CFG = {
-  active:        { label:'Valid',          badge:'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300', dot:'bg-emerald-500'               },
-  expiring_soon: { label:'Expiring Soon',  badge:'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',         dot:'bg-amber-500 animate-pulse'   },
-  expired:       { label:'Expired',        badge:'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',                  dot:'bg-red-500'                   },
-  pending:       { label:'Pending',        badge:'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',             dot:'bg-slate-400'                 },
-  no_expiry:     { label:'No Expiry',      badge:'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',            dot:'bg-slate-400'                 },
+// Only the last four characters are shown in list/export views. Identity and
+// banking references stay out of cards and CSV files.
+function maskRef(value) {
+  const text = String(value || '').trim()
+  if (!text) return '—'
+  return text.length <= 4 ? text : `••••${text.slice(-4)}`
 }
+
 
 // ── Column selection (desktop table; Actions always on) ──────
 const ALL_DOC_COLS = [
@@ -107,110 +80,16 @@ function loadDocCols() {
 const TYPE_OPTIONS = Object.entries(DOC_TYPES).flatMap(([cat, list]) =>
   list.map(t => ({
     key: t.key,
-    label: `${CATEGORIES.find(c => c.key === cat)?.label || (cat === 'trip' ? 'Trips' : cat)} — ${t.label}`,
+    value: `${cat}:${t.key}`,
+    label: `${CATEGORIES.find(c => c.key === cat)?.label || (cat === 'trip' ? 'Trips' : cat === 'customer' ? 'Customers' : cat)} — ${t.label}`,
   }))
 )
-function typeLabel(key) {
-  const found = TYPE_OPTIONS.find(t => t.key === key)
-  if (found) return found.label.split(' — ')[1]
-  return String(key || 'document').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-}
 
 function fmtDate(d) {
   if (!d) return '—'
   const dt = new Date(d + 'T00:00:00')
   if (Number.isNaN(dt.getTime())) return d
   return dt.toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })
-}
-
-// ── Helpers ───────────────────────────────────────────────────
-function calcStatus(expiryDate) {
-  if (!expiryDate) return 'no_expiry'
-  const today  = new Date(); today.setHours(0,0,0,0)
-  const expiry = new Date(expiryDate + 'T00:00:00')
-  const diff   = Math.floor((expiry - today) / 86400000)
-  if (diff < 0)   return 'expired'
-  if (diff <= 30) return 'expiring_soon'
-  return 'active'
-}
-function daysLeft(d) {
-  if (!d) return null
-  const today = new Date(); today.setHours(0,0,0,0)
-  return Math.floor((new Date(d + 'T00:00:00') - today) / 86400000)
-}
-
-// ── Persistence (Supabase only) ───────────────────────────────
-// Documents are business data, not browser state. If the backend is
-// unavailable the page must say so rather than silently showing a stale
-// localStorage copy that other admins will never see.
-const DOC_BUCKET     = 'trip-documents'
-const DOC_MAX_BYTES  = 10 * 1024 * 1024      // matches the bucket limit
-const SIGNED_URL_TTL = 60 * 60 * 24 * 365    // private bucket → 1-year link
-
-function requireSupabase() {
-  if (!supabase) throw new Error('Supabase is not configured')
-  return supabase
-}
-
-async function fetchDocs() {
-  const { data, error } = await requireSupabase()
-    .from('documents')
-    .select('*')
-    .order('created_at', { ascending: false })
-  if (error) throw new Error(error.message || 'Could not load documents')
-  return Array.isArray(data) ? data : []
-}
-
-function docPayload(doc) {
-  return {
-    document_type: doc.doc_type || 'other',
-    related_entity: doc.category,
-    title:          doc.title,
-    category:       doc.category,
-    doc_type:       doc.doc_type,
-    status:         calcStatus(doc.expiry_date),
-    expiry_date:    doc.expiry_date   || null,
-    reminder_date:  doc.reminder_date || null,
-    notes:          doc.notes         || null,
-    driver_id:      doc.driver_id     || null,
-    vehicle_id:     doc.vehicle_id    || null,
-    customer_id:    doc.customer_id   || null,
-    file_name:      doc.file_name     || null,
-    file_url:       doc.file_url      || null,
-    file_size:      doc.file_size == null ? null : Number(doc.file_size),
-  }
-}
-
-async function upsertDoc(doc) {
-  const client  = requireSupabase()
-  const payload = docPayload(doc)
-  const isUpdate = doc.id && !String(doc.id).startsWith('local-')
-  const query = isUpdate
-    ? client.from('documents').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', doc.id)
-    : client.from('documents').insert(payload)
-  const { data, error } = await query.select().single()
-  if (error) throw new Error(error.message || 'Could not save document')
-  return data
-}
-
-async function removeDoc(id) {
-  const { error } = await requireSupabase().from('documents').delete().eq('id', id)
-  if (error) throw new Error(error.message || 'Could not delete document')
-}
-
-// Upload the chosen file to the private bucket and return a signed link.
-async function uploadDocFile(file, category) {
-  const client = requireSupabase()
-  const ext    = (file.name.split('.').pop() || 'bin').toLowerCase()
-  const path   = `${category || 'other'}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-  const { error: uploadError } = await client.storage
-    .from(DOC_BUCKET)
-    .upload(path, file, { upsert: false, contentType: file.type || undefined })
-  if (uploadError) throw new Error(uploadError.message || 'File upload failed')
-
-  const { data, error } = await client.storage.from(DOC_BUCKET).createSignedUrl(path, SIGNED_URL_TTL)
-  if (error || !data?.signedUrl) throw new Error(error?.message || 'Could not create a file link')
-  return { url: data.signedUrl, name: file.name, size: file.size }
 }
 
 const STATUS_TONE = { active: 'green', expiring_soon: 'amber', expired: 'red', pending: 'gray', no_expiry: 'gray' }
@@ -221,395 +100,118 @@ function StatusBadge({ status }) {
   return <StatusPill tone={STATUS_TONE[status] || 'gray'}>{cfg.label}</StatusPill>
 }
 
-// ── Add Document Modal ─────────────────────────────────────
-function AddDocModal({ onClose, onSave, drivers, vehicles, initial = null }) {
-  const [form, setForm] = useState({
-    id: null,
-    category:'driver', doc_type:'license', title:'',
-    entity_id:'', expiry_date:'', reminder_date:'', notes:'',
-    fileUrl: null, fileName: '',
-    _existingFileUrl: null,
-  })
-  const [saving, setSaving] = useState(false)
-  const [errors, setErrors] = useState({})
-  const [preview, setPreview] = useState(null)
-  const [fileName, setFileName] = useState('')
-  const [step, setStep] = useState('upload')           // upload → scan → review → save
-  const [ocr, setOcr] = useState(null)                 // { ok, error, fields, confidence }
-  const [ocrRunning, setOcrRunning] = useState(false)
-  const fileInputRef = useRef(null)
-  const fileRef = useRef(null)          // the real File, uploaded on save
-  const upd = patch => setForm(f => ({ ...f, ...patch }))
-
-  const runScan = async () => {
-    if (!fileRef.current) { setErrors({ file: 'Attach the document file first' }); setStep('upload'); return }
-    setOcrRunning(true)
-    setOcr({ ok: false, error: null, fields: null, confidence: null })
-    const res = await runOcrWorkflow({ file: fileRef.current })
-    setOcr(res)
-    setOcrRunning(false)
-    if (res.ok && res.fields) {
-      const f = res.fields || {}
-      const typeLabelNow = typeLabel(f.docType || form.doc_type)
-      setForm(prev => ({
-        ...prev,
-        title: f.holderName ? `${f.holderName} — ${typeLabelNow}`.trim() : prev.title,
-        doc_type: f.docType || prev.doc_type,
-        expiry_date: f.expiryDate || prev.expiry_date,
-        notes: f.documentNumber || prev.notes,
-        ...(f.vehicleNumber ? { entity_id: (vehicles || []).find(v => `${v.reg || v.registration}` === f.vehicleNumber)?.id || prev.entity_id } : {}),
-      }))
-      setStep('review')
-    }
-  }
-
-  // Seed from an existing document when editing (Edit action).
-  useEffect(() => {
-    if (!initial) return
-    setForm({
-      id: initial.id || null,
-      category: initial.category || 'driver',
-      doc_type: initial.doc_type || 'license',
-      title: initial.title || '',
-      entity_id: initial.driver_id || initial.vehicle_id || initial.customer_id || '',
-      expiry_date: initial.expiry_date || '',
-      reminder_date: initial.reminder_date || '',
-      notes: initial.notes || '',
-      fileUrl: initial.file_url || null,
-      fileName: initial.file_name || '',
-      _existingFileUrl: initial.file_url || null,
-    })
-    setFileName(initial.file_name || '')
-  }, [initial])
-
-  const ALLOWED_MIMES = [
-    'image/jpeg', 'image/png', 'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  ]
-
-  const handleDrop = (e) => {
-    e.preventDefault()
-    const f = e.dataTransfer?.files?.[0]
-    if (f) handleFileChange({ target: { files: [f] } })
-  }
-
-  const clearFile = () => {
-    fileRef.current = null
-    setPreview(null)
-    setFileName('')
-    setForm(f => ({ ...f, fileUrl: null, fileName: '' }))
-    if (fileInputRef.current) fileInputRef.current.value = ''
-  }
-
-  const handleFileChange = (e) => {
-    const file = e.target.files?.[0]
-    if (!file) { clearFile(); return }
-
-    if (!ALLOWED_MIMES.includes(file.type)) {
-      setErrors(prev => ({ ...prev, file: 'Only JPG, PNG, PDF, DOC or DOCX files are allowed' }))
-      clearFile()
-      return
-    }
-    if (file.size > DOC_MAX_BYTES) {
-      setErrors(prev => ({ ...prev, file: 'File size must be 10 MB or less' }))
-      clearFile()
-      return
-    }
-
-    setErrors(prev => ({ ...prev, file: '' }))
-    fileRef.current = file
-    setFileName(file.name)
-    setForm(f => ({ ...f, fileName: file.name }))
-    setStep('scan')
-
-    // Local preview only — the uploaded file is the one sent to storage.
-    if (file.type === 'image/jpeg' || file.type === 'image/png') {
-      const reader = new FileReader()
-      reader.onload = ev => setPreview(ev.target.result)
-      reader.onerror = () => setErrors(prev => ({ ...prev, file: 'Could not preview this file' }))
-      reader.readAsDataURL(file)
-    } else {
-      setPreview(null)
-    }
-  }
-
-  const docTypes    = DOC_TYPES[form.category] || []
-  const currentType = docTypes.find(t => t.key === form.doc_type)
-
-  const entityOptions = useMemo(() => {
-    if (form.category === 'driver')   return drivers.map(d   => ({ value: d.id, label: d.name }))
-    if (form.category === 'vehicle')  return vehicles.map(v  => ({ value: v.id, label: `${v.reg || v.registration} · ${v.model || ''}` }))
-    return []
-  }, [form.category, drivers, vehicles])
-
-  const validate = () => {
-    const e = {}
-    if (!form.title.trim())                        e.title     = 'Required'
-    if (form.category !== 'trip' && form.category !== 'company' && !form.entity_id) e.entity_id = 'Select one'
-    if (!fileRef.current && !form._existingFileUrl) e.file      = 'Attach the document file'
-    return e
-  }
-
-  const handleSave = async () => {
-    const e = validate()
-    if (Object.keys(e).length) { setErrors(e); return }
-    setSaving(true)
-    setErrors({})
-    try {
-      // Upload first so a failed upload never leaves a document row with a
-      // dead link — and never stores a giant base64 string in the database.
-      // In edit mode an already-attached file is kept when no new file is chosen.
-      let fileMeta = null
-      if (fileRef.current) fileMeta = await uploadDocFile(fileRef.current, form.category)
-      const payload = {
-        ...form,
-        title:       form.title.trim(),
-        driver_id:   form.category === 'driver'   ? form.entity_id : null,
-        vehicle_id:  form.category === 'vehicle'  ? form.entity_id : null,
-        customer_id: form.category === 'customer' ? form.entity_id : null,
-        file_url:    fileMeta ? fileMeta.url : (form._existingFileUrl || null),
-        file_name:   fileMeta ? fileMeta.name : (form.fileName || ''),
-        file_size:   fileMeta ? fileMeta.size : (form.file_size ? Number(form.file_size) : null),
-      }
-      const saved = await upsertDoc(payload)
-      onSave(saved)
-    } catch (err) {
-      console.error('[Documents] save failed:', err)
-      setErrors({ save: err.message || 'Could not save the document. Please try again.' })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const INP = fieldCls
-
-  return (
-    <ModalOverlay onClose={onClose}>
-      <div role="dialog" aria-modal="true" aria-label="Add document"
-        className="relative w-full sm:w-[500px] max-h-[92vh] sm:max-h-[88vh] ap-surface rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
-        <div className="w-10 h-1 bg-[var(--ap-border)] rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--ap-border)] flex-shrink-0">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Document</p>
-            <h3 className="font-sf font-semibold text-slate-800 dark:text-white text-base">Add Document</h3>
-          </div>
-          <IconButton icon={X} label="Close" onClick={onClose} />
-        </div>
-
-        {/* Body */}
-        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
-
-          {/* Category */}
-          <div>
-            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">Category</label>
-            <div className="grid grid-cols-3 gap-2">
-              {CATEGORIES.filter(c => c.key !== 'all').map(cat => {
-                const { Icon } = cat
-                return (
-                  <button key={cat.key} type="button"
-                    onClick={() => upd({ category:cat.key, doc_type:DOC_TYPES[cat.key]?.[0]?.key||'', entity_id:'' })}
-                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-all ${
-                      form.category === cat.key
-                        ? 'border-[var(--ap-accent-2)] bg-[var(--ap-surface-2)] ring-2 ring-[var(--ap-accent-2)]/30'
-                        : 'border-[var(--ap-border)] bg-[var(--ap-surface-2)] hover:bg-[var(--ap-surface)]'
-                    }`}>
-                    <Icon size={15} className={cat.color} />
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{cat.label}</span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Entity */}
-          {form.category !== 'trip' && (
-            <div>
-              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wide">
-                {form.category === 'vehicle' ? 'Vehicle' : 'Driver'} <span className="text-red-500">*</span>
-              </label>
-              <select value={form.entity_id} onChange={e => upd({ entity_id:e.target.value })}
-                className={`${INP} appearance-none`}>
-                <option value="">— Select —</option>
-                {entityOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-              {errors.entity_id && <p className="text-xs text-red-500 mt-1">{errors.entity_id}</p>}
-            </div>
-          )}
-
-          {/* Doc type */}
-          <div>
-            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wide">Document Type</label>
-            <select value={form.doc_type} onChange={e => upd({ doc_type:e.target.value })}
-              className={`${INP} appearance-none`}>
-              {docTypes.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
-            </select>
-          </div>
-
-          {/* Title */}
-          <div>
-            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wide">
-              Title <span className="text-red-500">*</span>
-            </label>
-            <input value={form.title} onChange={e => upd({ title:e.target.value })}
-              placeholder="e.g. Ramanan – Driving Licence 2026"
-              className={INP} />
-            {errors.title && <p className="text-xs text-red-500 mt-1">{errors.title}</p>}
-          </div>
-
-          {/* Dates */}
-          {currentType?.hasExpiry && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wide">Expiry Date</label>
-                <input type="date" value={form.expiry_date} onChange={e => upd({ expiry_date:e.target.value })} className={INP} />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wide">Reminder Date</label>
-                <input type="date" value={form.reminder_date} onChange={e => upd({ reminder_date:e.target.value })} className={INP} />
-              </div>
-            </div>
-          )}
-
-          {/* Notes */}
-          <div>
-            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wide">Notes</label>
-            <textarea value={form.notes} onChange={e => upd({ notes:e.target.value })}
-              placeholder="Document number, remarks…" rows={2}
-              className={`${INP} h-auto min-h-[72px] py-3 resize-none`} />
-          </div>
-
-          {/* File Upload */}
-          <div>
-            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wide">
-              File <span className="text-red-500">*</span>
-            </label>
-            <div className="flex flex-col items-start" onDragOver={e => e.preventDefault()} onDrop={handleDrop}>
-              {step === 'scan' && (
-                <Button variant="primary" className="w-full mb-3" icon={ScanLine} disabled={ocrRunning} onClick={runScan}>
-                  {ocrRunning ? 'Scanning…' : 'Scan Document'}
-                </Button>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
-                onChange={handleFileChange}
-                className={`${INP} ${errors.file ? 'border-red-400' : ''}`}
-              />
-              {errors.file && <p className="text-xs text-red-500 mt-1">{errors.file}</p>}
-              {fileName && (
-                <div className="mt-2 flex items-center gap-3">
-                  {preview && (
-                    <img src={preview} alt="Preview" className="w-16 h-16 object-cover rounded" />
-                  )}
-                  {!preview && (
-                    <div className="w-16 h-16 bg-blue-500/20 rounded flex items-center justify-center">
-                      <div className="text-xs font-bold text-blue-600">
-                        {(fileName.split('.').pop() || 'FILE').toUpperCase().slice(0, 4)}
-                      </div>
-                    </div>
-                  )}
-                  <div className="flex flex-col">
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200 break-all">{fileName}</span>
-                    <button type="button" onClick={clearFile} className="text-xs text-red-500 hover:underline">
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              )}
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">JPG, PNG, PDF, DOC or DOCX · up to 10 MB</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-5 py-4 border-t border-[var(--ap-border)] flex-shrink-0">
-          {errors.save && (
-            <div className="mb-2.5 flex items-start gap-2 rounded-xl bg-red-50 dark:bg-red-900/20 px-3 py-2">
-              <AlertTriangle size={14} className="text-red-500 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-red-600 dark:text-red-400">{errors.save}</p>
-            </div>
-          )}
-          <div className="flex gap-2">
-            <Button variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
-            <Button variant="primary" className="flex-1" disabled={saving} onClick={handleSave}>
-              {saving ? 'Saving…' : 'Add Document'}
-            </Button>
-          </div>
-        </div>
+// PDF/DOC files have no useful thumbnail. Show a deliberate file tile instead
+// of a broken <img>, and use the freshly minted signed URL for images.
+function DocThumb({ doc, className = '' }) {
+  const url = doc.frontUrl
+  const name = String(doc.file_name || '')
+  const kind = /\.pdf$/i.test(name) ? 'PDF' : /\.(docx?)$/i.test(name) ? 'DOC' : ''
+  if (kind) {
+    return (
+      <div className={`w-full h-full flex flex-col items-center justify-center gap-1.5 bg-[var(--ap-surface-2)] ${className}`}>
+        <FileText size={26} className="text-[var(--ap-text-3)]" />
+        <span className="text-[10px] font-bold tracking-wide text-[var(--ap-text-3)]">{kind}</span>
       </div>
-    </ModalOverlay>
-  )
+    )
+  }
+  if (!url) {
+    return (
+      <div className={`w-full h-full flex items-center justify-center ${className}`}>
+        <FileText size={26} className="text-slate-400 dark:text-slate-500" />
+      </div>
+    )
+  }
+  return <img src={url} alt="" loading="lazy" className={`w-full h-full object-cover ${className}`} />
 }
 
 // ── Document Detail Modal ───────────────────────────────────
+function AttachmentPreview({ doc, url, name, label }) {
+  const isPdf = /\.pdf$/i.test(String(name || ''))
+  const isWord = /\.(docx?)$/i.test(String(name || ''))
+  return (
+    <div className="rounded-xl overflow-hidden border border-[var(--ap-border)] bg-black/5 dark:bg-black/30 h-44 flex items-center justify-center">
+      {url && isPdf ? (
+        <iframe src={url} title={`${label} preview`} className="w-full h-full border-0 bg-white" />
+      ) : url && !isWord ? (
+        <img src={url} alt={`${label} preview`} className="w-full h-full object-contain" />
+      ) : (
+        <div className="flex flex-col items-center gap-2 text-slate-400">
+          <FileText size={28} />
+          <p className="text-xs font-bold">{url ? `${isWord ? 'DOC' : 'FILE'} preview unavailable` : `No ${label.toLowerCase()} attached`}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function DocDetailModal({ doc, owner, onClose, onEdit, onDelete, canManage }) {
   const days = doc.daysLeft
-  const preview = doc.file_url
-  const isPdf = /\.pdf$/i.test(String(doc.file_name || ''))
   const handlePrint = () => {
-    if (!doc.file_url) return
+    const url = doc.frontUrl
+    if (!url) return
     const w = window.open('', '_blank')
     if (!w) return
-    w.document.write(`<!doctype html><html><body style="margin:0"><iframe src="${doc.file_url}" style="width:100vw;height:100vh;border:0" onload="setTimeout(()=>this.contentWindow.print(),400)"></iframe></body></html>`)
+    w.document.write('<!doctype html><html><head><title>Print document</title></head><body style="margin:0"></body></html>')
     w.document.close()
+    const frame = w.document.createElement('iframe')
+    frame.style.cssText = 'width:100vw;height:100vh;border:0'
+    frame.onload = () => {
+      try {
+        frame.contentWindow?.focus()
+        frame.contentWindow?.print()
+      } catch { /* cross-origin preview — the browser still shows the file */ }
+    }
+    frame.src = url
+    w.document.body.appendChild(frame)
   }
+  const reminder = doc.reminder_enabled && doc.reminder_date
+    ? `${fmtDate(doc.reminder_date)} · ${doc.reminder_interval || 30} days before`
+    : 'Off'
   const meta = [
-    { l:'Document No', v: doc.notes || doc.file_name || '—' },
-    { l:'Owner',       v: owner ? `${owner.name} (${owner.label})` : '—' },
-    { l:'Category',   v: doc.category ? doc.category.charAt(0).toUpperCase() + doc.category.slice(1) : '—' },
-    { l:'Type',        v: typeLabel(doc.doc_type || 'other') },
-    { l:'Issue Date', v: fmtDate((doc.created_at || '').slice(0,10)) },
-    { l:'Expiry Date',v: fmtDate(doc.expiry_date) },
-    { l:'Status',      v: (STATUS_CFG[doc.computedStatus] || STATUS_CFG.active).label },
-    { l:'Uploaded',    v: fmtDate((doc.created_at || '').slice(0,10)) },
-    { l:'Modified',    v: fmtDate((doc.updated_at || '').slice(0,10)) },
-    { l:'File Size',   v: doc.file_size ? `${(doc.file_size / 1024).toFixed(1)} KB` : '—' },
+    { l: 'Document No', v: doc.document_number || doc.reference_number || '—' },
+    { l: 'Issuing authority', v: doc.issuing_authority || '—' },
+    { l: 'Owner', v: owner ? `${owner.name} (${owner.label})` : '—' },
+    { l: 'Category', v: doc.category ? doc.category.charAt(0).toUpperCase() + doc.category.slice(1) : '—' },
+    { l: 'Type', v: typeLabel(doc.doc_type || 'other') },
+    { l: 'Issue date', v: fmtDate(doc.issue_date) },
+    { l: 'Expiry date', v: fmtDate(doc.expiry_date) },
+    { l: 'Reminder', v: reminder },
+    { l: 'Status', v: (STATUS_CFG[doc.computedStatus] || STATUS_CFG.active).label },
+    { l: 'Uploaded', v: fmtDate((doc.created_at || '').slice(0, 10)) },
+    { l: 'Modified', v: fmtDate((doc.updated_at || '').slice(0, 10)) },
+    { l: 'File size', v: doc.file_size ? `${(doc.file_size / 1024).toFixed(1)} KB` : '—' },
   ]
   return (
     <ModalOverlay onClose={onClose}>
       <div role="dialog" aria-modal="true" aria-label={`Document — ${doc.title}`}
-        className="relative w-full sm:w-[560px] max-h-[92vh] sm:max-h-[88vh] ap-surface rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
+        className="relative w-full sm:w-[620px] max-h-[92vh] sm:max-h-[88vh] ap-surface rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col animate-fade-up">
         <div className="w-10 h-1 bg-[var(--ap-border)] rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
-        <div className="flex items-start justify-between gap-3 px-5 pt-4 pb-3 flex-shrink-0">
+        <div className="flex items-start justify-between gap-3 px-5 pt-4 pb-3 flex-shrink-0 border-b border-[var(--ap-border)]">
           <div className="min-w-0">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Document</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Document details</p>
             <h3 className="font-sf font-semibold text-slate-800 dark:text-white text-base truncate">{doc.title}</h3>
             <p className="text-xs text-slate-400">{typeLabel(doc.doc_type || 'other')} · {doc.category}</p>
           </div>
           <StatusBadge status={doc.computedStatus} />
           <IconButton icon={X} label="Close" size={16} onClick={onClose} className="flex-shrink-0" />
         </div>
-        <div className="overflow-y-auto flex-1 px-5 pb-5 space-y-4">
-          {/* Preview */}
-          <div className="rounded-xl overflow-hidden border border-[var(--ap-border)] bg-black/5 dark:bg-black/30 h-64 flex items-center justify-center">
-            {doc.file_url ? (
-              isPdf ? (
-                <iframe src={doc.file_url} title={doc.title} className="w-full h-full border-0 bg-white" />
-              ) : (
-                <img src={doc.file_url} alt={doc.title} className="w-full h-full object-contain" />
-              )
-            ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-slate-400">
-                <FileText size={30} />
-                <p className="text-xs font-bold">No file attached</p>
-              </div>
-            )}
-          </div>
-          {/* Expiry countdown */}
+        <div className="overflow-y-auto flex-1 px-5 pb-5 pt-4 space-y-4">
+          <AttachmentPreview doc={doc} url={doc.frontUrl} name={doc.file_name} label="Front" />
+
+          {doc.backUrl && (
+            <AttachmentPreview doc={doc} url={doc.backUrl} name={doc.back_file_name} label="Back" />
+          )}
+
           {doc.expiry_date && (
             <div className={`rounded-xl px-3 py-2.5 border text-[12px] font-medium ${
               days < 0 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/40 text-red-700 dark:text-red-300'
-              : days <= 30 ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/40 text-amber-700 dark:text-amber-300'
-              : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-300'
+                : days <= 30 ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/40 text-amber-700 dark:text-amber-300'
+                  : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-300'
             }`}>
               {days < 0 ? `Expired ${Math.abs(days)} day(s) ago` : days === 0 ? 'Expires today' : `Expires in ${days} day(s)`}
             </div>
           )}
-          {/* Metadata */}
+
           <div className="grid grid-cols-2 gap-2">
             {meta.map(m => (
               <div key={m.l} className="bg-[var(--ap-surface-2)] rounded-xl px-3 py-2.5 border border-[var(--ap-border)]">
@@ -618,10 +220,25 @@ function DocDetailModal({ doc, owner, onClose, onEdit, onDelete, canManage }) {
               </div>
             ))}
           </div>
-          {/* Actions */}
-          <div className="flex flex-wrap gap-2">
-            {doc.file_url && (
-              <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
+
+          {Array.isArray(doc.tags) && doc.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {doc.tags.map(tag => (
+                <span key={tag} className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-[var(--ap-surface-2)] text-[var(--ap-text-2)]">{tag}</span>
+              ))}
+            </div>
+          )}
+
+          {doc.notes && (
+            <div className="rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] px-3 py-2.5">
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-1">Notes</p>
+              <p className="text-xs text-slate-700 dark:text-slate-200 whitespace-pre-wrap break-words">{doc.notes}</p>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2 pt-1">
+            {doc.frontUrl && (
+              <a href={doc.frontUrl} target="_blank" rel="noopener noreferrer" download={doc.file_name || 'document'}
                 className="flex-1 min-w-[140px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--ap-surface-2)] border border-[var(--ap-border)] text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-[var(--ap-surface)] transition-colors">
                 <Download size={13} /> Download
               </a>
@@ -629,11 +246,11 @@ function DocDetailModal({ doc, owner, onClose, onEdit, onDelete, canManage }) {
             {canManage && (
               <Button variant="secondary" className="flex-1 min-w-[140px]" icon={Pencil} onClick={() => onEdit(doc)}>Edit</Button>
             )}
-            {doc.file_url && (
+            {doc.frontUrl && (
               <Button variant="secondary" className="flex-1 min-w-[140px]" icon={Printer} onClick={handlePrint}>Print</Button>
             )}
             {canManage && (
-              <Button variant="danger" className="flex-1 min-w-[140px]" icon={Trash2} onClick={() => onDelete(doc.id)}>Delete</Button>
+              <Button variant="danger" className="flex-1 min-w-[140px]" icon={Trash2} onClick={() => onDelete(doc)}>Delete</Button>
             )}
           </div>
         </div>
@@ -662,8 +279,6 @@ export default function Documents() {
   const [deleteError, setDeleteError] = useState(null)
   const [page,      setPage]      = useState(1)
   const [visibleCols, setVisibleCols] = useState(loadDocCols)
-  const [colsOpen, setColsOpen] = useState(false)
-  const colsRef = useRef(null)
   const [viewMode, setViewMode] = useState(() => {
     try { return localStorage.getItem('sjt-docs-view') === 'list' ? 'list' : 'grid' } catch { return 'grid' }
   })
@@ -673,29 +288,36 @@ export default function Documents() {
   }
   const [docDetail, setDocDetail] = useState(null)
   const [editingDoc, setEditingDoc] = useState(null)
+  // Signed links stored on legacy rows can expire. When a storage path is
+  // available we mint a short-lived replacement for this session only.
+  const [fileUrls, setFileUrls] = useState({})
 
-  useEffect(() => {
-    if (!colsOpen) return
-    const onDown = e => { if (colsRef.current && !colsRef.current.contains(e.target)) setColsOpen(false) }
-    const onKey = e => { if (e.key === 'Escape') setColsOpen(false) }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [colsOpen])
+  const refreshLinks = useCallback(async (rows = []) => {
+    const entries = await Promise.all(rows.map(async doc => {
+      const safeGet = side => getDocumentFileUrl(doc, side).catch(err => {
+        console.warn(`[Documents] could not refresh ${side} link:`, err?.message || err)
+        return null
+      })
+      const [front, back] = await Promise.all([safeGet('front'), safeGet('back')])
+      return [doc.id, { front, back }]
+    }))
+    const map = Object.fromEntries(entries)
+    setFileUrls(prev => ({ ...prev, ...map }))
+    return map
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     const [d, dr, veh, cust] = await Promise.allSettled([
-      fetchDocs(),
+      fetchDocuments(),
       loadDrivers(),
       loadVehicles(),
       loadCustomers(),
     ])
     if (d.status === 'fulfilled') {
       setDocs(d.value)
+      setFileUrls({})
+      refreshLinks(d.value)
     } else {
       console.error('[Documents] load failed:', d.reason)
       setDocs([])
@@ -705,17 +327,20 @@ export default function Documents() {
     setVehicles(veh.status === 'fulfilled' ? veh.value : [])
     setCustomers(cust.status === 'fulfilled' ? cust.value.filter(c => !c._deleted) : [])
     setLoading(false)
-  }, [])
+  }, [refreshLinks])
 
   useEffect(() => { load() }, [load])
 
   const enriched = useMemo(() =>
     docs.map(doc => ({
       ...doc,
-      computedStatus: doc.expiry_date ? calcStatus(doc.expiry_date) : (doc.status || 'active'),
+      frontUrl:       fileUrls[doc.id]?.front ?? doc.file_url ?? null,
+      backUrl:        fileUrls[doc.id]?.back ?? doc.back_file_url ?? null,
+      docNumber:      doc.document_number || doc.reference_number || '',
+      computedStatus: documentStatus(doc.expiry_date, doc.status),
       daysLeft:       daysLeft(doc.expiry_date),
     }))
-  , [docs])
+  , [docs, fileUrls])
 
   // Owner lookup maps from real entity data (ids stored on the doc).
   const ownerMaps = useMemo(() => ({
@@ -746,6 +371,7 @@ export default function Documents() {
     const opts = []
     drivers.forEach(d => opts.push({ value:`driver:${d.id}`, label:`${d.name} (Driver)` }))
     vehicles.forEach(v => opts.push({ value:`vehicle:${v.id}`, label:`${v.reg || v.registration || v.model || v.id} (Vehicle)` }))
+    customers.forEach(c => opts.push({ value:`customer:${c.id}`, label:`${c.name || c.id} (Customer)` }))
     opts.push({ value: 'company:company', label: 'Company' })
     return opts
   }, [drivers, vehicles, customers])
@@ -754,7 +380,7 @@ export default function Documents() {
     enriched.filter(doc => {
       if (category !== 'all' && doc.category !== category) return false
       if (statusFilter !== 'all' && doc.computedStatus !== statusFilter) return false
-      if (typeFilter !== 'all' && (doc.doc_type || 'other') !== typeFilter) return false
+      if (typeFilter !== 'all' && `${doc.category}:${doc.doc_type || 'other'}` !== typeFilter) return false
       if (ownerFilter !== 'all') {
         const [kind, id] = ownerFilter.split(':')
         if (kind === 'driver') { if (String(doc.driver_id) !== id) return false }
@@ -764,11 +390,16 @@ export default function Documents() {
       }
       if (search) {
         const q = search.toLowerCase()
-        if (![doc.title, doc.notes, doc.doc_type, doc.file_name].some(v => v?.toLowerCase().includes(q))) return false
+        const ownerName = ownerOf(doc)?.name || ''
+        const haystack = [
+          doc.title, doc.notes, doc.doc_type, doc.file_name, doc.docNumber,
+          doc.issuing_authority, ownerName, ...(Array.isArray(doc.tags) ? doc.tags : []),
+        ]
+        if (!haystack.some(v => String(v || '').toLowerCase().includes(q))) return false
       }
       return true
     })
-  , [enriched, category, statusFilter, typeFilter, ownerFilter, search])
+  , [enriched, category, statusFilter, typeFilter, ownerFilter, search, ownerOf])
 
   // ── Pagination: zoom-adaptive rows per page ─────────────────
   // 90% → 6 · 100% → 5 · 110%+ → 4 (phones stay at 5).
@@ -787,7 +418,6 @@ export default function Documents() {
   const PAGE_SIZE = pageSize
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage = Math.min(Math.max(1, page), totalPages)
-  const pageRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
   // Reset to page 1 whenever filters change (pagination preserves them otherwise).
   useEffect(() => { setPage(1) }, [search, category, statusFilter, typeFilter, ownerFilter])
 
@@ -812,23 +442,27 @@ export default function Documents() {
       case 'doc':     return String(doc.title || '')
       case 'type':    return String(typeLabel(doc.doc_type || 'other') || '')
       case 'owner':   return String(ownerOf(doc)?.name || '')
-      case 'number':  return String(doc.notes || doc.file_name || '')
+      case 'number':  return String(doc.docNumber || '')
       case 'expiry':  return String(doc.expiry_date || '')
       case 'status':  return String(doc.computedStatus || '')
       case 'uploaded': return String((doc.created_at || '').slice(0,10))
       default: return ''
     }
   }
+  // Sort the full filtered set before paginating so page 2 continues the
+  // ordering instead of each page being sorted independently.
   const sortedPageRows = useMemo(() => {
-    if (!SORTABLE.includes(sort.key)) return pageRows
-    const dir = sort.dir === 'asc' ? 1 : -1
-    return [...pageRows].sort((a, b) => {
-      const av = sortVal(sort.key, a)
-      const bv = sortVal(sort.key, b)
-      const cmp = typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av).localeCompare(String(bv))
-      return cmp * dir
-    })
-  }, [pageRows, sort])
+    const rows = SORTABLE.includes(sort.key)
+      ? [...filtered].sort((a, b) => {
+        const dir = sort.dir === 'asc' ? 1 : -1
+        const av = sortVal(sort.key, a)
+        const bv = sortVal(sort.key, b)
+        const cmp = typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av).localeCompare(String(bv))
+        return cmp * dir
+      })
+      : filtered
+    return rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  }, [filtered, sort, safePage, PAGE_SIZE, ownerOf])
 
   // Shared pager body — rendered inside the desktop table footer and
   // below the mobile cards (same state, two placements).
@@ -879,7 +513,7 @@ export default function Documents() {
       rows.push([
         doc.title || '', typeLabel(doc.doc_type || 'other'), doc.category || '',
         owner ? owner.name : '', owner ? owner.label : '',
-        doc.notes || doc.file_name || '',
+        maskRef(doc.docNumber),
         doc.expiry_date || '',
         (STATUS_CFG[doc.computedStatus] || STATUS_CFG.active).label,
         (doc.created_at || '').slice(0, 10),
@@ -895,30 +529,61 @@ export default function Documents() {
   }
 
   const counts = useMemo(() => ({
-    total:    enriched.length,
-    valid:    enriched.filter(d => d.computedStatus === 'active').length,
-    expiring: enriched.filter(d => d.computedStatus === 'expiring_soon').length,
-    expired:  enriched.filter(d => d.computedStatus === 'expired').length,
+    all:            enriched.length,
+    active:         enriched.filter(d => d.computedStatus === 'active').length,
+    expiring_soon:  enriched.filter(d => d.computedStatus === 'expiring_soon').length,
+    expired:        enriched.filter(d => d.computedStatus === 'expired').length,
+    no_expiry:      enriched.filter(d => d.computedStatus === 'no_expiry').length,
   }), [enriched])
 
-  const handleSave = doc => { setDocs(prev => [doc, ...prev.filter(d => d.id !== doc.id)]); setShowAdd(false) }
-  const handleDelete = async id => {
-    if (!window.confirm('Delete this document?')) return
+  const closeModal = () => { setShowAdd(false); setEditingDoc(null) }
+  const openAdd = () => { setEditingDoc(null); setShowAdd(true) }
+  const openEdit = doc => { setEditingDoc(doc); setDocDetail(null); setShowAdd(true) }
+  const openDetail = async doc => {
+    // Re-mint short-lived links when a record is opened; a long-lived tab may
+    // otherwise hold a preview URL that expired an hour after load.
+    const fresh = await refreshLinks([doc])
+    setDocDetail({
+      ...doc,
+      frontUrl: fresh[doc.id]?.front ?? doc.frontUrl ?? doc.file_url ?? null,
+      backUrl:  fresh[doc.id]?.back  ?? doc.backUrl  ?? doc.back_file_url ?? null,
+    })
+  }
+
+  const handleSave = async (form, meta = {}) => {
+    const saved = await saveDocument(form, meta)
+    setDocs(prev => [saved, ...prev.filter(d => String(d.id) !== String(saved.id))])
+    await refreshLinks([saved])
+
+    // Clean up replaced or removed objects only after the database write has
+    // succeeded. A cleanup failure must never undo a successful save.
+    const oldPaths = [editingDoc?.file_path, editingDoc?.back_file_path].filter(Boolean)
+    const newPaths = [saved.file_path, saved.back_file_path].filter(Boolean)
+    const stale = oldPaths.filter(path => !newPaths.includes(path))
+    if (stale.length) deleteDocumentFiles(stale)
+
+    return saved
+  }
+
+  const handleDelete = async doc => {
+    if (!window.confirm(`Delete “${doc.title}”?`)) return false
     setDeleteError(null)
     try {
-      await removeDoc(id)
-      setDocs(prev => prev.filter(d => d.id !== id))
+      await deleteDocument(doc.id)
+      await deleteDocumentFiles([doc.file_path, doc.back_file_path])
+      setDocs(prev => prev.filter(d => String(d.id) !== String(doc.id)))
+      setFileUrls(prev => {
+        const next = { ...prev }
+        delete next[doc.id]
+        return next
+      })
+      if (docDetail?.id === doc.id) setDocDetail(null)
+      return true
     } catch (err) {
       console.error('[Documents] delete failed:', err)
       setDeleteError(err.message || 'Could not delete this document. Please try again.')
+      return false
     }
-  }
-
-  const getCategoryIcon = cat => {
-    const c = CATEGORIES.find(c => c.key === cat)
-    if (!c) return null
-    const { Icon } = c
-    return <Icon size={13} className={c.color} />
   }
 
   const clearFilters = () => {
@@ -932,13 +597,13 @@ export default function Documents() {
 
   return (
     <div className="space-y-4 animate-fade-up">
-      {/* 1. Page header — compact, ~64px */}
+      {/* 1. Page header */}
       <PageHeader
         title="Documents"
-        subtitle="Manage driver and vehicle documents"
+        subtitle="Manage driver, vehicle and company records"
         icon={FileText}
         action={canManage && (
-          <Button variant="primary" icon={Plus} onClick={() => setShowAdd(true)}>Add Document</Button>
+          <Button variant="primary" icon={Plus} onClick={openAdd}>Add Document</Button>
         )}
       />
 
@@ -952,93 +617,48 @@ export default function Documents() {
           actionLabel="Dismiss" onAction={() => setDeleteError(null)} />
       )}
 
-      {/* 2. Summary KPIs — compact operational cards */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-2">
-        <MetricCard label="Total Documents"    value={counts.total}    icon={FileText}    tone="blue"  onClick={() => setStatusFilter('all')} />
-        <MetricCard label="Valid"              value={counts.valid}    icon={CheckCircle} tone="green" onClick={() => setStatusFilter('active')} />
-        <MetricCard label="Expiring (30 days)" value={counts.expiring} icon={Clock}       tone="amber" onClick={() => setStatusFilter('expiring_soon')} />
-        <MetricCard label="Expired"            value={counts.expired}  icon={AlertTriangle} tone="red" onClick={() => setStatusFilter('expired')} />
-      </div>
+      {/* 2. Status-first summary; tiles double as filter shortcuts */}
+      <DocumentStatusCards
+        counts={counts}
+        active={statusFilter}
+        onSelect={setStatusFilter}
+      />
 
-      {/* Expiry alerts for managers — one-tap jump to the expiring bucket */}
-      {(isAdmin || isManager) && counts.expiring > 0 && (
+      {/* Expiry alert for managers — one tap to the expiring bucket */}
+      {(isAdmin || isManager) && counts.expiring_soon > 0 && (
         <div className="ap-surface rounded-2xl px-4 py-3 flex items-center gap-3">
           <AlertTriangle size={16} className="text-amber-500 flex-shrink-0" />
           <p className="text-xs text-slate-600 dark:text-slate-300 flex-1 min-w-0">
-            <span className="font-bold">{counts.expiring}</span> document{counts.expiring !== 1 ? 's' : ''} expiring within 30 days.
+            <span className="font-bold">{counts.expiring_soon}</span> document{counts.expiring_soon !== 1 ? 's' : ''} expiring within 30 days.
           </p>
           <Button variant="ghost" size="sm" onClick={() => setStatusFilter('expiring_soon')}>Review</Button>
         </div>
       )}
 
-      {/* 3. Category filter — drivers / vehicles / all */}
-      <SegmentedControl
-        ariaLabel="Filter by category"
-        value={category}
-        onChange={setCategory}
-        scroll
-        options={CATEGORIES.map(cat => ({ key: cat.key, label: cat.label, icon: cat.Icon }))}
+      {/* 3. Category, search, type/owner/status filters and view controls */}
+      <DocumentFilters
+        categories={CATEGORIES}
+        category={category}
+        onCategory={setCategory}
+        search={search}
+        onSearch={setSearch}
+        typeOptions={TYPE_OPTIONS}
+        typeFilter={typeFilter}
+        onTypeFilter={setTypeFilter}
+        ownerOptions={ownerOptions}
+        ownerFilter={ownerFilter}
+        onOwnerFilter={setOwnerFilter}
+        statusFilter={statusFilter}
+        onStatusFilter={setStatusFilter}
+        hasActiveFilters={hasActiveFilters}
+        onClearFilters={clearFilters}
+        onExport={exportCsv}
+        viewMode={viewMode}
+        onViewMode={setView}
+        allCols={ALL_DOC_COLS}
+        visibleCols={visibleCols}
+        onToggleCol={toggleCol}
       />
-
-      {/* 4. Toolbar — search, type, owner, status, clear, export, columns */}
-      <div className="ap-surface rounded-2xl px-3 py-2 flex items-center gap-2 flex-wrap">
-        <div className="flex items-center gap-2 flex-1 min-w-[180px]">
-          <Search size={14} className="text-slate-400 flex-shrink-0" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search documents, owner, number…"
-            aria-label="Search documents"
-            className="bg-transparent text-[13px] text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none w-full font-body" />
-        </div>
-        <div className="w-[150px]">
-          <FieldSelect value={typeFilter} onChange={e => setTypeFilter(e.target.value)} aria-label="Filter by document type">
-            <option value="all">All Types</option>
-            {TYPE_OPTIONS.map((t, i) => <option key={`${t.key}-${i}`} value={t.key}>{t.label}</option>)}
-          </FieldSelect>
-        </div>
-        <div className="w-[160px]">
-          <FieldSelect value={ownerFilter} onChange={e => setOwnerFilter(e.target.value)} aria-label="Filter by owner">
-            <option value="all">All Owners</option>
-            {ownerOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </FieldSelect>
-        </div>
-        <div className="w-[130px]">
-          <FieldSelect value={statusFilter} onChange={e => setStatusFilter(e.target.value)} aria-label="Filter by status">
-            <option value="all">All Status</option>
-            <option value="active">Valid</option>
-            <option value="expiring_soon">Expiring</option>
-            <option value="expired">Expired</option>
-          </FieldSelect>
-        </div>
-        {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters}>Clear Filters</Button>
-        )}
-        <Button variant="outline" size="sm" icon={Download} onClick={exportCsv} className="whitespace-nowrap">Export</Button>
-        <SegmentedControl ariaLabel="Document view mode" value={viewMode} onChange={setView} options={[
-          { key: 'grid', label: 'Grid', icon: LayoutGrid },
-          { key: 'list', label: 'List', icon: List },
-        ]} />
-        <div className="relative" ref={colsRef}>
-          <Button variant="outline" size="sm" icon={Columns3} onClick={() => setColsOpen(v => !v)} className="whitespace-nowrap" aria-expanded={colsOpen} aria-haspopup="menu">Columns</Button>
-          {colsOpen && (
-            <div role="menu" aria-label="Table columns"
-              className="absolute right-0 top-full mt-2 w-52 ap-surface-elevated border border-[var(--ap-border)] shadow-2xl overflow-hidden z-50">
-              <p className="px-3.5 pt-3 pb-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Show columns</p>
-              <div className="p-1.5">
-                {ALL_DOC_COLS.map(c => {
-                  const on = visibleCols.includes(c.key)
-                  return (
-                    <button key={c.key} onClick={() => toggleCol(c.key)} role="menuitemcheckbox" aria-checked={on}
-                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-colors text-left">
-                      <span className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 text-[10px] font-semibold transition-colors ${on ? 'bg-[var(--ap-accent-2)] border-[var(--ap-accent-2)] text-white' : 'border-[var(--ap-border)] text-transparent'}`}>✓</span>
-                      {c.label}
-                    </button>
-                  )
-                })}
-              </div>
-              <p className="px-3.5 py-2 border-t border-[var(--ap-border)] text-[10px] text-slate-400 dark:text-slate-500">Actions always shown</p>
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* 5. Main data table — loading / empty / rows + desktop pager */}
       {loading ? (
@@ -1067,7 +687,7 @@ export default function Documents() {
             title="No documents found"
             description="Upload a document to get started."
             className="ap-surface"
-            action={canManage && <Button variant="primary" icon={Plus} onClick={() => setShowAdd(true)}>Add Document</Button>}
+            action={canManage && <Button variant="primary" icon={Plus} onClick={openAdd}>Add Document</Button>}
           />
         ) : (
           <EmptyState
@@ -1079,24 +699,29 @@ export default function Documents() {
         )
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-          {pageRows.map(doc => {
+          {sortedPageRows.map(doc => {
             const owner = ownerOf(doc)
-            const days = doc.daysLeft
             return (
               <div key={doc.id} className="ap-surface rounded-2xl p-3.5 flex flex-col gap-3">
-                <div className="relative h-32 rounded-xl overflow-hidden border border-[var(--ap-border)] bg-[var(--ap-surface-2)]">
-                  {doc.file_url ? (
-                    <img src={doc.file_url} alt={doc.title} loading="lazy" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <FileText size={26} className="text-slate-400 dark:text-slate-500" />
-                    </div>
-                  )}
-                  <div className="absolute top-2 right-2"><StatusBadge status={doc.computedStatus} /></div>
-                </div>
+                <button type="button" onClick={() => openDetail(doc)}
+                  className="relative h-32 rounded-xl overflow-hidden border border-[var(--ap-border)] bg-[var(--ap-surface-2)] w-full text-left"
+                  aria-label={`Open details for ${doc.title}`}>
+                  <DocThumb doc={doc} />
+                  <span className="absolute top-2 right-2"><StatusBadge status={doc.computedStatus} /></span>
+                </button>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-bold text-slate-700 dark:text-slate-200 truncate">{doc.title}</p>
-                  <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{typeLabel(doc.doc_type || 'other')}</p>
+                  <button type="button" onClick={() => openDetail(doc)}
+                    className="text-[13px] font-bold text-slate-700 dark:text-slate-200 truncate block w-full text-left hover:text-[var(--ap-accent)]">
+                    {doc.title}
+                  </button>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <span className="text-[11px] text-slate-400 dark:text-slate-500">{typeLabel(doc.doc_type || 'other')}</span>
+                    {doc.docNumber && (
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-[var(--ap-surface-2)] text-[var(--ap-text-3)]" title="Reference number masked">
+                        {maskRef(doc.docNumber)}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 mt-2">
                     <span className="w-6 h-6 rounded-full bg-[var(--ap-border)] flex items-center justify-center text-[10px] font-semibold text-slate-600 dark:text-slate-300 flex-shrink-0">
                       {(owner?.name || '?').charAt(0).toUpperCase()}
@@ -1112,27 +737,25 @@ export default function Documents() {
                   </p>
                 </div>
                 <div className="flex items-center gap-1 pt-2 border-t border-[var(--ap-border)]">
-                  {doc.file_url && (
-                    <a href={doc.file_url} target="_blank" rel="noopener noreferrer" title="View document" aria-label={`View ${doc.title}`}
-                      className="w-8 h-8 rounded-lg inline-flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)] hover:text-slate-800 dark:hover:text-white transition-colors">
-                      <Eye size={14} />
-                    </a>
-                  )}
-                  {doc.file_url && (
-                    <a href={doc.file_url} download={doc.file_name || 'document'} title="Download document" aria-label={`Download ${doc.title}`}
+                  <button type="button" onClick={() => openDetail(doc)} title="View details" aria-label={`View ${doc.title}`}
+                    className="w-8 h-8 rounded-lg inline-flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)] hover:text-slate-800 dark:hover:text-white transition-colors">
+                    <Eye size={14} />
+                  </button>
+                  {doc.frontUrl && (
+                    <a href={doc.frontUrl} target="_blank" rel="noopener noreferrer" download={doc.file_name || 'document'} title="Download document" aria-label={`Download ${doc.title}`}
                       className="w-8 h-8 rounded-lg inline-flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)] hover:text-slate-800 dark:hover:text-white transition-colors">
                       <Download size={14} />
                     </a>
                   )}
                   {canManage && (
-                    <button type="button" onClick={() => { setEditingDoc(doc); setShowAdd(true); }} aria-label={`Edit ${doc.title}`}
+                    <button type="button" onClick={() => openEdit(doc)} aria-label={`Edit ${doc.title}`}
                       className="w-8 h-8 rounded-lg inline-flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)] hover:text-slate-800 dark:hover:text-white transition-colors">
                       <Pencil size={14} />
                     </button>
                   )}
                   {canManage && (
                     <IconButton icon={Trash2} size={14} tone="danger" label={`Delete ${doc.title}`}
-                      onClick={() => handleDelete(doc.id)} />
+                      onClick={() => handleDelete(doc)} />
                   )}
                 </div>
               </div>
@@ -1160,7 +783,7 @@ export default function Documents() {
             <tbody>
               {sortedPageRows.map(doc => {
                 const owner = ownerOf(doc)
-                const ref = doc.notes || doc.file_name || '—'
+                const ref = doc.docNumber ? maskRef(doc.docNumber) : '—'
                 const days = doc.daysLeft
                 return (
                   <tr key={doc.id} className="border-b border-[var(--ap-border)] last:border-0 hover:bg-[var(--ap-surface-2)]/50 transition-colors">
@@ -1178,7 +801,10 @@ export default function Documents() {
                                 'text-slate-500 dark:text-slate-400'} />
                             </span>
                             <span className="min-w-0">
-                              <span className="block text-[13px] font-bold text-slate-700 dark:text-slate-200 truncate">{doc.title}</span>
+                              <button type="button" onClick={() => openDetail(doc)}
+                                className="block text-[13px] font-bold text-slate-700 dark:text-slate-200 truncate w-full text-left hover:text-[var(--ap-accent)]">
+                                {doc.title}
+                              </button>
                               <span className="block text-[11px] text-slate-400 dark:text-slate-500 truncate capitalize">{(doc.doc_type || 'document').replace(/_/g, ' ')}</span>
                             </span>
                           </div>
@@ -1236,21 +862,22 @@ export default function Documents() {
                     })}
                     <td className="px-3 py-3 whitespace-nowrap text-right">
                       <span className="inline-flex gap-1">
-                        {doc.file_url && (
-                          <a href={doc.file_url} target="_blank" rel="noopener noreferrer" title="View document" aria-label={`View ${doc.title}`}
-                            className="w-8 h-8 rounded-lg inline-flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)] hover:text-slate-800 dark:hover:text-white transition-colors">
-                            <Eye size={14} />
-                          </a>
-                        )}
-                        {doc.file_url && (
-                          <a href={doc.file_url} download={doc.file_name || 'document'} title="Download document" aria-label={`Download ${doc.title}`}
+                        <button type="button" onClick={() => openDetail(doc)} title="View details" aria-label={`View ${doc.title}`}
+                          className="w-8 h-8 rounded-lg inline-flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)] hover:text-slate-800 dark:hover:text-white transition-colors">
+                          <Eye size={14} />
+                        </button>
+                        {doc.frontUrl && (
+                          <a href={doc.frontUrl} target="_blank" rel="noopener noreferrer" download={doc.file_name || 'document'} title="Download document" aria-label={`Download ${doc.title}`}
                             className="w-8 h-8 rounded-lg inline-flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)] hover:text-slate-800 dark:hover:text-white transition-colors">
                             <Download size={14} />
                           </a>
                         )}
                         {canManage && (
+                          <IconButton icon={Pencil} size={14} label={`Edit ${doc.title}`} onClick={() => openEdit(doc)} />
+                        )}
+                        {canManage && (
                           <IconButton icon={Trash2} size={14} tone="danger" label={`Delete ${doc.title}`}
-                            onClick={() => handleDelete(doc.id)} />
+                            onClick={() => handleDelete(doc)} />
                         )}
                       </span>
                     </td>
@@ -1269,7 +896,7 @@ export default function Documents() {
 
         {/* Mobile cards */}
         <div className="md:hidden space-y-2">
-          {pageRows.map(doc => {
+          {sortedPageRows.map(doc => {
             const owner = ownerOf(doc)
             const days = doc.daysLeft
             return (
@@ -1284,12 +911,13 @@ export default function Documents() {
                       doc.computedStatus === 'expiring_soon' ? 'text-amber-500' :
                       'text-slate-500 dark:text-slate-400'} />
                   </span>
-                  <div className="flex-1 min-w-0">
+                  <button type="button" onClick={() => openDetail(doc)} className="flex-1 min-w-0 text-left">
                     <p className="text-[13px] font-bold text-slate-700 dark:text-slate-200 truncate">{doc.title}</p>
                     <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">
                       {owner ? `${owner.name} · ` : ''}{typeLabel(doc.doc_type || 'other')}
+                      {doc.docNumber ? ` · ${maskRef(doc.docNumber)}` : ''}
                     </p>
-                  </div>
+                  </button>
                   <StatusBadge status={doc.computedStatus} />
                 </div>
                 <div className="flex items-center justify-between gap-2 mt-2.5 pt-2.5 border-t border-[var(--ap-border)]">
@@ -1301,21 +929,22 @@ export default function Documents() {
                     )}</> : 'No expiry'}
                   </p>
                   <span className="inline-flex gap-1 flex-shrink-0">
-                    {doc.file_url && (
-                      <a href={doc.file_url} target="_blank" rel="noopener noreferrer" title="View" aria-label={`View ${doc.title}`}
-                        className="w-9 h-9 rounded-lg inline-flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)] transition-colors">
-                        <Eye size={15} />
-                      </a>
-                    )}
-                    {doc.file_url && (
-                      <a href={doc.file_url} download={doc.file_name || 'document'} title="Download" aria-label={`Download ${doc.title}`}
+                    <button type="button" onClick={() => openDetail(doc)} title="View details" aria-label={`View ${doc.title}`}
+                      className="w-9 h-9 rounded-lg inline-flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)] transition-colors">
+                      <Eye size={15} />
+                    </button>
+                    {doc.frontUrl && (
+                      <a href={doc.frontUrl} target="_blank" rel="noopener noreferrer" download={doc.file_name || 'document'} title="Download" aria-label={`Download ${doc.title}`}
                         className="w-9 h-9 rounded-lg inline-flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-[var(--ap-surface-2)] transition-colors">
                         <Download size={15} />
                       </a>
                     )}
                     {canManage && (
+                      <IconButton icon={Pencil} size={15} label={`Edit ${doc.title}`} onClick={() => openEdit(doc)} />
+                    )}
+                    {canManage && (
                       <IconButton icon={Trash2} size={15} tone="danger" label={`Delete ${doc.title}`}
-                        onClick={() => handleDelete(doc.id)} />
+                        onClick={() => handleDelete(doc)} />
                     )}
                   </span>
                 </div>
@@ -1333,14 +962,18 @@ export default function Documents() {
         </>
       )}
 
-      {/* 7. Add document modal */}
+      {/* 7. Add / edit document modal */}
       {showAdd && (
-        <AddDocModal
-          onClose={() => { setShowAdd(false); setEditingDoc(null) }}
-          onSave={handleSave}
+        <DocumentModal
+          document={editingDoc}
           drivers={drivers}
           vehicles={vehicles}
-          initial={editingDoc}
+          customers={customers}
+          onClose={closeModal}
+          onSave={handleSave}
+          uploadFile={uploadDocumentFile}
+          scanDocument={file => runOcrWorkflow({ file })}
+          onPreview={(doc, side) => getDocumentFileUrl(doc || {}, side)}
         />
       )}
       {docDetail && (
@@ -1349,8 +982,8 @@ export default function Documents() {
           owner={ownerOf(docDetail)}
           onClose={() => setDocDetail(null)}
           canManage={canManage}
-          onEdit={() => { setEditingDoc(docDetail); setDocDetail(null); setShowAdd(true) }}
-          onDelete={async (id) => { await handleDelete(id); setDocDetail(null) }}
+          onEdit={() => openEdit(docDetail)}
+          onDelete={handleDelete}
         />
       )}
     </div>

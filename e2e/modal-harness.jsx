@@ -8,12 +8,15 @@ import CustomerModal from '../src/components/customers/CustomerModal'
 import ExpenseModal from '../src/components/expenses/ExpenseModal'
 import AddDriverModal from '../src/components/drivers/AddDriverModal'
 import VehicleModal from '../src/components/vehicles/VehicleModal'
+import DocumentModal from '../src/components/documents/DocumentModal'
+import { buildDocumentPayload } from '../src/utils/documentForm.js'
 
 const params = new URLSearchParams(window.location.search)
 const requested = params.get('modal')
-const modal = ['customer', 'expense', 'driver', 'vehicle'].includes(requested) ? requested : 'customer'
+const modal = ['customer', 'expense', 'driver', 'vehicle', 'document'].includes(requested) ? requested : 'customer'
 const dark = params.get('theme') === 'dark'
 const editing = params.get('mode') === 'edit'
+const ocrSuccess = params.get('ocr') === '1'
 const driverMode = params.get('driver') === '1'
 // Legacy rows can carry `inactive` from softDelete(), which is not a normal
 // dropdown option but must still display correctly when editing.
@@ -28,8 +31,10 @@ const harness = {
   editing,
   driverMode,
   saves: [],
+  saveMeta: [],
   closes: [],
   uploads: [],
+  scans: [],
 }
 window.__modalHarness = harness
 
@@ -97,6 +102,41 @@ const vehicleDates = {
 }
 harness.vehicleDates = vehicleDates
 
+// Edit-mode document uses the snake_case row shape returned by Supabase,
+// including legacy aliases and both attachment sides.
+const documentDates = {
+  issue: '2026-01-02',
+  expiry: dayStamp(200),
+  reminder: dayStamp(170),
+}
+harness.documentDates = documentDates
+const documentFixture = editing ? {
+  id: 'doc-1001',
+  document_id: 'DOC-1001',
+  document_type: 'insurance',
+  related_entity: 'vehicle',
+  title: 'Insurance 2026',
+  category: 'vehicle',
+  doc_type: 'insurance',
+  vehicle_id: 'vehicle-1',
+  document_number: 'INS-9',
+  issuing_authority: 'LIC',
+  issue_date: documentDates.issue,
+  expiry_date: documentDates.expiry,
+  reminder_date: documentDates.reminder,
+  reminder_enabled: true,
+  reminder_interval: 30,
+  notes: 'Existing document note',
+  tags: ['fleet', 'important'],
+  status: 'active',
+  file_url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  file_name: 'front.png',
+  file_size: 100,
+  back_file_url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  back_file_name: 'back.png',
+  back_file_size: 80,
+} : null
+
 // Edit-mode vehicle uses the DB snake_case columns the repository returns.
 const vehicle = editing ? {
   id: 'vehicle-1',
@@ -135,6 +175,11 @@ const vehicles = [
   { id: 'vehicle-2', registration: 'TN02CD5678', vehicle_type: 'SUV', make: 'Mahindra', model: 'XUV700' },
 ]
 
+const customers = [
+  { id: 'customer-1', name: 'Asha Traders' },
+  { id: 'customer-2', name: 'Bright Logistics' },
+]
+
 function Harness() {
   const [open, setOpen] = useState(true)
 
@@ -143,8 +188,19 @@ function Harness() {
     setOpen(false)
   }
 
-  const handleSave = async payload => {
-    harness.saves.push(JSON.parse(JSON.stringify(payload)))
+  const handleSave = async (payload, meta) => {
+    // Mirror saveDocument(): the modal supplies a form + upload metadata and
+    // the data layer turns it into the row written to Supabase.
+    const saved = modal === 'document'
+      ? {
+        ...buildDocumentPayload(payload, meta?.frontMeta, meta?.backMeta),
+        // saveDocument() uses form.id in the WHERE clause rather than in the
+        // update body; keep it here so edit assertions see the targeted row.
+        ...(payload.id ? { id: payload.id } : {}),
+      }
+      : payload
+    harness.saves.push(JSON.parse(JSON.stringify(saved)))
+    if (meta) harness.saveMeta.push(JSON.parse(JSON.stringify(meta)))
   }
 
   const uploadReceipt = async file => {
@@ -156,6 +212,41 @@ function Harness() {
     }
   }
 
+  const uploadDocument = async (file, options = {}) => {
+    harness.uploads.push({ name: file.name, size: file.size, type: file.type, ...options })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    return {
+      url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      name: file.name,
+      size: file.size,
+      path: `test/${options.side || 'front'}/${file.name}`,
+    }
+  }
+
+  const scanDocument = async file => {
+    harness.scans.push({ name: file.name, size: file.size })
+    if (ocrSuccess) {
+      return {
+        ok: true,
+        provider: 'harness',
+        confidence: 91,
+        fields: {
+          holderName: 'Ravi Kumar',
+          documentNumber: 'DL-HARNESS-1',
+          issuingAuthority: 'Transport Department',
+          issueDate: '2025-01-10',
+          expiryDate: '2030-01-10',
+          docType: 'license',
+          vehicleNumber: 'TN01AB1234',
+        },
+      }
+    }
+    return { ok: false, error: 'OCR provider is not configured', fields: null, confidence: null, provider: 'stub' }
+  }
+
+  const previewDocument = async () =>
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+
   const renderModal = () => {
     if (modal === 'customer') {
       return <CustomerModal customer={customer} onClose={handleClose} onSave={handleSave} />
@@ -165,6 +256,21 @@ function Harness() {
     }
     if (modal === 'vehicle') {
       return <VehicleModal vehicle={vehicle} onClose={handleClose} onSave={handleSave} />
+    }
+    if (modal === 'document') {
+      return (
+        <DocumentModal
+          document={documentFixture}
+          drivers={drivers}
+          vehicles={vehicles}
+          customers={customers}
+          onClose={handleClose}
+          onSave={handleSave}
+          uploadFile={uploadDocument}
+          scanDocument={scanDocument}
+          onPreview={previewDocument}
+        />
+      )
     }
     return (
       <ExpenseModal

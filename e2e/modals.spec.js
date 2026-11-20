@@ -7,6 +7,21 @@ const waitForClose = page => expect.poll(
 ).toBe(1)
 
 const getSave = page => page.evaluate(() => window.__modalHarness.saves[0])
+const getSaveMeta = page => page.evaluate(() => window.__modalHarness.saveMeta)
+
+const docDay = offset => {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() + offset)
+  const pad = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+const pngFile = name => ({
+  name,
+  mimeType: 'image/png',
+  buffer: Buffer.from('89504e470d0a1a0a', 'hex'),
+})
 
 const expectHorizontallyCentered = (page, box) => {
   const viewport = page.viewportSize()
@@ -688,4 +703,234 @@ test('vehicle modal: legacy inactive status stays selected and is preserved', as
 
   const payload = await getSave(page)
   expect(payload.status).toBe('inactive')
+})
+
+test('document modal: create flow switches categories, uploads both sides and saves expiry reminders', async ({ page }) => {
+  await page.goto(harnessURL('modal=document'))
+
+  const dialog = page.getByRole('dialog', { name: 'Add Document' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByText('Document management')).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Document', exact: true })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Validity & reminders', exact: true })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Attachments', exact: true })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Notes & tags', exact: true })).toBeVisible()
+
+  const box = await dialog.boundingBox()
+  expect(box.width).toBeGreaterThanOrEqual(860)
+  expect(box.width).toBeLessThanOrEqual(900)
+  expectHorizontallyCentered(page, box)
+
+  // Only the three supported categories are offered.
+  await expect(dialog.getByRole('radio')).toHaveCount(3)
+  await dialog.locator('#doc-entity').selectOption('driver-1')
+  await dialog.getByRole('radio', { name: /Vehicles/ }).click()
+  await expect(dialog.locator('#doc-entity')).toHaveValue('')
+  await expect(dialog.locator('#doc-type')).toHaveValue('rc_book')
+  await dialog.getByRole('radio', { name: /Company/ }).click()
+  await expect(dialog.locator('#doc-entity')).toHaveCount(0)
+  await expect(dialog.getByText('Company-level document')).toBeVisible()
+  await dialog.getByRole('radio', { name: /Drivers/ }).click()
+  await expect(dialog.locator('#doc-entity')).toHaveValue('')
+  await expect(dialog.locator('#doc-type')).toHaveValue('license')
+
+  await dialog.locator('#doc-entity').selectOption('driver-1')
+  await dialog.locator('#doc-title').fill('Ravi Licence 2026')
+  await dialog.locator('#doc-number').fill('DL-H-1234')
+  await dialog.locator('#doc-authority').fill('Transport Department')
+  await dialog.locator('#doc-issue').fill('2026-02-01')
+  await dialog.locator('#doc-tags').fill('fleet, important')
+
+  const expiry = docDay(400)
+  // Driving licences are expiry-bearing, so the date fields are visible by
+  // default and the "no expiry" switch starts off.
+  await expect(dialog.getByLabel('This document has no expiry')).not.toBeChecked()
+  await expect(dialog.locator('#doc-expiry')).toBeVisible()
+  await dialog.locator('#doc-expiry').fill(expiry)
+  await expect(dialog.locator('#doc-reminder')).toHaveValue(docDay(370))
+  await dialog.locator('#doc-interval').selectOption('15')
+  await expect(dialog.locator('#doc-reminder')).toHaveValue(docDay(385))
+
+  const files = dialog.locator('input[type="file"]')
+  await files.nth(0).setInputFiles(pngFile('front.png'))
+  await files.nth(1).setInputFiles(pngFile('back.png'))
+  await expect(dialog.getByText('front.png')).toBeVisible()
+  await expect(dialog.getByText('back.png')).toBeVisible()
+
+  await dialog.getByRole('button', { name: 'Save Document' }).click()
+  await expect.poll(() => page.evaluate(() => window.__modalHarness.saves.length)).toBe(1)
+  await waitForClose(page)
+
+  const payload = await getSave(page)
+  expect(payload).toMatchObject({
+    category: 'driver',
+    related_entity: 'driver',
+    doc_type: 'license',
+    document_type: 'license',
+    title: 'Ravi Licence 2026',
+    driver_id: 'driver-1',
+    vehicle_id: null,
+    customer_id: null,
+    document_number: 'DL-H-1234',
+    issuing_authority: 'Transport Department',
+    issue_date: '2026-02-01',
+    expiry_date: expiry,
+    reminder_date: docDay(385),
+    reminder_enabled: true,
+    reminder_interval: 15,
+    tags: ['fleet', 'important'],
+    file_name: 'front.png',
+    back_file_name: 'back.png',
+  })
+
+  const meta = await getSaveMeta(page)
+  expect(meta[0].frontMeta).toMatchObject({
+    name: 'front.png', size: 8, path: 'test/front/front.png',
+  })
+  expect(meta[0].backMeta).toMatchObject({
+    name: 'back.png', size: 8, path: 'test/back/back.png',
+  })
+  expect(await page.evaluate(() => window.__modalHarness.uploads)).toEqual([
+    { name: 'front.png', size: 8, type: 'image/png', category: 'driver', side: 'front' },
+    { name: 'back.png', size: 8, type: 'image/png', category: 'driver', side: 'back' },
+  ])
+})
+
+test('document modal: edit legacy row, switch to company and clear the linked vehicle', async ({ page }) => {
+  await page.goto(harnessURL('modal=document&mode=edit'))
+
+  const dialog = page.getByRole('dialog', { name: 'Edit Document' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.locator('#doc-title')).toHaveValue('Insurance 2026')
+  await expect(dialog.locator('#doc-number')).toHaveValue('INS-9')
+  await expect(dialog.locator('#doc-authority')).toHaveValue('LIC')
+  await expect(dialog.locator('#doc-entity')).toHaveValue('vehicle-1')
+  await expect(dialog.locator('#doc-type')).toHaveValue('insurance')
+  await expect(dialog.locator('#doc-notes')).toHaveValue('Existing document note')
+  await expect(dialog.getByText('front.png')).toBeVisible()
+  await expect(dialog.getByText('back.png')).toBeVisible()
+
+  const dates = await page.evaluate(() => window.__modalHarness.documentDates)
+  await expect(dialog.locator('#doc-issue')).toHaveValue(dates.issue)
+  await expect(dialog.locator('#doc-expiry')).toHaveValue(dates.expiry)
+  await expect(dialog.locator('#doc-reminder')).toHaveValue(dates.reminder)
+
+  await dialog.getByRole('radio', { name: /Company/ }).click()
+  await expect(dialog.locator('#doc-entity')).toHaveCount(0)
+  await expect(dialog.locator('#doc-type')).toHaveValue('gst')
+  const companyTypes = await dialog.locator('#doc-type option').allTextContents()
+  expect(companyTypes).toContain('GST Certificate')
+  expect(companyTypes).toContain('TAN')
+  expect(companyTypes).toContain('Bank Documents')
+  expect(companyTypes).toContain('Agreements')
+
+  await dialog.locator('#doc-title').fill('GST Certificate 2026')
+  await dialog.getByRole('button', { name: 'Update Document' }).click()
+  await expect.poll(() => page.evaluate(() => window.__modalHarness.saves.length)).toBe(1)
+  await waitForClose(page)
+
+  const payload = await getSave(page)
+  expect(payload).toMatchObject({
+    id: 'doc-1001',
+    category: 'company',
+    related_entity: 'company',
+    doc_type: 'gst',
+    document_type: 'gst',
+    title: 'GST Certificate 2026',
+    driver_id: null,
+    vehicle_id: null,
+    customer_id: null,
+    document_number: 'INS-9',
+    tags: ['fleet', 'important'],
+    back_file_name: 'back.png',
+  })
+  expect(payload.file_url).toContain('data:image/png')
+})
+
+test('document modal: validates files and reports an unavailable OCR provider honestly', async ({ page }) => {
+  await page.goto(harnessURL('modal=document'))
+
+  const dialog = page.getByRole('dialog', { name: 'Add Document' })
+  await dialog.locator('input[type="file"]').first().setInputFiles({
+    name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('not a document'),
+  })
+  await expect(dialog.getByText('Only JPG, PNG, PDF, DOC or DOCX files are allowed')).toBeVisible()
+
+  await dialog.locator('input[type="file"]').first().setInputFiles(pngFile('licence.png'))
+  await expect(dialog.getByText('licence.png')).toBeVisible()
+  await dialog.getByRole('button', { name: 'Scan & Auto Fill' }).click()
+
+  await expect(dialog.getByText('Scan could not complete')).toBeVisible()
+  await expect(dialog.getByText(/OCR provider is not configured/)).toBeVisible()
+  expect(await page.evaluate(() => window.__modalHarness.scans)).toHaveLength(1)
+  expect(await page.evaluate(() => window.__modalHarness.saves)).toHaveLength(0)
+})
+
+test('document modal: OCR results stay editable suggestions and never auto-bind an entity', async ({ page }) => {
+  await page.goto(harnessURL('modal=document&ocr=1'))
+
+  const dialog = page.getByRole('dialog', { name: 'Add Document' })
+  await dialog.locator('#doc-entity').selectOption('driver-1')
+  await dialog.locator('#doc-title').fill('My own title')
+  await dialog.locator('input[type="file"]').first().setInputFiles(pngFile('licence.png'))
+  await dialog.getByRole('button', { name: 'Scan & Auto Fill' }).click()
+
+  await expect(dialog.getByText('Suggested details added')).toBeVisible()
+  await expect(dialog.getByText(/Extracted suggestions/)).toBeVisible()
+  await expect(dialog.locator('#doc-title')).toHaveValue('My own title')
+  await expect(dialog.locator('#doc-number')).toHaveValue('DL-HARNESS-1')
+  await expect(dialog.locator('#doc-authority')).toHaveValue('Transport Department')
+  await expect(dialog.locator('#doc-issue')).toHaveValue('2025-01-10')
+  await expect(dialog.locator('#doc-expiry')).toHaveValue('2030-01-10')
+  await expect(dialog.getByText('TN01AB1234')).toBeVisible()
+  await expect(dialog.locator('#doc-entity')).toHaveValue('driver-1')
+
+  await dialog.getByRole('button', { name: 'Save Document' }).click()
+  await expect.poll(() => page.evaluate(() => window.__modalHarness.saves.length)).toBe(1)
+  await waitForClose(page)
+
+  const payload = await getSave(page)
+  expect(payload.document_number).toBe('DL-HARNESS-1')
+  expect(payload.driver_id).toBe('driver-1')
+  expect(payload.title).toBe('My own title')
+  expect(payload.reminder_date).toBe('2029-12-11')
+})
+
+test('document modal: mobile full-screen sheet, dark theme, sticky actions and Escape close', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto(harnessURL('modal=document&theme=dark'))
+
+  const dialog = page.getByRole('dialog', { name: 'Add Document' })
+  await expect(dialog).toBeVisible()
+  const box = await dialog.boundingBox()
+  expect(box.width).toBeGreaterThanOrEqual(385)
+  expect(box.width).toBeLessThanOrEqual(395)
+  expect(box.height).toBeGreaterThanOrEqual(840)
+  expect(box.height).toBeLessThanOrEqual(850)
+  expectHorizontallyCentered(page, box)
+
+  expect(await page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(true)
+  const surface = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue('--ap-surface').trim()
+  )
+  expect(surface).toBe('#121a26')
+
+  const driverCard = dialog.getByRole('radio', { name: /Drivers/ })
+  const vehicleCard = dialog.getByRole('radio', { name: /Vehicles/ })
+  const driverBox = await driverCard.boundingBox()
+  const vehicleBox = await vehicleCard.boundingBox()
+  expect(vehicleBox.y).toBeGreaterThan(driverBox.y + driverBox.height)
+
+  await dialog.locator('div.overflow-y-auto').evaluate(el => { el.scrollTop = el.scrollHeight })
+  await expect(dialog.getByRole('button', { name: 'Close document form' })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Save Document' })).toBeVisible()
+
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+  )
+  expect(overflow).toBeLessThanOrEqual(0)
+
+  await page.keyboard.press('Escape')
+  await waitForClose(page)
+  await expect(dialog).toHaveCount(0)
 })
