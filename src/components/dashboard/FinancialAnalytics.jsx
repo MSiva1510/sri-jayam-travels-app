@@ -202,6 +202,7 @@ export default function FinancialAnalytics({
               icon={Receipt}
               title={`${expense.pendingApprovals} expense${expense.pendingApprovals !== 1 ? 's' : ''} awaiting your approval`}
               actionLabel="Review"
+              actionAriaLabel="Review expenses"
               onAction={() => onNavigate('/expenses')}
             />
           )}

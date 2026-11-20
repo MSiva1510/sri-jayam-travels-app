@@ -18,11 +18,12 @@ import PayrollSummary from '../src/components/dashboard/PayrollSummary.jsx'
 import CustomerInsights from '../src/components/dashboard/CustomerInsights.jsx'
 import AttendanceWidget from '../src/components/dashboard/AttendanceWidget.jsx'
 
-const now = new Date()
+// Fixed clock keeps the offline E2E assertions deterministic across dates.
+const now = new Date(2026, 10, 20, 0, 0, 0, 0)
 const monthKey = toLocalMonthStr(now)
 const todayKey = `${monthKey}-${String(now.getDate()).padStart(2, '0')}`
 const relativeDate = days => {
-  const d = new Date()
+  const d = new Date(now)
   d.setHours(0, 0, 0, 0)
   d.setDate(d.getDate() + days)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -64,7 +65,7 @@ const fixture = {
     running: true,
     health: { ok: true },
     settings: { enabled: true, refresh_interval: 60 },
-    snapshots: [{ timestamp: new Date(Date.now() - 11 * 60 * 1000).toISOString(), speed_kmh: 18, ignition: true }],
+    snapshots: [{ timestamp: new Date(now.getTime() - 11 * 60 * 1000).toISOString(), speed_kmh: 18, ignition: true }],
   },
   can: () => true,
   now,
@@ -122,7 +123,7 @@ function Harness() {
           period={period}
           onPeriodChange={setPeriod}
           canBook
-          onNewBooking={() => nav('/trips')}
+          onCreateTrip={() => nav('/create-trip')}
           dateLabel={dateLabel}
           rangeLabel={rangeLabel}
         />
@@ -133,6 +134,7 @@ function Harness() {
           driverCount={data.driverCounts.total}
           vehicleCount={data.vehicleCounts.total}
           onViewAll={() => nav('/trips')}
+          onViewTrips={() => nav('/trips')}
           onViewBills={() => nav('/invoices')}
           onViewDrivers={() => nav('/drivers')}
           onViewVehicles={() => nav('/vehicles')}

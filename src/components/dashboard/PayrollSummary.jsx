@@ -14,7 +14,7 @@ export default function PayrollSummary({ payroll, unavailable, onViewPayroll }) 
     <Surface>
       <SectionHeader
         eyebrow="Payroll & settlements"
-        title="Driver salary"
+        title="Settlement summary"
         action={
           <button
             type="button"
@@ -42,6 +42,7 @@ export default function PayrollSummary({ payroll, unavailable, onViewPayroll }) 
             (payroll.approved > 0 ? `${payroll.approved} approved — ready to pay` : '')
           }
           actionLabel="Review"
+          actionAriaLabel="Review settlements"
           onAction={onViewPayroll}
         />
       )}

@@ -3,7 +3,7 @@ import Button from '../ui/Button'
 import SegmentedControl from '../ui/SegmentedControl'
 
 export default function DashboardHeader({
-  period, onPeriodChange, canBook, onNewBooking, dateLabel, rangeLabel,
+  period, onPeriodChange, canBook, onCreateTrip, dateLabel, rangeLabel,
 }) {
   return (
     <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -37,8 +37,8 @@ export default function DashboardHeader({
           />
         </div>
         {canBook && (
-          <Button icon={Plus} variant="primary" onClick={onNewBooking} className="h-10 px-4 rounded-xl shadow-sm">
-            New Booking
+          <Button icon={Plus} variant="primary" onClick={onCreateTrip} className="h-10 px-4 rounded-xl shadow-sm">
+            Create Trip
           </Button>
         )}
       </div>

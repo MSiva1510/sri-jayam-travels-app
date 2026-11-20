@@ -16,7 +16,7 @@ export default function DriverPerformance({
     <Surface>
       <SectionHeader
         eyebrow="Driver performance"
-        title="Pay summary"
+        title="Trip contribution"
         action={
           <button
             type="button"

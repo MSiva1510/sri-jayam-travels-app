@@ -96,6 +96,7 @@ export default function PriorityAlerts({
                 <StatusPill tone={status.tone}>{status.label}</StatusPill>
                 <button
                   type="button"
+                  aria-label={`Review ${alert.label}`}
                   onClick={() => onReviewAlert(alert)}
                   className="ap-focus rounded-lg px-2 py-1 text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 transition-colors"
                 >

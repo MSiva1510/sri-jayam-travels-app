@@ -9,7 +9,7 @@ const TONES = {
 
 export default function OperationsOverview({
   counts, allTime, driverCount, vehicleCount, unavailable,
-  onViewAll, onViewBills, onViewDrivers, onViewVehicles,
+  onViewAll, onViewTrips, onViewBills, onViewDrivers, onViewVehicles,
 }) {
   const items = [
     { label: 'Total bookings', value: counts.total, tone: 'blue' },
@@ -18,8 +18,8 @@ export default function OperationsOverview({
     { label: 'Cancelled', value: counts.cancelled, tone: 'red' },
   ]
   const allTimeItems = [
-    { label: 'Bills done', navLabel: 'bills', value: allTime.doneTrips, icon: CheckCircle, onClick: onViewBills },
-    { label: 'Pending bills', navLabel: 'bills', value: allTime.pendingTrips, icon: Clock, onClick: onViewBills },
+    { label: 'Completed trips', navLabel: 'completed trips', value: allTime.doneTrips, icon: CheckCircle, onClick: onViewTrips || onViewAll },
+    { label: 'Pending bills', navLabel: 'pending bills', value: allTime.pendingTrips, icon: Clock, onClick: onViewBills },
     { label: 'Drivers', navLabel: 'drivers', value: driverCount, icon: Users, onClick: onViewDrivers },
     { label: 'Vehicles', navLabel: 'vehicles', value: vehicleCount, icon: Fuel, onClick: onViewVehicles },
   ]

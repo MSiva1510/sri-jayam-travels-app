@@ -32,7 +32,7 @@ for (const width of [1440, 1280, 768, 390]) {
       'Total Fare', 'Net Income', 'Kilometres Travelled', 'Total Expenses',
       "Today's operations", 'Priority alerts & reminders', 'Fleet & GPS',
       'Revenue & expenses', 'Upcoming & recent trips', 'Driver performance',
-      'Customers', "Today's attendance",
+      'Trip contribution', 'Settlement summary', 'Customers', "Today's attendance",
     ]) {
       await expect(page.getByText(label, { exact: false }).first()).toBeVisible()
     }
@@ -83,7 +83,7 @@ test('dashboard actions navigate to their matching pages', async ({ page }) => {
     await expect(lastNav).toHaveText(expected)
   }
 
-  await expectNav(page.getByRole('button', { name: 'New Booking' }), '/trips')
+  await expectNav(page.getByRole('button', { name: 'Create Trip' }), '/create-trip')
   await expectNav(page.getByRole('button', { name: /^Total Fare:/ }), '/reports')
   await expectNav(page.getByRole('button', { name: /^Net Income:/ }), '/reports')
   await expectNav(page.getByRole('button', { name: /^Kilometres Travelled:/ }), '/trips')
@@ -91,21 +91,25 @@ test('dashboard actions navigate to their matching pages', async ({ page }) => {
 
   const operations = page.getByRole('region', { name: "Today's operations" })
   await expectNav(operations.getByRole('button', { name: 'View all trips' }), '/trips')
-  await expectNav(operations.getByRole('button', { name: 'Open bills' }).first(), '/invoices')
+  await expectNav(operations.getByRole('button', { name: 'Open completed trips' }), '/trips')
+  await expectNav(operations.getByRole('button', { name: 'Open pending bills' }), '/invoices')
   await expectNav(operations.getByRole('button', { name: 'Open drivers' }), '/drivers')
   await expectNav(operations.getByRole('button', { name: 'Open vehicles' }), '/vehicles')
 
   await expectNav(page.getByRole('button', { name: 'View vehicles' }), '/vehicles')
   await expectNav(page.getByRole('button', { name: 'View drivers' }).first(), '/drivers')
-  await expectNav(page.getByRole('button', { name: 'Review' }).first(), '/vehicles')
+  await expectNav(page.getByRole('button', { name: 'Review TN 37 AB 1234 Insurance' }), '/vehicles')
+  await expectNav(page.getByRole('button', { name: 'Review Kumar Driving Licence' }), '/drivers')
   await expectNav(page.getByRole('button', { name: 'View all fleet alerts' }), '/fleet')
   await expectNav(page.getByRole('button', { name: 'View GPS fleet' }), '/fleet')
   await expectNav(page.getByRole('button', { name: 'Manage vehicles' }), '/vehicles')
   await expectNav(page.getByRole('button', { name: 'View all expenses' }), '/expenses')
+  await expectNav(page.getByRole('button', { name: 'Review expenses' }), '/expenses')
   await expectNav(page.getByRole('button', { name: 'View all trips' }).last(), '/trips')
   await expectNav(page.getByRole('button', { name: 'View Trip' }).first(), /^\/trips#b/)
   await expectNav(page.getByRole('button', { name: 'View drivers' }).last(), '/drivers')
   await expectNav(page.getByRole('button', { name: 'View all payroll' }), '/payroll')
+  await expectNav(page.getByRole('button', { name: 'Review settlements' }), '/payroll')
   await expectNav(page.getByRole('button', { name: 'View all customers' }), '/customers')
   await expectNav(page.getByRole('button', { name: 'View attendance' }), '/attendance')
 })
@@ -121,7 +125,7 @@ test('manager KPI cards navigate to their matching pages', async ({ page }) => {
   }
 
   await expectNav(page.getByRole('button', { name: /^Total Trips:/ }), '/trips')
-  await expectNav(page.getByRole('button', { name: /^Bills Done:/ }), '/invoices')
+  await expectNav(page.getByRole('button', { name: /^Completed Trips:/ }), '/trips')
   await expectNav(page.getByRole('button', { name: /^Total KM:/ }), '/trips')
   await expectNav(page.getByRole('button', { name: /^Pending Bills:/ }), '/invoices')
 })

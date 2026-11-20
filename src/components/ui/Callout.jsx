@@ -10,7 +10,7 @@ const TONES = {
 }
 
 export default function Callout({
-  tone = 'blue', icon: Icon, title, sub, actionLabel, onAction, actionDisabled, className = '', children,
+  tone = 'blue', icon: Icon, title, sub, actionLabel, actionAriaLabel, onAction, actionDisabled, className = '', children,
 }) {
   const t = TONES[tone] || TONES.blue
   return (
@@ -31,7 +31,7 @@ export default function Callout({
         </div>
       </div>
       {actionLabel && (
-        <button onClick={onAction} disabled={actionDisabled}
+        <button type="button" onClick={onAction} disabled={actionDisabled} aria-label={actionAriaLabel || actionLabel}
           className={`min-h-[44px] px-3 py-1.5 rounded-xl text-white text-xs font-semibold transition-all active:scale-95 shadow-sm flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${t.btn}`}>
           {actionLabel}
         </button>

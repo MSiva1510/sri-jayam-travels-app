@@ -149,6 +149,9 @@ export default function Dashboard() {
     : now.toLocaleString('en-IN', { month: 'long', year: 'numeric' })
   const go = path => navigate(path)
   const openTrip = tripId => navigate('/trips', { state: { tripId } })
+  // /reports is admin-only, so the finance links must not be offered to a role
+  // that would be redirected to /unauthorized.
+  const canViewReports = isAdmin && can('revenueDashboard')
 
   return (
     <div className="space-y-5 sm:space-y-6 animate-fade-up font-sf">
@@ -157,7 +160,7 @@ export default function Dashboard() {
         period={period}
         onPeriodChange={setPeriod}
         canBook={can('trips')}
-        onNewBooking={() => go('/trips')}
+        onCreateTrip={() => go('/create-trip')}
         dateLabel={dateLabel}
         rangeLabel={rangeLabel}
       />
@@ -175,7 +178,7 @@ export default function Dashboard() {
 
       {/* 2. Primary business KPIs */}
       <DashboardKpiGrid
-        canRevenue={can('revenueDashboard')}
+        canRevenue={canViewReports}
         data={data}
         onNavigate={go}
         unavailable={unavailable}
@@ -190,6 +193,7 @@ export default function Dashboard() {
           vehicleCount={data.vehicleCounts.total}
           unavailable={unavailable.bookings}
           onViewAll={() => go('/trips')}
+          onViewTrips={() => go('/trips')}
           onViewBills={() => go('/invoices')}
           onViewDrivers={() => go('/drivers')}
           onViewVehicles={() => go('/vehicles')}
@@ -233,7 +237,7 @@ export default function Dashboard() {
 
       {/* 6. Revenue and expense analytics */}
       <FinancialAnalytics
-        canRevenue={can('revenueDashboard')}
+        canRevenue={canViewReports}
         canProfit={can('profitReports')}
         canExpenses={can('expenses')}
         data={data}

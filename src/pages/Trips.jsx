@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   Plus, ChevronDown, ChevronUp,
@@ -542,7 +542,8 @@ export default function Trips() {
   const navigate  = useNavigate()
   const location  = useLocation()
   const { user, can, isAdmin, isManager, isDriver } = useAuth()
-  const prefill   = location.state?.prefill || null
+  const prefill        = location.state?.prefill || null
+  const focusedTripId  = location.state?.tripId || null
 
   const canCreate = can('trips') && (isAdmin || isManager)
   const canEdit   = can('trips') && (isAdmin || isManager)
@@ -557,7 +558,8 @@ export default function Trips() {
   const [tab,           setTab]           = useState('list')
   const [statusFilter,  setStatusFilter]  = useState('all')
   const [typeFilter,    setTypeFilter]    = useState('all')
-  const [expanded,      setExpanded]      = useState(null)
+  const [expanded,      setExpanded]      = useState(() => focusedTripId)
+  const focusedTripRef  = useRef(null)
   const [showCreate,    setShowCreate]    = useState(() => !!prefill)
   const [editBooking,   setEditBooking]   = useState(null)
   const [assignBooking, setAssignBooking] = useState(null)
@@ -595,6 +597,19 @@ export default function Trips() {
   const pageRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
   // Reset/clamp page whenever the list identity changes
   useEffect(() => { setPage(1) }, [statusFilter, typeFilter, tab, bookings.length, pageSize])
+
+  // Dashboard "View Trip" hands over a tripId. Expand that booking and jump to
+  // its page once data is loaded, so the click opens the record instead of the
+  // generic list. Declared after the reset effect so the focused page wins.
+  useEffect(() => {
+    if (!focusedTripId || loading || bookings.length === 0) return
+    if (focusedTripRef.current === focusedTripId) return
+    const index = filtered.findIndex(b => b.id === focusedTripId)
+    if (index === -1) return
+    focusedTripRef.current = focusedTripId
+    setPage(Math.floor(index / pageSize) + 1)
+    setExpanded(focusedTripId)
+  }, [focusedTripId, loading, bookings, filtered, pageSize])
 
   const pageItems = (() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1)
@@ -790,7 +805,7 @@ export default function Trips() {
                 const isOpen  = expanded === booking.id
                 const typeCfg = TRIP_TYPE_CONFIG[booking.type]
                 return (
-                  <div key={booking.id} className="ap-surface rounded-2xl overflow-hidden hover:shadow-md transition-all duration-200">
+                  <div key={booking.id} data-trip-id={booking.id} className="ap-surface rounded-2xl overflow-hidden hover:shadow-md transition-all duration-200">
                     <div className="flex items-center gap-2.5 px-3 py-2 cursor-pointer select-none" onClick={() => setExpanded(isOpen ? null : booking.id)}>
                       <div className={`w-8 h-8 rounded-[10px] bg-gradient-to-br ${typeCfg?.gradient||'from-slate-400 to-slate-500'} flex items-center justify-center text-sm flex-shrink-0 shadow-sm`}>
                         {typeCfg?.icon}
