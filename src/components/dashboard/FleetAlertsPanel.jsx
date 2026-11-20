@@ -33,6 +33,7 @@ export default function FleetAlertsPanel({ alerts = [], unavailable, onViewAll }
           <button
             type="button"
             onClick={onViewAll}
+            aria-label="View all fleet alerts"
             className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors"
           >
             View all <ArrowUpRight size={13} aria-hidden="true" />

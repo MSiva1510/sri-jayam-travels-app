@@ -8,7 +8,8 @@ const TONES = {
 }
 
 export default function OperationsOverview({
-  counts, allTime, driverCount, vehicleCount, unavailable, onViewAll,
+  counts, allTime, driverCount, vehicleCount, unavailable,
+  onViewAll, onViewBills, onViewDrivers, onViewVehicles,
 }) {
   const items = [
     { label: 'Total bookings', value: counts.total, tone: 'blue' },
@@ -17,10 +18,10 @@ export default function OperationsOverview({
     { label: 'Cancelled', value: counts.cancelled, tone: 'red' },
   ]
   const allTimeItems = [
-    { label: 'Bills done', value: allTime.doneTrips, icon: CheckCircle },
-    { label: 'Pending bills', value: allTime.pendingTrips, icon: Clock },
-    { label: 'Drivers', value: driverCount, icon: Users },
-    { label: 'Vehicles', value: vehicleCount, icon: Fuel },
+    { label: 'Bills done', navLabel: 'bills', value: allTime.doneTrips, icon: CheckCircle, onClick: onViewBills },
+    { label: 'Pending bills', navLabel: 'bills', value: allTime.pendingTrips, icon: Clock, onClick: onViewBills },
+    { label: 'Drivers', navLabel: 'drivers', value: driverCount, icon: Users, onClick: onViewDrivers },
+    { label: 'Vehicles', navLabel: 'vehicles', value: vehicleCount, icon: Fuel, onClick: onViewVehicles },
   ]
 
   if (unavailable) {
@@ -28,7 +29,7 @@ export default function OperationsOverview({
   }
 
   return (
-    <Surface className="py-4">
+    <Surface as="section" aria-label="Today's operations" className="py-4">
       <div className="flex items-center justify-between gap-3 mb-3.5">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
@@ -39,6 +40,7 @@ export default function OperationsOverview({
         <button
           type="button"
           onClick={onViewAll}
+          aria-label="View all trips"
           className="ap-action-link inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors"
         >
           View all <ArrowUpRight size={13} aria-hidden="true" />
@@ -50,6 +52,7 @@ export default function OperationsOverview({
             key={item.label}
             type="button"
             onClick={onViewAll}
+            aria-label="Open trips"
             className="ap-focus min-h-[68px] px-3 py-2.5 text-left bg-[var(--ap-surface)] hover:bg-[var(--ap-surface-2)] transition-colors"
           >
             <span className="flex items-center gap-1.5">
@@ -66,13 +69,19 @@ export default function OperationsOverview({
       {/* All-time counters stay visible but visually subordinate to the daily pulse. */}
       <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-px rounded-2xl overflow-hidden bg-[var(--ap-border)]">
         {allTimeItems.map(item => (
-          <div key={item.label} className="bg-[var(--ap-surface)] px-3 py-2.5 flex items-center gap-2 min-h-[54px]">
+          <button
+            key={item.label}
+            type="button"
+            onClick={item.onClick}
+            aria-label={`Open ${item.navLabel}`}
+            className="ap-focus min-h-[54px] bg-[var(--ap-surface)] px-3 py-2.5 flex items-center gap-2 text-left hover:bg-[var(--ap-surface-2)] transition-colors"
+          >
             <item.icon size={14} className="text-slate-500 dark:text-slate-400 flex-shrink-0" aria-hidden="true" />
-            <div className="min-w-0">
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{item.label}</p>
-              <p className="font-sf text-sm font-semibold text-slate-700 dark:text-slate-200 tabular-nums">{item.value}</p>
-            </div>
-          </div>
+            <span className="min-w-0">
+              <span className="block text-[10px] text-slate-500 dark:text-slate-400 truncate">{item.label}</span>
+              <span className="block font-sf text-sm font-semibold text-slate-700 dark:text-slate-200 tabular-nums">{item.value}</span>
+            </span>
+          </button>
         ))}
       </div>
     </Surface>

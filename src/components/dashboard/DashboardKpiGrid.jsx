@@ -62,9 +62,9 @@ export default function DashboardKpiGrid({ canRevenue, data, onNavigate, unavail
   return (
     <section aria-label="Primary operations metrics" className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
       <MetricCard label="Total Trips" value={bookingCounts.total} sub={periodTagCap} icon={Car} tone="blue" onClick={() => onNavigate('/trips')} />
-      <MetricCard label="Bills Done" value={bookingCounts.completed} sub={`Completed ${periodTag}`} icon={CheckCircle} tone="green" onClick={() => onNavigate('/trips')} />
+      <MetricCard label="Bills Done" value={bookingCounts.completed} sub={`Completed ${periodTag}`} icon={CheckCircle} tone="green" onClick={() => onNavigate('/invoices')} />
       <MetricCard label="Total KM" value={totals.km.toLocaleString('en-IN')} sub={periodTagCap} icon={Car} tone="violet" onClick={() => onNavigate('/trips')} />
-      <MetricCard label="Pending Bills" value={bookingCounts.pending} sub="Awaiting invoice" icon={Clock} tone="amber" onClick={() => onNavigate('/trips')} />
+      <MetricCard label="Pending Bills" value={bookingCounts.pending} sub="Awaiting invoice" icon={Clock} tone="amber" onClick={() => onNavigate('/invoices')} />
       <span className="sr-only">{allTime.doneTrips} completed trips all time</span>
     </section>
   )

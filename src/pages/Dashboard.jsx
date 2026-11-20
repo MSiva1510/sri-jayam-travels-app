@@ -122,7 +122,10 @@ export default function Dashboard() {
     () => Object.fromEntries(loadErrors.map(key => [key, true])),
     [loadErrors],
   )
-  const data = useMemo(() => buildDashboardData({
+  // Derive fresh values every render. The inputs are already loaded arrays and
+  // the builder is pure/small; this guarantees the Month / This Year control
+  // never serves a memoised snapshot from the previous range.
+  const data = buildDashboardData({
     bookings, customers, allExpenses, settlements, todayAttendance,
     drivers, vehicles, period,
     gps: {
@@ -135,11 +138,7 @@ export default function Dashboard() {
     can,
     now,
     nowMs: now.getTime(),
-  }), [
-    bookings, customers, allExpenses, settlements, todayAttendance, drivers,
-    vehicles, period, liveSnapshots, gpsSettings, gpsHealth, gpsRunning,
-    gpsError, can, now.getTime(),
-  ])
+  })
 
   if (loading) return <DashboardSkeleton />
 
@@ -191,6 +190,9 @@ export default function Dashboard() {
           vehicleCount={data.vehicleCounts.total}
           unavailable={unavailable.bookings}
           onViewAll={() => go('/trips')}
+          onViewBills={() => go('/invoices')}
+          onViewDrivers={() => go('/drivers')}
+          onViewVehicles={() => go('/vehicles')}
         />
       )}
 
@@ -203,7 +205,7 @@ export default function Dashboard() {
         attentionItems={data.attentionItems}
         unavailable={unavailable.vehicles || unavailable.drivers}
         onReviewAlert={alert => go(alert.to)}
-        onViewDocuments={() => go('/documents')}
+        onViewAlerts={go}
         onAction={go}
       />
 

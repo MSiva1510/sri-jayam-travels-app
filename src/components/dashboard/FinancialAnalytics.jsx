@@ -143,6 +143,7 @@ export default function FinancialAnalytics({
             <button
               type="button"
               onClick={() => onNavigate('/expenses')}
+              aria-label="View all expenses"
               className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors"
             >
               View all <ArrowUpRight size={13} aria-hidden="true" />

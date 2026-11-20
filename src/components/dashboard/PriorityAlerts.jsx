@@ -17,7 +17,8 @@ const formatExpiry = value => {
 
 export default function PriorityAlerts({
   alerts = [], expiredCount = 0, soonCount = 0, validCount = 0,
-  attentionItems = [], unavailable, onReviewAlert, onViewDocuments, onAction,
+  attentionItems = [], unavailable,
+  onReviewAlert = () => {}, onViewAlerts = () => {}, onAction = () => {},
 }) {
   if (unavailable) {
     return <DataUnavailable label="Document alerts unavailable" description="Expiry status is hidden until vehicle and driver data loads." />
@@ -26,6 +27,17 @@ export default function PriorityAlerts({
   const visible = alerts.slice(0, 5)
   const queue = attentionItems.filter(item => !item.label.toLowerCase().includes('document'))
   const hasAlerts = alerts.length > 0 || queue.length > 0
+  const hasVehicleAlerts = alerts.some(alert => alert.to === '/vehicles')
+  const hasDriverAlerts = alerts.some(alert => alert.to === '/drivers')
+  // Document alerts live with the records they describe, not a generic page.
+  const alertTargets = [
+    hasVehicleAlerts && { to: '/vehicles', label: 'View vehicles' },
+    hasDriverAlerts && { to: '/drivers', label: 'View drivers' },
+  ].filter(Boolean)
+  if (alertTargets.length === 0) {
+    alertTargets.push({ to: '/vehicles', label: 'View all' })
+  }
+  const primaryTarget = alertTargets[0]
 
   return (
     <Surface className="py-4">
@@ -41,13 +53,18 @@ export default function PriorityAlerts({
           </div>
         </div>
         {alerts.length > 0 && (
-          <button
-            type="button"
-            onClick={onViewDocuments}
-            className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors"
-          >
-            View all <ArrowUpRight size={13} aria-hidden="true" />
-          </button>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            {alertTargets.map(target => (
+              <button
+                key={target.to}
+                type="button"
+                onClick={() => onViewAlerts(target.to)}
+                className="ap-action-link inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors"
+              >
+                {target.label} <ArrowUpRight size={13} aria-hidden="true" />
+              </button>
+            ))}
+          </div>
         )}
       </div>
 
@@ -106,10 +123,10 @@ export default function PriorityAlerts({
           {alerts.length > visible.length && (
             <button
               type="button"
-              onClick={onViewDocuments}
-              className="w-full pt-1 text-center text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors"
+              onClick={() => onViewAlerts(primaryTarget.to)}
+              className="ap-action-link w-full pt-1 text-center text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors"
             >
-              +{alerts.length - visible.length} more alerts — view all documents
+              +{alerts.length - visible.length} more alerts — {primaryTarget.label.toLowerCase()}
             </button>
           )}
         </div>

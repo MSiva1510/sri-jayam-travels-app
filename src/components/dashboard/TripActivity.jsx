@@ -44,7 +44,7 @@ function TripList({
           icon={CalendarClock}
           title={emptyTitle}
           description={emptyDescription}
-          action={<button type="button" onClick={onViewAll} className="text-xs font-semibold text-blue-600 dark:text-blue-400">Open trips →</button>}
+          action={<button type="button" onClick={onViewAll} aria-label="View all trips" className="text-xs font-semibold text-blue-600 dark:text-blue-400">Open trips →</button>}
         />
       ) : (
         <>
@@ -165,6 +165,7 @@ export default function TripActivity({
           <button
             type="button"
             onClick={onViewAll}
+            aria-label="View all trips"
             className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors"
           >
             View all <ArrowUpRight size={13} aria-hidden="true" />

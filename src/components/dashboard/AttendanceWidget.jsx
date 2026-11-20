@@ -14,6 +14,7 @@ export default function AttendanceWidget({
         <button
           type="button"
           onClick={onViewAttendance}
+          aria-label="View attendance"
           className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors"
         >
           View <ArrowUpRight size={13} aria-hidden="true" />

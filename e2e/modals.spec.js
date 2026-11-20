@@ -499,7 +499,8 @@ test('vehicle modal: desktop layout, sections, formatting and save payload', asy
   expect(panelRadius).toBe('22px')
   const regBox = await dialog.locator('#veh-reg').boundingBox()
   expect(regBox.height).toBeGreaterThanOrEqual(46)
-  expect(regBox.height).toBeLessThanOrEqual(48)
+  // Subpixel layout can round 48px to 48.000015px in headless Chromium.
+  expect(regBox.height).toBeLessThanOrEqual(48.5)
 
   // Header and footer stay pinned while the form body scrolls.
   await dialog.locator('div.overflow-y-auto').evaluate(el => { el.scrollTop = el.scrollHeight })

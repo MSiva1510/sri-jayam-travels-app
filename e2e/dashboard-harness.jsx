@@ -1,6 +1,6 @@
 // Offline layout harness for the redesigned dashboard widgets.
 // The sample rows exist only here; production always uses Supabase data.
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import '../src/index.css'
 
@@ -33,9 +33,10 @@ const bookings = [
   { id: 'b2', customer: 'Kavya', status: 'started', type: 'local', startDate: todayKey, startTime: '14:00', pickup: 'Coimbatore', drop: 'Airport', driver: 'Kumar', vehicle: 'TN 37 CD 5678', fare: 900, km: 28, toll: 0, bata: 150 },
   { id: 'b3', customer: 'Blue Lines Ltd', status: 'completed', type: 'corporate', startDate: `${monthKey}-08`, pickup: 'Erode', drop: 'Salem', driver: 'Ravi', vehicle: 'TN 37 AB 1234', fare: 3500, km: 140, toll: 90, bata: 250 },
   { id: 'b4', customer: 'Meera', status: 'cancelled', type: 'local', startDate: `${monthKey}-11`, pickup: 'City Centre', drop: 'Airport', driver: '', vehicle: '', fare: 1200, km: 30 },
+  { id: 'b5', customer: 'Raj Tours', status: 'completed', type: 'outstation', startDate: `${now.getFullYear()}-01-15`, startTime: '07:00', pickup: 'Salem', drop: 'Chennai', driver: 'Kumar', vehicle: 'TN 37 CD 5678', fare: 5000, km: 220, toll: 100, bata: 200 },
 ]
 
-const data = buildDashboardData({
+const fixture = {
   bookings,
   customers: [
     { id: 'c1', name: 'Anand Travels', type: 'corporate', status: 'active', createdAt: `${monthKey}-02` },
@@ -68,14 +69,27 @@ const data = buildDashboardData({
   can: () => true,
   now,
   nowMs: now.getTime(),
-})
+}
 
 function Harness() {
   const [period, setPeriod] = useState('month')
   const [dark, setDark] = useState(false)
   const [attendanceAvailable, setAttendanceAvailable] = useState(true)
   const [alertsAvailable, setAlertsAvailable] = useState(true)
-  const view = { ...data, period }
+  const [managerKpis, setManagerKpis] = useState(false)
+  const [lastNav, setLastNav] = useState('')
+
+  // The production Dashboard rebuilds this object whenever `period` changes.
+  // The harness must do the same or the offline E2E run tests a stale object.
+  const data = useMemo(
+    () => buildDashboardData({ ...fixture, period }),
+    [period],
+  )
+
+  const nav = (path, options = {}) => {
+    const tripId = options?.state?.tripId
+    setLastNav(tripId ? `${path}#${tripId}` : path)
+  }
   const dateLabel = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   const rangeLabel = period === 'year'
     ? `Year ${now.getFullYear()}`
@@ -89,6 +103,7 @@ function Harness() {
 
   return (
     <main id="dashboard-root" className="bg-[var(--ap-bg)] min-h-screen px-4 py-5 font-sf lg:pl-[276px]">
+      <output id="last-nav" className="sr-only" aria-live="polite">{lastNav}</output>
       <div className="mx-auto max-w-[1400px] space-y-5">
         <button id="theme-toggle" type="button" onClick={toggleDark} className="ap-focus rounded-xl border border-[var(--ap-border)] px-3 py-1.5 text-xs font-semibold">
           Toggle theme
@@ -99,57 +114,63 @@ function Harness() {
         <button id="alerts-toggle" type="button" onClick={() => setAlertsAvailable(v => !v)} className="ap-focus rounded-xl border border-[var(--ap-border)] px-3 py-1.5 text-xs font-semibold">
           Toggle fleet alerts data
         </button>
+        <button id="manager-toggle" type="button" onClick={() => setManagerKpis(v => !v)} className="ap-focus rounded-xl border border-[var(--ap-border)] px-3 py-1.5 text-xs font-semibold">
+          Toggle manager KPIs
+        </button>
 
         <DashboardHeader
           period={period}
           onPeriodChange={setPeriod}
           canBook
-          onNewBooking={() => {}}
+          onNewBooking={() => nav('/trips')}
           dateLabel={dateLabel}
           rangeLabel={rangeLabel}
         />
-        <DashboardKpiGrid canRevenue data={view} onNavigate={() => {}} />
+        <DashboardKpiGrid canRevenue={!managerKpis} data={data} onNavigate={nav} />
         <OperationsOverview
-          counts={view.todayCounts}
-          allTime={view.allTime}
-          driverCount={view.driverCounts.total}
-          vehicleCount={view.vehicleCounts.total}
-          onViewAll={() => {}}
+          counts={data.todayCounts}
+          allTime={data.allTime}
+          driverCount={data.driverCounts.total}
+          vehicleCount={data.vehicleCounts.total}
+          onViewAll={() => nav('/trips')}
+          onViewBills={() => nav('/invoices')}
+          onViewDrivers={() => nav('/drivers')}
+          onViewVehicles={() => nav('/vehicles')}
         />
         <PriorityAlerts
-          alerts={view.documents.alerts}
-          expiredCount={view.documents.expiredCount}
-          soonCount={view.documents.soonCount}
-          validCount={view.documents.validCount}
-          attentionItems={view.attentionItems}
-          onReviewAlert={() => {}}
-          onViewDocuments={() => {}}
-          onAction={() => {}}
+          alerts={data.documents.alerts}
+          expiredCount={data.documents.expiredCount}
+          soonCount={data.documents.soonCount}
+          validCount={data.documents.validCount}
+          attentionItems={data.attentionItems}
+          onReviewAlert={alert => nav(alert.to)}
+          onViewAlerts={nav}
+          onAction={nav}
         />
         <FleetAlertsPanel
           alerts={[{ id: 'fa1', title: 'High temperature warning', priority: 'critical', status: 'active', detected_at: new Date(Date.now() - 600000).toISOString() }]}
           unavailable={!alertsAvailable}
-          onViewAll={() => {}}
+          onViewAll={() => nav('/fleet')}
         />
-        <FleetOverview vehicleCounts={view.vehicleCounts} gps={view.gps} onVehicles={() => {}} onGps={() => {}} />
-        <FinancialAnalytics canRevenue canProfit canExpenses data={view} onNavigate={() => {}} />
+        <FleetOverview vehicleCounts={data.vehicleCounts} gps={data.gps} onVehicles={() => nav('/vehicles')} onGps={() => nav('/fleet')} />
+        <FinancialAnalytics canRevenue canProfit canExpenses data={data} onNavigate={nav} />
         <TripActivity
-          bookingToday={view.bookingToday}
-          recentTrips={view.recentTrips}
+          bookingToday={data.bookingToday}
+          recentTrips={data.recentTrips}
           canRevenue
-          onViewAll={() => {}}
-          onOpenTrip={() => {}}
+          onViewAll={() => nav('/trips')}
+          onOpenTrip={tripId => nav('/trips', { state: { tripId } })}
         />
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          <DriverPerformance driverStats={view.driverStats} canFinancialAnalytics onViewDrivers={() => {}} />
-          <PayrollSummary payroll={view.payroll} onViewPayroll={() => {}} />
+          <DriverPerformance driverStats={data.driverStats} canFinancialAnalytics onViewDrivers={() => nav('/drivers')} />
+          <PayrollSummary payroll={data.payroll} onViewPayroll={() => nav('/payroll')} />
         </div>
-        <CustomerInsights counts={view.customerCounts} periodTagCap={view.periodTagCap} onViewCustomers={() => {}} />
+        <CustomerInsights counts={data.customerCounts} periodTagCap={data.periodTagCap} onViewCustomers={() => nav('/customers')} />
         <AttendanceWidget
-          attendance={view.attendance}
+          attendance={data.attendance}
           dateLabel="Fri, 20 Nov"
           available={attendanceAvailable}
-          onViewAttendance={() => {}}
+          onViewAttendance={() => nav('/attendance')}
         />
       </div>
     </main>

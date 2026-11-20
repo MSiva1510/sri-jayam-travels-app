@@ -18,6 +18,7 @@ export default function CustomerInsights({ counts, periodTagCap, unavailable, on
           <button
             type="button"
             onClick={onViewCustomers}
+            aria-label="View all customers"
             className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors"
           >
             View all <ArrowUpRight size={13} aria-hidden="true" />

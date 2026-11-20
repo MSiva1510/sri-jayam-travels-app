@@ -20,6 +20,7 @@ export default function FleetOverview({
           <button
             type="button"
             onClick={onGps}
+            aria-label="View GPS fleet"
             className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors"
           >
             View GPS →
@@ -39,6 +40,7 @@ export default function FleetOverview({
               <button
                 type="button"
                 onClick={onVehicles}
+                aria-label="Manage vehicles"
                 className="ap-action-link text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition-colors"
               >
                 Manage →
