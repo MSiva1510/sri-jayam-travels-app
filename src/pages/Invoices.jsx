@@ -1,118 +1,232 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, Printer, Eye, AlertTriangle, FileText, X, Columns3, Check, CalendarDays, IndianRupee, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import {
+  AlertTriangle, Check, Columns3, Eye, FileText, IndianRupee,
+  Plus, Printer, Search, Wallet,
+} from 'lucide-react'
 import Avatar        from '../components/ui/Avatar'
 import Button        from '../components/ui/Button'
 import PageHeader    from '../components/ui/PageHeader'
-import ModalOverlay  from '../components/ui/ModalOverlay'
 import MetricCard    from '../components/ui/MetricCard'
 import IconButton    from '../components/ui/IconButton'
 import StatusPill    from '../components/ui/StatusPill'
 import Callout       from '../components/ui/Callout'
 import EmptyState    from '../components/ui/EmptyState'
 import SegmentedControl from '../components/ui/SegmentedControl'
-import { fieldCls, Select as FieldSelect } from '../components/ui/Field'
-import InvoiceModal  from '../components/invoice/InvoiceModal'
+import { fieldCls } from '../components/ui/Field'
+import InvoiceChooser  from '../components/invoice/InvoiceChooser'
+import BookingPicker   from '../components/invoice/BookingPicker'
+import DocumentEditor  from '../components/invoice/DocumentEditor'
+import InvoiceModal    from '../components/invoice/InvoiceModal'
 import { useAuth }   from '../context/AuthContext'
-import { loadBookings, getStatusCfg } from '../data/tripTypes'
-import { loadManualInvoices, saveManualInvoices, deleteManualInvoice } from '../data/manualInvoiceData'
+import { loadBookings } from '../data/tripTypes'
+import {
+  loadManualInvoices, saveManualInvoice, deleteManualInvoice,
+} from '../data/manualInvoiceData'
+import {
+  loadInvoiceRecords, loadInvoicePayments, createInvoiceRecord, recordInvoicePayment,
+} from '../data/invoiceRecordData'
+import { loadCustomers } from '../data/customerData'
+import { getInvoiceSettings, DEFAULT_SETTINGS } from '../data/settingsData'
+import {
+  INVOICE_TABS, formatINR, invoiceEligibility, invoiceSummary,
+  matchesSearch, matchesTab, normalizeInvoice, shortDate, shortLocation,
+} from '../data/invoiceModel'
 import { pageSizeFor } from '../utils/zoomPageSize'
 
-// ── Customizable columns (Actions is always on; preference persists) ──
+const COLS_KEY = 'sjt-invoice-cols-v2'
+const LEGACY_COLS_KEY = 'sjt-invoice-cols'
 const ALL_COLUMNS = [
-  { key: 'bookingNo', label: 'Booking No', on: false },
-  { key: 'date',      label: 'Date',       on: true  },
+  { key: 'invoiceNo', label: 'Invoice No', on: true },
+  { key: 'date',      label: 'Date',       on: true },
   { key: 'route',     label: 'Route',      on: false },
   { key: 'driver',    label: 'Driver',     on: false },
   { key: 'vehicle',   label: 'Vehicle',    on: false },
   { key: 'km',        label: 'KM',         on: false },
-  { key: 'fare',      label: 'Fare',       on: true  },
-  { key: 'status',    label: 'Status',     on: true  },
+  { key: 'total',     label: 'Total',      on: true },
+  { key: 'balance',   label: 'Balance',    on: true },
+  { key: 'status',    label: 'Status',     on: true },
 ]
-const COLS_KEY = 'sjt-invoice-cols'
+const DEFAULT_COLS = ALL_COLUMNS.filter(c => c.on).map(c => c.key)
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+const PAYMENT_TONE = {
+  paid: 'green', partial: 'amber', pending: 'gray', overdue: 'red', draft: 'gray',
+}
 
 function loadCols() {
   try {
-    const raw = localStorage.getItem(COLS_KEY)
-    if (!raw) return ALL_COLUMNS.filter(c => c.on).map(c => c.key)
-    const arr = JSON.parse(raw)
     const known = new Set(ALL_COLUMNS.map(c => c.key))
-    const clean = (Array.isArray(arr) ? arr : []).filter(k => known.has(k))
-    return clean.length > 0 ? clean : ALL_COLUMNS.filter(c => c.on).map(c => c.key)
-  } catch { return ALL_COLUMNS.filter(c => c.on).map(c => c.key) }
+    const read = (raw, migrate = false) => {
+      const arr = JSON.parse(raw)
+      const renamed = migrate ? { bookingNo: 'invoiceNo', fare: 'total' } : {}
+      const clean = (Array.isArray(arr) ? arr : [])
+        .map(k => renamed[k] || k)
+        .filter(k => known.has(k))
+      return [...new Set(clean)]
+    }
+    const raw = localStorage.getItem(COLS_KEY)
+    if (raw) {
+      const saved = read(raw)
+      return saved.length > 0 ? saved : DEFAULT_COLS
+    }
+    // Carry the old column choice forward instead of silently resetting it.
+    const legacy = localStorage.getItem(LEGACY_COLS_KEY)
+    if (legacy) {
+      const migrated = read(legacy, true)
+      if (migrated.length > 0) {
+        localStorage.setItem(COLS_KEY, JSON.stringify(migrated))
+        return migrated
+      }
+    }
+    return DEFAULT_COLS
+  } catch { return DEFAULT_COLS }
 }
 
-// ── Manual bill / quotation form ─────────────────────────────
-const MANUAL_TRIP_TYPES = [
-  { key: '',           label: 'Select type…' },
-  { key: 'one_way',    label: 'One Way' },
-  { key: 'round_trip', label: 'Round Trip' },
-  { key: 'multi_loc',  label: 'Multi Location' },
-  { key: 'local_visit', label: 'Local Visit' },
-  { key: 'multi_day',  label: 'Multi Day' },
-  { key: 'self_drive', label: 'Self Drive' },
-]
+const asArray = (value) => Array.isArray(value) ? value : []
 
-function blankManual(kind) {
-  const d = new Date()
-  const stamp = `${String(d.getFullYear()).slice(-2)}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${Date.now().toString().slice(-4)}`
-  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  return {
-    billNo: `${kind === 'quotation' ? 'QT' : 'MB'}-${stamp}`,
-    date: today, customer: '', contact: '', pickup: '', drop: '',
-    tripType: '', vehicle: '', driver: '', driverMobile: '',
-    km: '', fare: '', toll: '', bata: '', fuel: '', parking: '',
-    leadSource: '', notes: '',
-  }
-}
-
-function MF({ label, ...props }) {
-  return (
-    <label className="block min-w-0">
-      <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">{label}</span>
-      <input {...props} className={`${fieldCls} mt-1 h-10`} />
-    </label>
-  )
-}
-
-const STATUS_TONE = {
-  draft: 'gray', pending: 'amber', approved: 'violet', confirmed: 'violet',
-  assigned: 'blue', started: 'amber', completed: 'green', closed: 'green', cancelled: 'red',
-}
-function StatusBadge({ status }) {
-  const cfg = getStatusCfg(status)
-  return <StatusPill tone={STATUS_TONE[status] || 'gray'}>{cfg.label}</StatusPill>
+function settle(result, fallback = []) {
+  return result?.status === 'fulfilled' ? (asArray(result.value)) : fallback
 }
 
 export default function Invoices() {
-  const { can } = useAuth()
-  // Managers get read-only list + preview; only invoice creators can
-  // open the picker / manual bill / quotation flows.
+  const { can, isAdmin } = useAuth()
   const canCreate = can('invoices')
-  const [bookings, setBookings] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState(null)
-  const reloadBookings = useCallback(async () => {
-    setLoading(true)
-    try {
-      const b = await loadBookings()
-      setBookings(Array.isArray(b) ? b : [])
-      setLoadError(null)
-    } catch (err) {
-      console.error('[Invoices] load failed:', err)
-      setLoadError('Could not load bookings. Try refreshing.')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-  useEffect(() => { reloadBookings() }, [reloadBookings])
+  // Deletion is deliberately admin-only even when a manager was granted
+  // generate_invoice; creation and settlement do not imply destructive access.
+  const canDelete = isAdmin
+  const [params, setParams] = useSearchParams()
 
-  const [selected, setSelected] = useState(null)   // booking shown in InvoiceModal
-  const [pickerOpen, setPickerOpen] = useState(false) // "New Invoice" booking picker
+  const view = params.get('view') || ''
+  const docKey = params.get('doc') || ''
+  const editKey = params.get('edit') || ''
+  const bookingParam = params.get('booking') || ''
+  const editorKind = params.get('kind') === 'quotation' ? 'quotation' : 'invoice'
+  const autoPrint = params.get('print') === '1'
+
+  const [bookings, setBookings] = useState([])
+  const [manualDocs, setManualDocs] = useState([])
+  const [records, setRecords] = useState([])
+  const [payments, setPayments] = useState([])
+  const [customers, setCustomers] = useState([])
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS.invoice)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [manualError, setManualError] = useState('')
+  const [billingError, setBillingError] = useState('')
+  const [actionError, setActionError] = useState('')
+  const [paymentError, setPaymentError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [paymentBusy, setPaymentBusy] = useState(false)
+  const [paymentVersion, setPaymentVersion] = useState(0)
+  const [creatingKey, setCreatingKey] = useState('')
+  // React state lags a render; refs block a second click in the same tick.
+  const busyRef = useRef(false)
+  const paymentBusyRef = useRef(false)
+
+  const [tab, setTab] = useState('all')
+  const [search, setSearch] = useState('')
   const [visibleCols, setVisibleCols] = useState(loadCols)
   const [colsOpen, setColsOpen] = useState(false)
   const colsRef = useRef(null)
+  const currency = settings.currency || 'Rs.'
 
-  // Close the column picker on outside tap
+  // ── URL-backed overlays: deep-linkable, Back closes the top dialog ──
+  const patch = useCallback((mutate) => {
+    const next = new URLSearchParams(params)
+    mutate(next)
+    setParams(next)
+  }, [params, setParams])
+
+  // Closing a dialog replaces the current history entry so Back returns to
+  // the page before the dialog rather than reopening it.
+  const replaceParams = useCallback((mutate) => {
+    const next = new URLSearchParams(params)
+    mutate(next)
+    setParams(next, { replace: true })
+  }, [params, setParams])
+
+  const clearOverlay = useCallback(() => {
+    replaceParams(next => {
+      ['view', 'doc', 'edit', 'booking', 'kind', 'print'].forEach(key => next.delete(key))
+    })
+    setActionError('')
+    setPaymentError('')
+  }, [replaceParams])
+
+  const openChooser = () => patch(next => {
+    ['doc', 'edit', 'booking', 'kind', 'print'].forEach(key => next.delete(key))
+    next.set('view', 'create')
+  })
+  const openBookings = () => patch(next => {
+    ['doc', 'edit', 'booking', 'kind', 'print'].forEach(key => next.delete(key))
+    next.set('view', 'bookings')
+  })
+  const openEditor = (kind, sourceId = '') => patch(next => {
+    ['doc', 'booking', 'print'].forEach(key => next.delete(key))
+    next.set('view', 'editor')
+    next.set('kind', kind)
+    if (sourceId) next.set('edit', sourceId)
+    else next.delete('edit')
+  })
+  const openBookingEditor = (booking) => patch(next => {
+    ['doc', 'edit', 'kind', 'print'].forEach(key => next.delete(key))
+    next.set('view', 'booking-editor')
+    next.set('booking', booking.id || booking.bookingNo || '')
+  })
+  const openDoc = (invoice, print = false, { clearErrors = true } = {}) => {
+    patch(next => {
+      ['view', 'edit', 'booking', 'kind'].forEach(key => next.delete(key))
+      next.set('doc', invoice.key)
+      if (print) next.set('print', '1')
+      else next.delete('print')
+    })
+    // A failed document save still opens the saved doc; keep its warning
+    // visible when the caller asks us to preserve the error.
+    if (clearErrors) {
+      setActionError('')
+      setPaymentError('')
+    }
+  }
+  const closeDoc = () => replaceParams(next => {
+    next.delete('doc')
+    next.delete('print')
+  })
+
+  // ── Data loading ──────────────────────────────────────────────
+  const reloadAll = useCallback(async () => {
+    setLoading(true)
+    const [b, m, r, p, c, s] = await Promise.allSettled([
+      loadBookings(), loadManualInvoices(), loadInvoiceRecords(),
+      loadInvoicePayments(), loadCustomers(), getInvoiceSettings(),
+    ])
+    setBookings(settle(b))
+    setManualDocs(settle(m))
+    setRecords(settle(r))
+    setPayments(settle(p))
+    setCustomers(settle(c))
+    if (s.status === 'fulfilled') setSettings(s.value || DEFAULT_SETTINGS.invoice)
+    const billingIssues = [r, p]
+      .filter(result => result.status === 'rejected')
+      .map(result => result.reason?.message || 'Could not load invoice tracking.')
+    setBillingError(billingIssues.length ? [...new Set(billingIssues)].join(' ') : '')
+    setLoadError(b.status === 'rejected' ? (b.reason?.message || 'Could not load bookings.') : '')
+    setManualError(m.status === 'rejected' ? (m.reason?.message || 'Could not load manual bills.') : '')
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { reloadAll() }, [reloadAll])
+
+  const refreshBilling = useCallback(async () => {
+    const [r, p] = await Promise.allSettled([loadInvoiceRecords(), loadInvoicePayments()])
+    if (r.status === 'fulfilled') setRecords(asArray(r.value))
+    if (p.status === 'fulfilled') setPayments(asArray(p.value))
+    const issues = [r, p]
+      .filter(result => result.status === 'rejected')
+      .map(result => result.reason?.message || 'Could not load invoice tracking.')
+    setBillingError(issues.length ? [...new Set(issues)].join(' ') : '')
+  }, [])
+
   useEffect(() => {
     if (!colsOpen) return
     const fn = e => { if (colsRef.current && !colsRef.current.contains(e.target)) setColsOpen(false) }
@@ -120,172 +234,87 @@ export default function Invoices() {
     return () => document.removeEventListener('mousedown', fn)
   }, [colsOpen])
 
-  const toggleCol = (key) => {
-    setVisibleCols(prev => {
-      const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
-      // Keep at least one data column visible
-      const safe = next.length === 0 ? prev : next
-      try { localStorage.setItem(COLS_KEY, JSON.stringify(safe)) } catch {}
-      return safe
-    })
-  }
+  const toggleCol = (key) => setVisibleCols(prev => {
+    const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+    const safe = next.length === 0 ? prev : next
+    try { localStorage.setItem(COLS_KEY, JSON.stringify(safe)) } catch { /* storage disabled */ }
+    return safe
+  })
 
-  const colLabel = (key) => ALL_COLUMNS.find(c => c.key === key)?.label || key
+  // ── Derived model ─────────────────────────────────────────────
+  const invoices = useMemo(() => {
+    const fromBookings = bookings
+      .filter(b => ['completed', 'closed'].includes(String(b.status || '').toLowerCase()))
+      .map(b => normalizeInvoice({ source: b, records, payments }))
+    const fromManual = manualDocs.map(doc => normalizeInvoice({ source: doc, records, payments }))
+    return [...fromManual, ...fromBookings].sort((a, b) =>
+      String(b.invoiceDate || b.tripDate || '').localeCompare(String(a.invoiceDate || a.tripDate || '')))
+  }, [bookings, manualDocs, records, payments])
 
-  // Render one data cell for a visible column key (Customer + Actions are fixed)
-  const cellFor = (b, key) => {
-    switch (key) {
-      case 'bookingNo':
-        return <td key={key} className="px-4 py-3 md:py-2 text-xs font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">{b.bookingNo || b.id}</td>
-      case 'date':
-        return <td key={key} className="px-4 py-3 md:py-2 text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap tabular-nums">{b.startDate || '—'}</td>
-      case 'route':
-        return <td key={key} className="px-4 py-3 md:py-2 text-xs text-slate-600 dark:text-slate-300 max-w-[200px] truncate">{b.pickup || '—'} <span className="text-slate-300 dark:text-slate-500 mx-1">→</span> {b.drop || '—'}</td>
-      case 'driver':
-        return <td key={key} className="px-4 py-3 md:py-2 text-xs text-slate-600 dark:text-slate-300 max-w-[130px] truncate">{b.driver || '—'}</td>
-      case 'vehicle':
-        return <td key={key} className="px-4 py-3 md:py-2 text-xs font-mono text-slate-500 dark:text-slate-400 max-w-[120px] truncate">{b.vehicle || '—'}</td>
-      case 'km':
-        return <td key={key} className="px-4 py-3 md:py-2 text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap tabular-nums">{b.km ? `${b.km} km` : '—'}</td>
-      case 'fare':
-        return <td key={key} className="px-4 py-3 md:py-2 text-xs font-bold text-navy-800 dark:text-blue-300 whitespace-nowrap tabular-nums">{b.fare ? `Rs. ${b.fare.toLocaleString('en-IN')}` : '—'}</td>
-      case 'status':
-        return <td key={key} className="px-4 py-3 md:py-2"><StatusBadge status={b.status} /></td>
-      default:
-        return null
-    }
-  }
+  // KPIs are financial facts: only documents that were actually issued (and
+  // therefore have a persisted invoice record) count. Completed trips that
+  // have not been issued yet stay visible in the list but are not "invoiced".
+  const billableInvoices = useMemo(
+    () => invoices.filter(inv => !inv.isQuote && inv.record),
+    [invoices],
+  )
+  const summary = useMemo(() => invoiceSummary(billableInvoices), [billableInvoices])
+  const thisMonthKey = (() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  })()
+  const thisMonthFare = billableInvoices
+    .filter(inv => String(inv.invoiceDate || '').startsWith(thisMonthKey))
+    .reduce((sum, inv) => sum + inv.total, 0)
+  const avgBill = billableInvoices.length
+    ? Math.round(summary.total / billableInvoices.length) : 0
 
-  // Picker tabs: billable (completed/closed) vs new or non-complete trips
-  const [pickTab, setPickTab] = useState('completed') // 'completed' | 'ongoing'
-  // Manual bills/quotations are stored in Supabase (`settings.manual_invoices`)
-  // so they survive a reload and are visible to every admin.
-  const [manualDocs, setManualDocs] = useState([])
-  const [manualError, setManualError] = useState(null)
-  const [manualSaving, setManualSaving] = useState(false)
+  const filtered = useMemo(() => invoices
+    .filter(inv => matchesTab(inv, tab) && matchesSearch(inv, search)),
+  [invoices, tab, search])
 
-  const reloadManualDocs = useCallback(async () => {
-    try {
-      const list = await loadManualInvoices()
-      setManualDocs(list)
-      setManualError(null)
-    } catch (err) {
-      console.error('[Invoices] load manual invoices failed:', err)
-      setManualError(err.message || 'Could not load manual invoices')
-    }
-  }, [])
-  useEffect(() => { reloadManualDocs() }, [reloadManualDocs])
+  const selectedInvoice = useMemo(
+    () => invoices.find(inv => inv.key === docKey) || null,
+    [invoices, docKey],
+  )
+  const editingDoc = useMemo(
+    () => manualDocs.find(doc => String(doc.id) === editKey) || null,
+    [manualDocs, editKey],
+  )
+  // Issued records are the financial source of truth. Editing the underlying
+  // manual document would leave the printed total and payments stale, so the
+  // editor is locked for issued documents.
+  const editingDocLocked = useMemo(() => {
+    if (!editingDoc) return false
+    const sourceType = editingDoc.docType === 'quotation' ? 'quotation' : 'manual'
+    return invoices.some(inv => inv.sourceType === sourceType
+      && String(inv.sourceId) === String(editingDoc.id) && !!inv.record)
+  }, [editingDoc, invoices])
+  const editingBooking = useMemo(
+    () => bookings.find(b => String(b.id) === bookingParam) || null,
+    [bookings, bookingParam],
+  )
 
-  // Manual bill / quotation creator
-  const [manualOpen, setManualOpen] = useState(false)
-  const [manualKind, setManualKind] = useState('invoice') // 'invoice' | 'quotation'
-  const [manualForm, setManualForm] = useState(() => blankManual('invoice'))
-
-  const openManual = (kind) => {
-    setManualKind(kind)
-    setManualForm(blankManual(kind))
-    setPickerOpen(false)
-    setManualOpen(true)
-  }
-  const updManual = (k) => (e) => setManualForm(f => ({ ...f, [k]: e.target.value }))
-  const manualValid = manualForm.customer.trim() !== '' && Number(manualForm.fare) > 0
-
-  const createManual = async () => {
-    if (!manualValid || manualSaving) return
-    const num = (v) => Number(v) || 0
-    const doc = {
-      id: `manual-${Date.now()}`,
-      bookingNo: manualForm.billNo.trim() || `MAN-${Date.now().toString().slice(-6)}`,
-      customer: manualForm.customer.trim(),
-      contact: manualForm.contact.trim(),
-      pickup: manualForm.pickup.trim(),
-      drop: manualForm.drop.trim(),
-      driver: manualForm.driver.trim(),
-      driverMobile: manualForm.driverMobile.trim(),
-      driver_contact: manualForm.driverMobile.trim(),
-      vehicle: manualForm.vehicle.trim(),
-      km: num(manualForm.km),
-      fare: num(manualForm.fare),
-      toll: num(manualForm.toll),
-      bata: num(manualForm.bata),
-      petrol: num(manualForm.fuel),
-      parking: num(manualForm.parking),
-      extras: 0,
-      startDate: manualForm.date,
-      type: manualForm.tripType,
-      notes: manualForm.notes.trim(),
-      leadSource: manualForm.leadSource.trim(),
-      source: manualForm.leadSource.trim(),
-      status: 'pending',
-      docType: manualKind,
-      isManual: true,
-      createdAt: new Date().toISOString(),
-    }
-    setManualSaving(true)
-    setManualError(null)
-    try {
-      const next = await saveManualInvoices([doc, ...manualDocs])
-      setManualDocs(next)
-      setSelected(next.find(d => d.bookingNo === doc.bookingNo) || doc)
-      setManualOpen(false)
-    } catch (err) {
-      console.error('[Invoices] save manual invoice failed:', err)
-      setManualError(err.message || 'Could not save this bill. Please try again.')
-    } finally {
-      setManualSaving(false)
-    }
-  }
-
-  const deleteManual = async (id) => {
-    if (!window.confirm('Delete this manual bill? This cannot be undone.')) return
-    try {
-      await deleteManualInvoice(id)
-      setManualDocs(docs => docs.filter(d => d.id !== id))
-      setManualError(null)
-    } catch (err) {
-      console.error('[Invoices] delete manual invoice failed:', err)
-      setManualError(err.message || 'Could not delete this bill. Please try again.')
-    }
-  }
-
-  const billableTrips = bookings.filter(b => b.status === 'completed' || b.status === 'closed')
-  // Manual invoices are bills too, so they belong in the invoice list and in
-  // the completed tab. Quotations stay in New/Ongoing until they become bills.
-  const manualInvoices  = manualDocs.filter(d => d.docType !== 'quotation')
-  const manualQuotes    = manualDocs.filter(d => d.docType === 'quotation')
-  const completedList   = [...manualInvoices, ...billableTrips]
-  const ongoingList     = [...manualQuotes, ...bookings.filter(b => b.status !== 'completed' && b.status !== 'closed')]
-  const pickList = pickTab === 'completed' ? completedList : ongoingList
-
-  // Main list shows completed trips only — ongoing lives in Trips + picker
-  const filtered = completedList
-
-  // ── Pagination: rows per browser zoom level ─────────────────
-  // 90% zoom → 7 rows · 100% → 6 rows · 110%+ → 5 rows.
-  // Phones keep 5 tall cards per page.
+  // ── Pagination ────────────────────────────────────────────────
   const [pageSize, setPageSize] = useState(() => pageSizeFor(6, 5))
   const [page, setPage] = useState(1)
   const [goPage, setGoPage] = useState('')
   useEffect(() => {
-    const onResize = () => {
-      setPageSize(prev => {
-        const next = pageSizeFor(6, 5)
-        if (next !== prev) setPage(1)
-        return next
-      })
-    }
+    const onResize = () => setPageSize(prev => {
+      const next = pageSizeFor(6, 5)
+      if (next !== prev) setPage(1)
+      return next
+    })
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const safePage = Math.min(Math.max(1, page), totalPages)
   const pageRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
-  // Clamp back into range when the list shrinks (e.g. fresh load)
   useEffect(() => {
     setPage(p => Math.min(Math.max(1, p), Math.max(1, Math.ceil(filtered.length / pageSize))))
   }, [filtered.length, pageSize])
 
-  // Compact page buttons: 1 … window … last
   const pageItems = (() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1)
     const set = new Set([1, 2, safePage - 1, safePage, safePage + 1, totalPages - 1, totalPages])
@@ -297,433 +326,492 @@ export default function Invoices() {
     })
     return out
   })()
-
   const goToPage = () => {
     const n = parseInt(goPage, 10)
     if (!Number.isNaN(n)) setPage(Math.min(Math.max(1, n), totalPages))
     setGoPage('')
   }
 
-  const totalFare      = completedList.reduce((s, b) => s + (b.fare || 0), 0)
-  const completedCount = completedList.length
-  // This-month fare + average bill (local YYYY-MM key — toISOString drifts for IST)
-  const thisMonthKey = (() => {
-    const d = new Date()
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-  })()
-  const thisMonthFare = completedList
-    .filter(b => (b.startDate || '').startsWith(thisMonthKey))
-    .reduce((s, b) => s + (b.fare || 0), 0)
-  const avgBill = completedCount ? Math.round(totalFare / completedCount) : 0
+  // ── Mutations ─────────────────────────────────────────────────
+  const recordArgs = (invoice) => ({
+    invoiceNumber: invoice.invoiceNo,
+    sourceType: invoice.sourceType,
+    sourceId: invoice.sourceId,
+    bookingId: invoice.sourceType === 'booking' && UUID_RE.test(invoice.sourceId) ? invoice.sourceId : null,
+    customerName: invoice.customer,
+    customerContact: invoice.contact,
+    totalAmount: invoice.total,
+    invoiceDate: invoice.invoiceDate || new Date().toISOString().slice(0, 10),
+    dueDate: invoice.dueDate || null,
+    status: 'pending',
+    // Stable per source: concurrent double-submits return the same record.
+    idempotencyKey: `issue:${invoice.key}`,
+    subtotal: invoice.subtotal,
+    discount: 0,
+    taxPercent: 0,
+  })
+
+  const issueInvoice = async (invoice, { silent = false, locked = false } = {}) => {
+    if (!canCreate || (!locked && busyRef.current) || invoice.record || invoice.isQuote) return null
+    const ownsLock = !locked
+    if (ownsLock) {
+      busyRef.current = true
+      setBusy(true)
+    }
+    setActionError('')
+    setCreatingKey(invoice.key)
+    try {
+      const id = await createInvoiceRecord(recordArgs(invoice))
+      await refreshBilling()
+      return id
+    } catch (err) {
+      // A concurrent submit from another tab may have created it first.
+      // A failed lookup (e.g. migration not applied) must not mask the
+      // original error or abort the surrounding manual-document save.
+      await refreshBilling()
+      let existing = null
+      try {
+        existing = asArray(await loadInvoiceRecords()).find(r =>
+          r.source_type === invoice.sourceType && String(r.source_id) === String(invoice.sourceId))
+      } catch { /* keep the original RPC error */ }
+      if (existing) return existing.id
+      if (!silent) setActionError(err.message || 'Could not issue this invoice.')
+      return null
+    } finally {
+      setCreatingKey('')
+      if (ownsLock) {
+        busyRef.current = false
+        setBusy(false)
+      }
+    }
+  }
+
+  const submitDocument = async (invoice, doc) => {
+    if (!canCreate || busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    setActionError('')
+    try {
+      if (!invoice.isManual) {
+        const id = await issueInvoice(invoice, { locked: true })
+        if (id) openDoc(invoice)
+        return
+      }
+
+      const saved = await saveManualInvoice(doc)
+      const savedKey = `${invoice.sourceType}:${saved.id || doc.id}`
+      let issued = true
+      if (!invoice.isQuote) {
+        issued = await issueInvoice({
+          ...invoice,
+          sourceId: saved.id || doc.id,
+          key: savedKey,
+        }, { silent: true, locked: true })
+        if (!issued) {
+          setActionError('Document saved, but invoice tracking is unavailable. Apply the invoice management migration.')
+        }
+      }
+      await reloadAll()
+      openDoc({ ...invoice, sourceId: saved.id || doc.id, key: savedKey }, false, { clearErrors: !!issued })
+    } catch (err) {
+      console.error('[Invoices] save document failed:', err)
+      setActionError(err.message || 'Could not save this document.')
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
+  }
+
+  const submitPayment = async (payload) => {
+    if (paymentBusyRef.current) return
+    paymentBusyRef.current = true
+    setPaymentBusy(true)
+    setPaymentError('')
+    try {
+      await recordInvoicePayment(payload)
+      await refreshBilling()
+      setPaymentVersion(v => v + 1)
+    } catch (err) {
+      setPaymentError(err.message || 'Could not record this payment.')
+    } finally {
+      paymentBusyRef.current = false
+      setPaymentBusy(false)
+    }
+  }
+
+  const deleteDocument = async (invoice) => {
+    if (!invoice.isManual || !canDelete || busyRef.current) return
+    if (invoice.record) {
+      setActionError('Issued documents are locked. Delete and edit are unavailable so payment history stays intact.')
+      return
+    }
+    const label = invoice.isQuote ? 'quotation' : 'manual invoice'
+    if (!window.confirm(`Delete this ${label}? This cannot be undone.`)) return
+    busyRef.current = true
+    setBusy(true)
+    try {
+      await deleteManualInvoice(invoice.sourceId)
+      await reloadAll()
+      if (docKey === invoice.key) closeDoc()
+    } catch (err) {
+      setActionError(err.message || `Could not delete this ${label}.`)
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
+  }
+
+  const eligibilityFor = (booking) => invoiceEligibility(booking, records)
+  const openBooking = (booking) => {
+    if (!eligibilityFor(booking).eligible) return
+    openBookingEditor(booking)
+  }
+
+  // ── Table cell rendering ──────────────────────────────────────
+  const colLabel = key => ALL_COLUMNS.find(c => c.key === key)?.label || key
+  const cellFor = (inv, key) => {
+    switch (key) {
+      case 'invoiceNo':
+        return <td key={key} className="px-4 py-3 md:py-2 text-xs font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">{inv.invoiceNo}</td>
+      case 'date':
+        return <td key={key} className="px-4 py-3 md:py-2 text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap tabular-nums">{shortDate(inv.invoiceDate || inv.tripDate)}</td>
+      case 'route':
+        return <td key={key} className="px-4 py-3 md:py-2 text-xs text-slate-600 dark:text-slate-300 max-w-[200px] truncate">{shortLocation(inv.pickup)} <span className="text-slate-300 dark:text-slate-600 mx-1">→</span> {shortLocation(inv.drop)}</td>
+      case 'driver':
+        return <td key={key} className="px-4 py-3 md:py-2 text-xs text-slate-600 dark:text-slate-300 max-w-[130px] truncate">{inv.driver || '—'}</td>
+      case 'vehicle':
+        return <td key={key} className="px-4 py-3 md:py-2 text-xs font-mono text-slate-500 dark:text-slate-400 max-w-[120px] truncate">{inv.vehicle || '—'}</td>
+      case 'km':
+        return <td key={key} className="px-4 py-3 md:py-2 text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap tabular-nums">{inv.km ? `${inv.km} km` : '—'}</td>
+      case 'total':
+        return <td key={key} className="px-4 py-3 md:py-2 text-xs font-bold text-navy-800 dark:text-blue-300 whitespace-nowrap tabular-nums">{formatINR(inv.total, currency)}</td>
+      case 'balance':
+        return <td key={key} className="px-4 py-3 md:py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap tabular-nums">{formatINR(inv.balance, currency)}</td>
+      case 'status':
+        return <td key={key} className="px-4 py-3 md:py-2"><StatusPill tone={PAYMENT_TONE[inv.paymentStatus] || 'gray'}>{inv.paymentStatus}</StatusPill></td>
+      default:
+        return null
+    }
+  }
 
   return (
     <div className="space-y-4 md:space-y-3 animate-fade-up">
-
-      {/* Invoice preview / print / share modal */}
-      {selected && <InvoiceModal booking={selected} onClose={() => setSelected(null)} />}
-
-      {/* New Invoice — pick a billable booking to invoice */}
-      {pickerOpen && (
-        <ModalOverlay onClose={() => setPickerOpen(false)} center>
-          <div className="w-[92vw] max-w-md max-h-[70vh] flex flex-col rounded-[20px] ap-surface border border-[var(--ap-border)] shadow-2xl overflow-hidden animate-fade-up" role="dialog" aria-modal="true" aria-label="New invoice — select booking">
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--ap-border)]">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-[12px] bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
-                  <FileText size={15} className="text-navy-700 dark:text-blue-400" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 dark:text-white leading-tight">New Invoice</p>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500">Select a completed booking</p>
-                </div>
-              </div>
-              <IconButton icon={X} label="Close booking picker" onClick={() => setPickerOpen(false)} />
-            </div>
-            <SegmentedControl
-              ariaLabel="Booking type"
-              value={pickTab}
-              onChange={setPickTab}
-              className="mx-3 mt-3"
-              options={[
-                { key: 'completed', label: `Completed (${completedList.length})` },
-                { key: 'ongoing', label: `New / Ongoing (${ongoingList.length})` },
-              ]}
-            />
-            <div className="overflow-y-auto p-3 space-y-2">
-              {pickList.length === 0 ? (
-                <p className="px-2 py-6 text-center text-sm text-slate-400 dark:text-slate-500">
-                  {pickTab === 'completed'
-                    ? 'No completed trips available to invoice yet.'
-                    : 'No new or ongoing trips right now.'}
-                </p>
-              ) : pickList.map(b => (
-                <div key={b.id} className="ap-surface ios-press w-full flex items-center gap-1.5 pr-1.5">
-                  <button onClick={() => { setSelected(b); setPickerOpen(false) }}
-                    className="flex-1 min-w-0 text-left p-3">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{b.customer}</p>
-                      <StatusBadge status={b.status} />
-                      {b.isManual && (
-                        <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0 ${
-                          b.docType === 'quotation'
-                            ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
-                            : 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300'
-                        }`}>
-                          {b.docType === 'quotation' ? 'Quote' : 'Manual'}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[10px] font-mono text-slate-400 truncate mt-0.5">{b.bookingNo || b.id} · {b.pickup || '—'} → {b.drop || '—'}</p>
-                    <span className="text-xs font-semibold text-navy-800 dark:text-blue-300 whitespace-nowrap tabular-nums">
-                      {b.fare ? `Rs. ${b.fare.toLocaleString('en-IN')}` : '—'}
-                    </span>
-                  </button>
-                  {b.isManual && canCreate && (
-                    <IconButton icon={Trash2} size={15} tone="red"
-                      label={`Delete ${b.docType === 'quotation' ? 'quotation' : 'manual invoice'} for ${b.customer}`}
-                      onClick={() => deleteManual(b.id)} />
-                  )}
-                </div>
-              ))}
-            </div>
-            {pickTab === 'ongoing' && (
-            <div className="p-3 border-t border-[var(--ap-border)] grid grid-cols-2 gap-2">
-              <Button variant="primary" size="sm" onClick={() => openManual('invoice')}>+ Manual Invoice</Button>
-              <Button variant="outline" size="sm" onClick={() => openManual('quotation')}>+ Quotation</Button>
-            </div>
-            )}
-          </div>
-        </ModalOverlay>
+      {/* URL-backed overlays */}
+      {view === 'create' && (
+        <InvoiceChooser onClose={clearOverlay}
+          onChoose={choice => {
+            if (choice === 'booking') openBookings()
+            else openEditor(choice)
+          }} />
       )}
 
-      {/* Manual bill / quotation creator */}
-      {manualOpen && (
-        <ModalOverlay onClose={() => setManualOpen(false)} center>
-          <div className="w-[94vw] max-w-lg max-h-[85vh] flex flex-col rounded-[20px] ap-surface border border-[var(--ap-border)] shadow-2xl overflow-hidden animate-fade-up" role="dialog" aria-modal="true" aria-label="Create manual bill">
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--ap-border)]">
-              <div>
-                <p className="text-sm font-semibold text-slate-800 dark:text-white leading-tight">Manual {manualKind === 'quotation' ? 'Quotation' : 'Invoice'}</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500">Enter details — preview before print/share</p>
-              </div>
-              <IconButton icon={X} label="Close manual bill form" onClick={() => setManualOpen(false)} />
-            </div>
-            <div className="overflow-y-auto p-4 space-y-3">
-              <SegmentedControl
-                ariaLabel="Document type"
-                value={manualKind}
-                onChange={k => {
-                  setManualKind(k)
-                  setManualForm(f => ({ ...f, billNo: blankManual(k).billNo }))
-                }}
-                options={[
-                  { key: 'invoice', label: 'Invoice' },
-                  { key: 'quotation', label: 'Quotation' },
-                ]}
-              />
-              <div className="grid grid-cols-2 gap-3">
-                <MF label={manualKind === 'quotation' ? 'Quote No.' : 'Bill No.'} value={manualForm.billNo} onChange={updManual('billNo')} />
-                <MF label="Trip Date" type="date" value={manualForm.date} onChange={updManual('date')} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <MF label="Customer *" placeholder="Full name" value={manualForm.customer} onChange={updManual('customer')} />
-                <MF label="Contact" placeholder="Mobile" inputMode="tel" value={manualForm.contact} onChange={updManual('contact')} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <MF label="Pickup" placeholder="From" value={manualForm.pickup} onChange={updManual('pickup')} />
-                <MF label="Drop" placeholder="To" value={manualForm.drop} onChange={updManual('drop')} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block min-w-0">
-                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Trip Type</span>
-                  <div className="mt-1">
-                    <FieldSelect value={manualForm.tripType} onChange={updManual('tripType')}>
-                      {MANUAL_TRIP_TYPES.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-                    </FieldSelect>
-                  </div>
-                </label>
-                <MF label="Lead Source" placeholder="Phone Call" value={manualForm.leadSource} onChange={updManual('leadSource')} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <MF label="Vehicle" placeholder="Reg no." value={manualForm.vehicle} onChange={updManual('vehicle')} />
-                <MF label="KM" placeholder="0" inputMode="decimal" value={manualForm.km} onChange={updManual('km')} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <MF label="Driver" placeholder="Name" value={manualForm.driver} onChange={updManual('driver')} />
-                <MF label="Driver Mobile" placeholder="Mobile" inputMode="tel" value={manualForm.driverMobile} onChange={updManual('driverMobile')} />
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                <MF label="Fare (Rs.) *" placeholder="0" inputMode="decimal" value={manualForm.fare} onChange={updManual('fare')} />
-                <MF label="Toll" placeholder="0" inputMode="decimal" value={manualForm.toll} onChange={updManual('toll')} />
-                <MF label="Bata" placeholder="0" inputMode="decimal" value={manualForm.bata} onChange={updManual('bata')} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <MF label="Fuel" placeholder="0" inputMode="decimal" value={manualForm.fuel} onChange={updManual('fuel')} />
-                <MF label="Parking" placeholder="0" inputMode="decimal" value={manualForm.parking} onChange={updManual('parking')} />
-              </div>
-              <label className="block">
-                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Notes</span>
-                <textarea value={manualForm.notes} onChange={updManual('notes')} rows={2} placeholder="Anything on the bill…"
-                  className="mt-1 w-full rounded-xl border border-[var(--ap-border)] bg-[var(--ap-surface-2)] px-3 py-2 text-sm text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500 transition-colors resize-none" />
-              </label>
-              {!manualValid && (
-                <p className="text-[11px] text-slate-400 dark:text-slate-500">Add a customer name and a fare above Rs. 0 to preview.</p>
-              )}
-              {manualError && (
-                <div className="flex items-start gap-2 rounded-xl bg-red-50 dark:bg-red-900/20 px-3 py-2">
-                  <AlertTriangle size={14} className="text-red-500 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-red-600 dark:text-red-400">{manualError}</p>
-                </div>
-              )}
-            </div>
-            <div className="p-3 border-t border-[var(--ap-border)]">
-              <Button variant="primary" className="w-full" disabled={!manualValid || manualSaving} onClick={createManual}>
-                {manualSaving ? 'Saving…' : `Preview ${manualKind === 'quotation' ? 'Quotation' : 'Invoice'}`}
-              </Button>
-            </div>
-          </div>
-        </ModalOverlay>
+      {view === 'bookings' && (
+        <BookingPicker
+          bookings={bookings} records={records} payments={payments} currency={currency}
+          busyKey={creatingKey}
+          onClose={clearOverlay}
+          onSelect={openBooking}
+          onOpenInvoice={openDoc}
+        />
+      )}
+
+      {view === 'editor' && editingDoc && editingDocLocked && (
+        <Callout tone="amber" icon={AlertTriangle}
+          title="This document has been issued and is locked."
+          sub="Edit and delete are unavailable so the printed total and payment history stay in sync."
+          actionLabel="Close" onAction={clearOverlay} />
+      )}
+
+      {view === 'editor' && (!editingDoc || !editingDocLocked) && (
+        <DocumentEditor
+          kind={editorKind}
+          source={editingDoc}
+          customers={customers}
+          records={records}
+          payments={payments}
+          currency={currency}
+          canCreate={canCreate}
+          busy={busy}
+          error={actionError}
+          onClose={clearOverlay}
+          onSubmit={submitDocument}
+        />
+      )}
+
+      {view === 'booking-editor' && editingBooking && (
+        <DocumentEditor
+          kind="invoice"
+          booking={editingBooking}
+          customers={customers}
+          records={records}
+          payments={payments}
+          currency={currency}
+          canCreate={canCreate}
+          busy={busy}
+          error={actionError}
+          onClose={clearOverlay}
+          onSubmit={submitDocument}
+        />
+      )}
+
+      {docKey && selectedInvoice && (
+        <InvoiceModal
+          invoice={selectedInvoice}
+          records={records}
+          payments={payments}
+          canCreate={canCreate}
+          canManage={canCreate}
+          canDelete={canDelete}
+          busy={busy}
+          paymentBusy={paymentBusy}
+          paymentError={paymentError}
+          paymentVersion={paymentVersion}
+          autoPrint={autoPrint}
+          error={actionError}
+          onClose={closeDoc}
+          onIssue={inv => issueInvoice(inv)}
+          onRecordPayment={submitPayment}
+          onDelete={deleteDocument}
+        />
+      )}
+
+      {docKey && !selectedInvoice && !loading && (
+        <Callout tone="amber" icon={AlertTriangle} title="This invoice is no longer available." actionLabel="Close" onAction={closeDoc} />
       )}
 
       <PageHeader
         title="Invoices"
-        subtitle="Trip bills, pay slips & invoice management"
-        action={canCreate ? <Button icon={Plus} variant="primary" onClick={() => setPickerOpen(true)}>New Invoice</Button> : null}
+        subtitle="Trip bills, manual invoices, quotations & settlement"
+        action={canCreate ? <Button icon={Plus} variant="primary" onClick={openChooser}>New Invoice</Button> : null}
       />
 
-      {/* Loading skeleton (iPhone shimmer, mirrors the real layout) */}
-      {loading && (
-        <div className="space-y-4" role="status" aria-busy="true" aria-label="Loading invoices">
-          <span className="sr-only">Loading invoices…</span>
-          <div className="flex gap-3 flex-wrap">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="ap-surface px-4 py-2.5 flex items-center gap-2" aria-hidden="true">
-                <div className="skeleton h-3 w-16 rounded" />
-                <div className="skeleton h-4 w-14 rounded" />
+      {loadError && <Callout tone="red" icon={AlertTriangle} title={loadError} actionLabel="Retry" onAction={reloadAll} />}
+      {manualError && <Callout tone="red" icon={AlertTriangle} title={manualError} actionLabel="Retry" onAction={reloadAll} />}
+      {billingError && (
+        <Callout tone="red" icon={AlertTriangle}
+          title={`Invoice tracking unavailable: ${billingError}`}
+          actionLabel="Retry" onAction={reloadAll} />
+      )}
+      {actionError && !view && !docKey && (
+        <Callout tone="red" icon={AlertTriangle} title={actionError} onAction={() => setActionError('')} actionLabel="Dismiss" />
+      )}
+
+      {/* Finance-first KPIs — sourced from issued records and payments */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+        <MetricCard label="Total Invoiced" value={formatINR(summary.total, currency)}
+          sub={`${billableInvoices.length} invoice${billableInvoices.length === 1 ? '' : 's'}`}
+          icon={FileText} tone="blue" onClick={() => setTab('all')} />
+        <MetricCard label="Amount Received" value={formatINR(summary.received, currency)}
+          sub="Valid recorded payments" icon={Wallet} tone="green" onClick={() => setTab('paid')} />
+        <MetricCard label="Pending Amount" value={formatINR(summary.pending, currency)}
+          sub="Invoice total less payments" icon={IndianRupee} tone="amber" onClick={() => setTab('pending')} />
+        <MetricCard label="Overdue Amount" value={formatINR(summary.overdue, currency)}
+          sub={`This month ${formatINR(thisMonthFare, currency)} · Avg ${formatINR(avgBill, currency)}`}
+          icon={AlertTriangle} tone="red" onClick={() => setTab('overdue')} />
+      </div>
+
+      {/* Status tabs + search + column picker */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <SegmentedControl
+          ariaLabel="Invoice status"
+          value={tab}
+          onChange={setTab}
+          scroll
+          options={INVOICE_TABS.map(item => ({ key: item.key, label: item.label }))}
+        />
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="relative block">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search invoices…" aria-label="Search invoices"
+              className={`${fieldCls} h-10 pl-9 w-[190px] sm:w-[240px]`} />
+          </label>
+          <div className="relative flex-shrink-0" ref={colsRef}>
+            <button onClick={() => setColsOpen(v => !v)} aria-label="Customize table columns"
+              aria-expanded={colsOpen} aria-haspopup="menu"
+              className="flex items-center gap-1.5 px-3 min-h-[40px] rounded-[10px] border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-xs font-bold text-slate-600 dark:text-slate-300 active:scale-95 transition-all">
+              <Columns3 size={14} /> Columns
+            </button>
+            {colsOpen && (
+              <div className="absolute right-0 top-full mt-2 w-56 ap-surface rounded-[20px] shadow-2xl border border-[var(--ap-border)] overflow-hidden z-50 animate-fade-up"
+                role="menu" aria-label="Table columns">
+                <p className="px-4 pt-3 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Show columns</p>
+                <div className="p-1.5">
+                  {ALL_COLUMNS.map(c => {
+                    const on = visibleCols.includes(c.key)
+                    return (
+                      <button key={c.key} onClick={() => toggleCol(c.key)} role="menuitemcheckbox" aria-checked={on}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-colors text-left">
+                        <span className={`w-5 h-5 rounded-md border flex items-center justify-center flex-shrink-0 transition-colors ${on ? 'bg-blue-600 border-blue-600 text-white' : 'border-[var(--ap-border)] text-transparent'}`}>
+                          <Check size={13} strokeWidth={3} />
+                        </span>
+                        {c.label}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
-            ))}
+            )}
           </div>
-          <div className="skeleton h-9 w-full max-w-md rounded-xl" aria-hidden="true" />
-          {/* Desktop table skeleton */}
+        </div>
+      </div>
+
+      {/* Loading skeleton */}
+      {loading && (
+        <div className="space-y-3" role="status" aria-busy="true" aria-label="Loading invoices">
+          <span className="sr-only">Loading invoices…</span>
           <div className="ap-surface rounded-[20px] p-4 space-y-2.5 hidden md:block" aria-hidden="true">
             {[1, 2, 3, 4, 5].map(i => (
               <div key={i} className="flex items-center gap-2.5">
                 <div className="skeleton w-7 h-7 rounded-full flex-shrink-0" />
                 <div className="skeleton h-3.5 flex-1 rounded" />
-                <div className="skeleton h-3.5 w-16 rounded" />
+                <div className="skeleton h-4 w-20 rounded" />
                 <div className="skeleton h-6 w-16 rounded-full" />
               </div>
             ))}
           </div>
-          {/* Mobile card skeletons */}
           <div className="md:hidden space-y-2.5" aria-hidden="true">
             {[1, 2, 3, 4].map(i => (
               <div key={i} className="ap-surface p-3.5 space-y-2">
-                <div className="flex items-center gap-2.5">
-                  <div className="skeleton w-8 h-8 rounded-full flex-shrink-0" />
-                  <div className="flex-1 space-y-1.5">
-                    <div className="skeleton h-4 w-2/3 rounded" />
-                    <div className="skeleton h-3 w-1/2 rounded" />
-                  </div>
-                  <div className="skeleton h-5 w-16 rounded-full" />
-                </div>
-                <div className="skeleton h-3 w-full rounded" />
+                <div className="skeleton h-4 w-2/3 rounded" />
+                <div className="skeleton h-3 w-1/2 rounded" />
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {loadError && (
-        <Callout tone="red" icon={AlertTriangle} title={loadError} actionLabel="Retry" onAction={reloadBookings} />
-      )}
-
-      {manualError && !manualOpen && (
-        <Callout tone="red" icon={AlertTriangle} title={manualError}
-          actionLabel="Retry" onAction={reloadManualDocs} />
-      )}
-
       {!loading && (
-      <>
-      {/* Summary chips + column picker in one row (completed invoices only) */}
-      <div className="flex items-end justify-between gap-2 flex-wrap md:shrink-0">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 flex-1 min-w-[260px]">
-        <MetricCard label="Total Fare"    value={`Rs. ${totalFare.toLocaleString('en-IN')}`} icon={FileText} tone="blue" />
-        <MetricCard label="Invoices Done" value={completedCount} icon={Check} tone="green" />
-        <MetricCard label="This Month"    value={`Rs. ${thisMonthFare.toLocaleString('en-IN')}`} icon={CalendarDays} tone="violet" />
-        <MetricCard label="Avg Bill"      value={`Rs. ${avgBill.toLocaleString('en-IN')}`} icon={IndianRupee} tone="amber" />
-      </div>
-
-      {/* Column picker */}
-      <div className="relative flex-shrink-0" ref={colsRef}>
-        <button
-          onClick={() => setColsOpen(v => !v)}
-          aria-label="Customize table columns"
-          aria-expanded={colsOpen}
-          aria-haspopup="menu"
-          className="flex items-center gap-1.5 px-3 min-h-[36px] rounded-[12px] border border-[var(--ap-border)] bg-[var(--ap-surface-2)] text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] active:scale-95 transition-all"
-        >
-          <Columns3 size={14} /> Columns
-        </button>
-        {colsOpen && (
-          <div className="absolute right-0 top-full mt-2 w-56 ap-surface rounded-[20px] shadow-2xl border border-[var(--ap-border)] overflow-hidden z-50 animate-fade-up" role="menu" aria-label="Table columns">
-            <p className="px-4 pt-3 pb-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Show columns</p>
-            <div className="p-1.5">
-              {ALL_COLUMNS.map(c => {
-                const on = visibleCols.includes(c.key)
-                return (
-                  <button
-                    key={c.key}
-                    onClick={() => toggleCol(c.key)}
-                    role="menuitemcheckbox"
-                    aria-checked={on}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] transition-colors text-left"
-                  >
-                    <span className={`w-5 h-5 rounded-md border flex items-center justify-center flex-shrink-0 transition-colors ${on ? 'bg-blue-600 border-blue-600 text-white' : 'border-[var(--ap-border)] text-transparent'}`}>
-                      <Check size={13} strokeWidth={3} />
-                    </span>
-                    {c.label}
-                  </button>
-                )
-              })}
-            </div>
-            <p className="px-4 py-2 border-t border-[var(--ap-border)] text-[10px] text-slate-400 dark:text-slate-500">Customer + Actions always shown</p>
-          </div>
-        )}
-      </div>
-      </div>
-      </>
-      )}
-
-      {!loading && (
-      <>
-      {/* Desktop table — full height, no inner scroll */}
-      <div className="ap-surface rounded-[20px] overflow-hidden hidden md:block">
-        <div>
-          <table className="w-full text-sm">
-            <thead className="md:sticky md:top-0 md:z-10">
-              <tr className="border-b border-[var(--ap-border)] bg-[var(--ap-surface-2)]">
-                <th className="px-4 py-3 md:py-2 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Customer</th>
-                {visibleCols.map(k => (
-                  <th key={k} className="px-4 py-3 md:py-2 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{colLabel(k)}</th>
-                ))}
-                <th className="px-4 py-3 md:py-2 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={visibleCols.length + 2} className="!border-0">
-                    <EmptyState icon={FileText} title="No bookings found" description="Completed trips will appear here for invoicing." />
-                  </td>
+        <>
+          {/* Desktop table */}
+          <div className="ap-surface rounded-[20px] overflow-hidden hidden md:block">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[var(--ap-border)] bg-[var(--ap-surface-2)]">
+                  <th className="px-4 py-3 md:py-2 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Customer</th>
+                  {visibleCols.map(key => (
+                    <th key={key} className="px-4 py-3 md:py-2 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{colLabel(key)}</th>
+                  ))}
+                  <th className="px-4 py-3 md:py-2 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Actions</th>
                 </tr>
-              ) : pageRows.map(b => (
-                <tr key={b.id} onClick={() => setSelected(b)} className="border-b border-[var(--ap-border)] hover:bg-[var(--ap-surface-2)] transition-colors cursor-pointer">
-                  <td className="px-4 py-3 md:py-2">
-                    <div className="flex items-center gap-2.5">
-                      <Avatar name={b.customer} size={28} />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate max-w-[160px]">{b.customer}</p>
-                          {b.isManual && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 uppercase tracking-wide flex-shrink-0">Manual</span>}
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={visibleCols.length + 2} className="!border-0">
+                    <EmptyState icon={FileText} title="No invoices found" description="Completed trips and saved bills appear here." />
+                  </td></tr>
+                ) : pageRows.map(inv => (
+                  <tr key={inv.key} className="border-b border-[var(--ap-border)] hover:bg-[var(--ap-surface-2)] transition-colors cursor-pointer"
+                    onClick={() => openDoc(inv)}>
+                    <td className="px-4 py-3 md:py-2">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar name={inv.customer} size={28} />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate max-w-[160px]">{inv.customer}</p>
+                            {inv.isManual && (
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0 ${
+                                inv.isQuote ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300' : 'bg-violet-500/10 text-violet-700 dark:text-violet-300'
+                              }`}>{inv.isQuote ? 'Quote' : 'Manual'}</span>
+                            )}
+                          </div>
+                          <p className="text-[10px] font-mono text-slate-400 truncate max-w-[160px]">{inv.bookingRef || inv.invoiceNo}</p>
                         </div>
-                        <p className="text-[10px] font-mono text-slate-400 truncate max-w-[160px]">{b.bookingNo || b.id}</p>
                       </div>
-                    </div>
-                  </td>
-                  {visibleCols.map(k => cellFor(b, k))}
-                  <td className="px-4 py-3 md:py-2">
-                    <div className="flex gap-1.5">
-                      <IconButton icon={Eye} size={15} tone="brand"
-                        label={`View invoice for ${b.customer}`}
-                        onClick={() => setSelected(b)} />
-                      <IconButton icon={Printer} size={15}
-                        label={`Print invoice for ${b.customer}`}
-                        onClick={() => setSelected(b)} />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Mobile cards — stacked, no horizontal slider */}
-      <div className="md:hidden space-y-2.5">
-        {filtered.length === 0 ? (
-          <EmptyState icon={FileText} title="No bookings found" description="Completed trips will appear here for invoicing." className="ap-surface rounded-[20px]" />
-        ) : pageRows.map(b => (
-          <div key={b.id} onClick={() => setSelected(b)}
-            className="ap-surface ios-press p-3.5 cursor-pointer">
-            <div className="flex items-center gap-2.5 mb-2">
-              <Avatar name={b.customer} size={32} />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{b.customer}</p>
-                  {b.isManual && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 uppercase tracking-wide flex-shrink-0">Manual</span>}
-                </div>
-                <p className="text-[11px] text-slate-400 dark:text-slate-500 font-mono truncate">{b.bookingNo || b.id} · {b.startDate || ''}</p>
-              </div>
-              <StatusBadge status={b.status} />
-            </div>
-            <p className="text-xs text-slate-600 dark:text-slate-300 leading-snug truncate">
-              {b.pickup || '—'} <span className="text-slate-300 dark:text-slate-500 mx-0.5">→</span> {b.drop || '—'}
-            </p>
-            <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-[var(--ap-border)]">
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{b.driver || 'No driver'} · {b.km ? `${b.km} km` : '—'}</p>
-              <p className="text-xs font-semibold text-navy-800 dark:text-blue-300 tabular-nums flex-shrink-0">
-                {b.fare ? `Rs. ${b.fare.toLocaleString('en-IN')}` : '—'}
-              </p>
-            </div>
+                    </td>
+                    {visibleCols.map(key => cellFor(inv, key))}
+                    <td className="px-4 py-3 md:py-2">
+                      <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                        <IconButton icon={Eye} size={15} tone="brand"
+                          label={`View invoice for ${inv.customer}`} onClick={() => openDoc(inv)} />
+                        <IconButton icon={Printer} size={15}
+                          label={`Print invoice for ${inv.customer}`} onClick={() => openDoc(inv, true)} />
+                        {inv.isManual && canDelete && !inv.record && (
+                          <IconButton icon={FileText} size={15}
+                            label={`Edit ${inv.isQuote ? 'quotation' : 'manual invoice'} for ${inv.customer}`}
+                            onClick={() => openEditor(inv.isQuote ? 'quotation' : 'invoice', inv.sourceId)} />
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        ))}
-      </div>
 
-      {/* Pagination — viewport-adaptive rows per page */}
-      {filtered.length > 0 && (
-      <div className="flex items-center justify-between gap-3 flex-wrap md:shrink-0">
-        <p className="text-[11px] text-slate-400 dark:text-slate-500 tabular-nums">
-          Page {safePage} of {totalPages} · {filtered.length} invoice{filtered.length !== 1 ? 's' : ''}
-        </p>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <button onClick={() => setPage(safePage - 1)} disabled={safePage <= 1}
-            aria-label="Previous page"
-            className="min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-            ←
-          </button>
-          {pageItems.map((n, i) => n === '…'
-            ? <span key={`e${i}`} className="text-xs text-slate-400 px-1">…</span>
-            : (
-              <button key={n} onClick={() => setPage(n)}
-                aria-label={`Go to page ${n}`}
-                aria-current={n === safePage ? 'page' : undefined}
-                className={`min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] text-xs font-bold tabular-nums active:scale-95 transition-all ${
-                  n === safePage
-                    ? 'bg-[var(--ap-accent)] text-white shadow'
-                    : 'border border-[var(--ap-border)] text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)]'
-                }`}>
-                {n}
+          {/* Mobile cards */}
+          <div className="md:hidden space-y-2.5">
+            {filtered.length === 0 ? (
+              <EmptyState icon={FileText} title="No invoices found" description="Completed trips and saved bills appear here."
+                className="ap-surface rounded-[20px]" />
+            ) : pageRows.map(inv => (
+              <button key={inv.key} type="button" onClick={() => openDoc(inv)}
+                className="ap-surface ios-press p-3.5 w-full text-left">
+                <div className="flex items-center gap-2.5 mb-2">
+                  <Avatar name={inv.customer} size={32} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{inv.customer}</p>
+                      {inv.isManual && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-700 dark:text-violet-300 uppercase flex-shrink-0">
+                          {inv.isQuote ? 'Quote' : 'Manual'}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-400 font-mono truncate">{inv.invoiceNo}</p>
+                  </div>
+                  <StatusPill tone={PAYMENT_TONE[inv.paymentStatus] || 'gray'}>{inv.paymentStatus}</StatusPill>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-snug truncate">
+                  {shortLocation(inv.pickup)} <span className="text-slate-300 dark:text-slate-600 mx-0.5">→</span> {shortLocation(inv.drop)}
+                </p>
+                <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-[var(--ap-border)]">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                    {shortDate(inv.invoiceDate || inv.tripDate)} · {formatINR(inv.balance, currency)} due
+                  </p>
+                  <p className="text-xs font-semibold text-navy-800 dark:text-blue-300 tabular-nums flex-shrink-0">
+                    {formatINR(inv.total, currency)}
+                  </p>
+                </div>
               </button>
             ))}
-          <button onClick={() => setPage(safePage + 1)} disabled={safePage >= totalPages}
-            aria-label="Next page"
-            className="min-w-[36px] min-h-[36px] px-2.5 rounded-[12px] border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-[var(--ap-surface-2)] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-            →
-          </button>
-          <span className="text-[11px] text-slate-400 dark:text-slate-500 ml-1">Go to</span>
-          <input
-            value={goPage}
-            onChange={e => setGoPage(e.target.value.replace(/[^0-9]/g, ''))}
-            onKeyDown={e => { if (e.key === 'Enter') goToPage() }}
-            onBlur={() => { if (goPage) goToPage() }}
-            placeholder={String(totalPages)}
-            inputMode="numeric"
-            aria-label={`Go to page, 1 to ${totalPages}`}
-            className="w-14 min-h-[36px] rounded-[12px] border border-[var(--ap-border)] bg-[var(--ap-surface-2)] px-2 text-center text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500 tabular-nums"
-          />
-        </div>
-      </div>
-      )}
-      </>
+          </div>
+
+          {/* Pagination */}
+          {filtered.length > 0 && (
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 tabular-nums">
+                Page {safePage} of {totalPages} · {filtered.length} document{filtered.length !== 1 ? 's' : ''}
+              </p>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button onClick={() => setPage(safePage - 1)} disabled={safePage <= 1} aria-label="Previous page"
+                  className="min-w-[36px] min-h-[36px] px-2.5 rounded-[10px] border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 active:scale-95 disabled:opacity-40">
+                  ←
+                </button>
+                {pageItems.map((n, i) => n === '…'
+                  ? <span key={`e${i}`} className="text-xs text-slate-400 px-1">…</span>
+                  : (
+                    <button key={n} onClick={() => setPage(n)} aria-label={`Go to page ${n}`}
+                      aria-current={n === safePage ? 'page' : undefined}
+                      className={`min-w-[36px] min-h-[36px] px-2.5 rounded-[10px] text-xs font-bold tabular-nums active:scale-95 ${
+                        n === safePage ? 'bg-[var(--ap-accent)] text-white shadow'
+                          : 'border border-[var(--ap-border)] text-slate-600 dark:text-slate-300'
+                      }`}>{n}</button>
+                  ))}
+                <button onClick={() => setPage(safePage + 1)} disabled={safePage >= totalPages} aria-label="Next page"
+                  className="min-w-[36px] min-h-[36px] px-2.5 rounded-[10px] border border-[var(--ap-border)] text-xs font-bold text-slate-600 dark:text-slate-300 active:scale-95 disabled:opacity-40">
+                  →
+                </button>
+                <span className="text-[11px] text-slate-400 dark:text-slate-500 ml-1">Go to</span>
+                <input value={goPage} onChange={e => setGoPage(e.target.value.replace(/[^0-9]/g, ''))}
+                  onKeyDown={e => { if (e.key === 'Enter') goToPage() }} onBlur={() => { if (goPage) goToPage() }}
+                  placeholder={String(totalPages)} inputMode="numeric"
+                  aria-label={`Go to page, 1 to ${totalPages}`}
+                  className="w-14 min-h-[36px] rounded-[10px] border border-[var(--ap-border)] bg-[var(--ap-surface-2)] px-2 text-center text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500 tabular-nums" />
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

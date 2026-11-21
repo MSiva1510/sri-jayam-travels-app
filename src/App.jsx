@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect } from 'react'
 import ErrorBoundary from './components/ErrorBoundary'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AppProvider }           from './context/AppContext'
-import { AuthProvider }          from './context/AuthContext'
+import { AuthProvider, useAuth } from './context/AuthContext'
 import { CommunicationProvider } from './context/CommunicationContext'
 import { AdminProvider }         from './context/AdminContext'
 import { GpsHistoryProvider }    from './context/GpsHistoryContext'
@@ -44,6 +44,15 @@ const UiLab             = lazy(() => import('./pages/UiLab'))
 const GpsHistory        = lazy(() => import('./pages/GpsHistory'))
 const RouteReplay       = lazy(() => import('./pages/RouteReplay'))
 
+// Invoice access follows the same permissions the RPCs enforce: managers may
+// view without generate_invoice, while accountants/custom roles reach it when
+// either invoice permission is granted.
+function InvoiceGuard({ children }) {
+  const { can } = useAuth()
+  return can('view_invoices') || can('invoices')
+    ? children
+    : <Navigate to="/unauthorized" replace />
+}
 
 export default function App() {
   // Load vehicle statuses on app startup to populate the cache
@@ -70,7 +79,7 @@ export default function App() {
             <Route element={<ProtectedRoute><CommunicationProvider><AdminProvider><GpsHistoryProvider><AppShell /></GpsHistoryProvider></AdminProvider></CommunicationProvider></ProtectedRoute>}>
               {/* Admin + Manager */}
               <Route path="/"            element={<ProtectedRoute allowedRoles={['admin','manager']}><Dashboard /></ProtectedRoute>} />
-              <Route path="/invoices"    element={<ProtectedRoute allowedRoles={['admin','manager']}><Invoices /></ProtectedRoute>} />
+              <Route path="/invoices"    element={<InvoiceGuard><Invoices /></InvoiceGuard>} />
               <Route path="/trips"       element={<ProtectedRoute allowedRoles={['admin','manager']}><Trips /></ProtectedRoute>} />
               <Route path="/create-trip" element={<ProtectedRoute allowedRoles={['admin','manager']}><CreateTrip /></ProtectedRoute>} />
               <Route path="/customers"   element={<ProtectedRoute allowedRoles={['admin','manager']}><Customers /></ProtectedRoute>} />

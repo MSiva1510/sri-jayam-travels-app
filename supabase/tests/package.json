@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node driver_alerts.test.mjs && node whatsapp_webhook.test.mjs && node whatsapp_bot.test.mjs && node expense_type_details.test.mjs && node vehicle_compliance_fields.test.mjs && node document_management_fields.test.mjs && node public_customer_profile_removal.test.mjs"
+    "test": "node driver_alerts.test.mjs && node whatsapp_webhook.test.mjs && node whatsapp_bot.test.mjs && node expense_type_details.test.mjs && node vehicle_compliance_fields.test.mjs && node document_management_fields.test.mjs && node public_customer_profile_removal.test.mjs && node invoice_management.test.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.2.17"

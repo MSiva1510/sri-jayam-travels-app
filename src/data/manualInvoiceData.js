@@ -60,14 +60,27 @@ function toRow(doc = {}) {
     isManual:      true,
     createdAt:     doc.createdAt || new Date().toISOString(),
     type:          doc.type || '',
+    // Newer invoice fields are still stored in description JSON because the
+    // existing table has no columns for them. Older rows simply lack them.
+    bookingRef:       doc.bookingRef || '',
+    dueDate:          doc.dueDate || '',
+    validUntil:       doc.validUntil || '',
+    customerGstin:    doc.customerGstin || '',
+    billingAddress:   doc.billingAddress || '',
+    paymentInstructions: doc.paymentInstructions || '',
+    terms:            doc.terms || '',
+    lineItems:        Array.isArray(doc.lineItems) ? doc.lineItems : [],
+    discount:         num(doc.discount),
+    taxPercent:       num(doc.taxPercent),
+    total:            num(doc.total ?? doc.fare),
   }
   return {
     invoice_number:   doc.bookingNo || `MAN-${Date.now().toString().slice(-6)}`,
     customer_name:    doc.customer || '',
     customer_contact: doc.contact || '',
-    invoice_date:     doc.startDate || today(),
+    invoice_date:     doc.invoiceDate || doc.startDate || today(),
     description:      JSON.stringify(extras),
-    total_fare:       num(doc.fare),
+    total_fare:       num(doc.total ?? doc.fare),
     invoice_toll:     num(doc.toll),
     invoice_bata:     num(doc.bata),
     invoice_fuel:     num(doc.petrol),
@@ -105,6 +118,17 @@ function fromRow(row = {}) {
     docType:        extras.docType || 'invoice',
     isManual:       true,
     createdAt:      extras.createdAt || row.created_at || null,
+    bookingRef:     extras.bookingRef || '',
+    dueDate:        extras.dueDate || '',
+    validUntil:     extras.validUntil || '',
+    customerGstin:  extras.customerGstin || '',
+    billingAddress: extras.billingAddress || '',
+    paymentInstructions: extras.paymentInstructions || '',
+    terms:          extras.terms || '',
+    lineItems:      Array.isArray(extras.lineItems) ? extras.lineItems : [],
+    discount:       num(extras.discount),
+    taxPercent:     num(extras.taxPercent),
+    totalAmount:    num(extras.total ?? row.total_fare),
   }
 }
 
@@ -142,6 +166,13 @@ export async function saveManualInvoices(list) {
   }
 
   return loadManualInvoices()
+}
+
+// Save a single document. The dashboard used to re-save the entire list,
+// which could overwrite concurrent edits from another tab.
+export async function saveManualInvoice(doc) {
+  const next = await saveManualInvoices([doc])
+  return next.find(item => item.bookingNo === doc.bookingNo) || next[0] || doc
 }
 
 export async function deleteManualInvoice(id) {

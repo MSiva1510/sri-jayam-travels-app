@@ -17,7 +17,7 @@ import Avatar      from '../ui/Avatar'
 const NAV_ITEMS = [
   // Admin + Manager
   { to: '/',               label: 'Dashboard',    icon: LayoutDashboard, roles: ['admin','manager'] },
-  { to: '/invoices',       label: 'Invoices',      icon: FileText,        roles: ['admin','manager'], perm: 'view_invoices' },
+  { to: '/invoices',       label: 'Invoices',      icon: FileText,        perm: ['view_invoices', 'invoices'] },
   { to: '/trips',          label: 'Trips',         icon: Route,           roles: ['admin','manager'], perm: 'trips'    },
   { to: '/customers',      label: 'Customers',     icon: Users,           roles: ['admin','manager'], perm: 'customers'},
   { to: '/expenses',       label: 'Expenses',      icon: Receipt,         roles: ['admin','manager'], perm: 'expenses' },
@@ -78,8 +78,11 @@ function SidebarInner({ collapsed }) {
 
   // Filter nav: role match + optional permission check
   const visibleNav    = NAV_ITEMS.filter(i => {
-    if (!i.roles.includes(user?.role)) return false
-    if (i.perm) return can(i.perm)
+    if (i.roles && !i.roles.includes(user?.role)) return false
+    if (i.perm) {
+      const perms = Array.isArray(i.perm) ? i.perm : [i.perm]
+      return perms.some(permission => can(permission))
+    }
     return true
   })
   const visibleBottom = BOTTOM_ITEMS.filter(i => i.roles.includes(user?.role))
