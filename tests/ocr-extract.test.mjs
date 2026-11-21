@@ -77,6 +77,15 @@ test('400 when the file payload is missing', async () => {
   assert.equal(res.statusCode, 400)
 })
 
+test('415 rejects unsupported OCR file types', async () => {
+  const res = await call({ authorization: 'Bearer admin' }, { ...okBody, mimeType: 'text/html' })
+  assert.equal(res.statusCode, 415)
+})
+test('400 rejects malformed base64 before decoding', async () => {
+  const res = await call({ authorization: 'Bearer admin' }, { ...okBody, dataBase64: 'not@@base64' })
+  assert.equal(res.statusCode, 400)
+})
+
 test('200 returns extracted fields + confidence for staff', async () => {
   const res = await call({ authorization: 'Bearer admin' }, okBody)
   assert.equal(res.statusCode, 200)

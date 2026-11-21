@@ -1,5 +1,5 @@
 // ─── Fleet Vehicle Detail (side panel) ───────────────────────
-import { X, Gauge, Flame, MapPin, Clock, Navigation, Truck, Radio, WifiOff, User } from 'lucide-react'
+import { X, Gauge, Navigation, Truck, User } from 'lucide-react'
 import { buildMapsUrl } from '../../utils/locationUtils'
 
 function Row({ label, value }) {

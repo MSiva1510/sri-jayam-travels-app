@@ -98,15 +98,6 @@ export async function archiveNotification(id) {
   } catch {}
 }
 
-export async function dismissNotification(id) {
-  if (!supabase) return
-  try {
-    await supabase.from('notifications')
-      .update({ status: 'dismissed', dismissed_at: new Date().toISOString() })
-      .eq('id', id)
-  } catch {}
-}
-
 /** Permanently delete a notification row (Delete button / dismiss). */
 export async function deleteNotification(id) {
   if (!supabase) return
@@ -117,19 +108,6 @@ export async function deleteNotification(id) {
     console.error('[notificationService] delete failed:', err.message)
     throw err
   }
-}
-
-// ── Unread count ──────────────────────────────────────────────
-export async function getUnreadCount(userId) {
-  if (!supabase || !userId) return 0
-  try {
-    const { count } = await supabase
-      .from('notifications')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId).eq('status', 'unread')
-    return count || 0
-  } catch {}
-  return 0
 }
 
 // ── Event emitters ────────────────────────────────────────────

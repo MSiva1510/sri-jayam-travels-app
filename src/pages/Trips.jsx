@@ -12,7 +12,6 @@ import PageHeader   from '../components/ui/PageHeader'
 import Avatar       from '../components/ui/Avatar'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import Button       from '../components/ui/Button'
-import SectionHeader from '../components/ui/SectionHeader'
 import SegmentedControl from '../components/ui/SegmentedControl'
 import MetricCard   from '../components/ui/MetricCard'
 import StatusPill   from '../components/ui/StatusPill'
@@ -33,7 +32,7 @@ import { loadVehicles } from '../data/vehicleData'
 import { addAuditEvent }    from '../data/auditLogData'
 import { loadTripRoute, calcRouteDistanceKm } from '../data/gpsHistoryData'
 import { loadGPSHistory }   from '../hooks/useGPS'
-import { loadTimeline, addTimelineEvent, fmtTimelineTime, getEventCfg } from '../data/tripTimelineData'
+import { loadTimeline, addTimelineEvent, fmtTimelineTime } from '../data/tripTimelineData'
 import { notify } from '../services/notificationService'
 import { pageSizeFor } from '../utils/zoomPageSize'
 
@@ -58,10 +57,6 @@ const STATUS_PULSE = { pending:true, started:true }
 function StatusBadge({ status }) {
   const cfg = getStatusCfg(status)
   return <StatusPill tone={STATUS_TONE[status] || 'gray'} pulse={!!STATUS_PULSE[status]}>{cfg.label}</StatusPill>
-}
-function TypeBadge({ type }) {
-  const cfg = TRIP_TYPE_CONFIG[type]; if (!cfg) return null
-  return <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${cfg.badge}`}>{cfg.icon} {cfg.label}</span>
 }
 function AvailDot({ avail, cfgMap }) {
   const cfg = cfgMap[avail] || cfgMap.available

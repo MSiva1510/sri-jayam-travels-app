@@ -7,7 +7,6 @@ import { createGpsProvider, parseProviderNames }    from './gpsProvider'
 const normalizeReg = (r) => String(r ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
 import { gpsHistoryRepository } from '../repositories/gpsHistoryRepository'
 import { gpsSettingsRepository } from '../repositories/gpsSettingsRepository'
-import { vehicleRepository }    from '../repositories/vehicleRepository'
 import { fleetAlertRepository } from '../repositories/fleetAlertRepository'
 import { geofenceService }      from '../services/geofenceService'
 import { loadVehicles }         from '../data/vehicleData'

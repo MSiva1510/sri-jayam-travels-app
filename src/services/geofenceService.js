@@ -5,9 +5,7 @@
 import { geofenceZoneRepository } from '../repositories/geofenceRepository'
 import { geofenceEventRepository } from '../repositories/geofenceRepository'
 import { vehicleRepository } from '../repositories/vehicleRepository'
-import { driverRepository } from '../repositories/driverRepository'
 import { dataService } from '../services/dataService'
-import { getDatabaseProvider, DATABASE_PROVIDERS } from '../config/database'
 
 const GEOFENCE_STATE_STORAGE_KEY = 'sjt_geofence_state'
 const GEOFENCE_DETECTION_RADIUS_MULTIPLIER = 1.1 // 10% buffer for entry/exit detection

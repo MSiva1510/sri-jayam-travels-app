@@ -1,15 +1,16 @@
 // ─── Report Data Aggregator ───────────────────────────────────
 // Reads from all existing data modules. No new localStorage keys.
 
-import { loadBookings, getStatusCfg }                    from './tripTypes'
+import { loadBookings }                                  from './tripTypes'
 import { loadCustomers, getCustomerStats }               from './customerData'
 import { loadDrivers }                                   from './driverData'
 import { loadVehicles }                                  from './vehicleData'
-import { loadExpenses, EXPENSE_TYPES, summariseByType,
+import { loadExpenses, summariseByType,
          isThisMonth }                                   from './expenseData'
 import { loadSettlements }                               from './settlementData'
 import { loadAttendance, loadVehicleAssignments }        from './attendanceData'
 import { docStatus }                                     from '../utils/vehicleUtils'
+import { escapeHtml, escapeCsvCell, PRINT_CSP_META }     from '../utils/htmlSecurity'
 
 export function inRange(dateStr, from, to) {
   if (!dateStr) return false
@@ -248,12 +249,11 @@ export async function getBusinessAlerts() {
 
 // ── Module 10: CSV export ─────────────────────────────────────
 export function exportToCSV(rows, columns, filename) {
-  const header = columns.map(c=>c.label).join(',')
+  const header = columns.map(c => escapeCsvCell(c.label)).join(',')
   const body   = rows.map(r=>
     columns.map(c=>{
       const val = c.key.split('.').reduce((o,k)=>o?.[k],r)??''
-      const str = String(val)
-      return str.includes(',')?`"${str}"`:str
+      return escapeCsvCell(val)
     }).join(',')
   ).join('\n')
   const blob = new Blob([`${header}\n${body}`],{type:'text/csv;charset=utf-8;'})
@@ -279,20 +279,22 @@ export async function exportToExcel(rows, columns, filename) {
 
 // ── Day 29: PDF export (print-based) ─────────────────────────
 export function exportToPDF(rows, columns, filename, title = '') {
+  const heading = escapeHtml(title || filename)
   const tableRows = rows.map(r =>
     `<tr>${columns.map(c => {
       const val = c.key.split('.').reduce((o,k) => o?.[k], r) ?? ''
-      return `<td>${val}</td>`
+      return `<td>${escapeHtml(val)}</td>`
     }).join('')}</tr>`
   ).join('')
-  const html = `<!DOCTYPE html><html><head><title>${title||filename}</title>
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">${PRINT_CSP_META}<title>${heading}</title>
   <style>body{font-family:Arial,sans-serif;font-size:12px;margin:20px;color:#111}h2{font-size:18px;margin-bottom:4px}p.sub{color:#64748b;font-size:11px;margin:0 0 16px}table{width:100%;border-collapse:collapse}th{background:#0d1b4b;color:white;padding:8px 10px;text-align:left;font-size:11px}td{padding:7px 10px;border-bottom:1px solid #f1f5f9;font-size:11px}tr:nth-child(even)td{background:#f8fafc}.footer{margin-top:16px;font-size:10px;color:#94a3b8;text-align:right}</style>
   </head><body>
-  <h2>${title||filename}</h2><p class="sub">Sri Jayam Travels &middot; ${new Date().toLocaleString('en-IN')}</p>
-  <table><thead><tr>${columns.map(c=>`<th>${c.label}</th>`).join('')}</tr></thead>
+  <h2>${heading}</h2><p class="sub">Sri Jayam Travels &middot; ${escapeHtml(new Date().toLocaleString('en-IN'))}</p>
+  <table><thead><tr>${columns.map(c=>`<th>${escapeHtml(c.label)}</th>`).join('')}</tr></thead>
   <tbody>${tableRows}</tbody></table>
   <div class="footer">Sri Jayam Travels ERP</div></body></html>`
   const w = window.open('','_blank','width=900,height=700')
+  if (!w) return
   w.document.write(html); w.document.close(); w.focus()
   setTimeout(()=>{w.print();w.close()},400)
 }

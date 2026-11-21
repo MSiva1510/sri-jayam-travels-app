@@ -10,19 +10,12 @@ import { daysUntil, parseDateOnly, EXPIRY_SOON_DAYS } from './vehicleUtils.js'
 
 export const DOC_BUCKET = 'trip-documents'
 export const DOC_MAX_BYTES = 10 * 1024 * 1024
-export const OCR_MAX_BYTES = 5 * 1024 * 1024
 export const SIGNED_URL_TTL = 60 * 60 * 24 * 365
 
 export const DOCUMENT_CATEGORIES = [
   { key: 'driver', label: 'Drivers', singular: 'Driver' },
   { key: 'vehicle', label: 'Vehicles', singular: 'Vehicle' },
   { key: 'company', label: 'Company', singular: 'Company' },
-]
-
-export const LEGACY_CATEGORIES = [
-  ...DOCUMENT_CATEGORIES,
-  { key: 'trip', label: 'Trips', singular: 'Trip' },
-  { key: 'customer', label: 'Customers', singular: 'Customer' },
 ]
 
 export const DOCUMENT_TYPES = {

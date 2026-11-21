@@ -5,15 +5,20 @@
 //
 // Deploy:  supabase functions deploy send-push --project-ref <ref>
 // Secrets:  supabase secrets set FCM_SERVICE_ACCOUNT='<service-account JSON>'
+//           supabase secrets set PUSH_FUNCTION_SECRET='<long random string>'   # optional, server-to-server callers
+//           supabase secrets set PUSH_ALLOWED_ORIGINS='https://app.travelsjayam.in'
+//
+// Every call is authenticated in the function itself: a trusted server may use
+// the shared PUSH_FUNCTION_SECRET, while the web ERP uses its normal Supabase
+// JWT (admin/manager only). Platform JWT verification stays on as a second
+// layer. Browser CORS is restricted to an explicit origin allowlist.
 
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
+import { corsHeaders, verifyCaller } from './security.js';
 
-const cors = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+function json(body: unknown, status = 200, headers: Record<string, string> = {}) {
+  return Response.json(body, { status, headers });
+}
 
 function b64url(input: Uint8Array | string): string {
   const bin =
@@ -69,17 +74,35 @@ async function accessToken(sa: any): Promise<string> {
       assertion: jwt,
     }),
   });
-  const json = await res.json();
-  if (!json.access_token) {
-    throw new Error('OAuth failed: ' + JSON.stringify(json).slice(0, 200));
+  const result = await res.json();
+  if (!result.access_token) {
+    throw new Error('OAuth failed: ' + JSON.stringify(result).slice(0, 200));
   }
-  return json.access_token;
+  return result.access_token;
 }
 
 serve(async (req) => {
+  const env = Deno.env.toObject();
+  const headers = corsHeaders(req.headers.get('origin'), env);
+  if (!headers) return new Response('Forbidden', { status: 403 });
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: cors });
+    return new Response('ok', { headers });
   }
+  if (req.method !== 'POST') {
+    return json({ error: 'method_not_allowed' }, 405, headers);
+  }
+
+  const caller = await verifyCaller({
+    authorization: req.headers.get('authorization'),
+    pushSecret: req.headers.get('x-push-secret'),
+    fetchImpl: fetch,
+    env,
+  });
+  if (!caller.ok) {
+    return json({ error: caller.error }, caller.status, headers);
+  }
+
   try {
     const { tokens, title, body, data } = await req.json();
     const list: string[] = Array.isArray(tokens)
@@ -88,16 +111,14 @@ serve(async (req) => {
         ? [tokens]
         : [];
     if (!list.length) {
-      return Response.json(
-        { sent: 0, failed: 0, error: 'no_tokens' },
-        { headers: cors },
-      );
+      return json({ sent: 0, failed: 0, error: 'no_tokens' }, 200, headers);
     }
     const saRaw = Deno.env.get('FCM_SERVICE_ACCOUNT');
     if (!saRaw) {
-      return Response.json(
+      return json(
         { sent: 0, failed: list.length, error: 'not_configured' },
-        { headers: cors },
+        200,
+        headers,
       );
     }
     const sa = JSON.parse(saRaw);
@@ -136,18 +157,16 @@ serve(async (req) => {
         results.push({ token: t, ok: false, error: String(e).slice(0, 200) });
       }
     }
-    return Response.json(
+    return json(
       {
         sent: results.filter((r) => r.ok).length,
         failed: results.filter((r) => !r.ok).length,
         results,
       },
-      { headers: cors },
+      200,
+      headers,
     );
   } catch (e) {
-    return Response.json(
-      { sent: 0, failed: 0, error: String(e).slice(0, 200) },
-      { status: 500, headers: cors },
-    );
+    return json({ sent: 0, failed: 0, error: String(e).slice(0, 200) }, 500, headers);
   }
 });

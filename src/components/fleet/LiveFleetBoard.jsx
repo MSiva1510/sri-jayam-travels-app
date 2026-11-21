@@ -4,7 +4,7 @@
 // model/driver names and with today's bookings for the trip column.
 // No manual refresh — snapshots arrive via GpsHistoryContext.
 import { useState, useEffect, useCallback } from 'react'
-import { Car, MapPin, Clock, Activity, User, Navigation } from 'lucide-react'
+import { Car, MapPin, Clock, Activity, User } from 'lucide-react'
 import StatusPill from '../ui/StatusPill'
 import { useGpsHistory } from '../../context/GpsHistoryContext'
 import { loadDrivers } from '../../data/driverData'

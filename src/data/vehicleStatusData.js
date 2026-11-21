@@ -47,27 +47,3 @@ export async function loadAllVehicleStatuses() {
     }
   }
 }
-
-// Mark a vehicle as in-use
-export async function markVehicleInUse(vehicleUUID, { driverUUID, tripUUID } = {}) {
-  if (!supabase || !vehicleUUID) return
-  await supabase.from('vehicle_status').upsert({
-    vehicle_id:          vehicleUUID,
-    status:              'in_use',
-    assigned_driver_id:  driverUUID || null,
-    current_trip_id:     tripUUID   || null,
-    updated_at:          new Date().toISOString(),
-  }, { onConflict: 'vehicle_id' })
-}
-
-// Mark a vehicle as available
-export async function markVehicleAvailable(vehicleUUID) {
-  if (!supabase || !vehicleUUID) return
-  await supabase.from('vehicle_status').upsert({
-    vehicle_id:          vehicleUUID,
-    status:              'available',
-    assigned_driver_id:  null,
-    current_trip_id:     null,
-    updated_at:          new Date().toISOString(),
-  }, { onConflict: 'vehicle_id' })
-}

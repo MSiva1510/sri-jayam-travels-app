@@ -259,7 +259,6 @@ export const providerRepository = {
 
 // ── Mobile push settings (global) ─────────────────────────────
 // Stored in `settings` table: { key: 'mobile_push_settings', value: JSON }
-const LS_MOBILE_PUSH = 'sjt_mobile_push_settings'
 export const mobilePushSettingsRepository = {
   defaults() {
     return { enabled: false, updated_at: null }

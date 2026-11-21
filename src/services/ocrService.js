@@ -14,8 +14,6 @@ const OCR_PROXY_PATH = '/api/ocr/extract'
 const OCR_MAX_FILE_BYTES = 5 * 1024 * 1024 // binary cap mirrors the server-side limit
 const OCR_MAX_BASE64_CHARS = Math.ceil((OCR_MAX_FILE_BYTES * 4) / 3) + 64 // base64 overhead
 
-export const OCR_STEPS = ['upload', 'scan', 'review', 'save']
-
 async function fileToBase64(file) {
   const buf = await file.arrayBuffer()
   const bytes = new Uint8Array(buf)
@@ -73,11 +71,4 @@ export async function extractDocument({ file } = {}) {
 
 export async function runOcrWorkflow({ file } = {}) {
   return extractDocument({ file })
-}
-
-export function confidenceTone(value) {
-  if (value == null) return 'low'
-  const n = Number(value)
-  if (Number.isNaN(n)) return 'low'
-  return n >= 80 ? 'high' : n >= 50 ? 'mid' : 'low'
 }

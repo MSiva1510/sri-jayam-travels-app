@@ -127,20 +127,3 @@ export function translateDbError(err, context = '') {
     suggestion: 'If this problem persists, contact support.',
   })
 }
-
-// ── Helper: format error for UI display ─────────────────────────
-// Returns { field, message } suitable for setErrors({ [field]: message })
-export function formatUiError(err) {
-  const e = translateDbError(err)
-  return {
-    field: e.field,
-    message: e.message,
-    code: e.code,
-    suggestion: e.suggestion,
-  }
-}
-
-// ── Helper: throw a validation error ────────────────────────────
-export function validationError(message, field) {
-  return new AppError({ message, field, code: 'VALIDATION_ERROR' })
-}

@@ -32,10 +32,6 @@ const rsK = (v) => {
   if (Math.abs(n) >= 1000) return `Rs. ${(n / 1000).toFixed(1)}k`
   return `Rs. ${n.toLocaleString('en-IN')}`
 }
-const dayLbl = (iso) => {
-  const d = new Date((iso || '') + 'T00:00:00')
-  return isNaN(d) ? '—' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-}
 const fullDt = (iso) => {
   const d = new Date((iso || '') + 'T00:00:00')
   return isNaN(d) ? '—' : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -1173,19 +1169,6 @@ const TABS = [
   { key: 'operations', label: 'Operations', icon: RefreshCw },
   { key: 'alerts', label: 'Alerts', icon: AlertTriangle },
 ]
-
-const TAB_META = {
-  overview: { title: 'Executive Overview', sub: 'All modules snapshot' },
-  monthly: { title: 'Monthly Summary', sub: 'Revenue by month with export' },
-  trips: { title: 'Trip Reports', sub: 'Date range filter + CSV export' },
-  drivers: { title: 'Driver Performance', sub: 'Current month' },
-  vehicles: { title: 'Vehicle Performance', sub: 'All time' },
-  customers: { title: 'Customer Reports', sub: 'Search + CSV export' },
-  expenses: { title: 'Expense Analytics', sub: '6-month view' },
-  payroll: { title: 'Payroll Analytics', sub: 'All settlements' },
-  operations: { title: 'Operations Monitor', sub: 'Live status' },
-  alerts: { title: 'Business Alerts', sub: 'Documents & service' },
-}
 
 export default function Reports() {
   const { isDriver } = useAuth()

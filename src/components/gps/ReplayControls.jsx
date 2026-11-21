@@ -3,7 +3,7 @@
 
 import { memo } from 'react'
 import { Play, Pause, Square, Gauge, MapPin, Clock } from 'lucide-react'
-import { REPLAY_SPEEDS, formatDuration } from '../../services/gpsReplayService'
+import { REPLAY_SPEEDS } from '../../services/gpsReplayService'
 
 const ReplayControls = memo(function ReplayControls({
   playing, speed, currentIndex, total, currentPoint,

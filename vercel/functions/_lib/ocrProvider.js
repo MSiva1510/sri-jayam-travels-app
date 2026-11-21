@@ -47,8 +47,10 @@ export async function runOcrExtraction({ base64, mimeType, fileName = '', env = 
   ].join(' ')
 
   try {
+    const timeoutMs = Number(env.OCR_TIMEOUT_MS) > 0 ? Number(env.OCR_TIMEOUT_MS) : 30_000
     const response = await fetchImpl(OPENAI_RESPONSES_URL, {
       method: 'POST',
+      signal: globalThis.AbortSignal?.timeout ? AbortSignal.timeout(timeoutMs) : undefined,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
         model,

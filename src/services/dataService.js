@@ -188,32 +188,4 @@ export const dataService = {
   }
 }
 
-/**
- * Health check for data service
- * @returns {Object} Health status
- */
-export function checkDataServiceHealth() {
-  const service = SERVICE_CONFIG.storage
-  let isHealthy = true
-  let message = 'Data service is healthy'
-  
-  if (service === 'localStorage') {
-    try {
-      const testKey = '__sjt_health_check__'
-      localStorage.setItem(testKey, 'ok')
-      localStorage.removeItem(testKey)
-    } catch (error) {
-      isHealthy = false
-      message = 'localStorage is not available or quota exceeded'
-    }
-  }
-  
-  return {
-    service,
-    isHealthy,
-    message,
-    timestamp: new Date().toISOString()
-  }
-}
-
 export default dataService

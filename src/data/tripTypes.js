@@ -119,9 +119,6 @@ export const BOOKING_STATUSES = [
   },
 ]
 
-// Backward-compat alias
-export const TRIP_STATUSES = BOOKING_STATUSES
-
 export const getStatusCfg = key =>
   BOOKING_STATUSES.find(s => s.key === key) || BOOKING_STATUSES[0]
 
@@ -199,8 +196,6 @@ async function _loadBookings() {
 }
 export const loadBookings = withCache('bookings', _loadBookings)
 
-export const getBookings = loadBookings
-
 export function normalizeBooking(row = {}) {
   const typeData = row.type_data && typeof row.type_data === 'object' ? row.type_data : {}
   return {
@@ -252,15 +247,6 @@ export async function deleteBooking(id) {
   const result = await tripRepository.delete(id)
   cacheClear('bookings')
   return result
-}
-
-export async function getBookingsByStatus(status) {
-  try {
-    return await tripRepository.getByStatus(status)
-  } catch (err) {
-    console.error('[tripTypes] getBookingsByStatus failed:', err)
-    return []
-  }
 }
 
 // ── Availability helpers ──────────────────────────────────────

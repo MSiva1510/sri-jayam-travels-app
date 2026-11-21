@@ -7,8 +7,8 @@ import { useNavigate } from 'react-router-dom'
 import {
   Plus, Edit2, UserX, UserCheck, Key, X,
   Shield, ShieldCheck, User, Users, Car, AlertCircle, CheckCircle,
-  Search, RefreshCw, Mail, Phone, Lock, Eye, EyeOff,
-  Download, ChevronLeft, ChevronRight, CalendarDays,
+  Search, Mail, Phone, Lock, Eye, EyeOff,
+  Download, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { useAuth, ROLE_LABELS, ROLE_COLORS } from '../../context/AuthContext'
 import { authRepository }  from '../../repositories/authRepository'

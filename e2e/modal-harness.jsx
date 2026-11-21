@@ -1,7 +1,7 @@
 // Minimal Vite-served harness that renders the real modal components with
 // inert callbacks. Playwright uses this to exercise layout, themes and form
 // behaviour without requiring Supabase credentials or application auth.
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import '../src/index.css'
 import CustomerModal from '../src/components/customers/CustomerModal'

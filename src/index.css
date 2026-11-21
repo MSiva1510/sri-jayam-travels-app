@@ -109,19 +109,6 @@
 }
 
 @layer components {
-  .glass-card {
-    background: rgba(255,255,255,0.72);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,0.55);
-    box-shadow: 0 4px 24px rgba(13,27,75,0.07);
-  }
-  .dark .glass-card {
-    background: rgba(13,27,75,0.55);
-    border: 1px solid rgba(255,255,255,0.08);
-    box-shadow: 0 4px 24px rgba(0,0,0,0.3);
-  }
-
   .glass-sidebar {
     background: linear-gradient(180deg, var(--sjt-sb, var(--sjt-theme)) 0%, rgba(8,15,42,0.97) 135%);
     backdrop-filter: blur(20px);
@@ -138,47 +125,6 @@
     border-bottom: 1px solid rgba(255,255,255,0.07);
   }
 
-  .stat-card {
-    background: rgba(255,255,255,0.72);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,0.55);
-    box-shadow: 0 4px 24px rgba(13,27,75,0.07);
-    border-radius: 1rem;
-    padding: 1.25rem;
-    position: relative;
-    overflow: hidden;
-    transition: all 0.3s;
-  }
-  .stat-card:hover {
-    box-shadow: 0 10px 40px rgba(13,27,75,0.13);
-    transform: translateY(-2px);
-  }
-  .dark .stat-card {
-    background: rgba(13,27,75,0.55);
-    border: 1px solid rgba(255,255,255,0.08);
-  }
-
-  /* ── iOS-style dashboard cards ───────────────────────────
-     iPhone widgets: 20pt continuous-look corners, soft diffuse
-     shadow, no hover lift — press feedback instead. */
-  .ios-card {
-    background: rgba(255,255,255,0.88);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-radius: 20px;
-    border: 1px solid rgba(255,255,255,0.6);
-    box-shadow:
-      0 1px 2px rgba(13,27,75,0.05),
-      0 8px 24px rgba(13,27,75,0.08);
-  }
-  .dark .ios-card {
-    background: rgba(20,32,80,0.6);
-    border: 1px solid rgba(255,255,255,0.08);
-    box-shadow:
-      0 1px 2px rgba(0,0,0,0.35),
-      0 8px 24px rgba(0,0,0,0.35);
-  }
   /* Tap feedback (iOS press, not hover lift) */
   .ios-press {
     -webkit-tap-highlight-color: transparent;
@@ -256,7 +202,6 @@
   /* Compact density (Settings → Appearance) */
   body.compact table th { padding-top: 0.4rem !important; padding-bottom: 0.4rem !important; }
   body.compact table td { padding-top: 0.4rem !important; padding-bottom: 0.4rem !important; font-size: 0.72rem !important; }
-  body.compact .glass-card { border-radius: 14px !important; }
   /* Text size is set inline on <html> by AppContext (12–24px). */
   .nav-item-inactive {
     color: rgba(255,255,255,0.48);
@@ -264,20 +209,6 @@
   .nav-item-inactive:hover {
     color: #ffffff;
     background: rgba(255,255,255,0.07);
-  }
-
-  .table-row {
-    border-bottom: 1px solid rgba(241,245,249,1);
-    transition: background 0.15s;
-  }
-  .table-row:hover {
-    background: rgba(239,246,255,0.6);
-  }
-  .dark .table-row {
-    border-bottom: 1px solid rgba(15,30,80,0.8);
-  }
-  .dark .table-row:hover {
-    background: rgba(13,27,75,0.5);
   }
 
   .badge {
@@ -426,17 +357,6 @@
     filter: invert(92%) hue-rotate(180deg) grayscale(18%) brightness(0.92) contrast(0.92);
   }
   .fleet-map-dark .leaflet-container { background: #0b1530; }
-  /* Fleet marker labels: dark pill + white text in both themes */
-  .leaflet-tooltip.fleet-car-tip {
-    background: rgba(2, 6, 23, 0.92);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 10px;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
-    padding: 4px 9px;
-    color: #fff;
-  }
-  .leaflet-tooltip.fleet-car-tip.leaflet-tooltip-top::before { display: none; }
-  .fleet-car-tip-reg { font-weight: 800; font-size: 11px; color: #fff; white-space: nowrap; }
   /* MapLibre vehicle markers (label pill + small rotated car) */
   .fleet-ml-marker { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
   .fleet-ml-label {
@@ -448,7 +368,6 @@
   .fleet-ml-reg { font-weight: 800; font-size: 10px; color: #fff; white-space: nowrap; }
   .fleet-ml-spd { font-size: 9px; font-weight: 700; white-space: nowrap; }
   .fleet-ml-car { transition: transform 0.5s ease; filter: drop-shadow(0 3px 3px rgba(0,0,0,.35)); }
-  .font-display { font-family: 'Sora', system-ui, sans-serif; }
   .font-body    { font-family: 'DM Sans', system-ui, sans-serif; }
 
   /* Native dropdowns: the OS-rendered option popup ignores the page

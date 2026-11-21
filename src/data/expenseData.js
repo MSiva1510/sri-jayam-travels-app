@@ -55,7 +55,6 @@ async function _loadExpenses() {
   }
 }
 export const loadExpenses = withCache('expenses', _loadExpenses)
-export const getExpenses = loadExpenses
 
 export async function saveExpense(expense) {
   const { id, ...rest } = expense
@@ -75,9 +74,5 @@ export async function deleteExpense(id) {
 
 // Date/category helpers live in utils/expenseHelpers.js and are re-exported
 // above. They are pure so dashboard calculations can import them directly.
-
-export function getTripExpenses(tripRef, expenses) {
-  return (expenses ?? []).filter(e => e.tripRef === tripRef)
-}
 
 // ── Seed / reference data ─────────────────────────────────────

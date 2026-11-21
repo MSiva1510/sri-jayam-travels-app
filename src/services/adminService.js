@@ -17,7 +17,6 @@ export { PERMISSIONS }
 
 // ── Permission management ─────────────────────────────────────
 export async function loadAllPermissions()         { return rolePermissionRepository.getAll() }
-export async function loadRolePermissions(role)    { return rolePermissionRepository.getForRole(role) }
 export async function setRolePermission(role, permission, allowed, actor) {
   await permissionEngine.setPermission(role, permission, allowed)
   addAuditEvent('PERMISSION_CHANGED', {
@@ -38,26 +37,9 @@ export async function updateUser(id, updates, actor) {
   addAuditEvent('USER_UPDATED', { description:`User ${id} updated by ${actor}`, module:'users' })
   return userAdminRepository.update(id, { ...updates, updated_at:new Date().toISOString() })
 }
-export async function deactivateUser(id, actor) {
-  addAuditEvent('USER_DEACTIVATED', { description:`User ${id} deactivated by ${actor}`, module:'users' })
-  return userAdminRepository.update(id, { is_active:false })
-}
-export async function activateUser(id, actor) {
-  addAuditEvent('USER_ACTIVATED', { description:`User ${id} activated by ${actor}`, module:'users' })
-  return userAdminRepository.update(id, { is_active:true })
-}
-export async function getUserActivity(userId)      { return userAdminRepository.getActivityLog(userId) }
 
 // ── System settings ───────────────────────────────────────────
 export async function loadSettings()               { return systemSettingsRepository.getAll() }
-export async function saveSetting(key, value, actor) {
-  addAuditEvent('SETTINGS_UPDATED', {
-    description: `${key} = ${value}`,
-    module: 'settings',
-    oldValues: {}, newValues: { [key]: value },
-  })
-  return systemSettingsRepository.set(key, value, actor)
-}
 export async function saveSettings(pairs, actor) {
   addAuditEvent('SETTINGS_UPDATED', {
     description: `Bulk update: ${Object.keys(pairs).join(', ')}`,
@@ -66,12 +48,9 @@ export async function saveSettings(pairs, actor) {
   })
   return systemSettingsRepository.setBulk(pairs, actor)
 }
-export async function getSettingValue(key)         { return systemSettingsRepository.get(key) }
 
 // ── Session management ────────────────────────────────────────
 export async function getSessionHistory(filters)   { return sessionLogRepository.getAll(filters) }
-export function getSessionInfo()                   { return sessionManager.getSession() }
-export function getSessionHistory2()               { return sessionManager.getHistory() }
 export function getIdleSeconds()                   { return sessionManager.getIdleSeconds() }
 
 // ── Backup ────────────────────────────────────────────────────
@@ -95,8 +74,4 @@ export async function checkDBConnection()          { return healthRepository.che
 
 // ── Error log ─────────────────────────────────────────────────
 export async function getErrorLog(filters)         { return errorLogRepository.getAll(filters) }
-export async function resolveError(id, actor) {
-  addAuditEvent('ERROR_RESOLVED', { description:`Error ${id} resolved by ${actor}`, module:'system' })
-  return errorLogRepository.resolve(id, actor)
-}
 export function getErrorStats()                    { return errorLogger.getStats() }

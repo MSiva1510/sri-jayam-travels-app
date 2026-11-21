@@ -4,8 +4,7 @@
 
 import { payrollRepository } from '../repositories/payrollRepository'
 import supabase               from '../lib/supabase'
-import { loadSettingValue, saveSettingValue } from './settingsStore'
-import { translateDbError } from './errorUtils'
+import { loadSettingValue } from './settingsStore'
 import { withCache, cacheClear } from '../utils/dataCache'
 import { resolveDriverName, normalizeName } from './attendanceDerive'
 
@@ -59,10 +58,6 @@ export function normalizeDeductions(record = {}) {
   return out
 }
 
-export function deductionTotal(record = {}) {
-  return normalizeDeductions(record).reduce((s, d) => s + d.amount, 0)
-}
-
 export const DEFAULT_PAYROLL_SETTINGS = {
   // Per-driver daily wage, keyed by driver id (legacy rows may use the name).
   // No punched-in names here — wages resolve from Supabase drivers + settings.
@@ -104,9 +99,6 @@ export function tripDriverAmount(p = {}) {
   if (p.driver_amount != null) return Number(p.driver_amount)
   return tripAllowance(p) + Number(p.bata ?? 0)
 }
-export function tripCompanyAmount(p = {}) {
-  return Number(p.company_amount ?? p.fare ?? 0)
-}
 
 // ── Supabase payroll settings ─────────────────────────────────
 // Stored in `settings` table under the 'payroll_settings' key.
@@ -118,15 +110,6 @@ export async function loadPayrollSettings() {
   } catch (err) {
     console.error('[settlementData] loadPayrollSettings failed:', err)
     return DEFAULT_PAYROLL_SETTINGS
-  }
-}
-
-export async function savePayrollSettings(cfg) {
-  const value = { ...cfg, updatedAt: new Date().toISOString() }
-  try {
-    await saveSettingValue('payroll_settings', value)
-  } catch (error) {
-    throw translateDbError(error, 'savePayrollSettings')
   }
 }
 
@@ -356,38 +339,6 @@ export async function settlementExists(driver, month, year) {
     return all.some(s => s.driver === driver && s.month === month && s.year === year)
   } catch {
     return false
-  }
-}
-
-// ── Monthly payslips (summary snapshots) ─────────────────────
-
-async function _loadPayslips() {
-  try {
-    const rows = await payrollRepository.getAllPayslips()
-    return (Array.isArray(rows) ? rows : []).map(normalizeTripPayslip)
-  } catch (err) {
-    console.error('[settlementData] loadPayslips failed:', err)
-    return []
-  }
-}
-export const loadPayslips = withCache('payslips', _loadPayslips)
-
-
-export async function savePayslip(payslip) {
-  try {
-    const existing = await payrollRepository.getPayslipsByDriver?.(payslip.settlementId)
-    if (existing?.find?.(p => p.settlement_id === payslip.settlementId)) {
-      const { error } = await supabase
-        .from('trip_payslips')
-        .update(payslip)
-        .eq('id', payslip.id)
-      if (error) throw error
-      return payslip
-    }
-    return await payrollRepository.createPayslip(payslip)
-  } catch (err) {
-    console.error('[settlementData] savePayslip failed:', err)
-    return null
   }
 }
 

@@ -1,18 +1,6 @@
 // ─── WhatsApp Adapter ─────────────────────────────────────────
-// Provider-independent interface. Zero API calls made here.
-// Swap the PROVIDER constant to change the underlying service.
-// Supported future providers:
-//   whatsapp_cloud_api | twilio | gupshup | interakt | aisensy | wati | 360dialog
-
-export const WHATSAPP_PROVIDERS = {
-  WHATSAPP_CLOUD_API: 'whatsapp_cloud_api',
-  TWILIO:             'twilio',
-  GUPSHUP:            'gupshup',
-  INTERAKT:           'interakt',
-  AISENSY:            'aisensy',
-  WATI:               'wati',
-  DIALOG360:          '360dialog',
-}
+// Deep-link helper plus shared message templates. Actual API delivery is
+// handled by the server-side WhatsApp functions, not this browser module.
 
 // ── Message templates ─────────────────────────────────────────
 export const WA_TEMPLATES = {
@@ -252,65 +240,8 @@ class WhatsAppAdapterBase {
   }
 }
 
-// ── Concrete provider stubs (to be filled when APIs are connected) ──
-
-class WhatsAppCloudAPIAdapter extends WhatsAppAdapterBase {
-  constructor() { super(WHATSAPP_PROVIDERS.WHATSAPP_CLOUD_API) }
-  // TODO: inject config from communication_providers table
-  // async _send(to, message) { /* POST to graph.facebook.com */ }
-}
-
-class TwilioWhatsAppAdapter extends WhatsAppAdapterBase {
-  constructor() { super(WHATSAPP_PROVIDERS.TWILIO) }
-  // TODO: inject config from communication_providers table
-  // async _send(to, message) { /* POST to api.twilio.com */ }
-}
-
-class GupshupAdapter extends WhatsAppAdapterBase {
-  constructor() { super(WHATSAPP_PROVIDERS.GUPSHUP) }
-}
-
-class InteraktAdapter extends WhatsAppAdapterBase {
-  constructor() { super(WHATSAPP_PROVIDERS.INTERAKT) }
-}
-
-class AiSensyAdapter extends WhatsAppAdapterBase {
-  constructor() { super(WHATSAPP_PROVIDERS.AISENSY) }
-}
-
-class WATIAdapter extends WhatsAppAdapterBase {
-  constructor() { super(WHATSAPP_PROVIDERS.WATI) }
-}
-
-class Dialog360Adapter extends WhatsAppAdapterBase {
-  constructor() { super(WHATSAPP_PROVIDERS.DIALOG360) }
-}
-
-// ── Provider registry ─────────────────────────────────────────
-const PROVIDER_REGISTRY = {
-  [WHATSAPP_PROVIDERS.WHATSAPP_CLOUD_API]: new WhatsAppCloudAPIAdapter(),
-  [WHATSAPP_PROVIDERS.TWILIO]:             new TwilioWhatsAppAdapter(),
-  [WHATSAPP_PROVIDERS.GUPSHUP]:            new GupshupAdapter(),
-  [WHATSAPP_PROVIDERS.INTERAKT]:           new InteraktAdapter(),
-  [WHATSAPP_PROVIDERS.AISENSY]:            new AiSensyAdapter(),
-  [WHATSAPP_PROVIDERS.WATI]:               new WATIAdapter(),
-  [WHATSAPP_PROVIDERS.DIALOG360]:          new Dialog360Adapter(),
-}
-
 // ── Active adapter (default: deep-link, no API) ───────────────
-let _activeAdapter = new WhatsAppAdapterBase('deeplink')
-
-export function setWhatsAppProvider(providerName) {
-  if (PROVIDER_REGISTRY[providerName]) {
-    _activeAdapter = PROVIDER_REGISTRY[providerName]
-  } else {
-    console.warn(`[WhatsApp] Unknown provider: ${providerName}`)
-  }
-}
-
-export function getWhatsAppAdapter() {
-  return _activeAdapter
-}
+const _activeAdapter = new WhatsAppAdapterBase('deeplink')
 
 // ── Convenience exports ───────────────────────────────────────
 export const whatsapp = {

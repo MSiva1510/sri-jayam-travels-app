@@ -3,7 +3,6 @@
 
 import { gpsSyncService } from './gpsSyncService'
 import { scheduler } from '../communication/Scheduler'
-import { sessionManager } from '../security/SessionManager'
 
 class BackgroundServiceManagerImpl {
   constructor() {

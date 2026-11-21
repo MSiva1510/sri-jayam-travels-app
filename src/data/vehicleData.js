@@ -14,4 +14,3 @@ async function _loadVehicles() {
 }
 
 export const loadVehicles = withCache('vehicles', _loadVehicles)
-export const getVehicles = loadVehicles

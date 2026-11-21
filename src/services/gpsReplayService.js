@@ -6,7 +6,6 @@
 //   - Stop/idle detection
 //   - Route segmentation (moving | idle | stopped)
 //   - Trip statistics computation
-//   - In-memory cache (one load per vehicle+range, zero re-fetches)
 
 import { distanceBetween } from '../utils/locationUtils'
 
@@ -22,12 +21,6 @@ export const REPLAY_SPEEDS = [
   { label: '10×', value: 10 },
 ]
 export const REPLAY_INTERVAL_MS = 800   // base interval at 1× speed
-
-// ─── In-memory cache (cleared when vehicleId or range changes) ─
-const _cache = new Map()
-function _cacheKey(vehicleId, since, until) { return `${vehicleId}|${since ?? ''}|${until ?? ''}` }
-
-export function clearReplayCache() { _cache.clear() }
 
 // ─── Main entry: process raw GPS points ──────────────────────
 /**

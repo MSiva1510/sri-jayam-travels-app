@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback, Fragment } from 'react'
 import {
   Plus, Wrench, Shield, Fuel, Gauge, X, CheckCircle,
   ChevronDown, ChevronUp, AlertTriangle, Car, User,
-  Calendar, FileText, Edit2, History, MapPin, Clock,
+  FileText, Edit2, History, MapPin, Clock,
   Search, Download, Eye, Trash2,
 } from 'lucide-react'
 import PageHeader   from '../components/ui/PageHeader'
@@ -19,7 +19,6 @@ import ModalOverlay from '../components/ui/ModalOverlay'
 import VehicleModal from '../components/vehicles/VehicleModal'
 import { useAuth }  from '../context/AuthContext'
 import { vehicleRepository }                       from '../repositories/vehicleRepository'
-import { driverRepository }                        from '../repositories/driverRepository'
 import { loadDrivers }                            from '../data/driverData'
 import { loadVehicles }                           from '../data/vehicleData'
 import { loadVehicleAssignments, saveVehicleAssignment } from '../data/attendanceData'

@@ -16,6 +16,12 @@ import { extractBearer, verifySupabaseStaff } from './_lib/verifySupabaseUser.js
 import { runOcrExtraction } from './_lib/ocrProvider.js'
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024 // binary size cap for OCR (under the storage bucket limit)
+const ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+])
 
 function reply(statusCode, body) {
   return {
@@ -44,6 +50,12 @@ export async function handler(event, _context, env = process.env, fetchImpl = fe
   const mimeType = String(payload.mimeType || 'image/jpeg')
   const dataBase64 = String(payload.dataBase64 || '')
   if (!dataBase64) return reply(400, { error: 'A file (base64 data) is required' })
+  if (!ALLOWED_MIME_TYPES.has(mimeType)) {
+    return reply(415, { error: 'Unsupported file type for OCR' })
+  }
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(dataBase64) || dataBase64.length % 4 !== 0) {
+    return reply(400, { error: 'Invalid base64 file data' })
+  }
 
   const binary = Buffer.from(dataBase64, 'base64')
   if (binary.length > MAX_FILE_BYTES) {

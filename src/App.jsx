@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import ErrorBoundary from './components/ErrorBoundary'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AppProvider }           from './context/AppContext'

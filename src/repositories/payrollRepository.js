@@ -3,7 +3,6 @@
 // Handles payroll and settlement data
 // ─────────────────────────────────────────────────────────────────────
 
-import { BaseRepository } from './baseRepository'
 import supabase from '../lib/supabase'
 import { getDatabaseProvider, DATABASE_PROVIDERS } from '../config/database'
 import { dataService } from '../services/dataService'

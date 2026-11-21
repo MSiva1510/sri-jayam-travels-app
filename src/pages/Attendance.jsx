@@ -34,24 +34,6 @@ function AttBadge({ status }) {
   return <StatusPill tone={ATTENDANCE_TONE[status] || 'gray'}>{cfg.label}</StatusPill>
 }
 
-// ── Working hours bar ─────────────────────────────────────────
-function HoursBar({ hours }) {
-  if (!hours) return <span className="text-[10px] text-slate-400">—</span>
-  const match = hours.match(/(\d+)h\s*(\d+)m/)
-  if (!match) return <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{hours}</span>
-  const h = parseInt(match[1]), m = parseInt(match[2])
-  const pct = Math.min(100, Math.round(((h * 60 + m) / (12 * 60)) * 100))
-  return (
-    <div className="min-w-[80px]">
-      <p className="text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">{hours}</p>
-      <div className="h-1.5 bg-[var(--ap-border)] rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${pct >= 80 ? 'bg-emerald-500' : pct >= 50 ? 'bg-blue-500' : 'bg-amber-500'}`}
-             style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  )
-}
-
 // ── Status buckets (driver-page scoped) ──────────────────────────
 // Attendance is derived from trips: completed trip = present, assigned-but-
 // not-completed / no trip = leave/off. A manual row overrides all.

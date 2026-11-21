@@ -1,25 +1,10 @@
 // ─── Push Notification Adapter ───────────────────────────────
-// Provider-independent. Supports future: FCM (Android/Web), APNs (iOS), Flutter
-
-export const PUSH_PROVIDERS = {
-  FCM:     'fcm',      // Firebase Cloud Messaging
-  APNS:    'apns',     // Apple Push Notification Service
-  FLUTTER: 'flutter',  // Flutter local / remote notifications
-}
-
-export const PUSH_NOTIFICATION_TYPES = {
-  TRIP:        'trip',
-  BOOKING:     'booking',
-  ATTENDANCE:  'attendance',
-  DRIVER:      'driver',
-  VEHICLE:     'vehicle',
-  FINANCE:     'finance',
-  MAINTENANCE: 'maintenance',
-  SYSTEM:      'system',
-}
+// Provider-independent wrapper around the configured push transport.
+// Real FCM delivery is handled by the send-push Edge Function; this module
+// keeps the shared adapter API used by the communication engine.
 
 class PushAdapterBase {
-  constructor(providerName) {
+  constructor(providerName = 'none') {
     this.providerName = providerName
     this.isConfigured = false
     this._subscriptions = new Map()
@@ -51,35 +36,7 @@ class PushAdapterBase {
   getProviderInfo()      { return { name:this.providerName, configured:this.isConfigured, channel:'push', subscriptions:this.getSubscriptionCount() } }
 }
 
-class FCMAdapter extends PushAdapterBase {
-  constructor() { super(PUSH_PROVIDERS.FCM) }
-  // async _sendToToken(token, payload) { /* POST to fcm.googleapis.com/v1/projects/{id}/messages:send */ }
-}
-
-class APNsAdapter extends PushAdapterBase {
-  constructor() { super(PUSH_PROVIDERS.APNS) }
-  // async _sendToToken(token, payload) { /* POST to api.development.push.apple.com */ }
-}
-
-class FlutterPushAdapter extends PushAdapterBase {
-  constructor() { super(PUSH_PROVIDERS.FLUTTER) }
-  // Bridges to flutter_local_notifications / firebase_messaging
-}
-
-const PROVIDER_REGISTRY = {
-  [PUSH_PROVIDERS.FCM]:     new FCMAdapter(),
-  [PUSH_PROVIDERS.APNS]:    new APNsAdapter(),
-  [PUSH_PROVIDERS.FLUTTER]: new FlutterPushAdapter(),
-}
-
-let _activeAdapter = new PushAdapterBase('none')
-
-export function setPushProvider(providerName) {
-  if (PROVIDER_REGISTRY[providerName]) _activeAdapter = PROVIDER_REGISTRY[providerName]
-  else console.warn(`[Push] Unknown provider: ${providerName}`)
-}
-
-export function getPushAdapter() { return _activeAdapter }
+const _activeAdapter = new PushAdapterBase('none')
 
 export const push = {
   send:        (token, payload) => _activeAdapter.sendPush(token, payload),

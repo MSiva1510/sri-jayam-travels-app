@@ -4,8 +4,6 @@
 
 import supabase from '../lib/supabase.js'
 
-export const AUDIT_MAX_ENTRIES = 500
-
 export const SEVERITY = { INFO:'info', WARNING:'warning', ERROR:'error', CRITICAL:'critical' }
 
 export const AUDIT_ACTIONS = {
@@ -174,12 +172,4 @@ export function fmtAuditTime(iso) {
     if (days < 7)  return `${days}d ago`
     return d.toLocaleDateString('en-IN', { day:'numeric', month:'short' })
   } catch { return '—' }
-}
-
-export async function clearAuditLog() {
-  if (supabase) {
-    try {
-      await supabase.from('audit_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-    } catch {}
-  }
 }

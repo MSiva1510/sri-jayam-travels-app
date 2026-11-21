@@ -28,6 +28,9 @@
 | `VITE_OCR_PROVIDER` | Vercel build env / `.env.local` | Frontend scan switch — `openai` (or any real provider id) enables the backend `/api/ocr/extract` flow; `stub`/unset → scan returns "not configured" |
 | `OPENAI_API_KEY` | Vercel (server only) | OpenAI secret key powering the OCR provider (never ship as `VITE_`) |
 | `OPENAI_OCR_MODEL` | Vercel (server only, optional) | OCR model — default `gpt-4o-mini` |
+| `FCM_SERVICE_ACCOUNT` | Supabase function secret | Firebase service-account JSON used by `send-push` (never in Vercel or the browser) |
+| `PUSH_FUNCTION_SECRET` | Supabase function secret (optional) | Shared secret for trusted server-to-server `send-push` callers; browser callers use their Supabase JWT instead |
+| `PUSH_ALLOWED_ORIGINS` | Supabase function secret (optional) | Comma-separated browser origins allowed to call `send-push`; defaults to the production app plus local dev origins |
 
 Never put the **service-role** key anywhere in this repo or in `VITE_*` variables — it bypasses RLS.
 
@@ -38,8 +41,10 @@ Never put the **service-role** key anywhere in this repo or in `VITE_*` variable
    - open Supabase → SQL Editor → paste the file → Run;
    - re-run `npm run test:rls` locally beforehand (it executes the hardening migration in an in-process Postgres).
    - **Order matters**: apply the migration, then deploy the web build within the same window. The public booking page and login stats depend on RPCs that the migrations create.
+   - `20261120_revoke_public_customer_profile.sql` removes the anonymous mobile → customer-name lookup; deploy the web build with it so the booking page no longer calls the RPC.
 3. Merge to `main` → Vercel deploys. Watch the deploy log for the `gps-proxy` and `whatsapp-*` function bundling steps.
-4. Smoke test on production:
+4. If push notifications changed, redeploy `send-push` with `supabase functions deploy send-push --project-ref <ref>`. Keep platform JWT verification enabled; the function also verifies the caller and restricts CORS itself.
+5. Smoke test on production:
    - `/login` shows the three stat cards with numbers (proves `public_login_stats` works);
    - `/book` submit returns an `SJT-…` reference;
    - sign in as admin → `/fleet` → "Sync now" succeeds (proves the proxy accepts the JWT);

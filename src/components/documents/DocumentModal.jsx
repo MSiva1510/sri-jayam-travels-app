@@ -15,7 +15,7 @@ import Button from '../ui/Button'
 import IconButton from '../ui/IconButton'
 import Callout from '../ui/Callout'
 import StatusPill from '../ui/StatusPill'
-import { fieldCls, Input, Select, Textarea } from '../ui/Field'
+import { Input, Select, Textarea } from '../ui/Field'
 import {
   DOCUMENT_CATEGORIES,
   IMAGE_MIMES,
@@ -26,7 +26,6 @@ import {
   documentToForm,
   entityOptionsFor,
   formatFileSize,
-  formatTypeLabel,
   mapOcrFields,
   requiresEntity,
   suggestReminderDate,

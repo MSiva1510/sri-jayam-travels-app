@@ -3,7 +3,6 @@
 //          Vehicle assignments: Supabase `vehicles` table (driver column)
 
 import { attendanceRepository } from '../repositories/attendanceRepository'
-import { vehicleRepository }    from '../repositories/vehicleRepository'
 import supabase                  from '../lib/supabase'
 import { withCache, cacheClear } from '../utils/dataCache'
 import { normalizeAttendanceRow, localDateISO } from './attendanceDerive'
@@ -21,10 +20,6 @@ export {
   localDateISO,
   ATTENDANCE_STATUS,
 } from './attendanceDerive'
-
-// ── Keep key constants (used for column reference in helpers) ─
-export const ATTENDANCE_KEY         = 'attendance'
-export const VEHICLE_ASSIGNMENT_KEY = 'vehicle_assignments'
 
 export const ATTENDANCE_TYPES = [
   { key:'present',  label:'Present',  color:'emerald', dot:'bg-emerald-500', bg:'bg-emerald-100 dark:bg-emerald-900/30', text:'text-emerald-700 dark:text-emerald-300' },
@@ -71,149 +66,6 @@ export async function saveAttendanceRecord(record) {
     return result ? normalizeAttendanceRow(result) : null
   } catch (err) {
     console.error('[attendanceData] saveAttendanceRecord failed:', err)
-    return null
-  }
-}
-
-// ── Auto check-in ─────────────────────────────────────────────
-export async function autoCheckIn(driverName, vehicleReg) {
-  const today = localDateISO()
-  try {
-    const existing = (await attendanceRepository.getByDate(today))
-      .map(normalizeAttendanceRow)
-      .find(a => a.driver === driverName || a.driver_name === driverName)
-
-    if (existing?.checkIn || existing?.check_in) return existing
-
-    const now = new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:false })
-    const record = {
-      driver:        driverName,
-      date:          today,
-      attendance_date: today,
-      status:        'present',
-      checkIn:       now,
-      check_in:      now,
-      checkOut:      null,
-      check_out:     null,
-      vehicle:       vehicleReg,
-      workingHours:  null,
-      autoCheckedIn: true,
-    }
-    return await attendanceRepository.create(record)
-  } catch (err) {
-    console.error('[attendanceData] autoCheckIn failed:', err)
-    return null
-  }
-}
-
-// ── Auto check-out ────────────────────────────────────────────
-export async function autoCheckOut(driverName) {
-  const today = localDateISO()
-  try {
-    const existing = (await attendanceRepository.getByDate(today))
-      .map(normalizeAttendanceRow)
-      .find(a => a.driver === driverName || a.driver_name === driverName)
-
-    if (!existing) return null
-    const checkOutTime = existing.checkOut || existing.check_out
-    if (checkOutTime) return existing
-
-    const now = new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:false })
-    const checkInTime  = existing.checkIn || existing.check_in || '08:00'
-
-    let workingHours = null
-    try {
-      const [ih, im] = checkInTime.split(':').map(Number)
-      const [oh, om] = now.split(':').map(Number)
-      const totalMin = (oh * 60 + om) - (ih * 60 + im)
-      if (totalMin > 0) {
-        const h = Math.floor(totalMin / 60), m = totalMin % 60
-        workingHours = `${h}h ${String(m).padStart(2,'0')}m`
-      }
-    } catch {}
-
-    return await attendanceRepository.update(existing.id, {
-      checkOut:       now,
-      check_out:      now,
-      workingHours,
-      autoCheckedOut: true,
-    })
-  } catch (err) {
-    console.error('[attendanceData] autoCheckOut failed:', err)
-    return null
-  }
-}
-
-// ── Trip session tracking ─────────────────────────────────────
-export async function startTripSession(driverName, tripId) {
-  if (!driverName) return null
-  const today = localDateISO()
-  try {
-    const existing = (await attendanceRepository.getByDate(today))
-      .map(normalizeAttendanceRow)
-      .find(a => a.driver === driverName || a.driver_name === driverName)
-    const now = new Date().toISOString()
-
-    if (existing) {
-      const sessions = existing.tripSessions || existing.trip_sessions || []
-      if (!sessions.some(s => s.tripId === tripId && !s.endedAt)) {
-        sessions.push({ tripId, startedAt: now, endedAt: null })
-      }
-      return await attendanceRepository.update(existing.id, {
-        status: 'present',
-        tripSessions:  sessions,
-        trip_sessions: sessions,
-      })
-    }
-
-    const checkInTime = new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:false })
-    return await attendanceRepository.create({
-      driver:          driverName,
-      date:            today,
-      attendance_date: today,
-      status:          'present',
-      checkIn:         checkInTime,
-      check_in:        checkInTime,
-      checkOut:        null,
-      check_out:       null,
-      vehicle:         null,
-      workingHours:    null,
-      autoCheckedIn:   true,
-      tripSessions:    [{ tripId, startedAt: now, endedAt: null }],
-      trip_sessions:   [{ tripId, startedAt: now, endedAt: null }],
-    })
-  } catch (err) {
-    console.error('[attendanceData] startTripSession failed:', err)
-    return null
-  }
-}
-
-export async function endTripSession(driverName, tripId) {
-  if (!driverName) return null
-  const today = localDateISO()
-  try {
-    const existing = (await attendanceRepository.getByDate(today))
-      .map(normalizeAttendanceRow)
-      .find(a => a.driver === driverName || a.driver_name === driverName)
-    if (!existing) return null
-
-    const now = new Date().toISOString()
-    const sessions = (existing.tripSessions || existing.trip_sessions || []).map(s =>
-      s.tripId === tripId && !s.endedAt ? { ...s, endedAt: now } : s
-    )
-    const tripWorkingMinutes = sessions.reduce((sum, s) => {
-      if (!s.startedAt) return sum
-      const end = s.endedAt ? new Date(s.endedAt) : new Date()
-      return sum + Math.max(0, Math.round((end - new Date(s.startedAt)) / 60000))
-    }, 0)
-
-    return await attendanceRepository.update(existing.id, {
-      tripSessions:        sessions,
-      trip_sessions:       sessions,
-      tripWorkingMinutes,
-    })
-  } catch (err) {
-    console.error('[attendanceData] endTripSession failed:', err)
     return null
   }
 }
@@ -310,42 +162,4 @@ export async function saveVehicleAssignment(record) {
     console.error('[attendanceData] saveVehicleAssignment failed:', err)
     return null
   }
-}
-
-export async function getCurrentVehicleForDriver(driverName) {
-  if (!driverName) return null
-  try {
-    const { data, error } = await supabase
-      .from('vehicle_assignments')
-      .select('*')
-      .ilike('driver_name', driverName)
-      .is('released_date', null)
-      .order('assigned_at', { ascending: false })
-      .limit(1)
-      .single()
-    if (error && error.code === 'PGRST116') return null
-    if (error) throw error
-    if (!data) return null
-    return {
-      vehicleReg:   data.vehicle_reg,
-      vehicleType:  data.vehicle_type,
-      vehicleModel: data.vehicle_model,
-      driverId:     data.driver_id,
-      driverName:   data.driver_name,
-      assignedDate: data.assigned_date,
-      assignedTime: data.assigned_time,
-      assignedAt:   data.assigned_at,
-      releasedDate: data.released_date,
-    }
-  } catch (err) {
-    console.error('[attendanceData] getCurrentVehicleForDriver failed:', err)
-    return null
-  }
-}
-
-// ── Seed / reference data ─────────────────────────────────────
-const TODAY = new Date()
-function daysAgo(n) {
-  const d = new Date(TODAY); d.setDate(d.getDate() - n)
-  return d.toISOString().slice(0,10)
 }

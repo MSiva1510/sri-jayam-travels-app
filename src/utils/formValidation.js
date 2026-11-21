@@ -102,34 +102,6 @@ export function validateField(fieldName, value) {
 }
 
 /**
- * Validate multiple fields at once
- * @param {Object} formData - Object with field names and values
- * @param {string[]} requiredFields - Array of field names that must have values
- * @returns {Object} - Object with field names and error messages
- */
-export function validateForm(formData, requiredFields = []) {
-  const errors = {}
-  
-  // Check required fields
-  requiredFields.forEach(fieldName => {
-    const value = formData[fieldName]
-    if (!value || (typeof value === 'string' && !value.trim())) {
-      errors[fieldName] = `${fieldName.replace(/([A-Z])/g, ' $1').trim()} is required`
-    }
-  })
-  
-  // Validate non-empty fields against rules
-  Object.keys(formData).forEach(fieldName => {
-    if (!errors[fieldName] && formData[fieldName]) {
-      const error = validateField(fieldName, formData[fieldName])
-      if (error) errors[fieldName] = error
-    }
-  })
-  
-  return errors
-}
-
-/**
  * Restrict input to max length and pattern
  * @param {string} value - The input value
  * @param {string} fieldName - The field identifier
@@ -150,27 +122,4 @@ export function sanitizeInput(value, fieldName) {
   }
   
   return sanitized
-}
-
-/**
- * Check if all required fields have values
- * @param {Object} formData - Object with field names and values
- * @param {string[]} requiredFields - Array of required field names
- * @returns {boolean} - True if all required fields have values
- */
-export function hasRequiredFields(formData, requiredFields) {
-  return requiredFields.every(
-    fieldName => formData[fieldName] && (typeof formData[fieldName] === 'string' ? formData[fieldName].trim() : formData[fieldName])
-  )
-}
-
-/**
- * Format error messages for display
- * @param {Object} errors - Object with field names and error messages
- * @returns {string[]} - Array of formatted error messages
- */
-export function formatErrorMessages(errors) {
-  return Object.entries(errors)
-    .map(([field, message]) => message)
-    .filter(Boolean)
 }

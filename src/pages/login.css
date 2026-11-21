@@ -159,7 +159,7 @@
 
 /* ── Reduced motion ─────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  .login-card, .login-card.is-entering, .rise, .mascots .char, .mascots-group {
+  .login-card, .rise, .mascots .char, .mascots-group {
     animation: none !important;
     transition: none !important;
     transform: none !important;

@@ -74,17 +74,6 @@ export function distanceBetween(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-// ── Estimate travel time string ───────────────────────────────
-export function estimateTravelTime(distanceKm, avgSpeedKph = 55) {
-  if (!distanceKm || distanceKm <= 0) return '—'
-  const totalMins = Math.round((distanceKm / avgSpeedKph) * 60)
-  const h = Math.floor(totalMins / 60)
-  const m = totalMins % 60
-  if (h === 0) return `${m}m`
-  if (m === 0) return `${h}h`
-  return `${h}h ${m}m`
-}
-
 // ── parseLocation ──
 // Parses a place from anything the user can type:
 //   • "12.9716,79.1587" or "geo:12.9716,79.1587" → coordinates

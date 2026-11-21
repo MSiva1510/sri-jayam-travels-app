@@ -4,11 +4,12 @@
 // Print inlines the app stylesheets so paper matches the screen.
 
 import { useRef, useState, useEffect } from 'react'
-import { X, Printer, Share2, MapPin, Phone, Mail, Globe } from 'lucide-react'
+import { X, Printer, Share2 } from 'lucide-react'
 import ModalOverlay from '../ui/ModalOverlay'
 import { getBizInfo, getInvoiceSettings, DEFAULT_SETTINGS } from '../../data/settingsData'
 import qrWhatsapp from '../../assets/qr-whatsapp.jpg'
 import qrReview from '../../assets/qr-review.png'
+import { escapeHtml } from '../../utils/htmlSecurity'
 
 function fmtDate(iso) {
   if (!iso) return '—'
@@ -158,8 +159,8 @@ export default function InvoiceModal({ booking, onClose, docType }) {
     const html = printRef.current?.innerHTML || ''
     win.document.write(`<!DOCTYPE html><html><head>
       <meta charset="utf-8"/>
-      <base href="${window.location.origin}/"/>
-      <title>${isQuote ? 'Quotation' : 'Invoice'} — ${invNo}</title>
+      <base href="${escapeHtml(window.location.origin)}/"/>
+      <title>${isQuote ? 'Quotation' : 'Invoice'} — ${escapeHtml(invNo)}</title>
       <style>${css}
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; margin: 0; }

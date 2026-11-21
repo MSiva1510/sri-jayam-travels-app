@@ -1,15 +1,9 @@
 // ─── SMS Adapter ──────────────────────────────────────────────
-// Provider-independent. Supports future: Twilio, MSG91, Fast2SMS, TextLocal
-
-export const SMS_PROVIDERS = {
-  TWILIO:    'twilio',
-  MSG91:     'msg91',
-  FAST2SMS:  'fast2sms',
-  TEXTLOCAL: 'textlocal',
-}
+// Provider-independent SMS facade. Provider-specific transports are configured
+// in communication settings; the app code only uses the shared adapter API.
 
 class SMSAdapterBase {
-  constructor(providerName) {
+  constructor(providerName = 'none') {
     this.providerName = providerName
     this.isConfigured = false
   }
@@ -40,41 +34,7 @@ class SMSAdapterBase {
   }
 }
 
-class TwilioSMSAdapter extends SMSAdapterBase {
-  constructor() { super(SMS_PROVIDERS.TWILIO) }
-  // async _send(to, message) { /* POST to api.twilio.com/2010-04-01/Accounts/{SID}/Messages */ }
-}
-
-class MSG91Adapter extends SMSAdapterBase {
-  constructor() { super(SMS_PROVIDERS.MSG91) }
-  // async _send(to, message) { /* POST to api.msg91.com/api/v5/otp */ }
-}
-
-class Fast2SMSAdapter extends SMSAdapterBase {
-  constructor() { super(SMS_PROVIDERS.FAST2SMS) }
-  // async _send(to, message) { /* POST to www.fast2sms.com/dev/bulkV2 */ }
-}
-
-class TextLocalAdapter extends SMSAdapterBase {
-  constructor() { super(SMS_PROVIDERS.TEXTLOCAL) }
-  // async _send(to, message) { /* POST to api.textlocal.in/send */ }
-}
-
-const PROVIDER_REGISTRY = {
-  [SMS_PROVIDERS.TWILIO]:    new TwilioSMSAdapter(),
-  [SMS_PROVIDERS.MSG91]:     new MSG91Adapter(),
-  [SMS_PROVIDERS.FAST2SMS]:  new Fast2SMSAdapter(),
-  [SMS_PROVIDERS.TEXTLOCAL]: new TextLocalAdapter(),
-}
-
-let _activeAdapter = new SMSAdapterBase('none')
-
-export function setSMSProvider(providerName) {
-  if (PROVIDER_REGISTRY[providerName]) _activeAdapter = PROVIDER_REGISTRY[providerName]
-  else console.warn(`[SMS] Unknown provider: ${providerName}`)
-}
-
-export function getSMSAdapter() { return _activeAdapter }
+const _activeAdapter = new SMSAdapterBase('none')
 
 export const sms = {
   send:     (to, msg)  => _activeAdapter.sendSMS(to, msg),

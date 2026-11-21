@@ -60,7 +60,6 @@ async function _loadCustomers() {
   }
 }
 export const loadCustomers = withCache('customers', _loadCustomers)
-export const getCustomers = loadCustomers
 
 
 

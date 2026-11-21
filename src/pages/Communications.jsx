@@ -5,10 +5,9 @@
 import { useState, useMemo, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  Bell, MessageSquare, BarChart2, Settings, Search,
-  Filter, RefreshCw, CheckCheck, Archive, Trash2,
-  AlertTriangle, CheckCircle, Clock, ChevronDown,
-  Smartphone, Phone, Globe, BookOpen, Zap, Send,
+  Bell, MessageSquare, Settings, Search,
+  RefreshCw, CheckCheck, Archive, Trash2,
+  AlertTriangle, Clock, BookOpen,
   Download, Eye, Copy, X, ChevronLeft, ChevronRight,
   ExternalLink, XCircle,
 } from 'lucide-react'

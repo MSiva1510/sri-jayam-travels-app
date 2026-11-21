@@ -57,6 +57,14 @@ test('400 blocks SSRF to a non-allow-listed host', async () => {
   const res = await call({ authorization: 'Bearer admin' }, { ...okBody, target_url: 'http://169.254.169.254/latest/meta-data' })
   assert.equal(res.statusCode, 400)
 })
+test('400 blocks plain HTTP on an otherwise allowed vendor host', async () => {
+  const res = await call({ authorization: 'Bearer admin' }, { ...okBody, target_url: 'http://mvt.apmkingstrack.com/api' })
+  assert.equal(res.statusCode, 400)
+})
+test('400 blocks non-default ports on vendor hosts', async () => {
+  const res = await call({ authorization: 'Bearer admin' }, { ...okBody, target_url: 'https://mvt.apmkingstrack.com:8443/api' })
+  assert.equal(res.statusCode, 400)
+})
 test('400 blocks unsupported vendor methods', async () => {
   const res = await call({ authorization: 'Bearer admin' }, { ...okBody, vendor_method: 'DELETE' })
   assert.equal(res.statusCode, 400)

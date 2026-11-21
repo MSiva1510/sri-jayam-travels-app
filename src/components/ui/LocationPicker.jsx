@@ -9,7 +9,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
-import { MapPin, Link, Search } from 'lucide-react'
+import { MapPin, Search } from 'lucide-react'
 import { forwardGeocode, parseLocation, reverseGeocode } from '../../utils/locationUtils'
 
 function Label({ children, required }) {

@@ -6,7 +6,6 @@ export default {
     extend: {
       fontFamily: {
         sans: ['DM Sans', 'system-ui', 'sans-serif'],
-        display: ['Sora', 'sans-serif'],
         body: ['DM Sans', 'sans-serif'],
       },
       colors: {
@@ -24,19 +23,10 @@ export default {
           950: '#080f2a',
         },
       },
-      backdropBlur: {
-        xs: '2px',
-      },
       animation: {
-        'slide-in': 'slideIn 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-        'fade-up':  'fadeUp 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
-        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'fade-up': 'fadeUp 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
       },
       keyframes: {
-        slideIn: {
-          '0%':   { transform: 'translateX(-100%)' },
-          '100%': { transform: 'translateX(0)' },
-        },
         fadeUp: {
           '0%':   { opacity: '0', transform: 'translateY(12px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },

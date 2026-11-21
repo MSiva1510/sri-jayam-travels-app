@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Plus, X, ChevronDown, ChevronUp, CheckCircle,
-  Clock, IndianRupee, User, Calendar, Edit2,
+  Clock, IndianRupee, User, Calendar,
   Trash2, FileText, AlertTriangle,
   Printer, Send, Wallet, ChevronLeft, ChevronRight,
   Download, Eye, Search,
@@ -20,14 +20,13 @@ import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../context/AuthContext'
 import {
   loadSettlements, saveSettlement, deleteSettlement, generateSettlementId,
-  loadPayrollSettings, savePayrollSettings,
-  buildSettlement, calculateIncentive, resolveDailyWage,
+  loadPayrollSettings,
+  buildSettlement,
   tripDriverAmount, buildDriverMonthlyPayroll,
   SETTLEMENT_STATUSES, getSettlementStatusCfg,
   PAYMENT_METHODS, DEDUCTION_TYPES, normalizeDeductions,
   DEFAULT_PAYROLL_SETTINGS, monthLabel, settlementExists,
-  savePayslip, loadPayslips,
-  loadTripPayslips, saveTripPayslip,
+  loadTripPayslips,
 } from '../data/settlementData'
 import { loadBookings } from '../data/tripTypes'
 import { loadExpenses } from '../data/expenseData'
@@ -35,6 +34,7 @@ import { loadDrivers } from '../data/driverData'
 import { loadAttendance, buildMonthSummary, driverNamesForMonth, resolveDriverName, localDateISO } from '../data/attendanceData'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import { addAuditEvent } from '../data/auditLogData'
+import { escapeHtml, PRINT_CSP_META } from '../utils/htmlSecurity'
 
 // ─────────────────────────────────────────────────────────────
 //  Shared helpers
@@ -293,10 +293,13 @@ function TripPayrollPayslipView({ payroll: P, onClose }) {
     bata: Number(t.bata) || 0,
   }))
   const printPayroll = () => {
-    const row = (l, v, neg) => `<tr><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9">${l}</td><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700${neg ? ';color:#dc2626' : ''}">${neg ? '− ' : ''}Rs. ${Number(v || 0).toLocaleString('en-IN')}</td></tr>`
-    const html = `<!DOCTYPE html><html><head><title>Payslip – ${P.driver} – ${monthLabel(Number(P.monthKey.slice(5)), Number(P.monthKey.slice(0, 4)))}</title>
+    const e = escapeHtml
+    const period = e(monthLabel(Number(P.monthKey.slice(5)), Number(P.monthKey.slice(0, 4))))
+    const driver = e(P.driver)
+    const row = (l, v, neg) => `<tr><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9">${e(l)}</td><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700${neg ? ';color:#dc2626' : ''}">${neg ? '− ' : ''}Rs. ${Number(v || 0).toLocaleString('en-IN')}</td></tr>`
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">${PRINT_CSP_META}<title>Payslip – ${driver} – ${period}</title>
     <style>body{font-family:Arial,sans-serif;max-width:560px;margin:24px auto;color:#111;font-size:13px}.header{background:#0d1b4b;color:white;padding:20px;border-radius:8px 8px 0 0}.net{background:#065f46;color:white;padding:12px;border-radius:8px;text-align:center;margin-top:12px}.footer{text-align:center;font-size:10px;color:#94a3b8;margin-top:12px}table{width:100%;border-collapse:collapse}th{background:#f8fafc;padding:8px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase}</style>
-    </head><body><div class="header"><div style="font-size:10px;opacity:.6;text-transform:uppercase">Sri Jayam Travels</div><h2 style="margin:4px 0">Driver Payslip</h2><p style="margin:0;opacity:.6">${monthLabel(Number(P.monthKey.slice(5)), Number(P.monthKey.slice(0, 4)))} · ${P.driver}</p></div>
+    </head><body><div class="header"><div style="font-size:10px;opacity:.6;text-transform:uppercase">Sri Jayam Travels</div><h2 style="margin:4px 0">Driver Payslip</h2><p style="margin:0;opacity:.6">${period} · ${driver}</p></div>
     <div style="border:1px solid #e2e8f0;border-top:none;padding:16px;border-radius:0 0 8px 8px">
     <table><tbody>
     <tr><td style="padding:6px 4px">Total Trips</td><td style="padding:6px 4px;text-align:right;font-weight:700">${P.tripCount}</td></tr>
@@ -311,11 +314,12 @@ function TripPayrollPayslipView({ payroll: P, onClose }) {
     <tr style="font-weight:900;background:#f8fafc"><td style="padding:8px 4px">Total Payable</td><td style="padding:8px 4px;text-align:right">Rs. ${P.net.toLocaleString('en-IN')}</td></tr>
     </tbody></table>
     <table style="margin-top:12px"><thead><tr><th>Date</th><th>Trip</th><th>Customer</th><th>Route</th><th style="text-align:right">Allowance</th><th style="text-align:right">Bata Extra</th></tr></thead><tbody>
-    ${tripRows.map(r => `<tr><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9">${r.date}</td><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9">${r.id}</td><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9">${r.customer}</td><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9">${r.route}</td><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9;text-align:right">Rs. ${r.allowance.toLocaleString('en-IN')}</td><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700">Rs. ${r.bata.toLocaleString('en-IN')}</td></tr>`).join('')}
+    ${tripRows.map(r => `<tr><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9">${e(r.date)}</td><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9">${e(r.id)}</td><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9">${e(r.customer)}</td><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9">${e(r.route)}</td><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9;text-align:right">Rs. ${r.allowance.toLocaleString('en-IN')}</td><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700">Rs. ${r.bata.toLocaleString('en-IN')}</td></tr>`).join('')}
     </tbody></table>
     <div class="net"><div style="font-size:11px;opacity:.7;text-transform:uppercase">Total Payable</div><div style="font-size:28px;font-weight:900">Rs. ${P.net.toLocaleString('en-IN')}</div><div style="font-size:10px;opacity:.6;margin-top:2px">Paid Rs. ${P.paidAmount.toLocaleString('en-IN')} · Balance Rs. ${P.balance.toLocaleString('en-IN')}</div></div>
-    <p class="footer">Generated by Sri Jayam Travels ERP · ${new Date().toLocaleDateString('en-IN')}</p></div></body></html>`
+    <p class="footer">Generated by Sri Jayam Travels ERP · ${e(new Date().toLocaleDateString('en-IN'))}</p></div></body></html>`
     const w = window.open('', '_blank', 'width=640,height=800')
+    if (!w) return
     w.document.write(html); w.document.close(); w.focus(); setTimeout(() => { w.print(); w.close() }, 350)
   }
   return (
@@ -414,10 +418,13 @@ function PayslipView({ settlement, onClose }) {
   const netSalary      = Math.max(0, totalEarnings - totalDeductions)
 
   const handlePrint = () => {
-    const tableRow = (l, v) => `<tr><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9">${l}</td><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700">Rs. ${Number(v||0).toLocaleString('en-IN')}</td></tr>`
-    const html = `<!DOCTYPE html><html><head><title>Payslip – ${settlement.driver} – ${monthLabel(settlement.month,settlement.year)}</title>
+    const e = escapeHtml
+    const driver = e(settlement.driver)
+    const period = e(monthLabel(settlement.month, settlement.year))
+    const tableRow = (l, v) => `<tr><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9">${e(l)}</td><td style="padding:6px 4px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700">Rs. ${Number(v||0).toLocaleString('en-IN')}</td></tr>`
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">${PRINT_CSP_META}<title>Payslip – ${driver} – ${period}</title>
     <style>body{font-family:Arial,sans-serif;max-width:480px;margin:24px auto;color:#111;font-size:13px}.header{background:#0d1b4b;color:white;padding:20px;border-radius:8px 8px 0 0}.net{background:#065f46;color:white;padding:12px;border-radius:8px;text-align:center;margin-top:12px}.footer{text-align:center;font-size:10px;color:#94a3b8;margin-top:12px}table{width:100%;border-collapse:collapse}th{background:#f8fafc;padding:8px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase}</style>
-    </head><body><div class="header"><div style="font-size:10px;opacity:.6;text-transform:uppercase">Sri Jayam Travels</div><h2 style="margin:4px 0">Monthly Payslip</h2><p style="margin:0;opacity:.6">${monthLabel(settlement.month,settlement.year)} · ${settlement.driver}</p></div>
+    </head><body><div class="header"><div style="font-size:10px;opacity:.6;text-transform:uppercase">Sri Jayam Travels</div><h2 style="margin:4px 0">Monthly Payslip</h2><p style="margin:0;opacity:.6">${period} · ${driver}</p></div>
     <div style="border:1px solid #e2e8f0;border-top:none;padding:16px;border-radius:0 0 8px 8px">
     <table><thead><tr><th>Attendance</th><th style="text-align:right"></th></tr></thead><tbody>
     <tr><td style="padding:6px 4px">Days Driven</td><td style="padding:6px 4px;text-align:right;font-weight:700">${daysWorked}</td></tr>
@@ -433,13 +440,14 @@ function PayslipView({ settlement, onClose }) {
     <tr style="font-weight:900;background:#f8fafc"><td style="padding:8px 4px">Gross Earnings</td><td style="padding:8px 4px;text-align:right">Rs. ${totalEarnings.toLocaleString('en-IN')}</td></tr>
     </tbody></table>
     ${totalDeductions>0?`<table style="margin-top:12px"><thead><tr><th>Deductions</th><th></th></tr></thead><tbody>
-    ${deductionList.map(d=>`<tr><td style="padding:6px 4px">${d.label}</td><td style="padding:6px 4px;text-align:right;font-weight:700;color:#dc2626">- Rs. ${d.amount.toLocaleString('en-IN')}</td></tr>`).join('')}
+    ${deductionList.map(d=>`<tr><td style="padding:6px 4px">${e(d.label)}</td><td style="padding:6px 4px;text-align:right;font-weight:700;color:#dc2626">- Rs. ${d.amount.toLocaleString('en-IN')}</td></tr>`).join('')}
     <tr style="color:#dc2626;font-weight:900"><td style="padding:8px 4px">Total Deductions</td><td style="padding:8px 4px;text-align:right">- Rs. ${totalDeductions.toLocaleString('en-IN')}</td></tr>
     </tbody></table>`:''}
-    <div class="net"><div style="font-size:11px;opacity:.7;text-transform:uppercase">Net Salary</div><div style="font-size:28px;font-weight:900">Rs. ${netSalary.toLocaleString('en-IN')}</div><div style="font-size:10px;opacity:.6;margin-top:2px">${monthLabel(settlement.month,settlement.year)}</div></div>
-    ${settlement.status==='paid'&&settlement.paymentDate?`<p style="text-align:center;color:#059669;font-size:11px;margin-top:10px">✓ Paid ${settlement.paymentDate} via ${settlement.paymentMethod||''}</p>`:''}
-    <p class="footer">Generated by Sri Jayam Travels ERP · ${new Date().toLocaleDateString('en-IN')}</p></div></body></html>`
+    <div class="net"><div style="font-size:11px;opacity:.7;text-transform:uppercase">Net Salary</div><div style="font-size:28px;font-weight:900">Rs. ${netSalary.toLocaleString('en-IN')}</div><div style="font-size:10px;opacity:.6;margin-top:2px">${period}</div></div>
+    ${settlement.status==='paid'&&settlement.paymentDate?`<p style="text-align:center;color:#059669;font-size:11px;margin-top:10px">✓ Paid ${e(settlement.paymentDate)} via ${e(settlement.paymentMethod||'')}</p>`:''}
+    <p class="footer">Generated by Sri Jayam Travels ERP · ${e(new Date().toLocaleDateString('en-IN'))}</p></div></body></html>`
     const w = window.open('','_blank','width=560,height=700')
+    if (!w) return
     w.document.write(html); w.document.close(); w.focus(); setTimeout(()=>{w.print();w.close()},350)
   }
 
@@ -540,89 +548,6 @@ function PayslipView({ settlement, onClose }) {
   )
 }
 
-// ── Salary History Panel (Module 5) ──────────────────────────
-function SalaryHistoryPanel({ settlements, onViewPayslip }) {
-  const [driverFilter, setDriverFilter] = useState('all')
-  const drivers = useMemo(() => [...new Set(settlements.map(s=>s.driver).filter(Boolean))].sort(), [settlements])
-  const filtered = useMemo(() => {
-    const items = driverFilter==='all' ? settlements : settlements.filter(s=>s.driver===driverFilter)
-    return [...items].sort((a,b) => b.year!==a.year ? b.year-a.year : b.month-a.month)
-  }, [settlements, driverFilter])
-  const driverTotals = useMemo(() => {
-    const map = {}
-    settlements.forEach(s => {
-      if (!map[s.driver]) map[s.driver] = { driver:s.driver, count:0, total:0, paid:0 }
-      map[s.driver].count++
-      map[s.driver].total += Number(s.netAmount||0)
-      if (s.status==='paid') map[s.driver].paid += Number(s.netAmount||0)
-    })
-    return Object.values(map).sort((a,b)=>b.total-a.total)
-  }, [settlements])
-  const MN = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  return (
-    <div className="space-y-4">
-      {driverTotals.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Driver Summary</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {driverTotals.map(d => (
-              <div key={d.driver} onClick={() => setDriverFilter(driverFilter===d.driver?'all':d.driver)}
-                className={`ap-surface rounded-xl p-3 cursor-pointer hover:shadow-md transition-all ${driverFilter===d.driver?'ring-2 ring-navy-500/30':''}`}>
-                <div className="flex items-center gap-2.5">
-                  <Avatar name={d.driver} size={32} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{d.driver}</p>
-                    <p className="text-[10px] text-slate-400">{d.count} settlements</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Rs. {d.total.toLocaleString('en-IN')}</p>
-                    <p className="text-[10px] text-slate-400">Rs. {d.paid.toLocaleString('en-IN')} paid</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      <div className="flex items-center gap-2">
-        <FieldSelect value={driverFilter} onChange={e=>setDriverFilter(e.target.value)} className="w-44">
-          <option value="all">All Drivers</option>
-          {drivers.map(d => <option key={d} value={d}>{d}</option>)}
-        </FieldSelect>
-        <p className="text-xs text-slate-400">{filtered.length} records</p>
-      </div>
-      {filtered.length === 0 ? (
-        <div className="ap-surface rounded-2xl">
-          <EmptyState icon={IndianRupee} title="No salary history yet" />
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {filtered.map(s => (
-            <div key={s.id} className="ap-surface rounded-xl overflow-hidden">
-              <div className="flex items-center gap-3 p-3.5">
-                <div className="w-10 h-10 rounded-xl bg-[var(--ap-accent)] flex flex-col items-center justify-center flex-shrink-0">
-                  <span className="text-[9px] font-bold text-blue-400 uppercase leading-none">{MN[s.month]}</span>
-                  <span className="text-xs font-semibold text-white leading-tight">{s.year}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-slate-800 dark:text-white">{s.driver}</p>
-                  <p className="text-[10px] text-slate-400">{s.completedTrips||0} trips · {s.workingDays||0} days</p>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-base font-semibold text-slate-800 dark:text-white">Rs. {Number(s.netAmount||0).toLocaleString('en-IN')}</p>
-                  <StatusBadge status={s.status} />
-                </div>
-                <IconButton icon={FileText} label="View payslip" size={14} onClick={() => onViewPayslip(s)}
-                  className="border border-[var(--ap-border)] flex-shrink-0" />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ─────────────────────────────────────────────────────────────
 //  Module 10: Mark Paid Modal
 // ─────────────────────────────────────────────────────────────
@@ -650,78 +575,6 @@ function MarkPaidModal({ settlement, onClose, onSave }) {
         </div>
       </div>
     </ModalOverlay>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────
-//  Settlement row detail panel
-// ─────────────────────────────────────────────────────────────
-function SettlementDetail({ s, onEdit, onDelete, onApprove, onSubmit, onMarkPaid, onViewPayslip, canEdit, canDelete, canApprove, isAdmin }) {
-  const canSubmit  = s.status === 'draft'
-  const canApprov  = canApprove && s.status === 'pending'
-  const canPay     = isAdmin && s.status === 'approved'
-  const isApproved = s.status === 'approved' || s.status === 'paid'
-  // One list, one total — the same numbers shown in the payslip.
-  const deductionList  = normalizeDeductions(s)
-  const totalDeductions= deductionList.reduce((sum, d) => sum + d.amount, 0)
-  const grossAmount    = Number(s.grossAmount ?? 0)
-  const netAmount      = Math.max(0, grossAmount - totalDeductions)
-  return (
-    <div className="border-t border-[var(--ap-border)] p-4 bg-[var(--ap-surface-2)] space-y-3">
-      {/* Breakdown */}
-      <div className="bg-[var(--ap-surface-2)] rounded-xl p-3 border border-[var(--ap-border)]">
-        <AmtRow label={`Daily Wage × ${Number(s.daysWorked ?? s.workingDays ?? 0)} days`} value={s.wagePay ?? s.baseSalary} />
-        {Number(s.bataDirect ?? s.bataAmt ?? 0) > 0 && (
-          <AmtRow label="Bata (driver allowance)" value={Number(s.bataDirect ?? s.bataAmt ?? 0)} sub />
-        )}
-        <AmtRow label="Fuel"                value={s.fuelAmt}          sub />
-        <AmtRow label="Parking"             value={s.parkingAmt}       sub />
-        <AmtRow label="Incentive"           value={s.incentive}        sub />
-        {s.bonus > 0 && <AmtRow label="Bonus" value={s.bonus}         sub />}
-        <AmtRow label="Gross"               value={grossAmount}        />
-        {totalDeductions > 0 && <AmtRow label="Deductions" value={totalDeductions} deduct />}
-        <div className="flex justify-between pt-2 mt-1 border-t border-[var(--ap-border)]">
-          <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Net Amount</span>
-          <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Rs. {netAmount.toLocaleString('en-IN')}</span>
-        </div>
-      </div>
-
-      {/* Deductions detail */}
-      {deductionList.length > 0 && (
-        <div className="bg-red-50 dark:bg-red-900/15 rounded-xl p-3 border border-red-100 dark:border-red-800/30">
-          <p className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-1.5">Deductions</p>
-          {deductionList.map((d) => (
-            <div key={d.type} className="flex justify-between text-xs py-0.5">
-              <span className="text-red-700 dark:text-red-400">{d.label}</span>
-              <span className="font-bold text-red-600 dark:text-red-400">− Rs. {d.amount.toLocaleString('en-IN')}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Payment info */}
-      {s.status === 'paid' && s.paymentDate && (
-        <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/15 rounded-lg px-3 py-2 border border-emerald-200 dark:border-emerald-800/30">
-          <Wallet size={13} className="text-emerald-600 flex-shrink-0" />
-          <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
-            Paid {s.paymentDate} via {s.paymentMethod}
-            {s.paymentRemarks ? ' · ' + s.paymentRemarks : ''}
-          </p>
-        </div>
-      )}
-
-      {s.notes && <p className="text-xs text-slate-500 dark:text-slate-400 italic">{s.notes}</p>}
-
-      {/* Actions */}
-      <div className="flex gap-2 flex-wrap pt-1">
-        <Button variant="outline" size="sm" icon={FileText} onClick={() => onViewPayslip(s)}>Payslip</Button>
-        {canSubmit && <Button variant="primary" size="sm" icon={Send} onClick={() => onSubmit(s)}>Submit</Button>}
-        {canApprov && <Button variant="primary" size="sm" icon={CheckCircle} onClick={() => onApprove(s)}>Approve</Button>}
-        {canPay && <Button variant="teal" size="sm" icon={Wallet} onClick={() => onMarkPaid(s)}>Mark Paid</Button>}
-        {canEdit && !isApproved && <Button variant="outline" size="sm" icon={Edit2} onClick={() => onEdit(s)}>Edit</Button>}
-        {canDelete && !isApproved && <Button variant="danger" size="sm" icon={Trash2} onClick={() => onDelete(s.id)}>Delete</Button>}
-      </div>
-    </div>
   )
 }
 

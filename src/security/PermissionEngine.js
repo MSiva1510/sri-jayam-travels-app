@@ -210,8 +210,3 @@ export const permissionEngine = new PermissionEngineImpl()
 export async function bootPermissions() {
   await permissionEngine.loadFromDB()
 }
-
-/** Convenience: check current user permission. */
-export function checkPermission(role, permission) {
-  return permissionEngine.can(role, permission)
-}

@@ -71,3 +71,39 @@ buckets, so it keeps working unchanged.
 
 - `20260915_public_login_stats.sql` — applied 2026-09-15 (via SQL editor)
 - `20260915_security_hardening.sql` — applied 2026-09-15 (via SQL editor). Post-check: 67 policies, 0 anon/public policies, 0 anon table grants, anon can execute only `public_create_booking` + `public_login_stats`.
+
+## Follow-up audit — 2026-11-20
+
+| Severity | Finding | Status |
+|---|---|---|
+| **High** | Print/export windows interpolated database values into `document.write()` HTML without escaping; a payload from the public booking portal could execute with the app origin. | **Fixed.** `src/utils/htmlSecurity.js` escapes HTML, neutralises CSV formula cells and adds a restrictive CSP to generated print documents. All print paths now use it. |
+| **High** | Operational RLS policies are role-blind: `FOR ALL USING (public.app_role() IS NOT NULL)` lets any authenticated role, including `driver`, read/write all bookings, customers, financials and logs. `PermissionEngine` is client-side only. | **Report only, by decision.** Needs a reviewed migration and product decision on per-role/per-driver scope. See recommendation below. |
+| **Medium** | `public_get_customer_profile(text)` let any anon caller resolve a mobile number to a customer name/VIP flags. | **Fixed.** UI lookup removed; `20261120_revoke_public_customer_profile.sql` revokes and drops the RPC. Apply before deploying the web build. |
+| **Medium** | `send-push` had no application-level auth and used wildcard CORS. | **Fixed.** The function now requires either `PUSH_FUNCTION_SECRET` or a verified Supabase JWT from an active admin/manager profile, and only reflects allowlisted origins. Keep platform JWT verification enabled. |
+| **Medium** | CSV exports wrote leading `=`, `+`, `-`, `@` values verbatim (spreadsheet formula injection). | **Fixed** by `escapeCsvCell()` in `src/utils/htmlSecurity.js`. |
+| **Low** | GPS proxy allowed plain HTTP and arbitrary ports on allowlisted vendor hosts. | **Fixed.** HTTPS, default port and no embedded credentials are now required. |
+| **Low** | App log tables allowed INSERT from any authenticated role. | **Report only.** Covered by the RLS redesign recommendation below. |
+| **Low** | `generatePassword()` used `Math.random()`. | **Report only.** The helper has no callers in the app; safe removal is handled in the dead-code cleanup (see below). |
+| **Low** | OCR endpoint accepted any MIME type and had no upstream timeout. | **Fixed.** Image/PDF allowlist, strict base64 validation before decoding and an abort timeout (`OCR_TIMEOUT_MS`, default 30s). |
+
+### Recommended RLS migration (separate reviewed change)
+
+Create a new migration rather than editing `20260915_security_hardening.sql`:
+
+1. Replace the broad `FOR ALL … app_role() IS NOT NULL` policies on `bookings`,
+   `customers`, `drivers`, `expenses`, `settlements`, `vehicles`, `attendance`,
+   `gps_tracking` and `notifications` with explicit `admin`/`manager` policies.
+2. Give `driver` SELECT/UPDATE only on rows tied to that driver. This needs a
+   stable `auth.user_id → drivers` link; the current schema has no such column.
+   Add the link in the same migration and backfill it before enabling the policies.
+3. Restrict INSERT on `audit_logs`, `session_log` and `error_log` to staff or
+   `service_role`; drivers should not be able to plant security events.
+4. Enforce the same permission checks in SECURITY DEFINER RPCs or triggers for
+   status transitions and financial writes. UI guards are not an authorization
+   boundary.
+5. Extend `tests/rls.test.mjs` with negative driver cases for every protected
+   table, then run `npm run test:rls` and `cd supabase/tests && npm test`.
+
+Until that migration is reviewed and applied, direct PostgREST access with a
+driver JWT remains broader than the UI suggests. This is a known, accepted risk
+for this release, not a regression from the dashboard work.

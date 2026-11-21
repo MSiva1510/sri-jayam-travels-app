@@ -13,40 +13,6 @@ import { setRememberMe }             from '../lib/authStorage'
 
 const AUTH_TIMEOUT_MS = 10_000
 
-// ── Legacy module permission matrix (backward compat) ─────────
-export const ROLE_PERMISSIONS = {
-  admin: {
-    trips:true, vehicles:true, customers:true, expenses:true, invoices:true,
-    reports:true, settings:true, drivers:true, attendance:true, userManagement:true,
-    revenueDashboard:true, profitReports:true, financialAnalytics:true,
-    expenseReports:true, invoiceManagement:true,
-  },
-  manager: {
-    trips:true, vehicles:true, customers:true, expenses:true, invoices:false,
-    reports:false, settings:false, drivers:true, attendance:true, userManagement:false,
-    revenueDashboard:false, profitReports:false, financialAnalytics:false,
-    expenseReports:false, invoiceManagement:false,
-  },
-  driver: {
-    trips:false, vehicles:false, customers:false, expenses:false,
-    invoices:false, reports:false, settings:false, drivers:false,
-    attendance:false, userManagement:false,
-    revenueDashboard:false, profitReports:false, financialAnalytics:false,
-    expenseReports:false, invoiceManagement:false,
-    viewOwnPayslips:true, viewOwnEarnings:true,
-    viewPayrollDashboard:false, viewExpenseAnalytics:false,
-  },
-}
-
-export const ROLE_ROUTES = {
-  admin:   ['/', '/invoices', '/customers', '/expenses', '/drivers', '/vehicles',
-             '/settings', '/trips', '/create-trip', '/attendance', '/profile',
-             '/payroll', '/reports', '/admin/database-status', '/admin/users'],
-  manager: ['/', '/customers', '/expenses', '/drivers', '/vehicles', '/trips',
-             '/create-trip', '/attendance', '/profile', '/payroll'],
-  driver:  [], // drivers are mobile-app only — no web pages
-}
-
 export const ROLE_LABELS = { admin:'Administrator', manager:'Manager', driver:'Driver' }
 
 export const ROLE_COLORS = {

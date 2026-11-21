@@ -1,6 +1,6 @@
 // ─── Backup Manager Page ──────────────────────────────────────
 import { useState } from 'react'
-import { Database, Download, CheckCircle, Clock, XCircle, Play, RefreshCw, Info } from 'lucide-react'
+import { Database, CheckCircle, Clock, XCircle, Play, RefreshCw, Info } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader'
 import { useAdmin } from '../../context/AdminContext'
 import { runManualBackup } from '../../services/adminService'

@@ -7,8 +7,6 @@
 //   stopped → red     (stopped, ignition OFF / parked)
 //   offline → grey    (no fix in the last 5 min)
 
-import L from 'leaflet'
-
 export const CAR_STATUS_COLORS = {
   moving:  { body: '#22c55e', shade: '#15803d', light: '#86efac', label: 'Moving'  },
   idle:    { body: '#3b82f6', shade: '#1d4ed8', light: '#93c5fd', label: 'Idle'    },
@@ -91,33 +89,4 @@ export function carSvg(status = 'stopped', size = 30) {
   <!-- glossy highlight -->
   <path d="M10 5 Q18 3 26 5 Q22 7 18 7 Q14 7 10 5 Z" fill="#fff" opacity="0.35"/>
 </svg>`
-}
-
-/**
- * Leaflet divIcon for a vehicle.
- * @param {string} status  moving | idle | stopped | offline
- * @param {number} bearing degrees clockwise from north
- * @param {number} size    icon width in px
- */
-export function makeCarIcon(status, bearing = 0, size = 26) {
-  const c = CAR_STATUS_COLORS[status] || CAR_STATUS_COLORS.offline
-  const h = Math.round(size * 2)
-  const box = h + 8
-  const deg = Number.isFinite(Number(bearing)) ? Number(bearing) : 0
-  const html = `
-    <div class="fleet-car fleet-car--${status}" style="position:relative;width:${box}px;height:${box}px;">
-      ${status === 'moving' ? `<div style="position:absolute;inset:0;border-radius:50%;background:${c.body};opacity:.22;animation:pulse 2s infinite"></div>` : ''}
-      <div style="position:absolute;left:50%;top:50%;width:${size}px;height:${h}px;
-                  transform:translate(-50%,-50%) rotate(${deg}deg);
-                  transition:transform .6s ease;filter:drop-shadow(0 3px 3px rgba(0,0,0,.35));">
-        ${carSvg(status, size)}
-      </div>
-    </div>`
-  return L.divIcon({
-    className: 'fleet-marker',
-    html,
-    iconSize: [box, box],
-    iconAnchor: [box / 2, box / 2],
-    popupAnchor: [0, -h / 2],
-  })
 }

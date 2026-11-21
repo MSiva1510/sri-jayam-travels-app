@@ -4,7 +4,7 @@ import {
   User, Car, Settings, ChevronLeft, ChevronRight,
   MapPin, Phone, Globe, LogOut, Navigation,
   History, Route, CalendarCheck, IndianRupee, BarChart2, UserCog,
-  FolderOpen, ClipboardList, MessageSquare, MessageCircle,
+  FolderOpen, ClipboardList, MessageSquare,
   Shield, HardDrive,
 } from 'lucide-react'
 import { useApp }  from '../../context/AppContext'

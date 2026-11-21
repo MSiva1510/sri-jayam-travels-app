@@ -2,7 +2,7 @@
 // User notification preferences + provider configuration overview.
 
 import { useState, useEffect } from 'react'
-import { Bell, MessageSquare, Smartphone, Globe, Mail, Save, CheckCircle, Info, Plug, Unplug, RefreshCw, Send } from 'lucide-react'
+import { Bell, MessageSquare, Smartphone, Mail, Save, CheckCircle, Info, Plug, Unplug, RefreshCw, Send } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
 import { useCommunicationCtx } from '../hooks/useCommunication'
 import { useAuth } from '../context/AuthContext'

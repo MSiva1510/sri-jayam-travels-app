@@ -4,7 +4,7 @@ import {
   Plus, Phone, MapPin, Edit2, Trash2,
   ChevronDown, ChevronUp, Building2,
   FileText, Star, Repeat, Ban, Calendar,
-  AlertTriangle, User, Navigation, Search,
+  AlertTriangle, User,
 } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
 import Avatar     from '../components/ui/Avatar'
@@ -12,16 +12,15 @@ import Button     from '../components/ui/Button'
 import MetricCard from '../components/ui/MetricCard'
 import Callout    from '../components/ui/Callout'
 import EmptyState from '../components/ui/EmptyState'
-import IconButton from '../components/ui/IconButton'
 import { Select as FieldSelect } from '../components/ui/Field'
 import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../context/AuthContext'
 import {
   loadCustomers, saveCustomer, deleteCustomer,
   CUSTOMER_TYPES, getCustomerTypeCfg, getCustomerStats,
-  computeAutoFlags, effectiveFlags, FLAG_THRESHOLDS,
+  computeAutoFlags, effectiveFlags,
 } from '../data/customerData'
-import { loadBookings, TRIP_TYPE_CONFIG, getStatusCfg } from '../data/tripTypes'
+import { loadBookings } from '../data/tripTypes'
 import CustomerModal from '../components/customers/CustomerModal'
 import { addAuditEvent } from '../data/auditLogData'
 import { pageSizeFor } from '../utils/zoomPageSize'

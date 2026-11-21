@@ -20,7 +20,12 @@ function parseAllowedHosts() {
 function isAllowedTarget(targetUrl) {
   try {
     const url = new URL(targetUrl)
-    if (!['http:', 'https:'].includes(url.protocol)) return false
+    // TLS only, default port, no embedded credentials. The host allowlist
+    // already blocks arbitrary destinations; these checks close the common
+    // SSRF bypasses through plain HTTP and non-standard vendor ports.
+    if (url.protocol !== 'https:') return false
+    if (url.port && url.port !== '443') return false
+    if (url.username || url.password) return false
     return parseAllowedHosts().includes(url.hostname.toLowerCase())
   } catch {
     return false
