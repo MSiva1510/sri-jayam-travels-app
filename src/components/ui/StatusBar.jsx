@@ -28,7 +28,7 @@ export default function StatusBar({
               style={{
                 width: `${(v / sum) * 100}%`,
                 background: `linear-gradient(180deg, ${g.color}, ${g.color})`,
-                boxShadow: `0 0 8px ${g.color}66, inset 0 1px 0 rgba(255,255,255,0.45)`,
+                boxShadow: `0 0 8px color-mix(in srgb, ${g.color} 40%, transparent), inset 0 1px 0 rgba(255,255,255,0.45)`,
               }}
             />
           )
@@ -39,7 +39,7 @@ export default function StatusBar({
           const v = Number(g.value) || 0
           return (
             <div key={g.label || i} className="flex items-center gap-2 text-xs">
-              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: g.color, boxShadow: `0 0 6px ${g.color}88` }} />
+              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: g.color, boxShadow: `0 0 6px color-mix(in srgb, ${g.color} 53%, transparent)` }} />
               <span className="text-slate-500 dark:text-slate-400 flex-1 truncate">{g.label}</span>
               <span className="font-semibold text-slate-700 dark:text-slate-200 tabular-nums">{format(v)}</span>
               <span className="font-bold tabular-nums w-11 text-right" style={{ color: g.color }}>
