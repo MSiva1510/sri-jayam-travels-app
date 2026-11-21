@@ -89,25 +89,35 @@ export default function GlobalSearch() {
     setOpen(false)
     setQuery('')
     setResults([])
-    setTimeout(() => triggerRef.current?.focus(), 0)
+    setSelIdx(0)
   }, [])
 
-  // Click outside
+  // Only return focus to the trigger when the user was actually inside the
+  // search dialog. An outside click must leave the clicked form field focused.
+  const closeAndRestoreFocus = useCallback(() => {
+    const focusWasInside = !!wrapRef.current?.contains(document.activeElement)
+    close()
+    if (focusWasInside) setTimeout(() => triggerRef.current?.focus(), 0)
+  }, [close])
+
+  // Click outside — only while the dialog is open. Listening when it is closed
+  // used to steal focus from every field in the protected app.
   useEffect(() => {
+    if (!open) return undefined
     const fn = e => { if (wrapRef.current && !wrapRef.current.contains(e.target)) close() }
     document.addEventListener('mousedown', fn)
     return () => document.removeEventListener('mousedown', fn)
-  }, [close])
+  }, [open, close])
 
   // ⌘K / Ctrl+K
   useEffect(() => {
     const fn = e => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); setOpen(true); setTimeout(() => inputRef.current?.focus(), 50) }
-      if (e.key === 'Escape') close()
+      if (e.key === 'Escape' && open) closeAndRestoreFocus()
     }
     document.addEventListener('keydown', fn)
     return () => document.removeEventListener('keydown', fn)
-  }, [close])
+  }, [open, closeAndRestoreFocus])
 
   const runSearch = useCallback(async q => {
     if (!q.trim()) { setResults([]); return }
@@ -148,7 +158,11 @@ export default function GlobalSearch() {
       </button>
 
       {open && (
-        <div className="fixed inset-0 bg-black/30 dark:bg-black/50 z-50 flex items-start justify-center pt-[10vh] px-4">
+        <div
+          data-testid="global-search-backdrop"
+          className="fixed inset-0 bg-black/30 dark:bg-black/50 z-50 flex items-start justify-center pt-[10vh] px-4"
+          onMouseDown={e => { if (e.target === e.currentTarget) close() }}
+        >
           <div
             role="dialog"
             aria-modal="true"
@@ -178,7 +192,7 @@ export default function GlobalSearch() {
                   <X size={14} />
                 </button>
               )}
-              <button onClick={close}
+              <button onClick={closeAndRestoreFocus}
                 aria-label="Close search"
                 className="text-[10px] bg-[var(--ap-surface-2)] text-slate-400 px-1.5 py-0.5 rounded border border-[var(--ap-border)] hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
                 Esc

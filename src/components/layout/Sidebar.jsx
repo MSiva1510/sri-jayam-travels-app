@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Users, Receipt,
@@ -68,7 +69,7 @@ function NavItem({ to, label, icon: Icon, collapsed, active }) {
 }
 
 function SidebarInner({ collapsed }) {
-  const { setCollapsed }           = useApp()
+  const { setCollapsed, setSidebarOpen } = useApp()
   const { user, logout, isDriver, can } = useAuth()
   const navigate                   = useNavigate()
   const roleColors                 = user ? ROLE_COLORS[user.role] : null
@@ -85,6 +86,13 @@ function SidebarInner({ collapsed }) {
 
   // Longest route match wins — nested pages highlight one entry only.
   const location = useLocation()
+
+  // Navigating from the mobile drawer must dismiss it; otherwise its backdrop
+  // stays above the page and intercepts clicks on form fields.
+  useEffect(() => {
+    setSidebarOpen(false)
+  }, [location.pathname, setSidebarOpen])
+
   const activeTo = [...visibleNav, ...visibleBottom].reduce((best, i) => {
     const a = matchLen(best, location.pathname)
     const b = matchLen(i.to, location.pathname)
