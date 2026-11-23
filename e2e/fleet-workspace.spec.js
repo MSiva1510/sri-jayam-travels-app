@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 const URL = '/e2e/fleet-workspace-harness.html'
 const actions = (page, key) => page.evaluate(name => window.__fleetWorkspace[name], key)
 
-for (const width of [1440, 1280, 1024, 768, 430, 390, 360]) {
+for (const width of [1440, 1366, 1280, 1024, 768, 430, 412, 390, 360]) {
   test(`fleet workspace has no horizontal overflow at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
     await page.goto(URL)

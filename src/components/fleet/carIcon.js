@@ -7,8 +7,8 @@ import { FLEET_STALE_MS } from './fleetStatus'
 
 export const CAR_STATUS_COLORS = {
   moving:  { body: '#10b981', shade: '#047857', light: '#6ee7b7', label: 'Moving'  },
-  stopped: { body: '#f59e0b', shade: '#b45309', light: '#fcd34d', label: 'Stopped' },
-  offline: { body: '#94a3b8', shade: '#475569', light: '#cbd5e1', label: 'Offline' },
+  stopped: { body: '#3b82f6', shade: '#1d4ed8', light: '#93c5fd', label: 'Stopped' },
+  offline: { body: '#ef4444', shade: '#b91c1c', light: '#fca5a5', label: 'Offline' },
 }
 
 /** Derive the marker movement state from a GPS snapshot. */

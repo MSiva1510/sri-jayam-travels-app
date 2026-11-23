@@ -12,7 +12,7 @@ import { Maximize2 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import { snapPoint } from '../../utils/snapToRoad'
 import { carSvg, carStatusOf, CAR_STATUS_COLORS } from './carIcon'
-import { MAP_STATUSES } from './fleetStatus'
+import { isRecent, MAP_STATUSES, speedText } from './fleetStatus'
 
 const LIGHT_STYLE = {
   version: 8,
@@ -52,14 +52,26 @@ const DARK_STYLE = {
 
 const statusOf = carStatusOf
 const MARKER_SIZE = 18
+// Below this zoom, nearby vehicles collapse into numbered clusters. At
+// street level every vehicle stays individual and labels are de-collided.
+const CLUSTER_MAX_ZOOM = 12
+const CLUSTER_DISTANCE_PX = 72
 
 const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
-function popupHtml(s, status) {
+function markerSpeedText(s) {
+  if (!isRecent(s)) return 'No GPS'
   const speed = Number(s.speed_kmh ?? 0)
-  return `<div style="font-size:12px;line-height:1.5;min-width:150px">
+  return speed > 0 ? `${speed.toFixed(0)} km/h` : 'Stopped'
+}
+
+function popupHtml(s, status) {
+  const model = s.vehicle_model || s.model || 'Vehicle'
+  const driver = s.driver_name || 'Unassigned'
+  return `<div style="font-size:12px;line-height:1.5;min-width:170px">
     <div style="font-weight:800;font-size:13px">${esc(s.registration || '—')}</div>
-    <div><b style="color:${CAR_STATUS_COLORS[status].body}">${CAR_STATUS_COLORS[status].label}</b> · ${speed.toFixed(0)} km/h${s.ignition != null ? ` · ignition ${s.ignition ? 'ON' : 'OFF'}` : ''}</div>
+    <div style="color:#475569">${esc(model)} · ${esc(driver)}</div>
+    <div><b style="color:${CAR_STATUS_COLORS[status].body}">${CAR_STATUS_COLORS[status].label}</b> · ${speedText(s)}${s.ignition != null ? ` · ignition ${s.ignition ? 'ON' : 'OFF'}` : ''}</div>
     <div style="color:#64748b">${esc(s.address || '—')}</div>
     <div style="color:#94a3b8">${s.timestamp ? esc(new Date(s.timestamp).toLocaleTimeString()) : '—'}</div>
   </div>`
@@ -78,6 +90,9 @@ export default function FleetMap({
   const popupRef = useRef(null)
   const relayoutLabelsRef = useRef(null)
   const labelRafRef = useRef(0)
+  const syncClustersRef = useRef(null)
+  const clusterRafRef = useRef(0)
+  const clustersRef = useRef(new Map())
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
   const styleSpec = darkMode ? DARK_STYLE : LIGHT_STYLE
@@ -107,12 +122,17 @@ export default function FleetMap({
     mapRef.current = map
     const onMove = () => {
       if (labelRafRef.current) cancelAnimationFrame(labelRafRef.current)
+      if (clusterRafRef.current) cancelAnimationFrame(clusterRafRef.current)
       labelRafRef.current = requestAnimationFrame(() => relayoutLabelsRef.current?.())
+      clusterRafRef.current = requestAnimationFrame(() => syncClustersRef.current?.())
     }
     map.on('move', onMove)
     return () => {
       map.off('move', onMove)
       if (labelRafRef.current) cancelAnimationFrame(labelRafRef.current)
+      if (clusterRafRef.current) cancelAnimationFrame(clusterRafRef.current)
+      clustersRef.current.forEach(c => c.marker.remove())
+      clustersRef.current.clear()
       markersRef.current.forEach(m => m.marker.remove())
       markersRef.current.clear()
       popupRef.current?.remove()
@@ -130,6 +150,102 @@ export default function FleetMap({
     activeStyleRef.current = styleSpec
     try { map.setStyle(styleSpec) } catch {}
   }, [styleSpec])
+
+  // Cluster close neighbours while zoomed out. Individual markers are only
+  // hidden; the MapLibre instance and their DOM nodes are kept intact so
+  // live updates, selection and filtering remain instantaneous.
+  const syncClusters = () => {
+    const map = mapRef.current
+    if (!map) return
+    const shouldCluster = !focusIds && snapshots.length > 1 && map.getZoom() < CLUSTER_MAX_ZOOM
+    if (!shouldCluster) {
+      clustersRef.current.forEach(c => c.marker.remove())
+      clustersRef.current.clear()
+      markersRef.current.forEach(rec => { rec.el.style.display = '' })
+      relayoutLabelsRef.current?.()
+      return
+    }
+
+    const projected = snapshots
+      .filter(s => Number.isFinite(s.latitude) && Number.isFinite(s.longitude))
+      .map(s => ({ s, p: map.project([s.longitude, s.latitude]) }))
+    const selectedPoint = projected.find(({ s }) => selectedId != null && String(s.id) === String(selectedId))?.p
+
+    const groups = []
+    projected.forEach(({ s, p }) => {
+      // The selected vehicle always stays individually visible.
+      if (selectedPoint && Math.hypot(selectedPoint.x - p.x, selectedPoint.y - p.y) <= CLUSTER_DISTANCE_PX) {
+        groups.push({ items: [{ s, p }], centroid: p })
+        return
+      }
+      const hit = groups.find(g => Math.hypot(g.centroid.x - p.x, g.centroid.y - p.y) <= CLUSTER_DISTANCE_PX)
+      if (!hit) {
+        groups.push({ items: [{ s, p }], centroid: p })
+        return
+      }
+      hit.items.push({ s, p })
+      hit.centroid = {
+        x: hit.items.reduce((sum, i) => sum + i.p.x, 0) / hit.items.length,
+        y: hit.items.reduce((sum, i) => sum + i.p.y, 0) / hit.items.length,
+      }
+    })
+
+    const nextClustered = new Set()
+    const nextKeys = new Set()
+    groups.filter(g => g.items.length > 1).forEach((g) => {
+      const key = g.items.map(i => String(i.s.id)).sort().join('|')
+      nextKeys.add(key)
+      const counts = {}
+      g.items.forEach(({ s }) => { const k = statusOf(s); counts[k] = (counts[k] || 0) + 1 })
+      const dominant = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]
+      const lngLat = map.unproject([g.centroid.x, g.centroid.y])
+
+      let rec = clustersRef.current.get(key)
+      if (!rec) {
+        const el = document.createElement('div')
+        el.className = 'fleet-ml-cluster'
+        el.setAttribute('role', 'button')
+        el.setAttribute('tabindex', '0')
+        const zoomIn = (e) => {
+          e?.stopPropagation?.()
+          const pts = (rec.items || []).map(i => [i.s.longitude, i.s.latitude])
+          if (!pts.length) return
+          if (pts.length === 1) map.flyTo({ center: pts[0], zoom: Math.max(map.getZoom() + 2, 14), duration: 900 })
+          else {
+            const bounds = pts.reduce((b, pt) => b.extend(pt), new maplibregl.LngLatBounds(pts[0], pts[0]))
+            map.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 900 })
+          }
+        }
+        el.addEventListener('click', zoomIn)
+        el.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); zoomIn(e) }
+        })
+        const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
+          .setLngLat(lngLat)
+          .addTo(map)
+        rec = { marker, el, count: 0, items: [] }
+        clustersRef.current.set(key, rec)
+      }
+      rec.items = g.items
+      rec.marker.setLngLat(lngLat)
+      rec.el.setAttribute('aria-label', `Zoom in to view ${g.items.length} nearby vehicles`)
+      rec.el.style.setProperty('--cluster-color', CAR_STATUS_COLORS[dominant].body)
+      if (rec.count !== g.items.length) {
+        rec.el.innerHTML = `<span>${g.items.length}</span>`
+        rec.count = g.items.length
+      }
+      g.items.forEach(({ s }) => nextClustered.add(s.id))
+    })
+
+    clustersRef.current.forEach((rec, key) => {
+      if (!nextKeys.has(key)) { rec.marker.remove(); clustersRef.current.delete(key) }
+    })
+    markersRef.current.forEach((rec, id) => {
+      rec.el.style.display = nextClustered.has(id) ? 'none' : ''
+    })
+    relayoutLabelsRef.current?.()
+  }
+  syncClustersRef.current = syncClusters
 
   // Sync markers with snapshots (create / update targets, never jump)
   useEffect(() => {
@@ -175,7 +291,7 @@ export default function FleetMap({
         el.setAttribute('aria-label', `Select ${s.registration || 'vehicle'} on the map`)
         el.innerHTML =
           `<div class="fleet-ml-label"><span class="fleet-ml-reg">${esc(s.registration || '—')}</span>` +
-          `<span class="fleet-ml-spd">${speed > 0 ? `${speed.toFixed(0)} km/h` : 'Stopped'}</span></div>` +
+          `<span class="fleet-ml-spd">${markerSpeedText(s)}</span></div>` +
           `<div class="fleet-ml-car" style="width:${MARKER_SIZE}px;height:${MARKER_SIZE * 2}px;transform:rotate(${bearing}deg)">${carSvg(status, MARKER_SIZE)}</div>`
         const carEl = el.querySelector('.fleet-ml-car')
         const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
@@ -202,9 +318,9 @@ export default function FleetMap({
           rec.carEl.innerHTML = carSvg(status, MARKER_SIZE)
         }
         if (rec.spdEl) {
-          const txt = speed > 0 ? `${speed.toFixed(0)} km/h` : 'Stopped'
+          const txt = markerSpeedText(s)
           if (rec.spdEl.textContent !== txt) rec.spdEl.textContent = txt
-          rec.spdEl.style.color = speed > 0 ? '#34d399' : '#fbbf24'
+          rec.spdEl.style.color = CAR_STATUS_COLORS[status].light
         }
         if (rec.carEl) rec.carEl.style.transform = `rotate(${bearing}deg)`
       }
@@ -253,7 +369,7 @@ export default function FleetMap({
       }
     }
     relayoutLabelsRef.current = relayoutLabels
-    relayoutLabels()
+    syncClusters()
   }, [snapshots, snapToRoad, selectedId, focusIds])
 
   // Ease markers toward live fixes (continuous motion, no overshoot)

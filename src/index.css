@@ -384,6 +384,18 @@
   .fleet-ml-reg { font-weight: 800; font-size: 10px; color: #fff; white-space: nowrap; }
   .fleet-ml-spd { font-size: 9px; font-weight: 700; white-space: nowrap; }
   .fleet-ml-car { transition: transform 0.5s ease; filter: drop-shadow(0 3px 3px rgba(0,0,0,.35)); }
+  .fleet-ml-cluster {
+    width: 38px; height: 38px; border-radius: 999px; cursor: pointer; outline: none;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--cluster-color, var(--ap-accent));
+    border: 3px solid rgba(255, 255, 255, 0.96);
+    box-shadow: 0 6px 20px rgba(2, 6, 23, 0.38), 0 0 0 4px color-mix(in srgb, var(--cluster-color, var(--ap-accent)) 22%, transparent);
+    color: #fff; font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums;
+    transition: transform 160ms ease;
+  }
+  .dark .fleet-ml-cluster { border-color: #0f172a; }
+  .fleet-ml-cluster:hover, .fleet-ml-cluster:focus-visible { transform: scale(1.08); }
+  .fleet-ml-cluster:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
   .font-body    { font-family: 'DM Sans', system-ui, sans-serif; }
 
   /* Native dropdowns: the OS-rendered option popup ignores the page

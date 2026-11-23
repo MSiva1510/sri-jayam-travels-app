@@ -6,7 +6,7 @@ import StatusPill from '../ui/StatusPill'
 import { useAuth } from '../../context/AuthContext'
 import { loadDrivers } from '../../data/driverData'
 import { buildMapsUrl } from '../../utils/locationUtils'
-import { FLEET_STATUSES, fmtDT, freshnessLabel, ignitionOn, vehStatus } from './fleetStatus'
+import { FLEET_STATUSES, fmtDT, freshnessLabel, ignitionOn, speedText, vehStatus } from './fleetStatus'
 
 function Row({ label, value }) {
   return (
@@ -37,6 +37,7 @@ function VehicleDetailPanel({ snapshot, onClose, onLocate, onHistory }) {
   const canViewContact = user?.role === 'admin' || user?.role === 'manager'
 
   const status = FLEET_STATUSES[vehStatus(snapshot)] || FLEET_STATUSES.offline
+  const thumbnail = snapshot.image_url || snapshot.photo_url || snapshot.vehicle_image
   const hasCoords = hasNumber(snapshot.latitude) && hasNumber(snapshot.longitude)
   const mapsUrl = hasCoords
     ? buildMapsUrl('', `${snapshot.latitude},${snapshot.longitude}`)
@@ -92,9 +93,13 @@ function VehicleDetailPanel({ snapshot, onClose, onLocate, onHistory }) {
       >
         <header className="flex items-start justify-between gap-3 px-5 py-4 border-b border-[var(--ap-border)] flex-shrink-0">
           <div className="flex items-start gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-300 flex items-center justify-center flex-shrink-0">
-              <Truck size={19} strokeWidth={2} />
-            </div>
+            {thumbnail ? (
+              <img src={thumbnail} alt="" className="w-10 h-10 rounded-xl object-cover flex-shrink-0 ap-hairline" />
+            ) : (
+              <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-300 flex items-center justify-center flex-shrink-0">
+                <Truck size={19} strokeWidth={2} />
+              </div>
+            )}
             <div className="min-w-0">
               <h2 id="fleet-vehicle-title" className="text-base font-sf font-semibold text-slate-900 dark:text-white truncate">
                 {snapshot.registration || snapshot.vehicle_id?.slice(0, 8) || 'Vehicle'}
@@ -120,7 +125,7 @@ function VehicleDetailPanel({ snapshot, onClose, onLocate, onHistory }) {
 
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
           <Group title="Current status">
-            <Row label="Speed" value={`${Number(snapshot.speed_kmh ?? 0).toFixed(1)} km/h`} />
+            <Row label="Speed" value={speedText(snapshot)} />
             <Row label="GPS connection" value={gpsText} />
             <Row label="Last update" value={freshnessLabel(snapshot)} />
             <Row label="Updated at" value={fmtDT(snapshot.timestamp)} />

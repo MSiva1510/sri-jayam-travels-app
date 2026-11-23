@@ -19,7 +19,8 @@ import FleetVehicleDetail from '../components/fleet/FleetVehicleDetail'
 import RecentActivity    from '../components/fleet/RecentActivity'
 import VehicleListPanel, { FleetFilters, VehicleCard } from '../components/fleet/VehicleListPanel'
 import {
-  FLEET_STALE_MS, FLEET_STATUSES, fmtDT, fmtTime, timeAgo, vehStatus,
+  FLEET_STALE_MS, FLEET_STATUSES, fmtDT, fmtTime, mergeFleetVehicles,
+  normReg, timeAgo, vehStatus,
 } from '../components/fleet/fleetStatus'
 import { useGpsHistory }  from '../context/GpsHistoryContext'
 import { gpsSyncService } from '../services/gpsSyncService'
@@ -56,12 +57,8 @@ function distanceKm(pointsAsc) {
 }
 
 // Names fleet vehicles with no live provider feed (device/SIM/account issue).
-const normReg = (r) => String(r ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
-function MissingVehiclesBanner({ health, snapshots, settings }) {
-  const [regs, setRegs] = useState([])
-  useEffect(() => {
-    loadVehicles().then(v => setRegs((Array.isArray(v) ? v : []).map(x => x.registration).filter(Boolean))).catch(() => setRegs([]))
-  }, [])
+function MissingVehiclesBanner({ health, snapshots, vehicles = [], settings }) {
+  const regs = (Array.isArray(vehicles) ? vehicles : []).map(x => x.registration).filter(Boolean)
   if (!health?.ok || regs.length === 0) return null
   if ((health.providerRows ?? 0) >= regs.length) return null
   if ((health.unmatchedRegs?.length ?? 0) > 0) return null
@@ -152,12 +149,23 @@ export default function Fleet() {
   const [snapToRoad, setSnapToRoad] = useState(false)
   const [mapFocus, setMapFocus] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [refreshError, setRefreshError] = useState(null)
+  const [fleetVehicles, setFleetVehicles] = useState([])
   const [tick, setTick] = useState(0)
   const [histPts, setHistPts] = useState([])
   const [yestKm, setYestKm] = useState(null)
 
   // Re-classify stale/offline state without refetching the provider.
   useEffect(() => { const t = setInterval(() => setTick(x => x + 1), 30_000); return () => clearInterval(t) }, [])
+
+  // The vehicles table is the roster. Cached façade; no duplicate query.
+  useEffect(() => {
+    let live = true
+    loadVehicles()
+      .then(v => { if (live) setFleetVehicles(Array.isArray(v) ? v : []) })
+      .catch(() => { if (live) setFleetVehicles([]) })
+    return () => { live = false }
+  }, [])
 
   // Guarantee provider auto-sync while this page is open (guarded no-op when
   // the centrally managed service is already running).
@@ -199,26 +207,38 @@ export default function Fleet() {
     if (refreshing) return
     setRefreshing(true)
     try {
-      await syncNow?.()
+      const result = await syncNow?.()
+      setRefreshError(result && result.ok === false
+        ? (result.error || 'The GPS provider did not respond. Showing last known positions.')
+        : null)
       await loadHistory()
+    } catch (err) {
+      setRefreshError(err?.message || 'Refresh failed. Showing last known positions.')
     } finally { setRefreshing(false) }
   }, [refreshing, syncNow, loadHistory])
 
+  // Roster + live fixes. Vehicles with no GPS row are real offline entries;
+  // they never inherit a fabricated position or a "stopped" state.
+  const fleetSnapshots = useMemo(
+    () => mergeFleetVehicles(fleetVehicles, snapshots),
+    [fleetVehicles, snapshots]
+  )
+
   const counts = useMemo(() => {
     const c = { moving: 0, stopped: 0, offline: 0 }
-    snapshots.forEach(s => { c[vehStatus(s)]++ })
+    fleetSnapshots.forEach(s => { c[vehStatus(s)]++ })
     return c
-  }, [snapshots, tick])
+  }, [fleetSnapshots, tick])
 
   const filtered = useMemo(() => {
     const q = (search || '').trim().toLowerCase()
-    return snapshots.filter(s => {
+    return fleetSnapshots.filter(s => {
       if (statusSel !== 'all' && vehStatus(s) !== statusSel) return false
       if (q && ![s.registration, s.vehicle_model, s.model, s.driver_name, s.address, s.vehicle_id, s.imei]
         .some(v => String(v ?? '').toLowerCase().includes(q))) return false
       return true
     })
-  }, [snapshots, search, statusSel, tick])
+  }, [fleetSnapshots, search, statusSel, tick])
 
   const isFiltering = Boolean(search.trim()) || statusSel !== 'all'
   const focusIds = useMemo(
@@ -227,7 +247,7 @@ export default function Fleet() {
   )
   const activity = useMemo(() => deriveActivity(histPts), [histPts])
 
-  const total = snapshots.length
+  const total = fleetSnapshots.length
   const todayKm = Number(fleet.todayDistance ?? 0)
   const distDelta = yestKm != null && yestKm > 0 ? Math.round((todayKm - yestKm) / yestKm * 100) : null
   const lastUpd = fleet.lastSync ? fmtDT(fleet.lastSync) : '—'
@@ -288,6 +308,14 @@ export default function Fleet() {
         <Callout tone="amber" icon={WifiOff}
           title={`GPS provider is reachable but ${health?.lastWrite?.skipped ?? 0} row${(health?.lastWrite?.skipped ?? 0) !== 1 ? 's' : ''} failed to save — check gps_tracking table permissions (RLS).`} />
       )}
+      {refreshError && (
+        <Callout tone="red" icon={WifiOff}
+          title="Manual refresh failed"
+          sub={refreshError}
+          actionLabel="Dismiss"
+          onAction={() => setRefreshError(null)}
+        />
+      )}
       {(health?.refreshFailStreak ?? 0) >= 2 && (
         <Callout tone="amber"
           title={`Live view not refreshing${health?.refreshError ? `: ${health.refreshError}` : ''}. Data below may be stale.`}
@@ -300,7 +328,7 @@ export default function Fleet() {
           title={`API returned ${health.providerRows} vehicle${health.providerRows !== 1 ? 's' : ''} · ${health.unmatchedRegs.length} not matched to fleet: ${health.unmatchedRegs.join(', ')}`}
           sub="Check the registration / IMEI in GPS Settings and the Vehicles page." />
       )}
-      <MissingVehiclesBanner health={health} snapshots={snapshots} settings={settings} />
+      <MissingVehiclesBanner health={health} snapshots={snapshots} vehicles={fleetVehicles} settings={settings} />
 
       {subtab === 'map' && (
         <>
@@ -308,7 +336,7 @@ export default function Fleet() {
             <div className="min-w-0">
               <div className="relative">
                 <FleetMap
-                  snapshots={snapshots}
+                  snapshots={fleetSnapshots}
                   onSelect={setSelected}
                   locateTarget={locateTarget}
                   selectedId={selected?.id}
@@ -369,7 +397,13 @@ export default function Fleet() {
           snapshot={selected}
           onClose={() => setSelected(null)}
           onLocate={setLocateTarget}
-          onHistory={() => navigate('/gps-history')}
+          onHistory={() => {
+            const params = new URLSearchParams()
+            if (selected.vehicle_id) params.set('vehicleId', String(selected.vehicle_id))
+            if (selected.registration) params.set('registration', String(selected.registration))
+            const qs = params.toString()
+            navigate(qs ? `/gps-history?${qs}` : '/gps-history')
+          }}
         />
       )}
       {loading && <p className="text-center text-xs text-slate-500 dark:text-slate-400">Loading GPS data…</p>}

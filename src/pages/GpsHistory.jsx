@@ -5,7 +5,7 @@
 // Backend: gpsHistoryRepository.getReplay + gpsReplayService.processReplayData.
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Play, Download, Search, X, MapPin, ChevronLeft, ChevronRight,
 } from 'lucide-react'
@@ -86,7 +86,9 @@ const EVT_PAGE = 10
 
 export default function GpsHistory() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { darkMode } = useApp()
+  const preselectedVehicleId = searchParams.get('vehicleId') || ''
 
   // Source data
   const [bookings, setBookings] = useState([])
@@ -100,7 +102,7 @@ export default function GpsHistory() {
   const [driverF, setDriverF] = useState('all')
   const [customerF, setCustomerF] = useState('all')
   const [statusF, setStatusF] = useState('all')
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(searchParams.get('registration') || '')
   const [locationSearch, setLocationSearch] = useState('')
 
   // Track
@@ -128,6 +130,15 @@ export default function GpsHistory() {
       setVehicles(Array.isArray(v) ? v : [])
     }).catch(() => {})
   }, [])
+
+  // Fleet's "GPS History" action can hand off a selected vehicle directly.
+  useEffect(() => {
+    if (!preselectedVehicleId || !vehicles.length) return
+    const hit = vehicles.find(v =>
+      String(v.id) === preselectedVehicleId || String(v.vehicle_id) === preselectedVehicleId)
+    const reg = hit?.registration || hit?.reg
+    if (reg) setSearch(String(reg))
+  }, [preselectedVehicleId, vehicles])
 
   const setTripAndDates = useCallback((booking) => {
     if (!booking) { setTripId(''); return }

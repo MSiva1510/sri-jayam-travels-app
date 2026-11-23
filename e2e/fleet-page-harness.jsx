@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import '../src/index.css'
 import Fleet from '../src/pages/Fleet'
 import { AuthContext } from '../src/context/AuthContext'
@@ -44,13 +44,23 @@ const gpsValue = {
   reloadSettings: async () => ({}),
 }
 
+function GpsHistoryStub() {
+  const location = useLocation()
+  return <div data-testid="gps-history-stub">GPS History {location.search}</div>
+}
+
 createRoot(document.getElementById('root')).render(
   <AuthContext.Provider value={{ user: { id: 'u1', role: 'manager' } }}>
     <GpsHistoryContext.Provider value={gpsValue}>
       <MemoryRouter>
-        <main className="min-h-screen bg-[var(--ap-bg)] p-4 font-sf">
-          <Fleet />
-        </main>
+        <Routes>
+          <Route path="/" element={
+            <main className="min-h-screen bg-[var(--ap-bg)] p-4 font-sf">
+              <Fleet />
+            </main>
+          } />
+          <Route path="/gps-history" element={<GpsHistoryStub />} />
+        </Routes>
       </MemoryRouter>
     </GpsHistoryContext.Provider>
   </AuthContext.Provider>,

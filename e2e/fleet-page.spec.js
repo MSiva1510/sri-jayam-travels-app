@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 const URL = '/e2e/fleet-page-harness.html'
 
 test('real Fleet page renders the full workspace at desktop and mobile', async ({ page }) => {
-  for (const width of [1280, 390]) {
+  for (const width of [1440, 1366, 1280, 768, 412, 390, 360]) {
     await page.setViewportSize({ width, height: 900 })
     await page.goto(URL)
     await expect(page.getByRole('heading', { name: 'Live Fleet', exact: true })).toBeVisible()
@@ -46,10 +46,16 @@ for (const width of [360, 390]) {
 }
 
 for (const width of [390, 1280]) {
-  test(`nearby map marker labels do not merge at ${width}px`, async ({ page }) => {
+  test(`nearby vehicles cluster, expand and keep labels readable at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
     await page.goto(URL)
+
+    const cluster = page.locator('.fleet-ml-cluster')
+    await expect(cluster).toHaveCount(1)
+    await expect(cluster).toContainText('3')
+    await cluster.click()
     await expect(page.locator('.fleet-ml-label')).toHaveCount(3)
+    await expect(page.locator('.fleet-ml-cluster')).toHaveCount(0)
 
     const hits = await page.evaluate(() => {
       const labels = [...document.querySelectorAll('.fleet-ml-label')]
@@ -66,8 +72,43 @@ for (const width of [390, 1280]) {
       return results
     })
     expect(hits, JSON.stringify(hits)).toEqual([])
+
+    await page.locator('.fleet-ml-marker').first().click()
+    const popup = page.locator('.maplibregl-popup-content')
+    await expect(popup).toContainText('Swift Dzire')
+    await expect(popup).toContainText('Babu')
+    await expect(popup).toContainText('km/h')
   })
 }
+
+test('real Fleet page includes roster vehicles that have no GPS fix', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.addInitScript(() => {
+    localStorage.setItem('sjt_vehicles', JSON.stringify([
+      { id: 'v4', registration: 'PY01XY1255', model: 'Bolero', vehicle_type: 'SUV' },
+    ]))
+  })
+  await page.goto(URL)
+
+  await expect(page.getByRole('button', { name: 'Filter vehicles: Total vehicles' })).toContainText('4')
+  await expect(page.getByRole('button', { name: 'Filter vehicles: Offline' })).toContainText('2')
+  const offline = page.getByRole('button', { name: 'Locate PY01XY1255 on map' })
+  await expect(offline).toBeVisible()
+  const card = offline.locator('..')
+  await expect(card).toContainText('No GPS data')
+  await expect(card).toContainText('Speed: —')
+})
+
+test('selected vehicle GPS History hands off its registration', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto(URL)
+  await page.getByTestId('vehicle-panel').getByRole('button', { name: 'View details' }).first().click()
+  await page.getByRole('dialog').getByRole('button', { name: 'GPS History', exact: true }).click()
+
+  const stub = page.getByTestId('gps-history-stub')
+  await expect(stub).toBeVisible()
+  await expect(stub).toContainText('registration=PY01CY1255')
+})
 
 test('real Fleet page filters, refreshes and opens vehicle details', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
