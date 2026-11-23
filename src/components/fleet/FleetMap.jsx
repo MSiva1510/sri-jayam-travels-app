@@ -12,6 +12,7 @@ import { Maximize2 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import { snapPoint } from '../../utils/snapToRoad'
 import { carSvg, carStatusOf, CAR_STATUS_COLORS } from './carIcon'
+import { MAP_STATUSES } from './fleetStatus'
 
 const LIGHT_STYLE = {
   version: 8,
@@ -64,13 +65,17 @@ function popupHtml(s, status) {
   </div>`
 }
 
-export default function FleetMap({ snapshots = [], onSelect, locateTarget, height = 500, snapToRoad = false }) {
+export default function FleetMap({
+  snapshots = [], onSelect, locateTarget, height = 500, snapToRoad = false,
+  selectedId = null, focusIds = null,
+}) {
   const { darkMode } = useApp() || {}
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const markersRef = useRef(new Map()) // id -> { marker, el, carEl, spdEl, status, cur, target }
   const snapCacheRef = useRef(new Map()) // "lat,lng" @5dp -> { lat, lng } snapped road point
   const latestRef = useRef(new Map())
+  const popupRef = useRef(null)
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
   const styleSpec = darkMode ? DARK_STYLE : LIGHT_STYLE
@@ -101,6 +106,8 @@ export default function FleetMap({ snapshots = [], onSelect, locateTarget, heigh
     return () => {
       markersRef.current.forEach(m => m.marker.remove())
       markersRef.current.clear()
+      popupRef.current?.remove()
+      popupRef.current = null
       map.remove()
       mapRef.current = null
     }
@@ -120,7 +127,7 @@ export default function FleetMap({ snapshots = [], onSelect, locateTarget, heigh
     const map = mapRef.current
     if (!map) return
     const seen = new Set()
-    const popup = new maplibregl.Popup({ offset: 18, closeButton: false })
+    const popup = popupRef.current || (popupRef.current = new maplibregl.Popup({ offset: 18, closeButton: false }))
     snapshots.forEach(s => {
       if (!Number.isFinite(s.latitude) || !Number.isFinite(s.longitude)) return
       seen.add(s.id)
@@ -154,18 +161,28 @@ export default function FleetMap({ snapshots = [], onSelect, locateTarget, heigh
       if (!rec) {
         const el = document.createElement('div')
         el.className = 'fleet-ml-marker'
+        el.setAttribute('role', 'button')
+        el.setAttribute('tabindex', '0')
+        el.setAttribute('aria-label', `Select ${s.registration || 'vehicle'} on the map`)
         el.innerHTML =
           `<div class="fleet-ml-label"><span class="fleet-ml-reg">${esc(s.registration || '—')}</span>` +
           `<span class="fleet-ml-spd">${speed > 0 ? `${speed.toFixed(0)} km/h` : 'Stopped'}</span></div>` +
-          `<div class="fleet-ml-car" style="width:${MARKER_SIZE}px;height:${MARKER_SIZE * 2}px">${carSvg(status, MARKER_SIZE)}</div>`
+          `<div class="fleet-ml-car" style="width:${MARKER_SIZE}px;height:${MARKER_SIZE * 2}px;transform:rotate(${bearing}deg)">${carSvg(status, MARKER_SIZE)}</div>`
         const carEl = el.querySelector('.fleet-ml-car')
         const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
           .setLngLat([target.lng, target.lat])
           .addTo(map)
-        el.addEventListener('click', (e) => {
-          e.stopPropagation()
-          popup.setLngLat([s.longitude, s.latitude]).setHTML(popupHtml(latestRef.current.get(s.id) || s, statusOf(latestRef.current.get(s.id) || s))).addTo(map)
-          onSelectRef.current?.(s)
+        const selectVehicle = (e) => {
+          e?.stopPropagation?.()
+          const fresh = latestRef.current.get(s.id) || s
+          const position = [fresh.longitude ?? fresh.lng, fresh.latitude ?? fresh.lat]
+          if (position.every(Number.isFinite)) popup.setLngLat(position)
+          popup.setHTML(popupHtml(fresh, statusOf(fresh))).addTo(map)
+          onSelectRef.current?.(fresh)
+        }
+        el.addEventListener('click', selectVehicle)
+        el.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectVehicle(e) }
         })
         rec = { marker, el, carEl, spdEl: el.querySelector('.fleet-ml-spd'), status, cur: { lng: target.lng, lat: target.lat }, target }
         markersRef.current.set(s.id, rec)
@@ -187,7 +204,14 @@ export default function FleetMap({ snapshots = [], onSelect, locateTarget, heigh
     markersRef.current.forEach((rec, id) => {
       if (!seen.has(id)) { rec.marker.remove(); markersRef.current.delete(id) }
     })
-  }, [snapshots, snapToRoad])
+    // Emphasis only toggles DOM classes — the map instance and marker nodes
+    // are never recreated when selection or filters change.
+    const focus = focusIds ? new Set(focusIds) : null
+    markersRef.current.forEach((rec, id) => {
+      rec.el.classList.toggle('fleet-ml-marker-selected', selectedId != null && String(id) === String(selectedId))
+      rec.el.classList.toggle('fleet-ml-muted', Boolean(focus && !focus.has(id)))
+    })
+  }, [snapshots, snapToRoad, selectedId, focusIds])
 
   // Ease markers toward live fixes (continuous motion, no overshoot)
   useEffect(() => {
@@ -243,12 +267,15 @@ export default function FleetMap({ snapshots = [], onSelect, locateTarget, heigh
         <Maximize2 size={12} /> Show all ({snapshots.filter(s => Number.isFinite(s.latitude) && Number.isFinite(s.longitude)).length})
       </button>
       <div className="absolute bottom-3 left-3 z-10 flex flex-wrap gap-x-3 gap-y-1 rounded-xl bg-[var(--ap-surface)]/95 backdrop-blur-md px-3.5 py-2.5 text-[11px] font-semibold text-slate-600 dark:text-slate-200 shadow-lg border border-[var(--ap-border)]">
-        {Object.entries(CAR_STATUS_COLORS).map(([k, c]) => (
+        {MAP_STATUSES.map(k => {
+          const c = CAR_STATUS_COLORS[k]
+          return (
           <span key={k} className="flex items-center gap-1.5">
             <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: c.body }} />
             <span className="font-medium">{c.label}</span>
           </span>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

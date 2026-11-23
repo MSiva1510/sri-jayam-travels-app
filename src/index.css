@@ -358,7 +358,22 @@
   }
   .fleet-map-dark .leaflet-container { background: #0b1530; }
   /* MapLibre vehicle markers (label pill + small rotated car) */
-  .fleet-ml-marker { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+  .fleet-ml-marker {
+    display: flex; flex-direction: column; align-items: center; cursor: pointer;
+    outline: none; transition: opacity 180ms ease, filter 180ms ease, transform 180ms ease;
+  }
+  .fleet-ml-marker:hover .fleet-ml-label,
+  .fleet-ml-marker:focus-visible .fleet-ml-label {
+    border-color: rgba(96, 165, 250, 0.85);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.28), 0 6px 18px rgba(0, 0, 0, 0.38);
+  }
+  .fleet-ml-marker-selected .fleet-ml-label {
+    border-color: rgba(59, 130, 246, 0.95);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.32), 0 8px 22px rgba(0, 0, 0, 0.42);
+    transform: translateY(-2px);
+  }
+  .fleet-ml-marker-selected .fleet-ml-reg { color: #bfdbfe; }
+  .fleet-ml-muted { opacity: 0.36; filter: saturate(0.65); }
   .fleet-ml-label {
     display: flex; flex-direction: column; align-items: center;
     background: rgba(2, 6, 23, 0.92); border: 1px solid rgba(255, 255, 255, 0.14);

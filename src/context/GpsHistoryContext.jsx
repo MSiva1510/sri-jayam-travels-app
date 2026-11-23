@@ -8,7 +8,7 @@ import { gpsHistoryRepository }  from '../repositories/gpsHistoryRepository'
 import { gpsSettingsRepository } from '../repositories/gpsSettingsRepository'
 import { useAuth }               from './AuthContext'
 
-const GpsHistoryContext = createContext(null)
+export const GpsHistoryContext = createContext(null)
 
 export function GpsHistoryProvider({ children }) {
   const { user } = useAuth()

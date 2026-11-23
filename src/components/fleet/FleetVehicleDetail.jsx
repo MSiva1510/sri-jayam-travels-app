@@ -1,83 +1,187 @@
-// ─── Fleet Vehicle Detail (side panel) ───────────────────────
-import { X, Gauge, Navigation, Truck, User } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { History, LocateFixed, MapPin, Navigation, Truck, X } from 'lucide-react'
+import Button from '../ui/Button'
+import StatusPill from '../ui/StatusPill'
+import { useAuth } from '../../context/AuthContext'
+import { loadDrivers } from '../../data/driverData'
 import { buildMapsUrl } from '../../utils/locationUtils'
+import { FLEET_STATUSES, fmtDT, freshnessLabel, ignitionOn, vehStatus } from './fleetStatus'
 
 function Row({ label, value }) {
   return (
-    <div className="flex items-center justify-between py-2 border-b border-[var(--ap-border)] last:border-0">
-      <span className="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0">{label}</span>
-      <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 text-right ml-2 min-w-0 break-all">{value ?? '—'}</span>
+    <div className="flex items-start justify-between gap-3 py-2 border-b border-[var(--ap-border)] last:border-0">
+      <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 flex-shrink-0 pt-0.5">{label}</span>
+      <span className="text-xs font-semibold text-slate-800 dark:text-slate-100 text-right min-w-0 break-words">{value ?? '—'}</span>
     </div>
   )
 }
 
-function Pill({ on, labelOn, labelOff }) {
+function Group({ title, children }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${on ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${on ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-      {on ? labelOn : labelOff}
-    </span>
+    <section className="rounded-2xl ap-surface ap-hairline px-3.5 py-2">
+      <h3 className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500 mb-1">
+        {title}
+      </h3>
+      {children}
+    </section>
   )
 }
 
-export default function FleetVehicleDetail({ snapshot, onClose }) {
-  if (!snapshot) return null
-  const mapsUrl = (snapshot.latitude && snapshot.longitude)
-    ? buildMapsUrl(`${snapshot.latitude},${snapshot.longitude}`) : null
-  const ts = snapshot.timestamp ? new Date(snapshot.timestamp).getTime() : 0
-  const isRecent = ts && (Date.now() - ts) < 5 * 60_000
-  const vehicleStatus = isRecent ? (Number(snapshot.speed_kmh ?? 0) > 0 ? 'Moving' : 'Stopped') : 'Offline'
+const hasNumber = (v) => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v))
 
-  return (
+function VehicleDetailPanel({ snapshot, onClose, onLocate, onHistory }) {
+  const closeRef = useRef(null)
+  const [driverPhone, setDriverPhone] = useState(null)
+  const { user } = useAuth() || {}
+  const canViewContact = user?.role === 'admin' || user?.role === 'manager'
+
+  const status = FLEET_STATUSES[vehStatus(snapshot)] || FLEET_STATUSES.offline
+  const hasCoords = hasNumber(snapshot.latitude) && hasNumber(snapshot.longitude)
+  const mapsUrl = hasCoords
+    ? buildMapsUrl('', `${snapshot.latitude},${snapshot.longitude}`)
+    : null
+  const gpsText = snapshot.gps_online === true
+    ? 'Active'
+    : snapshot.gps_online === false ? 'Unavailable' : 'Not reported'
+  const ignitionText = snapshot.ignition == null
+    ? '—'
+    : ignitionOn(snapshot.ignition) ? 'ON' : 'OFF'
+
+  useEffect(() => {
+    closeRef.current?.focus()
+    const onKey = (e) => { if (e.key === 'Escape') onClose?.() }
+    document.addEventListener('keydown', onKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+    }
+  }, [onClose])
+
+  useEffect(() => {
+    if (!canViewContact) return undefined
+    let live = true
+    const id = snapshot.driver_id
+    const name = String(snapshot.driver_name || '').trim().toLowerCase()
+    loadDrivers().then(drivers => {
+      if (!live || !Array.isArray(drivers)) return
+      const match = drivers.find(d =>
+        (id != null && (String(d.id) === String(id) || String(d.driver_id) === String(id))) ||
+        (name && String(d.name || '').trim().toLowerCase() === name)
+      )
+      setDriverPhone(match?.phone || null)
+    }).catch(() => setDriverPhone(null))
+    return () => { live = false }
+  }, [canViewContact, snapshot.driver_id, snapshot.driver_name])
+
+  const locate = () => {
+    onLocate?.({ ...snapshot })
+    onClose?.()
+  }
+
+  return createPortal(
     <>
-      <div className="fixed inset-0 bg-black/30 z-40 animate-fade-up" onClick={onClose} />
-      <aside className="fixed right-0 top-0 h-full w-full sm:w-96 ap-surface z-50 shadow-xl flex flex-col animate-fade-up">
-        <header className="flex items-center justify-between px-5 py-4 border-b border-[var(--ap-border)]">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600"><Truck size={16} /></div>
-            <div>
-              <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">{snapshot.registration || snapshot.vehicle_id?.slice(0, 8) || 'Vehicle'}</h2>
-              <p className="text-[11px] text-slate-400">{snapshot.vehicle_model || 'Vehicle Details'}</p>
+      <div className="fixed inset-0 z-[100] bg-slate-950/45 backdrop-blur-[2px] animate-fade-up" onClick={onClose} aria-hidden="true" />
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="fleet-vehicle-title"
+        className="fixed inset-x-0 bottom-0 z-[101] flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl ap-surface ap-hairline shadow-2xl animate-fade-up sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-[420px] sm:rounded-l-3xl sm:rounded-tr-none"
+      >
+        <header className="flex items-start justify-between gap-3 px-5 py-4 border-b border-[var(--ap-border)] flex-shrink-0">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-300 flex items-center justify-center flex-shrink-0">
+              <Truck size={19} strokeWidth={2} />
+            </div>
+            <div className="min-w-0">
+              <h2 id="fleet-vehicle-title" className="text-base font-sf font-semibold text-slate-900 dark:text-white truncate">
+                {snapshot.registration || snapshot.vehicle_id?.slice(0, 8) || 'Vehicle'}
+              </h2>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                {snapshot.vehicle_model || snapshot.model || 'Vehicle details'}
+              </p>
+              <div className="mt-2">
+                <StatusPill tone={status.tone}>{status.label}</StatusPill>
+              </div>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[var(--ap-surface-2)]"><X size={16} /></button>
+          <button
+            ref={closeRef}
+            type="button"
+            onClick={onClose}
+            aria-label="Close vehicle details"
+            className="ap-focus w-9 h-9 rounded-xl flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-500/10 dark:hover:bg-white/10 flex-shrink-0"
+          >
+            <X size={17} />
+          </button>
         </header>
-        <div className="flex-1 overflow-y-auto p-5 space-y-5">
-          <section>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Identity</h3>
-            <Row label="Vehicle No." value={snapshot.registration} />
-            <Row label="IMEI" value={snapshot.imei ? <span className="font-mono text-xs">{snapshot.imei}</span> : null} />
-            <Row label="Driver" value={snapshot.driver_name ? <span className="flex items-center gap-1.5"><User size={12} className="text-slate-400" />{snapshot.driver_name}</span> : 'Unassigned'} />
-          </section>
-          <section>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">Status</h3>
-            <div className="flex items-center gap-2 flex-wrap">
-              <Pill on={snapshot.gps_online === true} labelOn="GPS Active" labelOff="GPS Void" />
-              <Pill on={snapshot.ignition === true}   labelOn="Ignition ON" labelOff="Ignition OFF" />
-              <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${vehicleStatus === 'Moving' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : vehicleStatus === 'Stopped' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>{vehicleStatus}</span>
-            </div>
-          </section>
-          <section>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Location</h3>
-            <Row label="Address"   value={snapshot.address} />
-            <Row label="Latitude"  value={snapshot.latitude?.toFixed(6)} />
-            <Row label="Longitude" value={snapshot.longitude?.toFixed(6)} />
-            {mapsUrl && <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:underline"><Navigation size={12} />Open in Maps</a>}
-          </section>
-          <section>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Telemetry</h3>
-            <Row label="Speed"    value={<span className="flex items-center gap-1"><Gauge size={12} className="text-slate-400" />{Number(snapshot.speed_kmh ?? 0).toFixed(1)} km/h</span>} />
-            <Row label="Odometer" value={snapshot.odometer ? `${Number(snapshot.odometer).toFixed(1)} km` : null} />
-            <Row label="Accuracy" value={snapshot.accuracy ? `±${Number(snapshot.accuracy).toFixed(0)} m` : null} />
-            <Row label="Bearing"  value={snapshot.bearing  ? `${Number(snapshot.bearing).toFixed(0)}°` : null} />
-          </section>
-          <section>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Sync</h3>
-            <Row label="Last Update" value={snapshot.timestamp ? new Date(snapshot.timestamp).toLocaleString() : null} />
-            <Row label="Snapshot ID" value={snapshot.id ? <span className="font-mono text-[11px]">{snapshot.id.slice(0, 8)}</span> : null} />
-          </section>
+
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+          <Group title="Current status">
+            <Row label="Speed" value={`${Number(snapshot.speed_kmh ?? 0).toFixed(1)} km/h`} />
+            <Row label="GPS connection" value={gpsText} />
+            <Row label="Last update" value={freshnessLabel(snapshot)} />
+            <Row label="Updated at" value={fmtDT(snapshot.timestamp)} />
+          </Group>
+
+          <Group title="Location">
+            <Row label="Current address" value={snapshot.address || '—'} />
+            <Row
+              label="Coordinates"
+              value={hasCoords ? `${Number(snapshot.latitude).toFixed(5)}, ${Number(snapshot.longitude).toFixed(5)}` : 'Not available'}
+            />
+          </Group>
+
+          <Group title="Driver">
+            <Row label="Name" value={snapshot.driver_name || 'Unassigned'} />
+            {canViewContact && driverPhone && <Row label="Contact" value={driverPhone} />}
+          </Group>
+
+          <Group title="Vehicle">
+            <Row label="Type" value={snapshot.vehicle_type || snapshot.type || '—'} />
+            {snapshot.imei && <Row label="IMEI" value={<span className="font-mono text-[11px]">{snapshot.imei}</span>} />}
+          </Group>
+
+          <Group title="Telemetry">
+            <Row label="Odometer" value={hasNumber(snapshot.odometer) ? `${Number(snapshot.odometer).toFixed(1)} km` : null} />
+            <Row label="Ignition" value={ignitionText} />
+            <Row label="Bearing" value={hasNumber(snapshot.bearing) ? `${Number(snapshot.bearing).toFixed(0)}°` : null} />
+            <Row label="GPS accuracy" value={hasNumber(snapshot.accuracy) ? `±${Number(snapshot.accuracy).toFixed(0)} m` : null} />
+          </Group>
         </div>
+
+        <footer className="flex-shrink-0 border-t border-[var(--ap-border)] p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <Button type="button" variant="primary" size="sm" icon={LocateFixed} onClick={locate} disabled={!hasCoords}>
+              Locate on Map
+            </Button>
+            <Button type="button" variant="outline" size="sm" icon={History} onClick={onHistory} disabled={!onHistory}>
+              GPS History
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              icon={MapPin}
+              disabled={!mapsUrl}
+              onClick={() => mapsUrl && window.open(mapsUrl, '_blank', 'noopener,noreferrer')}
+            >
+              Open in Maps
+            </Button>
+          </div>
+          <p className="mt-2 flex items-center justify-center gap-1 text-[10px] text-slate-400 dark:text-slate-500">
+            <Navigation size={10} aria-hidden="true" /> Map actions use the latest GPS fix only.
+          </p>
+        </footer>
       </aside>
-    </>
+    </>,
+    document.body
   )
+}
+
+export default function FleetVehicleDetail({ snapshot, onClose, onLocate, onHistory }) {
+  if (!snapshot) return null
+  return <VehicleDetailPanel snapshot={snapshot} onClose={onClose} onLocate={onLocate} onHistory={onHistory} />
 }

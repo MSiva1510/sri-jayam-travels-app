@@ -1,8 +1,8 @@
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
-  Car, Truck, Pause, Clock, WifiOff, Route, Search, Eye,
-  LocateFixed, Expand, Bell, Map as MapIcon, List, Navigation,
-  ShieldCheck, History, BarChart2, ChevronLeft, ChevronRight,
+  BarChart2, Bell, Car, ChevronLeft, ChevronRight, Eye, History,
+  List, Map as MapIcon, Navigation, Route, ShieldCheck, WifiOff,
 } from 'lucide-react'
 import Surface           from '../components/ui/Surface'
 import SectionHeader     from '../components/ui/SectionHeader'
@@ -12,10 +12,15 @@ import StatusPill        from '../components/ui/StatusPill'
 import EmptyState        from '../components/ui/EmptyState'
 import Callout           from '../components/ui/Callout'
 import IconButton        from '../components/ui/IconButton'
-import StatusBar         from '../components/ui/StatusBar'
-import SparkChart        from '../components/ui/SparkChart'
 import FleetMap          from '../components/fleet/FleetMap'
+import FleetHeader       from '../components/fleet/FleetHeader'
+import FleetStatusStrip  from '../components/fleet/FleetStatusStrip'
 import FleetVehicleDetail from '../components/fleet/FleetVehicleDetail'
+import RecentActivity    from '../components/fleet/RecentActivity'
+import VehicleListPanel, { FleetFilters, VehicleCard } from '../components/fleet/VehicleListPanel'
+import {
+  FLEET_STALE_MS, FLEET_STATUSES, fmtDT, fmtTime, timeAgo, vehStatus,
+} from '../components/fleet/fleetStatus'
 import { useGpsHistory }  from '../context/GpsHistoryContext'
 import { gpsSyncService } from '../services/gpsSyncService'
 import { loadVehicles } from '../data/vehicleData'
@@ -23,42 +28,18 @@ import { gpsHistoryRepository } from '../repositories/gpsHistoryRepository'
 import { geofenceZoneRepository, geofenceEventRepository } from '../repositories/geofenceRepository'
 import { fleetAlertRepository } from '../repositories/fleetAlertRepository'
 
-// ── Vehicle status: single definition used everywhere on this page ──
-const isRecent = (s) => {
-  const ts = s.timestamp ? new Date(s.timestamp).getTime() : 0
-  return ts && (Date.now() - ts) < 10 * 60_000
-}
-const vehStatus = (s) => {
-  if (!isRecent(s)) return 'offline'
-  if (Number(s.speed_kmh ?? 0) > 0) return 'moving'
-  return s.ignition === true ? 'idle' : 'stopped'
-}
-const ST = {
-  moving:  { label: 'Moving',  color: '#10b981', tone: 'green' },
-  idle:    { label: 'Idle',    color: '#f59e0b', tone: 'amber' },
-  stopped: { label: 'Stopped', color: '#3b82f6', tone: 'blue' },
-  offline: { label: 'Offline', color: '#ef4444', tone: 'red' },
-}
+// Kept exported for the offline VehicleCard harness.
+export { VehicleCard }
 
-const fmtTime = (iso) => {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  return isNaN(d) ? '—' : d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase()
-}
-const fmtDT = (iso) => {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  if (isNaN(d)) return '—'
-  return `${d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}, ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase()}`
-}
-const timeAgo = (iso) => {
-  if (!iso) return '—'
-  const ms = Date.now() - new Date(iso).getTime()
-  if (ms < 60_000) return 'just now'
-  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ago`
-  if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h ago`
-  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
-}
+const SUBTABS = [
+  { key: 'map',       label: 'Live Map',  icon: MapIcon },
+  { key: 'list',      label: 'Vehicles',  icon: List },
+  { key: 'trips',     label: 'Status',    icon: Navigation },
+  { key: 'geofence',  label: 'Geofence',  icon: ShieldCheck },
+  { key: 'alerts',    label: 'Alerts',    icon: Bell },
+  { key: 'history',   label: 'History',   icon: History },
+  { key: 'analytics', label: 'Analytics', icon: BarChart2 },
+]
 
 // Integrate GPS speed over time → km (real samples only)
 function distanceKm(pointsAsc) {
@@ -74,8 +55,7 @@ function distanceKm(pointsAsc) {
   return km
 }
 
-// Names the fleet vehicles with no live provider feed (not returned by
-// the API at all — device/SIM/account issue at the vendor, not matching).
+// Names fleet vehicles with no live provider feed (device/SIM/account issue).
 const normReg = (r) => String(r ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
 function MissingVehiclesBanner({ health, snapshots, settings }) {
   const [regs, setRegs] = useState([])
@@ -84,13 +64,11 @@ function MissingVehiclesBanner({ health, snapshots, settings }) {
   }, [])
   if (!health?.ok || regs.length === 0) return null
   if ((health.providerRows ?? 0) >= regs.length) return null
-  if ((health.unmatchedRegs?.length ?? 0) > 0) return null // covered by the mismatch banner
-  const live = new Set(
-    snapshots.filter(s => {
-      const ts = s.timestamp ? new Date(s.timestamp).getTime() : 0
-      return ts && (Date.now() - ts) < 10 * 60_000
-    }).map(s => normReg(s.registration))
-  )
+  if ((health.unmatchedRegs?.length ?? 0) > 0) return null
+  const live = new Set(snapshots.filter(s => {
+    const ts = s.timestamp ? new Date(s.timestamp).getTime() : 0
+    return ts && (Date.now() - ts) < FLEET_STALE_MS
+  }).map(s => normReg(s.registration)))
   const missing = regs.filter(r => !live.has(normReg(r)))
   if (!missing.length) return null
   const acct = settings?.company_id || settings?.user_id
@@ -100,15 +78,13 @@ function MissingVehiclesBanner({ health, snapshots, settings }) {
     <Callout tone="amber" icon={Route} className="rounded-2xl"
       title={`API returned ${health.providerRows} of ${regs.length} fleet vehicles — not reporting: ${missing.join(', ')}`}
       sub={acct
-        ? `App queries ${acct} — if your working browser link uses different IDs, update them in GPS Settings. These trackers are offline at KingsTrack (device / SIM / account scope); the app can't display what the API doesn't send.`
-        : 'These trackers are offline at KingsTrack (device / SIM / account scope). The app cannot display what the API does not send.'}
+        ? `App queries ${acct} — if your working browser link uses different IDs, update them in GPS Settings. These trackers are offline at the vendor (device / SIM / account scope); the app cannot display what the API does not send.`
+        : 'These trackers are offline at the vendor (device / SIM / account scope). The app cannot display what the API does not send.'}
     />
   )
 }
 
-// Live countdown to the next provider sync (isolated 1s ticker so the
-// page itself doesn't re-render every second). Honors vendor backoff:
-// when rate-limited, counts down to the scheduled retry instead.
+// Isolated 1s ticker so the page and map do not re-render every second.
 function SyncCountdown({ intervalSec, lastSuccess, nextRetryAt, running }) {
   const [now, setNow] = useState(Date.now())
   useEffect(() => {
@@ -124,63 +100,50 @@ function SyncCountdown({ intervalSec, lastSuccess, nextRetryAt, running }) {
   const limited = Number.isFinite(retryAt) && retryAt > base + intervalSec * 1000
   return (
     <span className="tabular-nums">
-      Auto-sync {intervalSec}s{remain > 0 ? ` • next in ${remain}s${limited ? ' (rate-limited)' : ''}` : ' • syncing…'}
+      Auto-sync {intervalSec}s{remain > 0 ? ` · next in ${remain}s${limited ? ' (rate-limited)' : ''}` : ' · syncing…'}
     </span>
   )
 }
 
-const SUBTABS = [
-  { key: 'map', label: 'Live Map', icon: MapIcon },
-  { key: 'list', label: 'Vehicle List', icon: List },
-  { key: 'trips', label: 'Trip Status', icon: Navigation },
-  { key: 'geofence', label: 'Geofence', icon: ShieldCheck },
-  { key: 'alerts', label: 'Alerts', icon: Bell },
-  { key: 'history', label: 'History', icon: History },
-  { key: 'analytics', label: 'Analytics', icon: BarChart2 },
-]
-
-export function VehicleCard({ s, selected, onView, onLocate }) {
-  const st = ST[vehStatus(s)]
-  // Send a fresh object so FleetMap re-centers even when the same card is clicked again.
-  const locate = () => onLocate?.({ ...s })
-  return (
-    <div className={`ap-surface relative rounded-2xl p-3.5 transition-colors hover:bg-[var(--ap-surface-2)] ${selected ? 'ring-2 ring-blue-500/60' : ''}`}>
-      <button
-        type="button"
-        aria-label={`Locate ${s.registration || 'vehicle'} on map`}
-        onClick={locate}
-        className="ap-focus absolute inset-0 z-0 rounded-2xl cursor-pointer"
-      />
-      <div className="relative z-10 pointer-events-none">
-        <div className="flex items-start gap-3">
-          <div className="w-11 h-11 rounded-xl bg-slate-500/10 text-slate-600 dark:bg-white/10 dark:text-slate-200 flex items-center justify-center flex-shrink-0">
-            <Car size={20} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-sf font-semibold tracking-wide text-slate-900 dark:text-white truncate">{s.registration || '—'}</p>
-              <StatusPill tone={st.tone}>{st.label}</StatusPill>
-            </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">{s.vehicle_model || s.model || 'Vehicle'}</p>
-          </div>
-          <div className="flex items-center gap-1 flex-shrink-0 pointer-events-auto">
-            <IconButton icon={Eye} label="View details" onClick={() => onView?.(s)} />
-            <IconButton icon={LocateFixed} label="Locate on map" onClick={locate} />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2.5 text-[11px] text-slate-500 dark:text-slate-400">
-          <span className="truncate">Driver: {s.driver_name || 'Unassigned'}</span>
-          <span className="tabular-nums truncate">Speed: {Number(s.speed_kmh ?? 0).toFixed(0)} km/h</span>
-          <span className="truncate">📍 {s.address ? s.address.split(',').slice(0, 2).join(',') : '—'}</span>
-          <span className="tabular-nums truncate">🕐 {s.timestamp ? fmtDT(s.timestamp) : '—'}</span>
-        </div>
-      </div>
-    </div>
-  )
+/** Derive a short activity timeline from real, per-vehicle GPS transitions. */
+function deriveActivity(points = []) {
+  const byVehicle = new Map()
+  points.forEach(p => {
+    const key = p.vehicle_id || p.registration || p.imei
+    if (!key) return
+    if (!byVehicle.has(key)) byVehicle.set(key, [])
+    byVehicle.get(key).push(p)
+  })
+  const events = []
+  byVehicle.forEach((pointsForVehicle, vehicleKey) => {
+    const sorted = [...pointsForVehicle].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+    sorted.forEach((p, i) => {
+      const prev = sorted[i - 1]
+      const speed = Number(p.speed_kmh ?? 0)
+      const prevSpeed = prev == null ? null : Number(prev.speed_kmh ?? 0)
+      const gap = prev ? new Date(p.timestamp).getTime() - new Date(prev.timestamp).getTime() : 0
+      let type = 'updated'
+      if (prev && gap > FLEET_STALE_MS && speed > 0) type = 'reconnected'
+      else if (prev && prevSpeed === 0 && speed > 0) type = 'started'
+      else if (prev && prevSpeed > 0 && speed === 0) type = 'stopped'
+      const coords = [p.latitude, p.longitude].every(Number.isFinite)
+        ? `${Number(p.latitude).toFixed(3)}, ${Number(p.longitude).toFixed(3)}`
+        : null
+      events.push({
+        id: p.id || `${vehicleKey}-${i}`,
+        t: p.timestamp,
+        registration: p.registration || String(vehicleKey).slice(0, 8),
+        type,
+        location: p.address || coords || 'Location unavailable',
+      })
+    })
+  })
+  return events.sort((a, b) => new Date(b.t) - new Date(a.t)).slice(0, 5)
 }
 
 export default function Fleet() {
-  const { snapshots, fleet, loading, running, settings, health } = useGpsHistory()
+  const navigate = useNavigate()
+  const { snapshots, fleet, loading, running, settings, health, syncNow } = useGpsHistory()
   const [subtab, setSubtab] = useState('map')
   const [search, setSearch] = useState('')
   const [statusSel, setStatusSel] = useState('all')
@@ -188,15 +151,16 @@ export default function Fleet() {
   const [locateTarget, setLocateTarget] = useState(null)
   const [snapToRoad, setSnapToRoad] = useState(false)
   const [mapFocus, setMapFocus] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const [tick, setTick] = useState(0)
   const [histPts, setHistPts] = useState([])
   const [yestKm, setYestKm] = useState(null)
 
+  // Re-classify stale/offline state without refetching the provider.
   useEffect(() => { const t = setInterval(() => setTick(x => x + 1), 30_000); return () => clearInterval(t) }, [])
 
-  // Guarantee provider auto-sync while this page is open (guarded no-op
-  // when the centrally managed service is already running). Interval
-  // comes from GPS Settings (default 60s).
+  // Guarantee provider auto-sync while this page is open (guarded no-op when
+  // the centrally managed service is already running).
   useEffect(() => {
     gpsSyncService.start().catch(() => {})
     gpsSyncService.refreshProvider().catch(() => {})
@@ -231,8 +195,17 @@ export default function Fleet() {
   }, [dayStart])
   useEffect(() => { loadHistory() }, [loadHistory])
 
+  const handleRefresh = useCallback(async () => {
+    if (refreshing) return
+    setRefreshing(true)
+    try {
+      await syncNow?.()
+      await loadHistory()
+    } finally { setRefreshing(false) }
+  }, [refreshing, syncNow, loadHistory])
+
   const counts = useMemo(() => {
-    const c = { moving: 0, idle: 0, stopped: 0, offline: 0 }
+    const c = { moving: 0, stopped: 0, offline: 0 }
     snapshots.forEach(s => { c[vehStatus(s)]++ })
     return c
   }, [snapshots, tick])
@@ -241,119 +214,66 @@ export default function Fleet() {
     const q = (search || '').trim().toLowerCase()
     return snapshots.filter(s => {
       if (statusSel !== 'all' && vehStatus(s) !== statusSel) return false
-      if (q && ![s.registration, s.address, s.driver_name, s.vehicle_id, s.imei].some(v => String(v ?? '').toLowerCase().includes(q))) return false
+      if (q && ![s.registration, s.vehicle_model, s.model, s.driver_name, s.address, s.vehicle_id, s.imei]
+        .some(v => String(v ?? '').toLowerCase().includes(q))) return false
       return true
     })
   }, [snapshots, search, statusSel, tick])
 
+  const isFiltering = Boolean(search.trim()) || statusSel !== 'all'
+  const focusIds = useMemo(
+    () => isFiltering ? filtered.map(s => s.id) : null,
+    [isFiltering, filtered]
+  )
+  const activity = useMemo(() => deriveActivity(histPts), [histPts])
+
   const total = snapshots.length
-  const pct = (n) => total ? `${(n / total * 100).toFixed(1)}%` : '0%'
   const todayKm = Number(fleet.todayDistance ?? 0)
   const distDelta = yestKm != null && yestKm > 0 ? Math.round((todayKm - yestKm) / yestKm * 100) : null
   const lastUpd = fleet.lastSync ? fmtDT(fleet.lastSync) : '—'
 
-  // Recent movement: latest GPS samples today (real points, newest first)
-  const movement = useMemo(() => [...histPts]
-    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-    .slice(0, 8)
-    .map(p => ({
-      t: p.timestamp,
-      veh: p.registration || p.vehicle_id?.slice(0, 8) || '—',
-      moving: Number(p.speed_kmh ?? 0) > 0,
-      idle: Number(p.speed_kmh ?? 0) === 0 && p.ignition === true,
-      loc: p.address || ([p.latitude, p.longitude].every(Number.isFinite) ? `${Number(p.latitude).toFixed(3)}, ${Number(p.longitude).toFixed(3)}` : '—'),
-    })), [histPts])
+  const connection = useMemo(() => {
+    if (health?.ok === false) return { tone: 'red', label: 'Connection issue', pulse: false }
+    if (health?.degraded) return { tone: 'amber', label: 'Partial connection', pulse: true }
+    if (running === false) return { tone: 'amber', label: 'Tracking paused', pulse: false }
+    return { tone: 'green', label: 'Connected', pulse: true }
+  }, [health?.ok, health?.degraded, running])
 
-  // Hourly distance buckets from today's GPS samples
-  const hourly = useMemo(() => {
-    const buckets = Array.from({ length: 12 }, (_, i) => ({ x: `${String(i * 2).padStart(2, '0')}:00`, km: 0 }))
-    const byV = new Map()
-    histPts.forEach(p => {
-      const k = p.vehicle_id || p.registration
-      if (!k) return
-      if (!byV.has(k)) byV.set(k, [])
-      byV.get(k).push(p)
-    })
-    byV.forEach(arr => {
-      const sorted = [...arr].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-      for (let i = 1; i < sorted.length; i++) {
-        const a = sorted[i - 1], b = sorted[i]
-        const ta = new Date(a.timestamp).getTime(), tb = new Date(b.timestamp).getTime()
-        const sa = Number(a.speed_kmh), sb = Number(b.speed_kmh)
-        if (!Number.isFinite(ta) || !Number.isFinite(tb) || tb <= ta || !Number.isFinite(sa) || !Number.isFinite(sb)) continue
-        const km = ((sa + sb) / 2) * ((tb - ta) / 3_600_000)
-        const h = new Date(tb).getHours()
-        buckets[Math.min(11, Math.floor(h / 2))].km += km
-      }
-    })
-    return buckets
-  }, [histPts])
-
-  const ctl = 'ap-field ap-focus py-2 px-3 text-xs font-medium rounded-[10px] outline-none tabular-nums'
+  const filters = (
+    <FleetFilters
+      search={search}
+      onSearch={setSearch}
+      status={statusSel}
+      onStatus={setStatusSel}
+    />
+  )
 
   return (
-    <div className="space-y-5 animate-fade-up font-sf">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">Operations · GPS</p>
-          <h1 className="text-[26px] font-semibold tracking-tight text-slate-900 dark:text-white">Live Fleet Tracking</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Real-time vehicle location, status and fleet operations</p>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* Fully automatic sync — status only, no manual buttons */}
-          <div className="text-right">
-            <div className="flex justify-end">
-              <StatusPill tone={running === false ? 'amber' : 'green'} pulse={running !== false}>
-                {running === false ? 'Tracking paused' : 'Live tracking active'}
-              </StatusPill>
-            </div>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 tabular-nums mt-1">Last updated: {lastUpd}</p>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 tabular-nums">
-              <SyncCountdown intervalSec={intervalSec} lastSuccess={health?.lastSuccess} nextRetryAt={health?.nextRetryAt} running={running} />
-            </p>
-          </div>
-        </div>
-      </div>
+    <div className="space-y-4 animate-fade-up font-sf">
+      <FleetHeader
+        connection={connection}
+        lastUpdated={lastUpd}
+        countdown={<SyncCountdown intervalSec={intervalSec} lastSuccess={health?.lastSuccess} nextRetryAt={health?.nextRetryAt} running={running} />}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+        mapFocus={mapFocus}
+        onToggleMapFocus={() => setMapFocus(v => !v)}
+      />
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
-        <MetricCard icon={Truck} label="Total Vehicles" value={total} sub="100% of fleet" tone="blue" />
-        <MetricCard icon={Navigation} label="Moving" value={counts.moving} sub={pct(counts.moving)} tone="green" />
-        <MetricCard icon={Pause} label="Stopped" value={counts.stopped} sub={pct(counts.stopped)} tone="teal" />
-        <MetricCard icon={Clock} label="Idle" value={counts.idle} sub={pct(counts.idle)} tone="gray" />
-        <MetricCard icon={WifiOff} label="Offline" value={counts.offline} sub={pct(counts.offline)} tone="red" />
-        <MetricCard icon={Route} label="Today's Distance" value={`${Math.round(todayKm)} km`} sub="vs yesterday" tone="violet"
-          trend={distDelta ?? undefined} trendUp={(distDelta ?? 0) >= 0} />
-      </div>
+      <FleetStatusStrip counts={counts} total={total} active={statusSel} onChange={setStatusSel} />
 
-      {/* Sub-tab bar + filters */}
       <div className="flex items-center gap-2 flex-wrap">
         <SegmentedControl
           scroll
-          className="flex-1 min-w-0"
-          ariaLabel="Fleet view"
+          className="min-w-0 flex-1"
+          ariaLabel="Fleet workspace view"
           value={subtab}
           onChange={setSubtab}
           options={SUBTABS.map(t => ({ key: t.key, label: t.label, icon: t.icon }))}
         />
-        <select value={statusSel} onChange={e => setStatusSel(e.target.value)} aria-label="Filter by status" className={ctl}>
-          <option value="all">All Status</option>
-          <option value="moving">Moving</option>
-          <option value="idle">Idle</option>
-          <option value="stopped">Stopped</option>
-          <option value="offline">Offline</option>
-        </select>
-        <div className="relative">
-          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search vehicle, driver, route…"
-            aria-label="Search vehicles" className={`${ctl} pl-8 w-52`} />
-        </div>
-        <IconButton icon={Expand} label={mapFocus ? 'Exit focus' : 'Expand map'} onClick={() => setMapFocus(v => !v)} />
       </div>
 
-      {/* Provider fetch failure — the API (or proxy/credentials) is down.
-          Without this, stale data looks identical to live data. */}
+      {/* Provider/write/read diagnostics. Kept separate from movement status. */}
       {health?.ok === false && health?.lastError && (() => {
         const retryAt = health?.nextRetryAt ? new Date(health.nextRetryAt).getTime() : 0
         const limited = Number.isFinite(retryAt) && retryAt > Date.now()
@@ -364,14 +284,10 @@ export default function Fleet() {
             sub={limited ? 'Vendor rate limit — retrying automatically in ~' + waitS + 's.' : 'Retrying automatically — no action needed.'} />
         )
       })()}
-      {/* GPS write failure — provider OK but rows not persisting across
-          consecutive syncs (RLS/policy). A single skip is normal dedup. */}
       {health?.ok && (health?.writeStreak ?? 0) >= 3 && (
         <Callout tone="amber" icon={WifiOff}
           title={`GPS provider is reachable but ${health?.lastWrite?.skipped ?? 0} row${(health?.lastWrite?.skipped ?? 0) !== 1 ? 's' : ''} failed to save — check gps_tracking table permissions (RLS).`} />
       )}
-      {/* Snapshot refresh failing — provider sync may be fine but the
-          page cannot read fresh rows (network/RLS). Streak-gated. */}
       {(health?.refreshFailStreak ?? 0) >= 2 && (
         <Callout tone="amber"
           title={`Live view not refreshing${health?.refreshError ? `: ${health.refreshError}` : ''}. Data below may be stale.`}
@@ -379,8 +295,6 @@ export default function Fleet() {
           onAction={() => window.location.reload()}
         />
       )}
-      {/* Provider mismatch diagnostics (e.g. a vehicle the API returns
-          under an unknown reg/IMEI, or stops returning at all) */}
       {health?.unmatchedRegs?.length > 0 && (
         <Callout tone="amber"
           title={`API returned ${health.providerRows} vehicle${health.providerRows !== 1 ? 's' : ''} · ${health.unmatchedRegs.length} not matched to fleet: ${health.unmatchedRegs.join(', ')}`}
@@ -389,129 +303,76 @@ export default function Fleet() {
       <MissingVehiclesBanner health={health} snapshots={snapshots} settings={settings} />
 
       {subtab === 'map' && (
-        <MapView
-          snapshots={filtered} total={total} counts={counts}
-          selected={selected} setSelected={setSelected}
-          locateTarget={locateTarget} setLocateTarget={setLocateTarget}
-          mapFocus={mapFocus}
-          snapToRoad={snapToRoad} setSnapToRoad={setSnapToRoad}
-          movement={movement} hourly={hourly} todayKm={todayKm} distDelta={distDelta}
+        <>
+          <div className={`grid min-w-0 gap-4 ${mapFocus ? 'grid-cols-1' : 'lg:grid-cols-[minmax(0,1fr)_minmax(320px,32%)]'}`}>
+            <div className="min-w-0">
+              <div className="relative">
+                <FleetMap
+                  snapshots={snapshots}
+                  onSelect={setSelected}
+                  locateTarget={locateTarget}
+                  selectedId={selected?.id}
+                  focusIds={focusIds}
+                  height={mapFocus ? 'calc(100vh - 230px)' : 520}
+                  snapToRoad={snapToRoad}
+                />
+                <div className="absolute right-3 bottom-3 z-[400]">
+                  <button
+                    type="button"
+                    onClick={() => setSnapToRoad(v => !v)}
+                    title="Snap car markers to the nearest road (display only — GPS data unchanged)"
+                    aria-pressed={snapToRoad}
+                    className={`ap-focus flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold shadow-lg transition-colors active:scale-95 ${
+                      snapToRoad
+                        ? 'border-transparent bg-[var(--ap-accent)] text-white'
+                        : 'border-[var(--ap-border)] bg-[var(--ap-surface)] text-slate-700 dark:text-slate-200 hover:bg-[var(--ap-surface-2)]'
+                    }`}
+                  >
+                    <Route size={12} /> Snap to road
+                  </button>
+                </div>
+              </div>
+            </div>
+            {!mapFocus && (
+              <VehicleListPanel
+                snapshots={filtered}
+                search={search}
+                onSearch={setSearch}
+                status={statusSel}
+                onStatus={setStatusSel}
+                selectedId={selected?.id}
+                onSelect={setLocateTarget}
+                onView={setSelected}
+              />
+            )}
+          </div>
+          {!mapFocus && <RecentActivity events={activity} onViewHistory={() => navigate('/gps-history')} />}
+        </>
+      )}
+
+      {subtab !== 'map' && (
+        <div className="space-y-4">
+          <Surface padded={false} className="p-3.5">{filters}</Surface>
+          {subtab === 'list' && <ListView snapshots={filtered} onSelect={setSelected} />}
+          {subtab === 'trips' && <TripsView snapshots={filtered} onSelect={setSelected} />}
+          {subtab === 'geofence' && <GeofenceView />}
+          {subtab === 'alerts' && <AlertsView />}
+          {subtab === 'history' && <HistoryView snapshots={snapshots} />}
+          {subtab === 'analytics' && (
+            <AnalyticsView counts={counts} total={total} todayKm={todayKm} distDelta={distDelta} fleet={fleet} />
+          )}
+        </div>
+      )}
+
+      {selected && (
+        <FleetVehicleDetail
+          snapshot={selected}
+          onClose={() => setSelected(null)}
+          onLocate={setLocateTarget}
+          onHistory={() => navigate('/gps-history')}
         />
       )}
-      {subtab === 'list' && <ListView snapshots={filtered} onSelect={setSelected} />}
-      {subtab === 'trips' && <TripsView snapshots={filtered} counts={counts} total={total} onSelect={setSelected} />}
-      {subtab === 'geofence' && <GeofenceView />}
-      {subtab === 'alerts' && <AlertsView />}
-      {subtab === 'history' && <HistoryView snapshots={snapshots} />}
-      {subtab === 'analytics' && <AnalyticsView snapshots={snapshots} counts={counts} total={total} todayKm={todayKm} fleet={fleet} />}
-
-      {selected && <FleetVehicleDetail snapshot={selected} onClose={() => setSelected(null)} />}
       {loading && <p className="text-center text-xs text-slate-500 dark:text-slate-400">Loading GPS data…</p>}
-    </div>
-  )
-}
-
-// ── Live Map view ─────────────────────────────────────────────
-function MapView({ snapshots, total, counts, selected, setSelected, locateTarget, setLocateTarget, mapFocus, movement, hourly, todayKm, distDelta, snapToRoad, setSnapToRoad }) {
-  return (
-    <div className="space-y-4">
-      <div className={`grid grid-cols-1 gap-4 ${mapFocus ? '' : 'lg:grid-cols-3'}`}>
-        <div className={mapFocus ? '' : 'lg:col-span-2'}>
-          <div className="relative">
-            <FleetMap snapshots={snapshots} onSelect={setSelected} locateTarget={locateTarget} height={mapFocus ? 560 : 460} snapToRoad={snapToRoad} />
-            <div className="absolute right-3 bottom-3 z-[400]">
-              <button
-                type="button"
-                onClick={() => setSnapToRoad(v => !v)}
-                title="Snap car markers to the nearest road (display only — GPS data unchanged)"
-                aria-pressed={snapToRoad}
-                className={`ap-focus flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold shadow-lg transition-colors active:scale-95 ${
-                  snapToRoad
-                    ? 'border-transparent bg-[var(--ap-accent)] text-white'
-                    : 'border-[var(--ap-border)] bg-[var(--ap-surface)] text-slate-700 dark:text-slate-200 hover:bg-[var(--ap-surface-2)]'
-                }`}
-              >
-                <Route size={12} /> Snap to road
-              </button>
-            </div>
-          </div>
-        </div>
-        {!mapFocus && (
-          <Surface padded={false} className="p-4 flex flex-col min-h-0 overflow-hidden">
-            <SectionHeader className="mb-2.5" title={`Vehicles (${snapshots.length})`} />
-            <div className="flex gap-1.5 flex-wrap mb-3">
-              {Object.entries(ST).map(([k, v]) => (
-                <StatusPill key={k} tone={v.tone}>{counts[k] ?? 0} {v.label}</StatusPill>
-              ))}
-            </div>
-            <div className="space-y-2.5">
-              {snapshots.length === 0 && (
-                <EmptyState title="No vehicles match the current filters." />
-              )}
-              {snapshots.map(s => (
-                <VehicleCard key={s.id} s={s} selected={selected?.id === s.id}
-                  onView={setSelected} onLocate={setLocateTarget} />
-              ))}
-            </div>
-          </Surface>
-        )}
-      </div>
-
-      {!mapFocus && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <Surface>
-            <SectionHeader className="mb-2" title="Recent Movement" />
-            {movement.length === 0 ? <EmptyState title="No GPS samples today yet." /> : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b ap-hairline">
-                      {['Time', 'Vehicle', 'Event', 'Location'].map(h => (
-                        <th key={h} className="py-1.5 text-left text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {movement.map((m, i) => (
-                      <tr key={i} className="border-b ap-hairline last:border-0">
-                        <td className="py-2 pr-2 text-[11px] text-slate-500 dark:text-slate-400 tabular-nums whitespace-nowrap">{fmtTime(m.t)}</td>
-                        <td className="py-2 pr-2 text-xs font-mono text-slate-700 dark:text-slate-200 whitespace-nowrap">{m.veh}</td>
-                        <td className="py-2 pr-2 whitespace-nowrap">
-                          <StatusPill tone={m.moving ? 'green' : m.idle ? 'amber' : 'blue'}>{m.moving ? 'Moving' : m.idle ? 'Idle' : 'Stopped'}</StatusPill>
-                        </td>
-                        <td className="py-2 text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[140px]">{m.loc}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Surface>
-          <Surface>
-            <p className="text-sm font-sf font-semibold text-slate-900 dark:text-white mb-1">Today's Distance</p>
-            <p className="text-xl font-sf font-semibold text-slate-900 dark:text-white tabular-nums">{Math.round(todayKm)} km
-              {distDelta != null && <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 tabular-nums">↑ {distDelta}%</span>}
-              <span className="ml-1.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">vs yesterday</span>
-            </p>
-            {hourly.every(b => b.km === 0) ? <EmptyState title="No GPS distance recorded today yet." /> : (
-              <SparkChart data={hourly} valueKey="km" labelKey="x" height={112}
-                format={(v) => `${Number(v || 0).toFixed(1)} km`} />
-            )}
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Distance (km) · from GPS samples</p>
-          </Surface>
-          <Surface>
-            <p className="text-sm font-sf font-semibold text-slate-900 dark:text-white mb-2">Vehicle Status</p>
-            {total === 0 ? <EmptyState title="No vehicles tracked." /> : (
-              <StatusBar total={total} totalLabel="Vehicles" segments={[
-                { label: 'Moving', value: counts.moving, color: '#10b981' },
-                { label: 'Stopped', value: counts.stopped, color: '#3b82f6' },
-                { label: 'Idle', value: counts.idle, color: '#f59e0b' },
-                { label: 'Offline', value: counts.offline, color: '#ef4444' },
-              ]} />
-            )}
-          </Surface>
-        </div>
-      )}
     </div>
   )
 }
@@ -539,17 +400,17 @@ function ListView({ snapshots, onSelect }) {
           </thead>
           <tbody>
             {rows.map((s, i) => {
-              const st = ST[vehStatus(s)]
+              const status = FLEET_STATUSES[vehStatus(s)] || FLEET_STATUSES.offline
               return (
                 <tr key={s.id} className="border-b ap-hairline last:border-0 hover:bg-slate-500/5 dark:hover:bg-white/5 transition-colors">
                   <td className="px-3 py-2.5 text-xs text-slate-500 dark:text-slate-400 tabular-nums">{(safePage - 1) * LIST_PAGE + i + 1}</td>
                   <td className="px-3 py-2.5">
                     <p className="text-xs font-sf font-semibold text-slate-900 dark:text-white whitespace-nowrap">{s.registration || '—'}</p>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-[160px]">{s.address || '—'}</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-[160px]">{s.vehicle_model || s.model || 'Vehicle'}</p>
                   </td>
                   <td className="px-3 py-2.5 text-xs text-slate-700 dark:text-slate-200 whitespace-nowrap">{s.driver_name || '—'}</td>
                   <td className="px-3 py-2.5 text-xs font-semibold text-slate-900 dark:text-white tabular-nums whitespace-nowrap">{Number(s.speed_kmh ?? 0).toFixed(0)} km/h</td>
-                  <td className="px-3 py-2.5"><StatusPill tone={st.tone}>{st.label}</StatusPill></td>
+                  <td className="px-3 py-2.5"><StatusPill tone={status.tone}>{status.label}</StatusPill></td>
                   <td className="px-3 py-2.5 text-xs font-semibold" style={{ color: s.gps_online === true ? '#10b981' : '#94a3b8' }}>{s.gps_online === true ? 'ON' : 'OFF'}</td>
                   <td className="px-3 py-2.5 text-xs font-semibold" style={{ color: s.ignition === true ? '#f59e0b' : '#94a3b8' }}>{s.ignition === true ? 'ON' : 'OFF'}</td>
                   <td className="px-3 py-2.5 text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap tabular-nums">{timeAgo(s.timestamp)}</td>
@@ -577,53 +438,40 @@ function ListView({ snapshots, onSelect }) {
   )
 }
 
-// ── Trip Status view ──────────────────────────────────────────
-function TripsView({ snapshots, counts, total, onSelect }) {
+// ── Status view ───────────────────────────────────────────────
+function TripsView({ snapshots, onSelect }) {
   return (
-    <div className="space-y-4">
-      <Surface>
-        <SectionHeader className="mb-2" title="Fleet Status Split" />
-        {total === 0 ? <EmptyState title="No vehicles tracked." /> : (
-          <StatusBar total={total} totalLabel="Vehicles" segments={[
-            { label: 'Moving', value: counts.moving, color: '#10b981' },
-            { label: 'Stopped', value: counts.stopped, color: '#3b82f6' },
-            { label: 'Idle', value: counts.idle, color: '#f59e0b' },
-            { label: 'Offline', value: counts.offline, color: '#ef4444' },
-          ]} />
-        )}
-      </Surface>
-      <Surface padded={false} className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-slate-500/5 dark:bg-white/5 border-b ap-hairline">
-                {['Vehicle', 'Status', 'Speed', 'Driver', 'Last Update', ''].map(h => (
-                  <th key={h} className={TH}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {snapshots.map(s => {
-                const st = ST[vehStatus(s)]
-                return (
-                  <tr key={s.id} className="border-b ap-hairline last:border-0 hover:bg-slate-500/5 dark:hover:bg-white/5 transition-colors">
-                    <td className="px-3 py-2.5 text-xs font-sf font-semibold text-slate-900 dark:text-white whitespace-nowrap">{s.registration || '—'}</td>
-                    <td className="px-3 py-2.5"><StatusPill tone={st.tone}>{st.label}</StatusPill></td>
-                    <td className="px-3 py-2.5 text-xs text-slate-700 dark:text-slate-200 tabular-nums">{Number(s.speed_kmh ?? 0).toFixed(0)} km/h</td>
-                    <td className="px-3 py-2.5 text-xs text-slate-700 dark:text-slate-200 whitespace-nowrap">{s.driver_name || '—'}</td>
-                    <td className="px-3 py-2.5 text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap tabular-nums">{timeAgo(s.timestamp)}</td>
-                    <td className="px-3 py-2.5 text-right">
-                      <IconButton icon={Eye} label="View details" onClick={() => onSelect?.(s)} />
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-        {snapshots.length === 0 && <EmptyState title="No vehicles match the current filters." />}
-      </Surface>
-    </div>
+    <Surface padded={false} className="overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-slate-500/5 dark:bg-white/5 border-b ap-hairline">
+              {['Vehicle', 'Status', 'Speed', 'Driver', 'Last Update', ''].map(h => (
+                <th key={h} className={TH}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {snapshots.map(s => {
+              const status = FLEET_STATUSES[vehStatus(s)] || FLEET_STATUSES.offline
+              return (
+                <tr key={s.id} className="border-b ap-hairline last:border-0 hover:bg-slate-500/5 dark:hover:bg-white/5 transition-colors">
+                  <td className="px-3 py-2.5 text-xs font-sf font-semibold text-slate-900 dark:text-white whitespace-nowrap">{s.registration || '—'}</td>
+                  <td className="px-3 py-2.5"><StatusPill tone={status.tone}>{status.label}</StatusPill></td>
+                  <td className="px-3 py-2.5 text-xs text-slate-700 dark:text-slate-200 tabular-nums">{Number(s.speed_kmh ?? 0).toFixed(0)} km/h</td>
+                  <td className="px-3 py-2.5 text-xs text-slate-700 dark:text-slate-200 whitespace-nowrap">{s.driver_name || '—'}</td>
+                  <td className="px-3 py-2.5 text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap tabular-nums">{timeAgo(s.timestamp)}</td>
+                  <td className="px-3 py-2.5 text-right">
+                    <IconButton icon={Eye} label="View details" onClick={() => onSelect?.(s)} />
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      {snapshots.length === 0 && <EmptyState title="No vehicles match the current filters." />}
+    </Surface>
   )
 }
 
@@ -791,27 +639,15 @@ function HistoryView({ snapshots }) {
 }
 
 // ── Analytics view ────────────────────────────────────────────
-function AnalyticsView({ snapshots, counts, total, todayKm, fleet }) {
+function AnalyticsView({ counts, total, todayKm, distDelta, fleet }) {
   const pct = (n) => total ? Math.round(n / total * 100) : 0
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <MetricCard label="Fleet Utilisation" value={`${pct(counts.moving + counts.idle)}%`} sub="Moving + idle now" icon={Navigation} tone="blue" />
-        <MetricCard label="Avg Speed" value={`${fleet.avgSpeed ?? 0} km/h`} sub="Moving vehicles" icon={Route} tone="teal" />
-        <MetricCard label="Today's Distance" value={`${Math.round(todayKm)} km`} sub="All vehicles" icon={Car} tone="violet" />
-        <MetricCard label="Offline Share" value={`${pct(counts.offline)}%`} sub="Needs attention" icon={WifiOff} tone="red" />
-      </div>
-      <Surface>
-        <SectionHeader className="mb-2" title="Fleet Status Split" />
-        {total === 0 ? <p className="text-xs text-slate-500 dark:text-slate-400 text-center py-8">No vehicles tracked.</p> : (
-          <StatusBar total={total} totalLabel="Vehicles" segments={[
-            { label: 'Moving', value: counts.moving, color: '#10b981' },
-            { label: 'Stopped', value: counts.stopped, color: '#3b82f6' },
-            { label: 'Idle', value: counts.idle, color: '#f59e0b' },
-            { label: 'Offline', value: counts.offline, color: '#ef4444' },
-          ]} />
-        )}
-      </Surface>
+    <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+      <MetricCard label="Fleet Utilisation" value={`${pct(counts.moving)}%`} sub="Moving right now" icon={Navigation} tone="blue" />
+      <MetricCard label="Avg Speed" value={`${fleet.avgSpeed ?? 0} km/h`} sub="Moving vehicles" icon={Route} tone="teal" />
+      <MetricCard label="Today's Distance" value={`${Math.round(todayKm)} km`}
+        sub={distDelta == null ? 'All vehicles' : `${distDelta > 0 ? '+' : ''}${distDelta}% vs yesterday`} icon={Car} tone="violet" />
+      <MetricCard label="Offline Share" value={`${pct(counts.offline)}%`} sub="Needs attention" icon={WifiOff} tone="gray" />
     </div>
   )
 }

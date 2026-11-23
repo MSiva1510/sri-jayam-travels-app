@@ -1,26 +1,22 @@
 // ─── Car map marker ───────────────────────────────────────────
-// Top-down 3D-styled car for Leaflet, coloured by status and rotated
-// to the vehicle's bearing (0° = north, clockwise).
-//
-//   moving  → green   (speed > 0)
-//   idle    → blue    (stopped, ignition ON)
-//   stopped → red     (stopped, ignition OFF / parked)
-//   offline → grey    (no fix in the last 5 min)
+// Top-down 3D-styled MapLibre marker, coloured by movement state and
+// rotated to the vehicle's bearing (0° = north, clockwise).
+// Ignition is telemetry, not a movement state.
+
+import { FLEET_STALE_MS } from './fleetStatus'
 
 export const CAR_STATUS_COLORS = {
-  moving:  { body: '#22c55e', shade: '#15803d', light: '#86efac', label: 'Moving'  },
-  idle:    { body: '#3b82f6', shade: '#1d4ed8', light: '#93c5fd', label: 'Idle'    },
-  stopped: { body: '#ef4444', shade: '#b91c1c', light: '#fca5a5', label: 'Stopped' },
+  moving:  { body: '#10b981', shade: '#047857', light: '#6ee7b7', label: 'Moving'  },
+  stopped: { body: '#f59e0b', shade: '#b45309', light: '#fcd34d', label: 'Stopped' },
   offline: { body: '#94a3b8', shade: '#475569', light: '#cbd5e1', label: 'Offline' },
 }
 
-/** Derive the marker status from a gps snapshot. */
-export function carStatusOf(s, staleMs = 5 * 60_000) {
-  const ts = s.timestamp ? new Date(s.timestamp).getTime() : 0
+/** Derive the marker movement state from a GPS snapshot. */
+export function carStatusOf(s, staleMs = FLEET_STALE_MS) {
+  const ts = s?.timestamp ? new Date(s.timestamp).getTime() : 0
   if (!ts || Date.now() - ts > staleMs) return 'offline'
-  if (Number(s.speed_kmh ?? 0) > 0) return 'moving'
-  const ign = s.ignition === true || String(s.ignition).toUpperCase() === 'ON'
-  return ign ? 'idle' : 'stopped'
+  if (Number(s?.speed_kmh ?? 0) > 0) return 'moving'
+  return 'stopped'
 }
 
 /** Inline SVG of the car, nose pointing up. 36×72 viewBox. */
