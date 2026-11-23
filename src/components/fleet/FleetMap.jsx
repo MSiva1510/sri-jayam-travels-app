@@ -76,6 +76,8 @@ export default function FleetMap({
   const snapCacheRef = useRef(new Map()) // "lat,lng" @5dp -> { lat, lng } snapped road point
   const latestRef = useRef(new Map())
   const popupRef = useRef(null)
+  const relayoutLabelsRef = useRef(null)
+  const labelRafRef = useRef(0)
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
   const styleSpec = darkMode ? DARK_STYLE : LIGHT_STYLE
@@ -103,7 +105,14 @@ export default function FleetMap({
     })
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left')
     mapRef.current = map
+    const onMove = () => {
+      if (labelRafRef.current) cancelAnimationFrame(labelRafRef.current)
+      labelRafRef.current = requestAnimationFrame(() => relayoutLabelsRef.current?.())
+    }
+    map.on('move', onMove)
     return () => {
+      map.off('move', onMove)
+      if (labelRafRef.current) cancelAnimationFrame(labelRafRef.current)
       markersRef.current.forEach(m => m.marker.remove())
       markersRef.current.clear()
       popupRef.current?.remove()
@@ -211,6 +220,40 @@ export default function FleetMap({
       rec.el.classList.toggle('fleet-ml-marker-selected', selectedId != null && String(id) === String(selectedId))
       rec.el.classList.toggle('fleet-ml-muted', Boolean(focus && !focus.has(id)))
     })
+
+    // Nearby vehicles can project onto the same few pixels. Shift only the
+    // registration pills (never the marker/anchor) so labels stay readable.
+    const relayoutLabels = () => {
+      const items = []
+      markersRef.current.forEach((rec) => {
+        const label = rec.el.querySelector('.fleet-ml-label')
+        if (!label) return
+        label.style.setProperty('--label-shift', '0px')
+        const rect = label.getBoundingClientRect()
+        if (rect.width > 0 && rect.height > 0) items.push({ label, rect })
+      })
+      items.sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left)
+      const placed = []
+      for (const item of items) {
+        let shift = 0
+        for (const candidate of [0, -72, 72, -144, 144, -216, 216]) {
+          const left = item.rect.left + candidate
+          const right = item.rect.right + candidate
+          const collides = placed.some(p =>
+            left < p.right + 2 && right > p.left - 2 &&
+            item.rect.top < p.bottom + 2 && item.rect.bottom > p.top - 2
+          )
+          if (!collides) { shift = candidate; break }
+        }
+        item.label.style.setProperty('--label-shift', `${shift}px`)
+        placed.push({
+          left: item.rect.left + shift, right: item.rect.right + shift,
+          top: item.rect.top, bottom: item.rect.bottom,
+        })
+      }
+    }
+    relayoutLabelsRef.current = relayoutLabels
+    relayoutLabels()
   }, [snapshots, snapToRoad, selectedId, focusIds])
 
   // Ease markers toward live fixes (continuous motion, no overshoot)

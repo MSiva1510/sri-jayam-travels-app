@@ -12,7 +12,7 @@ const ITEMS = [
 export default function FleetStatusStrip({ counts = {}, total = 0, active = 'all', onChange }) {
   return (
     <Surface padded={false} className="overflow-hidden">
-      <div className="flex divide-x divide-[var(--ap-border)] overflow-x-auto no-scrollbar">
+      <div className="grid grid-cols-2 gap-px bg-[var(--ap-border)] sm:flex sm:gap-0 sm:bg-transparent sm:divide-x sm:divide-[var(--ap-border)]">
         {ITEMS.map(({ key, label, icon: Icon, color }) => {
           const value = key === 'all' ? total : (counts[key] ?? 0)
           const selected = active === key
@@ -23,8 +23,10 @@ export default function FleetStatusStrip({ counts = {}, total = 0, active = 'all
               onClick={() => onChange?.(key)}
               aria-pressed={selected}
               aria-label={`Filter vehicles: ${label}`}
-              className={`ap-focus ios-press flex-1 min-w-[132px] sm:min-w-0 px-4 py-3 text-left transition-colors ${
-                selected ? 'bg-[var(--ap-surface-2)]' : 'hover:bg-[var(--ap-surface-2)]'
+              className={`ap-focus ios-press min-w-0 px-4 py-3 text-left transition-colors sm:flex-1 ${
+                selected
+                  ? 'bg-[var(--ap-surface-2)]'
+                  : 'bg-[var(--ap-surface)] hover:bg-[var(--ap-surface-2)]'
               }`}
             >
               <div className="flex items-center gap-2">

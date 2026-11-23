@@ -316,7 +316,7 @@ export default function Fleet() {
                   height={mapFocus ? 'calc(100vh - 230px)' : 520}
                   snapToRoad={snapToRoad}
                 />
-                <div className="absolute right-3 bottom-3 z-[400]">
+                <div className="absolute right-3 bottom-16 z-[400] sm:bottom-3">
                   <button
                     type="button"
                     onClick={() => setSnapToRoad(v => !v)}
