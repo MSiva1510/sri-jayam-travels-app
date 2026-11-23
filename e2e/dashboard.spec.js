@@ -84,7 +84,7 @@ test('dashboard actions navigate to their matching pages', async ({ page }) => {
     await expect(lastNav).toHaveText(expected)
   }
 
-  await expectNav(page.getByRole('button', { name: 'Create Trip' }), '/create-trip')
+  await expectNav(page.getByRole('button', { name: 'Create Trip' }), '/trips#openCreate')
   await expectNav(page.getByRole('button', { name: /^Total Fare:/ }), '/reports')
   await expectNav(page.getByRole('button', { name: /^Net Income:/ }), '/reports')
   await expectNav(page.getByRole('button', { name: /^Kilometres Travelled:/ }), '/vehicles')

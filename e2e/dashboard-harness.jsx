@@ -89,7 +89,8 @@ function Harness() {
 
   const nav = (path, options = {}) => {
     const tripId = options?.state?.tripId
-    setLastNav(tripId ? `${path}#${tripId}` : path)
+    const openCreate = options?.state?.openCreate === true
+    setLastNav(openCreate ? `${path}#openCreate` : tripId ? `${path}#${tripId}` : path)
   }
   const dateLabel = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   const rangeLabel = period === 'year'
@@ -123,7 +124,7 @@ function Harness() {
           period={period}
           onPeriodChange={setPeriod}
           canBook
-          onCreateTrip={() => nav('/create-trip')}
+          onCreateTrip={() => nav('/trips', { state: { openCreate: true } })}
           dateLabel={dateLabel}
           rangeLabel={rangeLabel}
         />

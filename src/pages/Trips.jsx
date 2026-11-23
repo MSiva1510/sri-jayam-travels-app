@@ -539,6 +539,7 @@ export default function Trips() {
   const { user, can, isAdmin, isManager, isDriver } = useAuth()
   const prefill        = location.state?.prefill || null
   const focusedTripId  = location.state?.tripId || null
+  const openCreate     = location.state?.openCreate === true
 
   const canCreate = can('trips') && (isAdmin || isManager)
   const canEdit   = can('trips') && (isAdmin || isManager)
@@ -555,7 +556,7 @@ export default function Trips() {
   const [typeFilter,    setTypeFilter]    = useState('all')
   const [expanded,      setExpanded]      = useState(() => focusedTripId)
   const focusedTripRef  = useRef(null)
-  const [showCreate,    setShowCreate]    = useState(() => !!prefill)
+  const [showCreate,    setShowCreate]    = useState(() => !!prefill || openCreate)
   const [editBooking,   setEditBooking]   = useState(null)
   const [assignBooking, setAssignBooking] = useState(null)
 
@@ -605,6 +606,13 @@ export default function Trips() {
     setPage(Math.floor(index / pageSize) + 1)
     setExpanded(focusedTripId)
   }, [focusedTripId, loading, bookings, filtered, pageSize])
+
+  // Dashboard "Create Trip" opens the new-booking modal via navigation state.
+  // Consume that signal so a later refresh does not reopen the modal.
+  useEffect(() => {
+    if (!openCreate) return
+    navigate(location.pathname + location.search, { replace: true, state: null })
+  }, [openCreate, location.pathname, location.search, navigate])
 
   const pageItems = (() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1)

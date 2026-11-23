@@ -160,7 +160,7 @@ export default function Dashboard() {
         period={period}
         onPeriodChange={setPeriod}
         canBook={can('trips')}
-        onCreateTrip={() => go('/create-trip')}
+        onCreateTrip={() => navigate('/trips', { state: { openCreate: true } })}
         dateLabel={dateLabel}
         rangeLabel={rangeLabel}
       />

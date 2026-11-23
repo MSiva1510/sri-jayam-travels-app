@@ -35,7 +35,7 @@ function profileToUser(authUser, profile) {
   }
 }
 
-const AuthContext = createContext(null)
+export const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const [initialized, setInitialized] = useState(false)
