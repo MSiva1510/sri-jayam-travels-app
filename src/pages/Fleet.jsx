@@ -139,31 +139,41 @@ const SUBTABS = [
   { key: 'analytics', label: 'Analytics', icon: BarChart2 },
 ]
 
-function VehicleCard({ s, selected, onView, onLocate }) {
+export function VehicleCard({ s, selected, onView, onLocate }) {
   const st = ST[vehStatus(s)]
+  // Send a fresh object so FleetMap re-centers even when the same card is clicked again.
+  const locate = () => onLocate?.({ ...s })
   return (
-    <div className={`ap-surface rounded-2xl p-3.5 transition-colors ${selected ? 'ring-2 ring-blue-500/60' : ''}`}>
-      <div className="flex items-start gap-3">
-        <div className="w-11 h-11 rounded-xl bg-slate-500/10 text-slate-600 dark:bg-white/10 dark:text-slate-200 flex items-center justify-center flex-shrink-0">
-          <Car size={20} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="text-sm font-sf font-semibold tracking-wide text-slate-900 dark:text-white truncate">{s.registration || '—'}</p>
-            <StatusPill tone={st.tone}>{st.label}</StatusPill>
+    <div className={`ap-surface relative rounded-2xl p-3.5 transition-colors hover:bg-[var(--ap-surface-2)] ${selected ? 'ring-2 ring-blue-500/60' : ''}`}>
+      <button
+        type="button"
+        aria-label={`Locate ${s.registration || 'vehicle'} on map`}
+        onClick={locate}
+        className="ap-focus absolute inset-0 z-0 rounded-2xl cursor-pointer"
+      />
+      <div className="relative z-10 pointer-events-none">
+        <div className="flex items-start gap-3">
+          <div className="w-11 h-11 rounded-xl bg-slate-500/10 text-slate-600 dark:bg-white/10 dark:text-slate-200 flex items-center justify-center flex-shrink-0">
+            <Car size={20} />
           </div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">{s.vehicle_model || s.model || 'Vehicle'}</p>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-sf font-semibold tracking-wide text-slate-900 dark:text-white truncate">{s.registration || '—'}</p>
+              <StatusPill tone={st.tone}>{st.label}</StatusPill>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">{s.vehicle_model || s.model || 'Vehicle'}</p>
+          </div>
+          <div className="flex items-center gap-1 flex-shrink-0 pointer-events-auto">
+            <IconButton icon={Eye} label="View details" onClick={() => onView?.(s)} />
+            <IconButton icon={LocateFixed} label="Locate on map" onClick={locate} />
+          </div>
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <IconButton icon={Eye} label="View details" onClick={() => onView?.(s)} />
-          <IconButton icon={LocateFixed} label="Locate on map" onClick={() => onLocate?.(s)} />
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2.5 text-[11px] text-slate-500 dark:text-slate-400">
+          <span className="truncate">Driver: {s.driver_name || 'Unassigned'}</span>
+          <span className="tabular-nums truncate">Speed: {Number(s.speed_kmh ?? 0).toFixed(0)} km/h</span>
+          <span className="truncate">📍 {s.address ? s.address.split(',').slice(0, 2).join(',') : '—'}</span>
+          <span className="tabular-nums truncate">🕐 {s.timestamp ? fmtDT(s.timestamp) : '—'}</span>
         </div>
-      </div>
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2.5 text-[11px] text-slate-500 dark:text-slate-400">
-        <span className="truncate">Driver: {s.driver_name || 'Unassigned'}</span>
-        <span className="tabular-nums truncate">Speed: {Number(s.speed_kmh ?? 0).toFixed(0)} km/h</span>
-        <span className="truncate">📍 {s.address ? s.address.split(',').slice(0, 2).join(',') : '—'}</span>
-        <span className="tabular-nums truncate">🕐 {s.timestamp ? fmtDT(s.timestamp) : '—'}</span>
       </div>
     </div>
   )
