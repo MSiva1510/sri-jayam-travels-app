@@ -15,6 +15,28 @@ test('real Fleet page renders the full workspace at desktop and mobile', async (
   }
 })
 
+for (const width of [1280, 1366, 1440]) {
+  test(`fleet workspace tabs fit in one row at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto(URL)
+
+    const tabs = page.getByRole('radiogroup', { name: 'Fleet workspace view' })
+    const buttons = tabs.getByRole('radio')
+    expect(await buttons.count()).toBe(7)
+
+    const metrics = await tabs.evaluate(el => ({
+      width: el.clientWidth,
+      content: el.scrollWidth,
+      centers: [...el.querySelectorAll('[role="radio"]')].map(b => {
+        const r = b.getBoundingClientRect()
+        return r.y + r.height / 2
+      }),
+    }))
+    expect(metrics.content, JSON.stringify(metrics)).toBeLessThanOrEqual(metrics.width + 1)
+    expect(Math.max(...metrics.centers) - Math.min(...metrics.centers)).toBeLessThanOrEqual(1)
+  })
+}
+
 const overlaps = (a, b) => {
   if (!a || !b) return false
   return Math.min(a.x + a.width, b.x + b.width) > Math.max(a.x, b.x)
@@ -42,6 +64,26 @@ for (const width of [360, 390]) {
       expect(box.y).toBeGreaterThanOrEqual(stripBox.y - 1)
       expect(box.y + box.height).toBeLessThanOrEqual(stripBox.y + stripBox.height + 1)
     }
+  })
+}
+
+for (const width of [1280, 1366, 1440]) {
+  test(`vehicle search and status filters stay separated at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto(URL)
+
+    const rects = await page.evaluate(() => {
+      const panel = document.querySelector('[data-testid="vehicle-panel"]')
+      const search = panel.querySelector('input[type="search"]')
+      const filters = panel.querySelector('[role="radiogroup"][aria-label="Filter vehicles by movement status"]')
+      return {
+        search: search.getBoundingClientRect().toJSON(),
+        filters: filters.getBoundingClientRect().toJSON(),
+      }
+    })
+
+    expect(overlaps(rects.search, rects.filters), 'search field overlaps the status filters').toBe(false)
+    expect(rects.filters.y).toBeGreaterThanOrEqual(rects.search.y + rects.search.height)
   })
 }
 

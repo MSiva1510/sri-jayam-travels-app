@@ -306,6 +306,16 @@
     outline: none;
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--sjt-brand) 35%, transparent);
   }
+  /* Dense seven-tab workspace switcher: keep every tab visible in one row. */
+  .ap-seg-compact .ap-seg-btn {
+    min-height: 38px;
+    padding: 0.4rem 0.68rem;
+    font-size: 0.78rem;
+    gap: 0.4rem;
+  }
+  @media (max-width: 1439px) {
+    .ap-seg-compact .ap-seg-btn svg { display: none; }
+  }
   /* Consistent focus ring for interactive ap surfaces */
   .ap-focus:focus-visible {
     outline: none;

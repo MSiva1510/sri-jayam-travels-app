@@ -3,7 +3,7 @@
 import { useRef } from 'react'
 
 export default function SegmentedControl({
-  options = [], value, onChange, ariaLabel, className = '', scroll = false,
+  options = [], value, onChange, ariaLabel, className = '', scroll = false, compact = false,
 }) {
   const ref = useRef(null)
   const optionRefs = useRef({})
@@ -31,7 +31,7 @@ export default function SegmentedControl({
 
   return (
     <div ref={ref} role="radiogroup" aria-label={ariaLabel}
-      className={`ap-seg ${scroll ? 'max-w-full overflow-x-auto no-scrollbar' : ''} ${className}`} onKeyDown={onKeyDown}>
+      className={`ap-seg ${compact ? 'ap-seg-compact' : ''} ${scroll ? 'max-w-full overflow-x-auto no-scrollbar' : ''} ${className}`} onKeyDown={onKeyDown}>
       {options.map(o => {
         const active = value === o.key
         const OptionIcon = o.icon

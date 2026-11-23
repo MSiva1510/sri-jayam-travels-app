@@ -285,6 +285,7 @@ export default function Fleet() {
       <div className="flex items-center gap-2 flex-wrap">
         <SegmentedControl
           scroll
+          compact
           className="min-w-0 flex-1"
           ariaLabel="Fleet workspace view"
           value={subtab}

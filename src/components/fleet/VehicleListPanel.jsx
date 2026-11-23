@@ -14,10 +14,12 @@ const FILTERS = [
 ]
 
 /** Shared search + status controls, used in the list panel and other views. */
-export function FleetFilters({ search = '', onSearch, status = 'all', onStatus, className = '' }) {
+export function FleetFilters({
+  search = '', onSearch, status = 'all', onStatus, className = '', stacked = false,
+}) {
   const active = Boolean(search.trim()) || status !== 'all'
   return (
-    <div className={`flex flex-col gap-2 sm:flex-row sm:items-center ${className}`}>
+    <div className={`flex flex-col gap-2 ${stacked ? '' : 'sm:flex-row sm:items-center'} ${className}`}>
       <div className="relative min-w-0 flex-1">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" aria-hidden="true" />
         <input
@@ -32,7 +34,7 @@ export function FleetFilters({ search = '', onSearch, status = 'all', onStatus, 
       <div className="flex items-center gap-2">
         <SegmentedControl
           scroll
-          className="flex-1 sm:flex-none"
+          className={stacked ? 'w-full' : 'flex-1 sm:flex-none'}
           ariaLabel="Filter vehicles by movement status"
           value={status}
           onChange={onStatus}
@@ -133,7 +135,13 @@ export default function VehicleListPanel({
             {snapshots.length} {snapshots.length === 1 ? 'vehicle' : 'vehicles'} shown
           </p>
         </div>
-        <FleetFilters search={search} onSearch={onSearch} status={status} onStatus={onStatus} />
+        <FleetFilters
+          stacked
+          search={search}
+          onSearch={onSearch}
+          status={status}
+          onStatus={onStatus}
+        />
       </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
         {snapshots.length === 0 ? (
