@@ -51,7 +51,13 @@ export default function Dashboard() {
   const [fleetAlerts, setFleetAlerts] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadErrors, setLoadErrors] = useState([])
-  const [period, setPeriod] = useState('month') // 'month' | 'year'
+  const [period, setPeriod] = useState('month') // 'month' | 'year' | 'custom'
+  const [customRange, setCustomRange] = useState(() => {
+    const n = new Date()
+    const from = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-01`
+    const to = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
+    return { from, to }
+  })
 
   // Each source loads independently — one failing table/query must not blank
   // out the rest. Failures are surfaced, never replaced with sample data.
@@ -128,6 +134,7 @@ export default function Dashboard() {
   const data = buildDashboardData({
     bookings, customers, allExpenses, settlements, todayAttendance,
     drivers, vehicles, period,
+    dateRange: period === 'custom' ? customRange : null,
     gps: {
       snapshots: liveSnapshots,
       settings: gpsSettings,
@@ -144,9 +151,15 @@ export default function Dashboard() {
 
   const dateLabel = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   const attendanceDateLabel = now.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
+  const fmtRangeDate = (s) => {
+    const d = new Date(`${s}T00:00:00`)
+    return Number.isNaN(d.getTime()) ? s : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+  }
   const rangeLabel = period === 'year'
     ? `Year ${now.getFullYear()}`
-    : now.toLocaleString('en-IN', { month: 'long', year: 'numeric' })
+    : period === 'custom'
+      ? `${fmtRangeDate(customRange.from)} – ${fmtRangeDate(customRange.to)}`
+      : now.toLocaleString('en-IN', { month: 'long', year: 'numeric' })
   const go = path => navigate(path)
   const openTrip = tripId => navigate('/trips', { state: { tripId } })
   // /reports is admin-only, so the finance links must not be offered to a role
@@ -159,6 +172,8 @@ export default function Dashboard() {
       <DashboardHeader
         period={period}
         onPeriodChange={setPeriod}
+        customRange={customRange}
+        onCustomRangeChange={setCustomRange}
         canBook={can('trips')}
         onCreateTrip={() => navigate('/trips', { state: { openCreate: true } })}
         dateLabel={dateLabel}

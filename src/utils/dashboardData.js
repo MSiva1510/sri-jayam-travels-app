@@ -137,10 +137,73 @@ export function buildDocumentAlerts({ vehicles = [], drivers = [] } = {}) {
   }
 }
 
+const daysInMonth = (year, monthIndex) => new Date(year, monthIndex + 1, 0).getDate()
+const addDays = (dateStr, days) => {
+  const d = new Date(`${dateStr}T00:00:00`)
+  d.setDate(d.getDate() + days)
+  return toLocalDateStr(d)
+}
+const diffDays = (from, to) => Math.round((new Date(`${to}T00:00:00`) - new Date(`${from}T00:00:00`)) / 86400000)
+const inRange = (dateStr, from, to) => {
+  const d = (dateStr || '').slice(0, 10)
+  return !!d && d >= from && d <= to
+}
+const monthKeysBetween = (from, to) => {
+  const keys = []
+  let d = new Date(`${from.slice(0, 7)}-01T00:00:00`)
+  const end = new Date(`${to.slice(0, 7)}-01T00:00:00`)
+  while (d <= end) {
+    keys.push(toLocalMonthStr(d))
+    d = new Date(d.getFullYear(), d.getMonth() + 1, 1)
+  }
+  return keys
+}
+
+function resolvePeriod(period, now, dateRange) {
+  const year = now.getFullYear()
+  if (period === 'year') {
+    const from = `${year}-01-01`
+    const to = `${year}-12-31`
+    return {
+      from, to, periodKey: String(year),
+      periodTag: 'this year', periodTagCap: 'This Year',
+      prevFrom: `${year - 1}-01-01`, prevTo: `${year - 1}-12-31`,
+      prevPeriodKey: String(year - 1),
+    }
+  }
+  if (period === 'custom' && dateRange?.from && dateRange?.to) {
+    let from = String(dateRange.from).slice(0, 10)
+    let to = String(dateRange.to).slice(0, 10)
+    if (from > to) [from, to] = [to, from]
+    const span = Math.max(0, diffDays(from, to))
+    const prevTo = addDays(from, -1)
+    const prevFrom = addDays(prevTo, -span)
+    return {
+      from, to, periodKey: from.slice(0, 7),
+      periodTag: 'in selected range', periodTagCap: 'Selected range',
+      prevFrom, prevTo, prevPeriodKey: prevFrom.slice(0, 7),
+    }
+  }
+  const monthKey = toLocalMonthStr(now)
+  const lastDay = daysInMonth(year, now.getMonth())
+  const from = `${monthKey}-01`
+  const to = `${monthKey}-${String(lastDay).padStart(2, '0')}`
+  const prev = new Date(year, now.getMonth() - 1, 1)
+  const prevKey = toLocalMonthStr(prev)
+  const prevLast = daysInMonth(prev.getFullYear(), prev.getMonth())
+  return {
+    from, to, periodKey: monthKey,
+    periodTag: 'this month', periodTagCap: 'This Month',
+    prevFrom: `${prevKey}-01`, prevTo: `${prevKey}-${String(prevLast).padStart(2, '0')}`,
+    prevPeriodKey: prevKey,
+  }
+}
+
 // ── One call builds every dashboard value from loaded rows ─────
 export function buildDashboardData({
   bookings = [], customers = [], allExpenses = [], settlements = [],
   todayAttendance = [], drivers = [], vehicles = [], period = 'month',
+  dateRange = null,
   gps = {}, can = () => false, now = new Date(), nowMs = Date.now(),
 } = {}) {
   // Cancelled trips never earned a fare — excluded from money/KM figures and
@@ -148,6 +211,8 @@ export function buildDashboardData({
   const revenueBookings = bookings.filter(booking => booking.status !== 'cancelled')
   const todayStr = toLocalDateStr(now)
   const thisMonthKey = toLocalMonthStr(now)
+  const { from: rangeFrom, to: rangeTo, periodKey, periodTag, periodTagCap, prevFrom, prevTo, prevPeriodKey } = resolvePeriod(period, now, dateRange)
+  const periodYear = String(now.getFullYear())
   const monthBookings = revenueBookings.filter(booking => booking.startDate?.startsWith(thisMonthKey))
   const monthFare = sumAmount(monthBookings, 'fare')
   const monthKm = sumAmount(monthBookings, 'km')
@@ -187,35 +252,24 @@ export function buildDashboardData({
 
   // KPIs, expense chips and the fare chart follow the selected period.
   // Queues (pending approvals, driver assignment) stay all-time on purpose.
-  const periodYear = String(now.getFullYear())
-  const periodKey = period === 'year' ? periodYear : toLocalMonthStr(now)
-  const periodTag = period === 'year' ? 'this year' : 'this month'
-  const periodTagCap = period === 'year' ? 'This Year' : 'This Month'
-  const periodBookings = bookings.filter(booking => booking.startDate?.startsWith(periodKey))
+  const periodBookings = bookings.filter(booking => inRange(booking.startDate, rangeFrom, rangeTo))
   const periodRevenue = periodBookings.filter(booking => booking.status !== 'cancelled')
   const periodFare = sumAmount(periodRevenue, 'fare')
   const periodKm = sumAmount(periodRevenue, 'km')
   const periodDone = periodRevenue.filter(booking => booking.status === 'completed').length
   const periodPending = periodRevenue.filter(booking => ['draft', 'confirmed', 'assigned'].includes(booking.status)).length
   const periodCancelled = periodBookings.filter(booking => booking.status === 'cancelled').length
-  const periodExpenses = allExpenses.filter(expense => {
-    const date = getExpenseDate(expense)
-    return date ? date.startsWith(periodKey) : false
-  })
+  const periodExpenses = allExpenses.filter(expense => inRange(getExpenseDate(expense), rangeFrom, rangeTo))
   const periodExpTotal = sumAmount(periodExpenses, 'amount')
   const periodNet = periodFare - periodExpTotal
-  const periodCustomers = customers.filter(customer => customer.createdAt?.startsWith(periodKey)).length
+  const periodCustomers = customers.filter(customer => inRange(customer.createdAt, rangeFrom, rangeTo)).length
   const expByCategory = summariseByType(periodExpenses).slice(0, 3)
 
-  const prevPeriodKey = (() => {
-    if (period === 'year') return String(Number(periodYear) - 1)
-    return toLocalMonthStr(new Date(now.getFullYear(), now.getMonth() - 1, 1))
-  })()
   const prevRevenue = bookings.filter(booking =>
-    booking.status !== 'cancelled' && booking.startDate?.startsWith(prevPeriodKey))
+    booking.status !== 'cancelled' && inRange(booking.startDate, prevFrom, prevTo))
   const prevPeriodFare = sumAmount(prevRevenue, 'fare')
   const prevPeriodExpTotal = sumAmount(
-    allExpenses.filter(expense => (getExpenseDate(expense) || '').startsWith(prevPeriodKey)),
+    allExpenses.filter(expense => inRange(getExpenseDate(expense), prevFrom, prevTo)),
     'amount',
   )
   const prevPeriodNet = prevPeriodFare - prevPeriodExpTotal
@@ -250,52 +304,69 @@ export function buildDashboardData({
   const doneTrips = bookingCompleted.length
   const pendingTrips = bookingPending.length
 
-  const monthlyFare = (() => {
-    const out = []
-    for (let i = 5; i >= 0; i--) {
-      const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const key = toLocalMonthStr(date)
-      out.push({
-        month: date.toLocaleDateString('en-IN', { month: 'short' }),
-        fare: sumAmount(revenueBookings.filter(booking => booking.startDate?.startsWith(key)), 'fare'),
-      })
-    }
-    return out
-  })()
-  const yearlyFare = (() => {
-    const year = now.getFullYear()
-    const out = []
-    for (let month = 0; month < 12; month++) {
-      const date = new Date(year, month, 1)
-      const key = toLocalMonthStr(date)
-      out.push({
-        month: date.toLocaleDateString('en-IN', { month: 'short' }),
-        fare: sumAmount(revenueBookings.filter(booking => booking.startDate?.startsWith(key)), 'fare'),
-      })
-    }
-    return out
-  })()
-  const trendData = period === 'year' ? yearlyFare : monthlyFare
-  const trendTitle = period === 'year' ? '12-month trend' : '6-month trend'
-
-  const monthlyExp = (() => {
-    const expenseFor = key => sumAmount(
-      allExpenses.filter(expense => (getExpenseDate(expense) || '').startsWith(key)),
-      'amount',
-    )
+  const buildBuckets = () => {
     if (period === 'year') {
       const year = now.getFullYear()
-      return Array.from({ length: 12 }, (_, month) => expenseFor(toLocalMonthStr(new Date(year, month, 1))))
+      return Array.from({ length: 12 }, (_, month) => {
+        const date = new Date(year, month, 1)
+        const key = toLocalMonthStr(date)
+        return { key, month: date.toLocaleDateString('en-IN', { month: 'short' }), granularity: 'month' }
+      })
+    }
+    if (period === 'custom' && rangeFrom && rangeTo) {
+      const span = diffDays(rangeFrom, rangeTo)
+      if (span > 62) {
+        return monthKeysBetween(rangeFrom, rangeTo).map(key => {
+          const date = new Date(`${key}-01T00:00:00`)
+          return { key, month: date.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' }), granularity: 'month' }
+        })
+      }
+      const out = []
+      for (let i = 0; i <= span; i++) {
+        const day = addDays(rangeFrom, i)
+        const d = new Date(`${day}T00:00:00`)
+        out.push({
+          key: day,
+          month: d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+          granularity: 'day',
+        })
+      }
+      return out
     }
     return Array.from({ length: 6 }, (_, index) => {
       const i = 5 - index
-      return expenseFor(toLocalMonthStr(new Date(now.getFullYear(), now.getMonth() - i, 1)))
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const key = toLocalMonthStr(date)
+      return { key, month: date.toLocaleDateString('en-IN', { month: 'short' }), granularity: 'month' }
     })
-  })()
-  const monthlyNet = trendData.map((item, index) => ({
-    month: item.month,
-    net: (Number(item.fare) || 0) - (monthlyExp[index] || 0),
+  }
+
+  const buckets = buildBuckets()
+  const trendData = buckets.map(b => ({
+    month: b.month,
+    fare: sumAmount(
+      revenueBookings.filter(booking => b.granularity === 'day'
+        ? (booking.startDate || '').slice(0, 10) === b.key
+        : (booking.startDate || '').startsWith(b.key)),
+      'fare',
+    ),
   }))
+  const trendTitle = period === 'year'
+    ? '12-month trend'
+    : period === 'custom'
+      ? (buckets[0]?.granularity === 'day' ? 'Daily trend' : 'Monthly trend')
+      : '6-month trend'
+
+  const monthlyNet = buckets.map((b, index) => {
+    const exp = sumAmount(
+      allExpenses.filter(expense => {
+        const d = getExpenseDate(expense) || ''
+        return b.granularity === 'day' ? d.slice(0, 10) === b.key : d.startsWith(b.key)
+      }),
+      'amount',
+    )
+    return { month: b.month, net: (Number(trendData[index]?.fare) || 0) - exp }
+  })
 
   const monthlyTrips = (() => {
     const out = []
@@ -357,7 +428,7 @@ export function buildDashboardData({
 
   return {
     // period + labels
-    period, periodKey, periodTag, periodTagCap, periodYear, prevPeriodKey,
+    period, periodKey, periodTag, periodTagCap, periodYear, prevPeriodKey, rangeFrom, rangeTo,
     // today and booking counters
     todayStr, bookingToday, bookingActive, bookingCompleted, bookingCancelled, bookingPending,
     bookingCounts: {
@@ -393,7 +464,15 @@ export function buildDashboardData({
     monthly: { fare: monthFare, km: monthKm, expenses: monthExpTotal, net: monthNet, done: monthDone, pending: monthPending },
     allTime: { fare: totalFare, km: totalKm, expenses: totalExp, net: totalNet, doneTrips, pendingTrips },
     expense: { entries: periodExpenses.length, pendingApprovals, categories: expByCategory },
-    trend: { data: trendData, title: trendTitle, monthlyExp, monthlyNet, monthlyTrips, tripTotal, margin: periodFare > 0 ? Math.min(100, Math.round((periodNet / periodFare) * 100)) : 0 },
+    trend: {
+      data: trendData,
+      title: trendTitle,
+      monthlyExp: monthlyNet.map((n, i) => (Number(trendData[i]?.fare) || 0) - (Number(n.net) || 0)),
+      monthlyNet,
+      monthlyTrips,
+      tripTotal,
+      margin: periodFare > 0 ? Math.min(100, Math.round((periodNet / periodFare) * 100)) : 0,
+    },
     // payroll + people
     payroll: {
       totalPaid: totalPayrollPaid, pending: settledPending, approved: settledApproved,

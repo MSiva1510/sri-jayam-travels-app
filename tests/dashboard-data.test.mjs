@@ -194,3 +194,35 @@ test('attendance counts are zero only when attendance rows loaded', () => {
   const empty = buildDashboardData({ now, nowMs })
   assert.deepEqual(empty.attendance, { present: 0, leave: 0 })
 })
+
+test('custom range filters KPIs and builds previous-period comparison', () => {
+  const data = buildDashboardData({
+    bookings: [
+      booking({ id: 'b1', startDate: '2026-11-10', fare: 1000, km: 10 }),
+      booking({ id: 'b2', startDate: '2026-11-20', fare: 500, km: 5 }),
+      booking({ id: 'b3', startDate: '2026-10-15', fare: 300, km: 3 }),
+      booking({ id: 'b4', startDate: '2026-10-01', fare: 200, km: 2 }),
+    ],
+    allExpenses: [
+      expense({ id: 'e1', date: '2026-11-12', amount: 100 }),
+      expense({ id: 'e2', date: '2026-10-10', amount: 50 }),
+    ],
+    customers: [
+      { id: 'c1', createdAt: '2026-11-11T10:00:00Z' },
+      { id: 'c2', createdAt: '2026-10-05T10:00:00Z' },
+    ],
+    period: 'custom',
+    dateRange: { from: '2026-11-01', to: '2026-11-30' },
+    now, nowMs,
+  })
+
+  assert.equal(data.period, 'custom')
+  assert.equal(data.rangeFrom, '2026-11-01')
+  assert.equal(data.rangeTo, '2026-11-30')
+  assert.equal(data.periodTagCap, 'Selected range')
+  assert.equal(data.totals.fare, 1500)
+  assert.equal(data.totals.expenses, 100)
+  assert.equal(data.customerCounts.newThisPeriod, 1)
+  assert.equal(data.deltas.fare, 400) // 1500 vs 300 in previous equal-length range
+  assert.ok(data.trend.data.length >= 1)
+})

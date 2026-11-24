@@ -35,7 +35,7 @@ export default function FleetOverview({
           </button>
         }
       />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:gap-4">
         {vehiclesUnavailable ? (
           <DataUnavailable label="Vehicle counts unavailable" description="Fleet availability is hidden until the vehicle registry loads." />
         ) : (
@@ -54,7 +54,7 @@ export default function FleetOverview({
                 Manage →
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               <MiniStat icon={Car} tone="blue" value={vehicleCounts.total} label="Total vehicles" onClick={onVehicles} />
               <MiniStat icon={CheckCircle} tone="green" value={vehicleCounts.available} label="Available" onClick={onVehicles} />
               <MiniStat icon={Route} tone="violet" value={vehicleCounts.onTrip} label="On trip" onClick={onVehicles} />

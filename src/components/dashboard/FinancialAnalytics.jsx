@@ -20,9 +20,15 @@ export default function FinancialAnalytics({
   }
 
   const { totals, trend, expense, periodTagCap, periodTag } = data
+  const fmtRangeDate = (s) => {
+    const d = new Date(`${s}T00:00:00`)
+    return Number.isNaN(d.getTime()) ? s : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+  }
   const chartRange = data.period === 'year'
     ? `Jan–Dec ${data.periodYear}`
-    : 'Last 6 months'
+    : data.period === 'custom' && data.rangeFrom && data.rangeTo
+      ? `${fmtRangeDate(data.rangeFrom)} – ${fmtRangeDate(data.rangeTo)}`
+      : 'Last 6 months'
 
   return (
     <section>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  BarChart2, Bell, Car, ChevronLeft, ChevronRight, Eye, History,
+  BarChart2, Bell, Car, CheckCircle2, ChevronLeft, ChevronRight, Eye, History,
   List, Map as MapIcon, Navigation, Route, ShieldCheck, WifiOff,
 } from 'lucide-react'
 import Surface           from '../components/ui/Surface'
@@ -22,6 +22,7 @@ import {
   FLEET_STALE_MS, FLEET_STATUSES, fmtDT, fmtTime, mergeFleetVehicles,
   normReg, timeAgo, vehStatus,
 } from '../components/fleet/fleetStatus'
+import { useAuth } from '../context/AuthContext'
 import { useGpsHistory }  from '../context/GpsHistoryContext'
 import { gpsSyncService } from '../services/gpsSyncService'
 import { loadVehicles } from '../data/vehicleData'
@@ -569,39 +570,110 @@ function GeofenceView() {
 
 // ── Alerts view ───────────────────────────────────────────────
 function AlertsView() {
+  const { user } = useAuth()
   const [alerts, setAlerts] = useState(null)
-  useEffect(() => {
-    let live = true
-    fleetAlertRepository.getActiveAlerts({ limit: 50 }).then(a => { if (live) setAlerts(Array.isArray(a) ? a : []) }).catch(() => { if (live) setAlerts([]) })
-    return () => { live = false }
+  const [resolved, setResolved] = useState(null)
+  const [resolvingId, setResolvingId] = useState(null)
+
+  const load = useCallback(async (liveRef) => {
+    const [activeRes, resolvedRes] = await Promise.allSettled([
+      fleetAlertRepository.getActiveAlerts({ limit: 50 }),
+      fleetAlertRepository.getAll({ status: ['resolved', 'closed'], limit: 20 }),
+    ])
+    if (liveRef && !liveRef.current) return
+    setAlerts(activeRes.status === 'fulfilled' && Array.isArray(activeRes.value) ? activeRes.value : [])
+    setResolved(resolvedRes.status === 'fulfilled' && Array.isArray(resolvedRes.value) ? resolvedRes.value : [])
   }, [])
+
+  useEffect(() => {
+    const liveRef = { current: true }
+    load(liveRef)
+    return () => { liveRef.current = false }
+  }, [load])
+
+  const handleResolve = async (alert) => {
+    if (!alert?.id || resolvingId) return
+    setResolvingId(alert.id)
+    try {
+      const updated = await fleetAlertRepository.resolve(alert.id, user?.id || user?.uid || 'system', '')
+      setAlerts(prev => (prev || []).filter(a => a.id !== alert.id))
+      setResolved(prev => [updated || { ...alert, status: 'resolved', resolved_at: new Date().toISOString() }, ...(prev || [])])
+    } catch (err) {
+      console.error('[Fleet] resolve alert failed', err)
+    } finally {
+      setResolvingId(null)
+    }
+  }
+
   const toneOf = (p) => p === 'critical' ? 'red' : p === 'high' ? 'amber' : 'blue'
+  const alertLabel = (a) => a.title || a.alert_type || a.type || 'Fleet alert'
+  const alertMeta = (a) => [
+    a.vehicle_registration || a.registration,
+    a.message || a.description,
+    a.created_at ? timeAgo(a.created_at) : null,
+  ].filter(Boolean).join(' · ') || '—'
+
   return (
-    <Surface>
-      <SectionHeader className="mb-2" title={`Active Fleet Alerts (${alerts?.length ?? '…'})`} />
-      {alerts == null ? <EmptyState title="Loading alerts…" /> : alerts.length === 0 ? <EmptyState icon={Bell} title="No active alerts." description="Fleet is clear." /> : (
-        <div className="space-y-2">
-          {alerts.map((a, i) => (
-            <div key={a.id || i} className="flex items-center gap-3 rounded-xl border ap-hairline bg-slate-500/5 dark:bg-white/5 p-3">
-              <span className="text-lg flex-shrink-0" aria-hidden="true">⚠️</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-sf font-semibold text-slate-900 dark:text-white truncate">
-                  {a.title || a.alert_type || a.type || 'Fleet alert'}
-                </p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                  {[a.vehicle_registration || a.registration, a.message || a.description, a.created_at ? timeAgo(a.created_at) : null].filter(Boolean).join(' · ') || '—'}
-                </p>
+    <div className="space-y-4">
+      <Surface>
+        <SectionHeader className="mb-2" title={`Active Fleet Alerts (${alerts?.length ?? '…'})`} />
+        {alerts == null ? <EmptyState title="Loading alerts…" /> : alerts.length === 0 ? (
+          <EmptyState icon={Bell} title="No active alerts." description="Fleet is clear." />
+        ) : (
+          <div className="space-y-2">
+            {alerts.map((a, i) => {
+              const isSos = String(a.alert_type || '').toLowerCase() === 'sos'
+              return (
+                <div key={a.id || i} className="flex items-center gap-3 rounded-xl border ap-hairline bg-slate-500/5 dark:bg-white/5 p-3">
+                  <span className="text-lg flex-shrink-0" aria-hidden="true">{isSos ? '🆘' : '⚠️'}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-sf font-semibold text-slate-900 dark:text-white truncate">{alertLabel(a)}</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{alertMeta(a)}</p>
+                  </div>
+                  {(a.severity || a.priority) && (
+                    <StatusPill tone={toneOf(a.severity || a.priority)} className="capitalize flex-shrink-0">
+                      {a.severity || a.priority}
+                    </StatusPill>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleResolve(a)}
+                    disabled={resolvingId === a.id}
+                    className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-lg border ap-hairline px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    aria-label={`Resolve ${alertLabel(a)}`}
+                  >
+                    <CheckCircle2 size={14} aria-hidden="true" />
+                    {resolvingId === a.id ? 'Resolving…' : 'Resolve'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </Surface>
+
+      <Surface>
+        <SectionHeader className="mb-2" title={`Resolved Alert History (${resolved?.length ?? '…'})`} />
+        {resolved == null ? <EmptyState title="Loading history…" /> : resolved.length === 0 ? (
+          <EmptyState icon={CheckCircle2} title="No resolved alerts yet." description="Resolved alerts will appear here." />
+        ) : (
+          <div className="space-y-2">
+            {resolved.map((a, i) => (
+              <div key={a.id || i} className="flex items-center gap-3 rounded-xl border ap-hairline bg-slate-500/5 dark:bg-white/5 p-3 opacity-80">
+                <span className="text-lg flex-shrink-0" aria-hidden="true">{String(a.alert_type || '').toLowerCase() === 'sos' ? '🆘' : '✓'}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-sf font-semibold text-slate-900 dark:text-white truncate">{alertLabel(a)}</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                    {[a.vehicle_registration || a.registration, a.message || a.description, a.resolved_at ? `Resolved ${timeAgo(a.resolved_at)}` : a.created_at ? timeAgo(a.created_at) : null].filter(Boolean).join(' · ') || '—'}
+                  </p>
+                </div>
+                <StatusPill tone="green" className="flex-shrink-0">Resolved</StatusPill>
               </div>
-              {(a.severity || a.priority) && (
-                <StatusPill tone={toneOf(a.severity || a.priority)} className="capitalize flex-shrink-0">
-                  {a.severity || a.priority}
-                </StatusPill>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </Surface>
+            ))}
+          </div>
+        )}
+      </Surface>
+    </div>
   )
 }
 

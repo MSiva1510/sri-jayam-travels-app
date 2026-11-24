@@ -295,8 +295,7 @@ export class FleetAlertRepository extends BaseRepository {
       if (opts.priority) q = q.eq('priority', opts.priority)
       if (opts.status) {
         if (Array.isArray(opts.status)) {
-          // For multiple status values, we need to use OR or iterate
-          // For simplicity, we'll handle this in post-processing for now
+          q = q.in('status', opts.status)
         } else {
           q = q.eq('status', opts.status)
         }
